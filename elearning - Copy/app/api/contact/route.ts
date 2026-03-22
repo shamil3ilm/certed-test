@@ -16,11 +16,14 @@ export async function POST(request: Request) {
         // Google Apps Script Web App URL
         // Best practice: Store this in an environment variable, e.g., process.env.GOOGLE_SHEET_WEB_APP_URL
         // For now, PLEASE REPLACE THIS CONSTANT with your deployed Web App URL
-        const GOOGLE_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL || 'YOUR_DEPLOYED_WEB_APP_URL_HERE';
+        const GOOGLE_SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL;
 
-        if (GOOGLE_SCRIPT_URL === 'YOUR_DEPLOYED_WEB_APP_URL_HERE') {
-            console.warn('Google Apps Script URL is not configured.');
-            // You might want to return an error here if strict config is needed
+        if (!GOOGLE_SCRIPT_URL) {
+            console.error('Google Apps Script URL is not configured.');
+            return NextResponse.json(
+                { success: false, error: 'Server configuration error.' },
+                { status: 500 }
+            );
         }
 
         const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -53,3 +56,4 @@ export async function POST(request: Request) {
         );
     }
 }
+
