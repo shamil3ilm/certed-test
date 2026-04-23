@@ -102,6 +102,11 @@ export default function Home() {
       quote: "As a parent, I had struggled to find a platform that truly understood my child’s individual needs. Discovering Cert-Ed Academia was honestly a relief for me. The personal mentoring they provide has been a big positive, especially as a concerned parent. The mentors made sure to keep me regularly updated about my child’s progress, which really showed their genuine care and commitment towards the students.",
       author: "Nasitha Abdul Salam",
       role: "Parent of Aysha Shana Class VIII → XII\nCBSE | 2020–2025",
+    },
+    {
+      quote: "Since enrolling my daughter at Cert-Ed Academia, we have seen remarkable progress in her Arabic skills. Her confidence and ability in both reading and writing have improved significantly. The quality of tuition is exceptional, making complex learning engaging and effective. We are truly grateful for their dedication and highly recommend their services.",
+      author: "Rejith Ratnappan",
+      role: "Project Manager, Joseph Group, Dubai"
     }
   ];
 

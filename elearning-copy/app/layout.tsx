@@ -19,10 +19,13 @@ export const metadata: Metadata = {
     "personalised learning",
     "student mentoring"
   ],
+  icons: {
+    icon: "/cert-ed-academia-online-tuition-logo.webp",
+  },
   openGraph: {
     title: "Cert-Ed Academia",
     description: "Personalised online tuition for CBSE & ICSE students",
-    url: "https://yourdomain.com",
+    url: "https://certedacademia.com",
     siteName: "Cert-Ed Academia",
     type: "website",
   },
