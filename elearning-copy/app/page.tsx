@@ -106,7 +106,7 @@ export default function Home() {
     {
       quote: "Since enrolling my daughter at Cert-Ed Academia, we have seen remarkable progress in her Arabic skills. Her confidence and ability in both reading and writing have improved significantly. The quality of tuition is exceptional, making complex learning engaging and effective. We are truly grateful for their dedication and highly recommend their services.",
       author: "Rejith Ratnappan",
-      role: "Project Manager, Joseph Group, Dubai"
+      role: "Project Manager, Joseph Group, Dubai\nParent of Ritu Class III\nWith us since 2025"
     }
   ];
 
