@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     "student mentoring"
   ],
   icons: {
-    icon: "/cert-ed-academia-online-tuition-logo.webp",
+    icon: "/favicon/favicon_full.png",
   },
   openGraph: {
     title: "Cert-Ed Academia",
