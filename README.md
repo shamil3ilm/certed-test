@@ -36,12 +36,18 @@ The website is deployed on Vercel and connected to a custom domain:
 
 ## Future Enhancements
 
-- Add highlights section in About page (events, admissions, updates)
 - Provide worksheets and quizzes for Class 10 & 12
 - Regular blog updates for SEO growth
 
 ## ⚙️ Local Setup
 
+1. Copy `.env.example` to `.env.local` and add your Google Script URL:
+```bash
+cp .env.example .env.local
+```
+
+2. Install dependencies and start the server:
 ```bash
 npm install
 npm run dev
+```
