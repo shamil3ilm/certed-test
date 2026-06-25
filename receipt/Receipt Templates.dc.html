@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+@font-face{font-family:'Dagger Square';src:url('../public/fonts/DAGGERSQUARE.otf') format('opentype');font-weight:400 800;font-style:normal;font-display:swap;}
+@font-face{font-family:'Louis George Cafe';src:url('../public/fonts/louis-george-cafe.regular.ttf') format('truetype');font-weight:400 700;font-style:normal;font-display:swap;}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Louis George Cafe',sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+</style>
+</helmet>
+
+<!-- ============================ OPTION A : REFINED CLASSIC ============================ -->
+<div style="position:absolute;left:0;top:0;width:760px;">
+  <div data-drags-parent="1" style="font:600 13px 'Louis George Cafe';color:#5b6472;margin-bottom:14px;letter-spacing:.2px;">Option A · Refined Classic</div>
+  <div style="position:relative;width:100%;min-height:1075px;background:#fff;border-radius:3px;box-shadow:0 6px 30px rgba(20,28,60,.12);overflow:hidden;display:flex;flex-direction:column;font-family:'Louis George Cafe',sans-serif;color:#1f2937;">
+    <div style="flex:1;display:flex;flex-direction:column;padding:52px 50px 96px;">
+
+      <!-- header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <img src="../public/lockups/logo_h.png" alt="Cert-Ed Academia" style="height:48px;width:auto;" />
+        <div style="display:flex;flex-direction:column;gap:9px;">
+          <div style="display:flex;align-items:center;gap:9px;font-size:13.5px;color:#475467;font-weight:500;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1E2A63" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>{{ email }}</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13.5px;color:#475467;font-weight:500;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#1E2A63"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .7-.2 1l-2.3 2.2Z"></path></svg>{{ phone }}</div>
+        </div>
+      </div>
+      <div style="height:4px;border-radius:2px;margin-top:24px;background:linear-gradient(90deg,#1E2A63 0%,#1E2A63 52%,#4AA7DD 52%,#4AA7DD 100%);"></div>
+
+      <!-- meta -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:30px;">
+        <div style="display:flex;gap:44px;">
+          <div><div style="font-size:10.5px;letter-spacing:1.3px;color:#98a2b3;font-weight:600;">RECEIPT NO.</div><div style="font-size:15px;font-weight:600;color:#1E2A63;margin-top:5px;">{{ number }}</div></div>
+          <div><div style="font-size:10.5px;letter-spacing:1.3px;color:#98a2b3;font-weight:600;">DATE</div><div style="font-size:15px;font-weight:600;color:#1E2A63;margin-top:5px;">{{ date }}</div></div>
+          <div><div style="font-size:10.5px;letter-spacing:1.3px;color:#98a2b3;font-weight:600;">DUE DATE</div><div style="font-size:15px;font-weight:600;color:#1E2A63;margin-top:5px;">{{ dueDate }}</div></div>
+        </div>
+        <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:7px;background:#E4F4EC;color:#1F8A5B;font-size:12px;font-weight:700;letter-spacing:.6px;padding:8px 15px;border-radius:999px;"><span style="width:7px;height:7px;border-radius:50%;background:#1F8A5B;"></span>PAID</span></sc-if>
+        <sc-if value="{{ isDue }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:7px;background:#FCEFD9;color:#B45309;font-size:12px;font-weight:700;letter-spacing:.6px;padding:8px 15px;border-radius:999px;"><span style="width:7px;height:7px;border-radius:50%;background:#B45309;"></span>DUE</span></sc-if>
+      </div>
+
+      <!-- student -->
+      <div style="display:flex;gap:72px;margin-top:30px;">
+        <div>
+          <div style="font-size:11px;letter-spacing:1.2px;color:#98a2b3;font-weight:600;">NAME OF STUDENT</div>
+          <div style="font-size:25px;font-weight:700;color:#1E2A63;margin-top:6px;">{{ studentName }}</div>
+          <div style="width:54px;height:3px;background:#4AA7DD;border-radius:2px;margin-top:8px;"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;letter-spacing:1.2px;color:#98a2b3;font-weight:600;">CLASS</div>
+          <div style="font-size:25px;font-weight:700;color:#1E2A63;margin-top:6px;">{{ studentClass }}</div>
+          <div style="width:54px;height:3px;background:#4AA7DD;border-radius:2px;margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- table -->
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#1E2A63;color:#fff;padding:14px 24px;border-radius:5px;margin-top:32px;">
+        <div style="font-size:15px;font-weight:600;letter-spacing:.3px;">Description</div>
+        <div style="font-size:15px;font-weight:600;letter-spacing:.3px;">Price</div>
+      </div>
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="3">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #EEF0F5;">
+          <div style="font-size:15px;color:#1f2937;"><span style="font-weight:600;color:#1E2A63;">{{ it.desc }}</span><span style="color:#98a2b3;font-size:13px;margin-left:10px;">{{ it.detail }}</span></div>
+          <div style="font-size:15px;font-weight:600;color:#1f2937;">{{ it.priceFmt }}</div>
+        </div>
+      </sc-for>
+
+      <!-- totals -->
+      <div style="margin-top:24px;display:flex;justify-content:flex-end;">
+        <div style="width:300px;">
+          <div style="display:flex;justify-content:space-between;padding:7px 4px;font-size:14px;color:#475467;"><span>Subtotal</span><span style="font-weight:600;color:#1f2937;">{{ subtotalFmt }}</span></div>
+          <sc-if value="{{ showDiscount }}" hint-placeholder-val="{{ true }}"><div style="display:flex;justify-content:space-between;padding:7px 4px;font-size:14px;color:#475467;"><span>Discount</span><span style="font-weight:600;color:#1F8A5B;">{{ discountFmt }}</span></div></sc-if>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:#1E2A63;color:#fff;padding:14px 20px;border-radius:5px;margin-top:10px;"><span style="font-size:15px;font-weight:600;letter-spacing:.3px;">Total</span><span style="font-size:19px;font-weight:700;">{{ totalFmt }}</span></div>
+        </div>
+      </div>
+
+      <!-- bottom -->
+      <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;gap:32px;padding-top:46px;">
+        <div style="max-width:330px;">
+          <div style="font-size:13.5px;font-weight:700;color:#1E2A63;letter-spacing:.3px;">Payment Method</div>
+          <div style="margin-top:8px;font-size:13px;line-height:1.85;color:#475467;">Account No.&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankAccount }}</span><br>IFSC&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankIfsc }}</span><br>Branch&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankBranch }}</span></div>
+          <div style="margin-top:18px;font-size:13.5px;font-weight:700;color:#1E2A63;letter-spacing:.3px;">Terms &amp; Conditions</div>
+          <div style="margin-top:6px;font-size:12px;line-height:1.7;color:#667085;">{{ terms }}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="display:inline-flex;align-items:center;gap:7px;background:#E4F4EC;color:#1F8A5B;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.6"><path d="M20 6 9 17l-5-5"></path></svg>DIGITALLY SIGNED</div>
+          <div style="font-size:17px;font-weight:700;color:#1E2A63;margin-top:14px;">{{ signName }}</div>
+          <div style="font-size:12.5px;color:#98a2b3;letter-spacing:.5px;margin-top:2px;">{{ signTitle }}</div>
+        </div>
+      </div>
+    </div>
+    <!-- footer shapes -->
+    <div style="position:absolute;left:0;right:0;bottom:0;height:54px;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:#1E2A63;"></div>
+      <div style="position:absolute;bottom:0;left:0;width:230px;height:54px;background:#4AA7DD;clip-path:polygon(0 100%,0 0,72% 0,40% 100%);"></div>
+      <div style="position:absolute;bottom:0;left:140px;width:120px;height:54px;background:#3358d4;clip-path:polygon(0 100%,55% 0,100% 0,45% 100%);"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ OPTION B : MODERN MINIMAL ============================ -->
+<div style="position:absolute;left:860px;top:0;width:760px;">
+  <div data-drags-parent="1" style="font:600 13px 'Louis George Cafe';color:#5b6472;margin-bottom:14px;letter-spacing:.2px;">Option B · Modern Minimal</div>
+  <div style="position:relative;width:100%;min-height:1075px;background:#fff;border-radius:3px;box-shadow:0 6px 30px rgba(20,28,60,.10);overflow:hidden;display:flex;flex-direction:column;font-family:'Louis George Cafe',sans-serif;color:#1f2937;border-top:5px solid #1E2A63;">
+    <div style="flex:1;display:flex;flex-direction:column;padding:54px 54px 70px;">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <img src="../public/lockups/logo_h.png" alt="Cert-Ed Academia" style="height:42px;width:auto;margin-top:4px;" />
+        <div style="display:flex;flex-direction:column;gap:9px;align-items:flex-end;">
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px;color:#475467;font-weight:500;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1E2A63" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>{{ email }}</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px;color:#475467;font-weight:500;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#1E2A63"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .7-.2 1l-2.3 2.2Z"></path></svg>{{ phone }}</div>
+        </div>
+      </div>
+
+      <div style="height:1px;background:#ECEEF3;margin:30px 0 28px;"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:11px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">STUDENT</div>
+          <div style="font-size:20px;font-weight:700;color:#1E2A63;margin-top:8px;">{{ studentName }}</div>
+          <div style="font-size:13.5px;color:#667085;margin-top:3px;">Class {{ studentClass }}</div>
+        </div>
+        <div style="text-align:right;display:flex;flex-direction:column;gap:11px;align-items:flex-end;">
+          <div style="display:flex;gap:10px;font-size:13px;"><span style="color:#98a2b3;">Receipt No</span><span style="font-weight:600;color:#1f2937;min-width:84px;">{{ number }}</span></div>
+          <div style="display:flex;gap:10px;font-size:13px;"><span style="color:#98a2b3;">Issued</span><span style="font-weight:600;color:#1f2937;min-width:84px;">{{ date }}</span></div>
+          <div style="display:flex;gap:10px;font-size:13px;"><span style="color:#98a2b3;">Due</span><span style="font-weight:600;color:#1f2937;min-width:84px;">{{ dueDate }}</span></div>
+          <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:7px;background:#E4F4EC;color:#1F8A5B;font-size:11.5px;font-weight:700;letter-spacing:.6px;padding:7px 14px;border-radius:999px;"><span style="width:7px;height:7px;border-radius:50%;background:#1F8A5B;"></span>PAID</span></sc-if>
+          <sc-if value="{{ isDue }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:7px;background:#FCEFD9;color:#B45309;font-size:11.5px;font-weight:700;letter-spacing:.6px;padding:7px 14px;border-radius:999px;"><span style="width:7px;height:7px;border-radius:50%;background:#B45309;"></span>DUE</span></sc-if>
+        </div>
+      </div>
+
+      <!-- table -->
+      <div style="display:flex;justify-content:space-between;padding:0 0 12px;border-bottom:2px solid #1E2A63;margin-top:40px;">
+        <div style="font-size:11px;letter-spacing:1.4px;color:#1E2A63;font-weight:700;">DESCRIPTION</div>
+        <div style="font-size:11px;letter-spacing:1.4px;color:#1E2A63;font-weight:700;">AMOUNT</div>
+      </div>
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="3">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:18px 0;border-bottom:1px solid #F0F1F5;">
+          <div><span style="font-size:15px;font-weight:600;color:#1f2937;">{{ it.desc }}</span><span style="font-size:13px;color:#98a2b3;margin-left:10px;">{{ it.detail }}</span></div>
+          <div style="font-size:15px;font-weight:600;color:#1f2937;">{{ it.priceFmt }}</div>
+        </div>
+      </sc-for>
+
+      <div style="margin-top:26px;display:flex;justify-content:flex-end;">
+        <div style="width:280px;">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#667085;"><span>Subtotal</span><span style="font-weight:600;color:#1f2937;">{{ subtotalFmt }}</span></div>
+          <sc-if value="{{ showDiscount }}" hint-placeholder-val="{{ true }}"><div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#667085;"><span>Discount</span><span style="font-weight:600;color:#1F8A5B;">{{ discountFmt }}</span></div></sc-if>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid #ECEEF3;"><span style="font-size:13px;color:#98a2b3;font-weight:600;letter-spacing:.5px;">TOTAL</span><span style="font-size:26px;font-weight:800;color:#1E2A63;">{{ totalFmt }}</span></div>
+          <div style="height:3px;background:#4AA7DD;border-radius:2px;margin-top:8px;margin-left:auto;width:120px;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;gap:30px;padding-top:48px;">
+        <div style="max-width:300px;">
+          <div style="font-size:11px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">PAYMENT DETAILS</div>
+          <div style="margin-top:9px;font-size:13px;line-height:1.9;color:#475467;">Account&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankAccount }}</span><br>IFSC&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankIfsc }}</span> · {{ bankBranch }}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;color:#98a2b3;font-weight:600;letter-spacing:.5px;">Digitally signed by</div>
+          <div style="font-size:16px;font-weight:700;color:#1E2A63;margin-top:6px;">{{ signName }}</div>
+          <div style="font-size:12.5px;color:#98a2b3;margin-top:1px;">{{ signTitle }}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;font-size:11.5px;line-height:1.7;color:#98a2b3;border-top:1px solid #F0F1F5;padding-top:16px;">{{ terms }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ OPTION C : PREMIUM STATEMENT ============================ -->
+<div style="position:absolute;left:1720px;top:0;width:760px;">
+  <div data-drags-parent="1" style="font:600 13px 'Louis George Cafe';color:#5b6472;margin-bottom:14px;letter-spacing:.2px;">Option C · Premium Statement</div>
+  <div style="position:relative;width:100%;min-height:1075px;background:#fff;border-radius:3px;box-shadow:0 6px 30px rgba(20,28,60,.12);overflow:hidden;display:flex;flex-direction:column;font-family:'Louis George Cafe',sans-serif;color:#1f2937;">
+
+    <!-- top band -->
+    <div style="background:#1E2A63;padding:40px 52px 0;position:relative;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="background:#fff;border-radius:8px;padding:12px 16px;display:inline-block;box-shadow:0 6px 18px rgba(0,0,0,.18);"><img src="../public/lockups/logo_h.png" alt="Cert-Ed Academia" style="height:38px;width:auto;display:block;" /></div>
+        </div>
+        <div style="text-align:right;color:#fff;">
+          <div style="font-family:'Dagger Square',sans-serif;font-size:34px;font-weight:600;line-height:1;">Fee Receipt</div>
+          <div style="font-size:13px;color:#aeb8e0;font-weight:500;margin-top:9px;letter-spacing:.4px;">{{ number }}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:36px;margin-top:30px;padding-bottom:26px;color:#cfd6f0;">
+        <div><div style="font-size:10px;letter-spacing:1.3px;color:#8e9ad0;font-weight:600;">ISSUED</div><div style="font-size:14px;font-weight:600;color:#fff;margin-top:4px;">{{ date }}</div></div>
+        <div><div style="font-size:10px;letter-spacing:1.3px;color:#8e9ad0;font-weight:600;">DUE</div><div style="font-size:14px;font-weight:600;color:#fff;margin-top:4px;">{{ dueDate }}</div></div>
+        <div style="margin-left:auto;align-self:flex-end;">
+          <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);color:#7BE3B0;font-size:11.5px;font-weight:700;letter-spacing:.6px;padding:7px 14px;border-radius:999px;border:1px solid rgba(123,227,176,.4);"><span style="width:7px;height:7px;border-radius:50%;background:#7BE3B0;"></span>PAID</span></sc-if>
+          <sc-if value="{{ isDue }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);color:#F4C77B;font-size:11.5px;font-weight:700;letter-spacing:.6px;padding:7px 14px;border-radius:999px;border:1px solid rgba(244,199,123,.4);"><span style="width:7px;height:7px;border-radius:50%;background:#F4C77B;"></span>DUE</span></sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;display:flex;flex-direction:column;padding:34px 52px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">STUDENT</div>
+          <div style="font-family:'Dagger Square',sans-serif;font-size:27px;font-weight:600;color:#1E2A63;margin-top:5px;">{{ studentName }}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10.5px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">CLASS</div>
+          <div style="font-family:'Dagger Square',sans-serif;font-size:27px;font-weight:600;color:#1E2A63;margin-top:5px;">{{ studentClass }}</div>
+        </div>
+      </div>
+
+      <!-- table -->
+      <div style="display:flex;justify-content:space-between;padding:13px 16px;background:#F4F6FA;border-radius:6px;margin-top:30px;">
+        <div style="font-size:10.5px;letter-spacing:1.3px;color:#5a6478;font-weight:700;">DESCRIPTION</div>
+        <div style="font-size:10.5px;letter-spacing:1.3px;color:#5a6478;font-weight:700;">PRICE</div>
+      </div>
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="3">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid #EFF1F6;">
+          <div style="display:flex;align-items:center;gap:16px;"><span style="font-family:'Dagger Square',sans-serif;font-size:14px;color:#b6bdce;font-weight:500;">{{ it.no }}</span><span><span style="font-size:15px;font-weight:600;color:#1E2A63;">{{ it.desc }}</span><span style="font-size:13px;color:#98a2b3;margin-left:10px;">{{ it.detail }}</span></span></div>
+          <div style="font-size:15px;font-weight:600;color:#1f2937;">{{ it.priceFmt }}</div>
+        </div>
+      </sc-for>
+
+      <!-- totals + hero -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:30px;gap:30px;">
+        <div style="width:230px;">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#667085;"><span>Subtotal</span><span style="font-weight:600;color:#1f2937;">{{ subtotalFmt }}</span></div>
+          <sc-if value="{{ showDiscount }}" hint-placeholder-val="{{ true }}"><div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#667085;"><span>Discount</span><span style="font-weight:600;color:#1F8A5B;">{{ discountFmt }}</span></div></sc-if>
+        </div>
+        <div style="text-align:right;border-top:2px solid #1E2A63;padding-top:14px;min-width:200px;">
+          <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ true }}"><div style="font-size:10.5px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">TOTAL PAID</div></sc-if>
+          <sc-if value="{{ isDue }}" hint-placeholder-val="{{ false }}"><div style="font-size:10.5px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">TOTAL DUE</div></sc-if>
+          <div style="font-family:'Dagger Square',sans-serif;font-size:40px;font-weight:600;color:#1E2A63;line-height:1;margin-top:6px;">{{ totalFmt }}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;gap:30px;padding-top:44px;padding-bottom:30px;">
+        <div style="max-width:320px;">
+          <div style="font-size:10.5px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">PAYMENT METHOD</div>
+          <div style="margin-top:9px;font-size:13px;line-height:1.9;color:#475467;">Account&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankAccount }}</span><br>IFSC&nbsp;&nbsp;<span style="color:#1f2937;font-weight:600;">{{ bankIfsc }}</span> · {{ bankBranch }}</div>
+          <div style="margin-top:14px;font-size:11px;line-height:1.65;color:#a2abba;max-width:280px;">{{ terms }}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="display:inline-flex;align-items:center;gap:7px;color:#1F8A5B;font-size:11px;font-weight:700;letter-spacing:.4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.6"><path d="M20 6 9 17l-5-5"></path></svg>DIGITALLY SIGNED</div>
+          <div style="font-family:'Dagger Square',sans-serif;font-size:19px;font-weight:600;color:#1E2A63;margin-top:10px;">{{ signName }}</div>
+          <div style="font-size:12.5px;color:#98a2b3;margin-top:2px;">{{ signTitle }}</div>
+        </div>
+      </div>
+    </div>
+    <div style="height:8px;background:linear-gradient(90deg,#1E2A63,#4AA7DD);"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;status&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Paid&quot;,&quot;Due&quot;],&quot;default&quot;:&quot;Paid&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showDiscount&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const fmt = (n) => '₹' + Number(n).toLocaleString('en-IN');
+    const status = this.props.status ?? 'Paid';
+    const showDiscount = this.props.showDiscount ?? true;
+
+    const data = {
+      org: { email: 'info@certedacademia.com', phone: '+91 7025 237 833' },
+      number: 'CEA-2026-0147',
+      date: '02 Jun 2026',
+      dueDate: '07 Jun 2026',
+      student: { name: 'Aadhya', cls: '5' },
+      items: [
+        { desc: 'Maths', detail: '7.5 hours', price: 1500 },
+        { desc: 'Science', detail: '6 hours', price: 1200 },
+        { desc: 'English', detail: '4 hours', price: 800 },
+      ],
+      subtotal: 3500,
+      discount: 200,
+      total: 3300,
+      bank: { account: '0488053000009258', ifsc: 'SIBL0000488', branch: 'Koorkanchery' },
+      signatory: { name: 'Mohamed Shahzad', title: 'CEO' },
+      terms: 'Please send payment within 5 days of receiving this invoice. A 10% fine per month applies to late payments.',
+    };
+
+    const items = data.items.map((it, i) => ({
+      ...it,
+      no: String(i + 1).padStart(2, '0'),
+      priceFmt: fmt(it.price),
+    }));
+
+    const total = showDiscount ? data.total : data.subtotal;
+
+    return {
+      email: data.org.email,
+      phone: data.org.phone,
+      number: data.number,
+      date: data.date,
+      dueDate: data.dueDate,
+      isPaid: status === 'Paid',
+      isDue: status !== 'Paid',
+      studentName: data.student.name,
+      studentClass: data.student.cls,
+      items,
+      subtotalFmt: fmt(data.subtotal),
+      discountFmt: '– ' + fmt(data.discount),
+      totalFmt: fmt(total),
+      showDiscount,
+      bankAccount: data.bank.account,
+      bankIfsc: data.bank.ifsc,
+      bankBranch: data.bank.branch,
+      signName: data.signatory.name,
+      signTitle: data.signatory.title,
+      terms: data.terms,
+    };
+  }
+}
+</script>
+</body>
+</html>
