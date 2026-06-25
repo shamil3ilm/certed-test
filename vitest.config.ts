@@ -10,5 +10,11 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
   },
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      // The real `server-only` throws when imported outside RSC; stub it in tests.
+      'server-only': path.resolve(__dirname, './tests/stubs/server-only.ts'),
+    },
+  },
 })
