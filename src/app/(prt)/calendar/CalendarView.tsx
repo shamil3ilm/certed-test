@@ -36,6 +36,7 @@ export function CalendarView({
   )
   const [error, setError] = useState<string | null>(null)
   const [modalDate, setModalDate] = useState<string | null>(null)
+  const [eventInfo, setEventInfo] = useState<EventDetail | null>(null)
   const calRef = useRef<FullCalendar | null>(null)
 
   const fetchEvents = useCallback(
@@ -81,8 +82,21 @@ export function CalendarView({
           height="auto"
           events={fetchEvents}
           dateClick={canManage ? (info) => setModalDate(info.dateStr) : undefined}
+          eventClick={(info) => {
+            const e = info.event
+            setEventInfo({
+              title: e.title,
+              start: e.start ? e.start.toISOString() : null,
+              end: e.end ? e.end.toISOString() : null,
+              allDay: e.allDay,
+              source: String(e.extendedProps.source ?? ''),
+              kind: String(e.extendedProps.kind ?? ''),
+            })
+          }}
         />
       </div>
+
+      {eventInfo && <EventDetailModal info={eventInfo} onClose={() => setEventInfo(null)} />}
 
       {modalDate && (
         <ScheduleModal
@@ -221,6 +235,45 @@ function ScheduleModal({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+type EventDetail = { title: string; start: string | null; end: string | null; allDay: boolean; source: string; kind: string }
+
+function EventDetailModal({ info, onClose }: { info: EventDetail; onClose: () => void }) {
+  const typeLabel = info.source === 'slot' ? 'Class' : info.source === 'assignment' ? 'Deadline' : info.kind || 'Event'
+  const dateOpts: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }
+  const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
+  const start = info.start ? new Date(info.start) : null
+  const end = info.end ? new Date(info.end) : null
+  const when = !start
+    ? '—'
+    : info.allDay
+      ? start.toLocaleDateString(undefined, dateOpts)
+      : `${start.toLocaleDateString(undefined, dateOpts)}, ${start.toLocaleTimeString(undefined, timeOpts)}${end ? ` – ${end.toLocaleTimeString(undefined, timeOpts)}` : ''}`
+
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORS[info.source] ?? '#94a3b8' }} />
+            <h2 className="truncate text-base font-semibold text-slate-900">{info.title}</h2>
+          </div>
+          <button onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
+        </div>
+        <dl className="mt-3 space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <dt className="text-slate-400">Type</dt>
+            <dd className="capitalize text-slate-700">{typeLabel}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="shrink-0 text-slate-400">When</dt>
+            <dd className="text-right text-slate-700">{when}</dd>
+          </div>
+        </dl>
       </div>
     </div>
   )

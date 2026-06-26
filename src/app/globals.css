@@ -203,6 +203,11 @@ html {
   box-shadow: none;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
+/* Active view button (Month/Week) sits on the brand bg — keep its text white. */
+.prt-scope .fc .fc-button-primary:not(:disabled).fc-button-active,
+.prt-scope .fc .fc-button-primary:not(:disabled):active {
+  color: #fff;
+}
 .prt-scope .fc .fc-button:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
 }

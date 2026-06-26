@@ -143,8 +143,10 @@ function SlotForm({ courses, teachers, busy, onSubmit }: {
         })
       }}>
       <CourseSelect courses={courses} value={courseId} onChange={setCourseId} />
-      <input className="rounded border p-2" placeholder="Subject" value={subject} required
-        onChange={(e) => setSubject(e.target.value)} />
+      <label className="text-sm">Subject
+        <input className="mt-1 w-full rounded border p-2" placeholder="e.g. Algebra" value={subject} required
+          onChange={(e) => setSubject(e.target.value)} />
+      </label>
       <TeacherSelect teachers={teachers} value={teacherId} onChange={setTeacherId} />
       <label className="text-sm">Day
         <select className="mt-1 w-full rounded border p-2" value={day} onChange={(e) => setDay(Number(e.target.value))}>
@@ -157,7 +159,9 @@ function SlotForm({ courses, teachers, busy, onSubmit }: {
       <label className="text-sm">End (institute time)
         <input type="time" className="mt-1 w-full rounded border p-2" value={end} required onChange={(e) => setEnd(e.target.value)} />
       </label>
-      <input className="rounded border p-2" placeholder="Room / mode" value={room} onChange={(e) => setRoom(e.target.value)} />
+      <label className="text-sm">Room / mode
+        <input className="mt-1 w-full rounded border p-2" placeholder="Room 1 / Online" value={room} onChange={(e) => setRoom(e.target.value)} />
+      </label>
       <button type="submit" disabled={busy || !courseId}
         className="btn btn-primary w-full sm:col-span-2">
         {busy ? 'Saving…' : 'Add weekly slot'}

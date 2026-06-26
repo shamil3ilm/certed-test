@@ -16,10 +16,16 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="prt-scope min-h-screen bg-slate-50 text-slate-900">
+    <div className="prt-scope flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <PortalProviders>
         <PortalHeader />
-        {children}
+        <div className="flex-1">{children}</div>
+        <footer className="mt-8 border-t border-slate-200 py-6 text-center text-xs leading-relaxed text-slate-400">
+          <p className="font-semibold text-slate-500">Cert-Ed Academia</p>
+          <p className="mt-1">Come, let&apos;s learn together!</p>
+          <p className="mt-2">v1.0.0</p>
+          <p className="mt-0.5">© 2026 Cert-Ed Academia. All rights reserved.</p>
+        </footer>
       </PortalProviders>
     </div>
   );
