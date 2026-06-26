@@ -23,12 +23,12 @@ export default async function Dashboard() {
         ? [
             { label: 'Announcements', href: '/announcements' },
             { label: 'Resources', href: '/resources' },
-            { label: 'Assignments' },
+            { label: 'Assignments', href: '/assignments' },
           ]
         : [
             { label: 'Announcements', href: '/announcements' },
             { label: 'Resources', href: '/resources' },
-            { label: 'Assignments' },
+            { label: 'Assignments', href: '/assignments' },
             { label: 'Receipts' },
           ]
 
