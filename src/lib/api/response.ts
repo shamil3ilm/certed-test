@@ -9,6 +9,11 @@ export function ok<T>(data: T) {
   return NextResponse.json({ success: true, data } satisfies ApiResponse<T>)
 }
 
+/** Success envelope with HTTP 201 Created. */
+export function created<T>(data: T) {
+  return NextResponse.json({ success: true, data } satisfies ApiResponse<T>, { status: 201 })
+}
+
 /** Error envelope: `{ success: false, error }` with an HTTP status (default 400). */
 export function fail(error: string, status = 400) {
   return NextResponse.json(

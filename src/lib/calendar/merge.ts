@@ -1,0 +1,96 @@
+import type { SlotOccurrence } from '@/lib/time/expandSlots'
+import type { CalendarEventKind } from '@/lib/repos/calendarEvents'
+
+// A wall-clock "YYYY-MM-DD" + "HH:mm" in `anchorTz` → absolute UTC instant.
+// Reuses the same DST-correct primitive as expandSlots, kept local to avoid a circular import.
+function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): string {
+  const [y, mo, d] = dateYmd.split('-').map(Number)
+  const [h, mi] = hm.split(':').map(Number)
+  const naiveUtc = Date.UTC(y, mo - 1, d, h, mi, 0)
+  const offset = (instantMs: number): number => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: anchorTz, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(instantMs))
+    const g = (t: string) => Number(parts.find((p) => p.type === t)!.value)
+    return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - instantMs
+  }
+  let guess = naiveUtc - offset(naiveUtc)
+  guess = naiveUtc - offset(guess)
+  return new Date(guess).toISOString()
+}
+
+export type CalendarSource = 'slot' | 'event' | 'assignment'
+
+export type CalendarItem = {
+  id: string                 // source-prefixed, stable
+  source: CalendarSource
+  title: string
+  start: string              // absolute UTC ISO, OR "YYYY-MM-DD" when allDay
+  end: string | null
+  allDay: boolean
+  courseId: string | null
+  kind: CalendarEventKind | 'timetable' | 'deadline'
+  location?: string | null
+}
+
+export type MergeInput = {
+  slotOccurrences: SlotOccurrence[]
+  slotMeta: Record<string, { subject: string; courseId: string; location: string | null }>
+  events: Array<{
+    id: string; title: string; event_date: string
+    start_time: string | null; end_time: string | null
+    course_id: string | null; kind: CalendarEventKind
+  }>
+  assignments: Array<{ id: string; title: string; due_date: string; course_id: string }>
+  anchorTz: string
+}
+
+export function mergeCalendar(input: MergeInput): CalendarItem[] {
+  const items: CalendarItem[] = []
+
+  for (const occ of input.slotOccurrences) {
+    const meta = input.slotMeta[occ.slotId]
+    items.push({
+      id: `slot-${occ.slotId}-${occ.startIso}`,
+      source: 'slot',
+      title: meta ? `${meta.subject}${meta.location ? ` · ${meta.location}` : ''}` : 'Class',
+      start: occ.startIso,
+      end: occ.endIso,
+      allDay: false,
+      courseId: meta?.courseId ?? null,
+      kind: 'timetable',
+      location: meta?.location ?? null,
+    })
+  }
+
+  for (const ev of input.events) {
+    const timed = ev.start_time != null
+    items.push({
+      id: `event-${ev.id}`,
+      source: 'event',
+      title: ev.title,
+      start: timed ? zonedDateTimeToIso(ev.event_date, ev.start_time!, input.anchorTz) : ev.event_date,
+      end: timed && ev.end_time ? zonedDateTimeToIso(ev.event_date, ev.end_time, input.anchorTz) : null,
+      allDay: !timed,
+      courseId: ev.course_id,
+      kind: ev.kind,
+    })
+  }
+
+  for (const a of input.assignments) {
+    items.push({
+      id: `assignment-${a.id}`,
+      source: 'assignment',
+      title: `Due: ${a.title}`,
+      start: a.due_date,   // already an absolute instant (Phase 3 stores UTC)
+      end: null,
+      allDay: false,
+      courseId: a.course_id,
+      kind: 'deadline',
+    })
+  }
+
+  return items
+}
