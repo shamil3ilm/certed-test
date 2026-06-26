@@ -15,17 +15,19 @@ export default async function Dashboard() {
       ? [
           { label: 'Users', href: '/admin/users' },
           { label: 'Courses', href: '/admin/courses' },
+          { label: 'Resources', href: '/resources' },
           { label: 'Announcements', href: '/announcements' },
           { label: 'Finance' },
         ]
       : profile.role === 'teacher'
         ? [
             { label: 'Announcements', href: '/announcements' },
-            { label: 'Resources' },
+            { label: 'Resources', href: '/resources' },
             { label: 'Assignments' },
           ]
         : [
             { label: 'Announcements', href: '/announcements' },
+            { label: 'Resources', href: '/resources' },
             { label: 'Assignments' },
             { label: 'Receipts' },
           ]
