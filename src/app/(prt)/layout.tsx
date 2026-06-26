@@ -20,11 +20,17 @@ export default function AppLayout({
       <PortalProviders>
         <PortalHeader />
         <div className="flex-1">{children}</div>
-        <footer className="mt-8 border-t border-slate-200 py-6 text-center text-xs leading-relaxed text-slate-400">
-          <p className="font-semibold text-slate-500">Cert-Ed Academia</p>
-          <p className="mt-1">Come, let&apos;s learn together!</p>
-          <p className="mt-2">v1.0.0</p>
-          <p className="mt-0.5">© 2026 Cert-Ed Academia. All rights reserved.</p>
+        <footer className="mt-8 border-t border-slate-200">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs leading-relaxed text-slate-400 sm:flex-row">
+            <div className="text-center sm:text-left">
+              <p className="font-semibold text-slate-500">Cert-Ed Academia</p>
+              <p className="mt-0.5">© 2026 Cert-Ed Academia · v1.0.0</p>
+            </div>
+            <div className="text-center sm:text-right">
+              <p>Come, let&apos;s learn together!</p>
+              <p className="mt-0.5">hello@certedacademia.com · +91 98765 43210</p>
+            </div>
+          </div>
         </footer>
       </PortalProviders>
     </div>
