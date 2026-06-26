@@ -13,6 +13,23 @@ export async function listProfiles(): Promise<Profile[]> {
   return (data ?? []) as Profile[]
 }
 
+/**
+ * Resolves display names for the given profile ids via the service-role client.
+ * Used where RLS would otherwise hide other users' rows (e.g. a teacher viewing
+ * the names of students who submitted to their assignment).
+ */
+export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map()
+  const admin = createAdminClient()
+  const { data } = await admin.from('profiles').select('id, full_name, email').in('id', ids)
+  return new Map(
+    ((data ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => [
+      p.id,
+      p.full_name ?? p.email,
+    ]),
+  )
+}
+
 /** Allowlist a user by email (idempotent). Uses the service-role client. */
 export async function addUser(input: AddUserInput): Promise<Profile> {
   const admin = createAdminClient()
