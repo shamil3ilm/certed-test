@@ -14,6 +14,12 @@ export async function listCourses(): Promise<Course[]> {
   return (data ?? []) as Course[]
 }
 
+export async function getCourse(id: string): Promise<Course | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('courses').select('*').eq('id', id).maybeSingle()
+  return (data as Course) ?? null
+}
+
 export async function createCourse(name: string): Promise<Course> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('courses').insert({ name }).select('*').single()
