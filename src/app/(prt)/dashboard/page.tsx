@@ -17,6 +17,7 @@ export default async function Dashboard() {
           { label: 'Courses', href: '/admin/courses' },
           { label: 'Resources', href: '/resources' },
           { label: 'Announcements', href: '/announcements' },
+          { label: 'Calendar', href: '/calendar' },
           { label: 'Finance', href: '/admin/finance' },
         ]
       : profile.role === 'teacher'
@@ -24,12 +25,14 @@ export default async function Dashboard() {
             { label: 'Announcements', href: '/announcements' },
             { label: 'Resources', href: '/resources' },
             { label: 'Assignments', href: '/assignments' },
+            { label: 'Calendar', href: '/calendar' },
             { label: 'Pay slips', href: '/payslips' },
           ]
         : [
             { label: 'Announcements', href: '/announcements' },
             { label: 'Resources', href: '/resources' },
             { label: 'Assignments', href: '/assignments' },
+            { label: 'Calendar', href: '/calendar' },
             { label: 'Receipts', href: '/receipts' },
           ]
 
