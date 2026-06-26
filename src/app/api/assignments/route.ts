@@ -2,6 +2,7 @@ import { ok, fail, authFail } from '@/lib/api/response'
 import { requireRoleApi } from '@/lib/auth/requireRole'
 import { createAssignmentSchema } from '@/lib/validation/assignment'
 import { createAssignment } from '@/lib/repos/assignments'
+import { writeAudit } from '@/lib/repos/audit'
 
 export async function POST(req: Request) {
   let me
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
       due_date: new Date(parsed.data.due_date).toISOString(),
       created_by: me.id,
     })
+    await writeAudit({ actor_id: me.id, action: 'assignment.create', entity_type: 'assignment', entity_id: a.id })
     return ok({ id: a.id })
   } catch {
     return fail('not allowed to create for this course', 403)

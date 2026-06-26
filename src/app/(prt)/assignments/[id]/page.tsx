@@ -13,13 +13,14 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
   const names = await getProfileNamesByIds(submissions.map((s) => s.student_id))
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
+    <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <h1 className="text-2xl font-semibold">{assignment.title}</h1>
       <p className="mt-1 text-sm text-slate-500">
         Due {new Date(assignment.due_date).toLocaleString()} · {submissions.length} submission(s)
       </p>
 
-      <table className="mt-6 w-full border-collapse text-sm">
+      <div className="mt-6 overflow-x-auto">
+      <table className="data-table">
         <thead>
           <tr className="text-left text-slate-500">
             <th className="p-2">Student</th>
@@ -39,7 +40,7 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
               <td className="py-1 text-right">
                 <a
                   href={`/api/submissions/${s.id}/download`}
-                  className="text-blue-700 hover:underline"
+                  className="btn btn-sm btn-soft"
                 >
                   Download
                 </a>
@@ -53,6 +54,7 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
           )}
         </tbody>
       </table>
+      </div>
     </main>
   )
 }

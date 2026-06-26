@@ -32,3 +32,9 @@ export async function setCourseStatus(id: string, status: 'active' | 'archived')
   const { error } = await supabase.from('courses').update({ status }).eq('id', id)
   if (error) throw new Error(`courses.setStatus: ${error.message}`)
 }
+
+export async function renameCourse(id: string, name: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('courses').update({ name }).eq('id', id)
+  if (error) throw new Error(`courses.rename: ${error.message}`)
+}

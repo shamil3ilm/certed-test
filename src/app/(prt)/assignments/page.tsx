@@ -5,6 +5,7 @@ import { listCourses } from '@/lib/repos/courses'
 import { listMyActiveSubmissions } from '@/lib/repos/submissions'
 import { AssignmentForm } from './AssignmentForm'
 import { SubmitForm } from './SubmitForm'
+import { PageHeader } from '../ui'
 
 export default async function AssignmentsPage() {
   const me = await requireRole(['admin', 'teacher', 'student'])
@@ -15,8 +16,8 @@ export default async function AssignmentsPage() {
   const subByAssignment = new Map(mySubs.map((s) => [s.assignment_id, s]))
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
-      <h1 className="text-2xl font-semibold">Assignments</h1>
+    <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
+      <PageHeader title="Assignments" />
 
       {canManage && <AssignmentForm courses={courses.filter((c) => c.status === 'active')} />}
 
@@ -24,7 +25,7 @@ export default async function AssignmentsPage() {
         {assignments.map((a) => {
           const sub = subByAssignment.get(a.id)
           return (
-            <li key={a.id} className="rounded-xl border bg-white p-4">
+            <li key={a.id} className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-medium">{a.title}</h3>
@@ -36,7 +37,7 @@ export default async function AssignmentsPage() {
                   </p>
                 </div>
                 {canManage && (
-                  <Link href={`/assignments/${a.id}`} className="text-sm text-blue-700 hover:underline">
+                  <Link href={`/assignments/${a.id}`} className="btn btn-sm btn-soft">
                     View submissions
                   </Link>
                 )}

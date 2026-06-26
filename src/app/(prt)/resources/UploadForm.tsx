@@ -22,7 +22,7 @@ export function UploadForm({ courses }: { courses: Course[] }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 space-y-2 rounded-xl border bg-white p-4">
+    <form onSubmit={onSubmit} className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-white p-4">
       <h2 className="font-medium">Upload a resource</h2>
       <select
         value={courseId}
@@ -50,7 +50,7 @@ export function UploadForm({ courses }: { courses: Course[] }) {
       />
       <button
         disabled={status === 'uploading'}
-        className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+        className="btn btn-primary"
       >
         {status === 'uploading' ? 'Uploading…' : 'Upload'}
       </button>

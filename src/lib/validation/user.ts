@@ -10,3 +10,10 @@ export const addUserSchema = z.object({
   class_level: z.string().max(20).optional(),
 })
 export type AddUserInput = z.infer<typeof addUserSchema>
+
+export const editUserSchema = z.object({
+  full_name: z.string().max(120).nullable().optional(),
+  role: roleSchema.optional(),
+  class_level: z.string().max(20).nullable().optional(),
+})
+export type EditUserInput = z.infer<typeof editUserSchema>

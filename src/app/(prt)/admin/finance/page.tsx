@@ -5,6 +5,7 @@ import { listAllPayslips } from '@/lib/repos/payslips'
 import { formatMoney } from '@/lib/money'
 import { IssueForm } from './IssueForm'
 import { VoidButton } from './VoidButton'
+import { PageHeader } from '../../ui'
 
 type Row = { id: string; number: string; name: string; total: number; currency: string; voided: boolean }
 
@@ -13,9 +14,10 @@ function DocTable({ title, rows, kind }: { title: string; rows: Row[]; kind: 're
     <div className="mt-5">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-slate-500">{title}</h3>
-        <a href={`/api/${kind}/export`} className="text-xs text-blue-700 hover:underline">Export CSV</a>
+        <a href={`/api/${kind}/export`} className="btn btn-sm btn-soft">Export CSV</a>
       </div>
-      <table className="mt-2 w-full border-collapse text-sm">
+      <div className="mt-2 overflow-x-auto">
+      <table className="data-table">
         <thead>
           <tr className="text-left text-slate-400">
             <th className="p-2">Number</th>
@@ -33,7 +35,7 @@ function DocTable({ title, rows, kind }: { title: string; rows: Row[]; kind: 're
               <td>{r.name}</td>
               <td>{formatMoney(r.total, r.currency)}</td>
               <td className="space-x-3 py-1 text-right">
-                <a href={`/api/${kind}/${r.id}/pdf`} className="text-blue-700 hover:underline">PDF</a>
+                <a href={`/api/${kind}/${r.id}/pdf`} className="btn btn-sm btn-soft">PDF</a>
                 {!r.voided && <VoidButton endpoint={`/api/${kind}/${r.id}/void`} />}
               </td>
             </tr>
@@ -45,6 +47,7 @@ function DocTable({ title, rows, kind }: { title: string; rows: Row[]; kind: 're
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
@@ -64,9 +67,9 @@ export default async function FinancePage() {
     .map((p) => ({ id: p.id, name: p.full_name ?? p.email }))
 
   return (
-    <main className="mx-auto max-w-4xl space-y-10 p-8">
+    <main className="mx-auto max-w-4xl space-y-10 p-4 sm:p-6 lg:p-8">
       <section>
-        <h1 className="text-2xl font-semibold">Finance</h1>
+        <PageHeader title="Finance" />
         <h2 className="mt-4 font-medium">Issue fee receipt</h2>
         <div className="mt-2">
           <IssueForm partyLabel="Student" parties={students} partyKey="student_id" endpoint="/api/receipts" />

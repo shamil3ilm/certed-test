@@ -3,6 +3,7 @@ import { getProfile } from '@/lib/auth/profile'
 import { teachesCourse } from '@/lib/auth/courseScope'
 import { createSlotSchema } from '@/lib/validation/timetableSlot'
 import { createSlot, listSlots } from '@/lib/repos/timetableSlots'
+import { writeAudit } from '@/lib/repos/audit'
 
 export async function GET(request: Request) {
   const profile = await getProfile()
@@ -28,5 +29,6 @@ export async function POST(request: Request) {
   }
 
   const slot = await createSlot(parsed.data)
+  await writeAudit({ actor_id: profile.id, action: 'timetable.create', entity_type: 'timetable_slot', entity_id: slot.id })
   return created(slot)
 }

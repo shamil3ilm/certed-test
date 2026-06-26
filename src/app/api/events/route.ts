@@ -3,6 +3,7 @@ import { getProfile } from '@/lib/auth/profile'
 import { teachesCourse } from '@/lib/auth/courseScope'
 import { createEventSchema } from '@/lib/validation/calendarEvent'
 import { createEvent, listEvents } from '@/lib/repos/calendarEvents'
+import { writeAudit } from '@/lib/repos/audit'
 
 export async function GET(request: Request) {
   const profile = await getProfile()
@@ -31,5 +32,6 @@ export async function POST(request: Request) {
   }
 
   const event = await createEvent(parsed.data, profile.id)
+  await writeAudit({ actor_id: profile.id, action: 'event.create', entity_type: 'calendar_event', entity_id: event.id })
   return created(event)
 }

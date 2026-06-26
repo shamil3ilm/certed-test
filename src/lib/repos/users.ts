@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth/profile'
-import type { AddUserInput } from '@/lib/validation/user'
+import type { AddUserInput, EditUserInput } from '@/lib/validation/user'
 
 export async function listProfiles(): Promise<Profile[]> {
   const supabase = await createClient()
@@ -77,4 +77,27 @@ export async function setUserStatus(
     .single()
   if (error) throw new Error(`users.setStatus: ${error.message}`)
   return data as Profile
+}
+
+/** Edit a user's display name, role, and/or class level. Uses the service-role client. */
+export async function updateUser(profileId: string, patch: EditUserInput): Promise<Profile> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profiles')
+    .update(patch)
+    .eq('id', profileId)
+    .select('*')
+    .single()
+  if (error) throw new Error(`users.update: ${error.message}`)
+  return data as Profile
+}
+
+/** Self-service: the signed-in user edits their own name / class. RLS scopes the write. */
+export async function updateOwnProfile(
+  profileId: string,
+  patch: { full_name?: string | null; class_level?: string | null },
+): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('profiles').update(patch).eq('id', profileId)
+  if (error) throw new Error(`users.updateOwn: ${error.message}`)
 }

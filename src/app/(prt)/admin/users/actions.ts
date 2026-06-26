@@ -1,8 +1,9 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { addUserSchema } from '@/lib/validation/user'
-import { addUser, setUserStatus } from '@/lib/repos/users'
+import { addUserSchema, editUserSchema } from '@/lib/validation/user'
+import { addUser, setUserStatus, updateUser } from '@/lib/repos/users'
+import { assignMentor } from '@/lib/repos/mentorships'
 import { writeAudit } from '@/lib/repos/audit'
 
 export async function addUserAction(formData: FormData) {
@@ -16,6 +17,13 @@ export async function addUserAction(formData: FormData) {
   if (!parsed.success) return
   const profile = await addUser(parsed.data)
   await writeAudit({ actor_id: me.id, action: 'user.add', entity_type: 'profile', entity_id: profile.id })
+
+  // Optionally assign a mentor (teacher) when adding a student.
+  const mentorId = String(formData.get('mentor_id') ?? '')
+  if (parsed.data.role === 'student' && mentorId) {
+    await assignMentor(mentorId, profile.id)
+    await writeAudit({ actor_id: me.id, action: 'mentorship.assign', entity_type: 'mentorship', entity_id: profile.id })
+  }
   revalidatePath('/admin/users')
 }
 
@@ -34,5 +42,19 @@ export async function restoreUserAction(formData: FormData) {
   if (!id) return
   await setUserStatus(id, 'active')
   await writeAudit({ actor_id: me.id, action: 'user.restore', entity_type: 'profile', entity_id: id })
+  revalidatePath('/admin/users')
+}
+
+export async function editUserAction(formData: FormData) {
+  const me = await requireRole(['admin'])
+  const id = String(formData.get('id') ?? '')
+  const parsed = editUserSchema.safeParse({
+    full_name: (formData.get('full_name') as string) || null,
+    role: String(formData.get('role') ?? ''),
+    class_level: (formData.get('class_level') as string) || null,
+  })
+  if (!id || !parsed.success) return
+  await updateUser(id, parsed.data)
+  await writeAudit({ actor_id: me.id, action: 'user.edit', entity_type: 'profile', entity_id: id })
   revalidatePath('/admin/users')
 }

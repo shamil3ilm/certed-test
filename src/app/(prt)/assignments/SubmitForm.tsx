@@ -49,7 +49,7 @@ export function SubmitForm({ assignmentId }: { assignmentId: string }) {
         required
         className="text-sm"
       />
-      <button disabled={busy} className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-50">
+      <button disabled={busy} className="btn btn-primary">
         {busy ? 'Submitting…' : 'Submit'}
       </button>
       {error && <span className="text-sm text-red-600">{error}</span>}

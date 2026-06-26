@@ -70,7 +70,7 @@ export function IssueForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3 rounded-xl border bg-white p-4">
+    <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap gap-3">
         <label className="text-sm">
           {partyLabel}
@@ -105,7 +105,7 @@ export function IssueForm({
             )}
           </div>
         ))}
-        <button type="button" onClick={() => setLines((ls) => [...ls, { subject: '', hours: '', rate: '' }])} className="text-sm text-blue-700">
+        <button type="button" onClick={() => setLines((ls) => [...ls, { subject: '', hours: '', rate: '' }])} className="text-sm text-primary">
           + Add line
         </button>
       </div>
@@ -119,7 +119,7 @@ export function IssueForm({
         <span className="text-base font-semibold">Total {safeMoney(total, currency)}</span>
       </div>
 
-      <button disabled={busy} className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50">
+      <button disabled={busy} className="btn btn-primary">
         {busy ? 'Issuing…' : 'Issue'}
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
