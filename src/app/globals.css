@@ -179,3 +179,51 @@ html {
 .prt-scope .btn-warning:hover:not(:disabled) {
   background: #fef3c7;
 }
+
+/* FullCalendar — themed to the brand so its controls match the rest of the app. */
+.prt-scope .fc {
+  --fc-border-color: #e2e8f0;
+  --fc-neutral-bg-color: #f8fafc;
+  --fc-today-bg-color: color-mix(in srgb, var(--secondary) 12%, #fff);
+  --fc-button-bg-color: #fff;
+  --fc-button-border-color: #e2e8f0;
+  --fc-button-text-color: #334155;
+  --fc-button-hover-bg-color: #f8fafc;
+  --fc-button-hover-border-color: #cbd5e1;
+  --fc-button-active-bg-color: var(--primary);
+  --fc-button-active-border-color: var(--primary);
+  font-size: 0.85rem;
+}
+.prt-scope .fc .fc-button {
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: none;
+  box-shadow: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.prt-scope .fc .fc-button:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.prt-scope .fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+.prt-scope .fc .fc-col-header-cell-cushion {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.5rem 0;
+}
+.prt-scope .fc .fc-daygrid-day-number {
+  color: #475569;
+  font-size: 0.78rem;
+}
+.prt-scope .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  font-weight: 700;
+  color: var(--primary);
+}

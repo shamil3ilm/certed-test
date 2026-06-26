@@ -79,7 +79,7 @@ export function TimetableManager({ courses, teachers, isAdmin }: Props) {
       <div className="mb-3 flex gap-2">
         {(['slot', 'event'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`rounded px-3 py-1 text-sm ${tab === t ? 'bg-primary text-white' : 'border'}`}>
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${tab === t ? 'bg-primary text-white shadow-sm' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
             {t === 'slot' ? 'Weekly slots' : 'Events'}
           </button>
         ))}
