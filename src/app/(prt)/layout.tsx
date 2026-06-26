@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PortalHeader } from "./PortalHeader";
+import { PortalProviders } from "./Providers";
 
 export const metadata: Metadata = {
   title: "Cert-Ed Academia — App",
@@ -14,6 +16,11 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">{children}</div>
+    <div className="prt-scope min-h-screen bg-slate-50 text-slate-900">
+      <PortalProviders>
+        <PortalHeader />
+        {children}
+      </PortalProviders>
+    </div>
   );
 }
