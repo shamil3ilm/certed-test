@@ -34,8 +34,8 @@ export default async function Dashboard() {
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-      <div className="rounded-2xl bg-gradient-to-br from-primary to-secondary p-6 text-white shadow-sm">
-        <h1 className="text-2xl font-semibold">Welcome, {me.full_name ?? me.email}</h1>
+      <div className="rounded-2xl bg-gradient-to-br from-primary to-secondary p-5 text-white shadow-sm sm:p-6 lg:p-8">
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl lg:text-3xl">Welcome, {me.full_name ?? me.email}</h1>
         <p className="mt-1 text-sm capitalize text-white/80">{me.role} · Cert-Ed Academia portal</p>
       </div>
 

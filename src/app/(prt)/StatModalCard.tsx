@@ -36,7 +36,7 @@ export function StatModalCard({
         }`}
       >
         <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+        <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-slate-400">{sub ?? ' '}</span>
           <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">

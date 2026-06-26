@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/requireRole'
 import { getAssignment } from '@/lib/repos/assignments'
 import { listSubmissionsForAssignment } from '@/lib/repos/submissions'
 import { getProfileNamesByIds } from '@/lib/repos/users'
+import { PageHeader } from '../../ui'
 
 export default async function AssignmentDetail({ params }: { params: { id: string } }) {
   await requireRole(['admin', 'teacher'])
@@ -14,10 +15,10 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <h1 className="text-2xl font-semibold">{assignment.title}</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Due {new Date(assignment.due_date).toLocaleString()} · {submissions.length} submission(s)
-      </p>
+      <PageHeader
+        title={assignment.title}
+        description={`Due ${new Date(assignment.due_date).toLocaleString()} · ${submissions.length} submission(s)`}
+      />
 
       <div className="mt-6 overflow-x-auto">
       <table className="data-table">

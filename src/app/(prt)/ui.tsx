@@ -11,10 +11,13 @@ export function PageHeader({
   action?: ReactNode
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
+      <div className="min-w-0">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
+          <span className="h-5 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-secondary sm:h-6 lg:h-7" aria-hidden />
+          <span className="truncate">{title}</span>
+        </h1>
+        {description && <p className="mt-1 text-sm text-slate-500 sm:text-[0.95rem]">{description}</p>}
       </div>
       {action}
     </div>
@@ -58,7 +61,7 @@ export function StatCard({
       }`}
     >
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+      <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
     </div>
   )
