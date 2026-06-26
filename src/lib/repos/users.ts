@@ -30,6 +30,13 @@ export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, s
   )
 }
 
+/** Loads a single profile by id via the service-role client (for issuance snapshots). */
+export async function getProfileById(id: string): Promise<Profile | null> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('profiles').select('*').eq('id', id).maybeSingle()
+  return (data as Profile) ?? null
+}
+
 /** Allowlist a user by email (idempotent). Uses the service-role client. */
 export async function addUser(input: AddUserInput): Promise<Profile> {
   const admin = createAdminClient()
