@@ -16,3 +16,10 @@ export function fail(error: string, status = 400) {
     { status },
   )
 }
+
+/** Maps a coded auth error from `requireRoleApi` to a 401/403 JSON response. */
+export function authFail(error: unknown) {
+  const msg = error instanceof Error ? error.message : 'error'
+  const status = msg === 'forbidden' || msg === 'revoked' ? 403 : 401
+  return fail(msg, status)
+}
