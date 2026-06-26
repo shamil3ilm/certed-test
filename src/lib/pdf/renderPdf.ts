@@ -1,4 +1,5 @@
 import 'server-only'
+import { isMock } from '@/lib/mock/env'
 
 /**
  * Renders an HTML string to a PDF buffer with headless Chromium.
@@ -7,6 +8,27 @@ import 'server-only'
  * @sparticuz/chromium; needs a compatible Chromium binary to execute.
  */
 export async function htmlToPdf(html: string): Promise<Buffer> {
+  if (isMock()) {
+    // Render the REAL template with a locally-installed Chrome/Edge if present;
+    // otherwise fall back to a minimal placeholder PDF.
+    const { findLocalBrowser } = await import('@/lib/mock/localChrome')
+    const executablePath = findLocalBrowser()
+    if (executablePath) {
+      const puppeteer = (await import('puppeteer-core')).default
+      const browser = await puppeteer.launch({ executablePath, headless: true, args: ['--no-sandbox'] })
+      try {
+        const page = await browser.newPage()
+        await page.setContent(html, { waitUntil: 'load' })
+        const pdf = await page.pdf({ format: 'A4', printBackground: true })
+        return Buffer.from(pdf)
+      } finally {
+        await browser.close()
+      }
+    }
+    const { placeholderPdf } = await import('@/lib/mock/storage')
+    const title = /<title>(.*?)<\/title>/i.exec(html)?.[1] ?? 'Cert-Ed Academia document'
+    return placeholderPdf(`${title} (mock render — no local Chrome found)`)
+  }
   const chromium = (await import('@sparticuz/chromium')).default
   const puppeteer = (await import('puppeteer-core')).default
 

@@ -1,5 +1,8 @@
 import 'server-only'
+import { randomUUID } from 'node:crypto'
 import { getDriveAccessToken, getDriveClient } from './auth'
+import { isMock } from '@/lib/mock/env'
+import { readMockFile, deleteMockFile } from '@/lib/mock/storage'
 
 const RESUMABLE_ENDPOINT =
   'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id'
@@ -15,6 +18,11 @@ export async function initResumableSession(opts: {
   parentId: string
   size?: number
 }): Promise<string> {
+  if (isMock()) {
+    // Browser PUTs straight to the local mock sink; the file id is fixed up-front.
+    const params = new URLSearchParams({ fileId: randomUUID(), name: opts.name, mime: opts.mimeType })
+    return `/api/dev/drive-put?${params.toString()}`
+  }
   const token = await getDriveAccessToken()
   const res = await fetch(RESUMABLE_ENDPOINT, {
     method: 'POST',
@@ -36,6 +44,12 @@ export async function initResumableSession(opts: {
 export async function readFileMeta(
   fileId: string,
 ): Promise<{ size: number; mimeType: string; name: string }> {
+  if (isMock()) {
+    const found = readMockFile(fileId)
+    return found
+      ? { size: found.meta.size, mimeType: found.meta.mimeType, name: found.meta.name }
+      : { size: 1024, mimeType: 'application/pdf', name: 'mock' }
+  }
   const drive = await getDriveClient()
   const { data } = await drive.files.get({ fileId, fields: 'id,name,size,mimeType' })
   return {
@@ -46,6 +60,7 @@ export async function readFileMeta(
 }
 
 export async function trashFile(fileId: string): Promise<void> {
+  if (isMock()) { deleteMockFile(fileId); return }
   const drive = await getDriveClient()
   await drive.files.update({ fileId, requestBody: { trashed: true } })
 }

@@ -17,6 +17,13 @@ build/
 .DS_Store
 *.pem
 
+# mock mode (local dev only)
+.env.local
+.mock-db.json
+.mock-storage/
+.ck-*
+scratch-*
+
 # env files (can be committed if public, but usually ignored)
 .env*.local
 

@@ -2,6 +2,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDriveClient } from './auth'
 import { ensureFolderPath } from './folders'
+import { isMock } from '@/lib/mock/env'
 
 const ROOT_NAME = 'Cert-Ed Academia'
 
@@ -15,6 +16,7 @@ async function resolveCachedFolder(
   kind: string,
   segments: string[],
 ): Promise<string> {
+  if (isMock()) return `mock-folder-${kind}`
   const admin = createAdminClient()
   const { data: cached } = await admin
     .from('drive_folders')
