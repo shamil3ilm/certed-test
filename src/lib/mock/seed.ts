@@ -1,6 +1,6 @@
 /**
  * Seed data for MOCK MODE. Plain rows keyed by table name, matching the columns
- * defined in migrations 0001–0006. IDs for courses/profiles are valid v4 UUIDs
+ * defined in migrations 0001–0008. IDs for courses/profiles are valid v4 UUIDs
  * so they pass the Zod schemas if you copy them into a management form.
  */
 export type MockDb = Record<string, Record<string, unknown>[]>
@@ -109,6 +109,16 @@ export function buildSeed(): MockDb {
       { id: 'ce000000-0000-4000-8000-000000000002', title: 'Maths doubt-clearing session', description: 'Extra session before the test.', event_date: '2026-06-28', start_time: '14:00', end_time: '15:00', course_id: IDS.math, kind: 'event', slot_id: null, created_by: IDS.teacher, created_at: NOW },
     ],
     drive_folders: [],
+    submission_comments: [
+      {
+        id: 'cm000000-0000-4000-8000-000000000001',
+        submission_id: 'su000000-0000-4000-8000-000000000001',
+        author_id: IDS.teacher,
+        content: 'Great start! Please add more working steps to question 3.',
+        created_at: NOW,
+      },
+    ],
+    reminders: [],
     audit_log: [
       { id: 'au000000-0000-4000-8000-000000000001', actor_id: IDS.admin, action: 'course.create', entity_type: 'course', entity_id: IDS.math, created_at: '2026-06-15T09:00:00.000Z' },
       { id: 'au000000-0000-4000-8000-000000000002', actor_id: IDS.admin, action: 'user.add', entity_type: 'profile', entity_id: IDS.teacher, created_at: '2026-06-15T09:05:00.000Z' },

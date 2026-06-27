@@ -9,8 +9,10 @@ import { listMyActiveSubmissions } from '@/lib/repos/submissions'
 import { listEvents, type CalendarEvent } from '@/lib/repos/calendarEvents'
 import { listAllReceipts, listMyReceipts } from '@/lib/repos/receipts'
 import { listAllPayslips, listMyPayslips } from '@/lib/repos/payslips'
+import { listMyReminders, type Reminder } from '@/lib/repos/reminders'
 import { Panel, MiniBars, Donut } from '../ui'
 import { StatModalCard } from '../StatModalCard'
+import { ReminderPanel } from './ReminderPanel'
 
 const sum = (rows: { total: number; voided: boolean }[]) =>
   rows.filter((r) => !r.voided).reduce((s, r) => s + Number(r.total), 0)
@@ -30,7 +32,10 @@ const moneyByCurrency = (
 export default async function Dashboard() {
   const me = await requireRole(['admin', 'teacher', 'student'])
   const today = new Date().toISOString().slice(0, 10)
-  const upcoming = (await listEvents({ from: today })).slice(0, 6)
+  const [upcoming, reminders] = await Promise.all([
+    listEvents({ from: today }).then((e) => e.slice(0, 6)),
+    listMyReminders(me.id),
+  ])
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
@@ -39,14 +44,14 @@ export default async function Dashboard() {
         <p className="mt-1 text-sm capitalize text-white/80">{me.role} · Cert-Ed Academia portal</p>
       </div>
 
-      {me.role === 'admin' && <AdminDashboard upcoming={upcoming} />}
-      {me.role === 'teacher' && <TeacherDashboard meId={me.id} upcoming={upcoming} />}
-      {me.role === 'student' && <StudentDashboard meId={me.id} upcoming={upcoming} />}
+      {me.role === 'admin' && <AdminDashboard upcoming={upcoming} reminders={reminders} meId={me.id} />}
+      {me.role === 'teacher' && <TeacherDashboard meId={me.id} upcoming={upcoming} reminders={reminders} />}
+      {me.role === 'student' && <StudentDashboard meId={me.id} upcoming={upcoming} reminders={reminders} />}
     </main>
   )
 }
 
-async function AdminDashboard({ upcoming }: { upcoming: CalendarEvent[] }) {
+async function AdminDashboard({ upcoming, reminders, meId }: { upcoming: CalendarEvent[]; reminders: Reminder[]; meId: string }) {
   const [profiles, courses, enrollments, receipts, payslips] = await Promise.all([
     listProfiles(),
     listCourses(),
@@ -92,15 +97,16 @@ async function AdminDashboard({ upcoming }: { upcoming: CalendarEvent[] }) {
           empty="None yet."
         />
       </section>
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Students per course"><MiniBars data={perCourse} /></Panel>
         <Panel title="Upcoming"><Upcoming events={upcoming} /></Panel>
+        <ReminderPanel initialReminders={reminders} />
       </section>
     </>
   )
 }
 
-async function TeacherDashboard({ meId, upcoming }: { meId: string; upcoming: CalendarEvent[] }) {
+async function TeacherDashboard({ meId, upcoming, reminders }: { meId: string; upcoming: CalendarEvent[]; reminders: Reminder[] }) {
   const [cts, courses, assignments, payslips] = await Promise.all([
     listCourseTeachers(),
     listCourses(),
@@ -129,15 +135,16 @@ async function TeacherDashboard({ meId, upcoming }: { meId: string; upcoming: Ca
         <StatModalCard label="Total paid" value={moneyByCurrency(payslips)} tone="primary" title="Pay slips"
           items={payslips.filter((p) => !p.voided).map((p) => ({ primary: p.number, secondary: formatMoney(Number(p.total), p.currency) }))} empty="No pay slips." />
       </section>
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Assignments per course"><MiniBars data={perCourse} /></Panel>
         <Panel title="Upcoming"><Upcoming events={upcoming} /></Panel>
+        <ReminderPanel initialReminders={reminders} />
       </section>
     </>
   )
 }
 
-async function StudentDashboard({ meId, upcoming }: { meId: string; upcoming: CalendarEvent[] }) {
+async function StudentDashboard({ meId, upcoming, reminders }: { meId: string; upcoming: CalendarEvent[]; reminders: Reminder[] }) {
   const [enrollments, courses, assignments, subs, receipts] = await Promise.all([
     listEnrollments(),
     listCourses(),
@@ -166,11 +173,12 @@ async function StudentDashboard({ meId, upcoming }: { meId: string; upcoming: Ca
         <StatModalCard label="Fees paid" value={moneyByCurrency(receipts)} tone="primary" title="Receipts"
           items={receipts.filter((r) => !r.voided).map((r) => ({ primary: r.number, secondary: formatMoney(Number(r.total), r.currency) }))} empty="No receipts." />
       </section>
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Assignment progress">
           <Donut value={submitted} total={myAssignments.length} label="submitted on time / total" />
         </Panel>
         <Panel title="Upcoming"><Upcoming events={upcoming} /></Panel>
+        <ReminderPanel initialReminders={reminders} />
       </section>
     </>
   )
