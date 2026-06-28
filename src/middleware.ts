@@ -30,15 +30,36 @@ export async function middleware(request: NextRequest) {
     const isMarketing =
       MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/')
     if (!isMarketing) {
+      const hostHeader = request.headers.get('host') ?? ''
+      const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
+      const appHost = isLocal ? `app.${hostHeader}` : process.env.APP_HOSTNAME
       return NextResponse.redirect(
-        new URL(`https://${process.env.APP_HOSTNAME}${pathname}`, request.url),
+        new URL(`${isLocal ? 'http' : 'https'}://${appHost}${pathname}`, request.url),
       )
     }
     return response
   }
 
+  // App host: check if it's a marketing path (other than '/') to redirect to marketing site.
+  // This ensures marketing paths are not exposed on the app host.
+  const isMarketing = MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/')
+  if (isMarketing && pathname !== '/') {
+    const hostHeader = request.headers.get('host') ?? ''
+    const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
+    const marketingHost = isLocal ? hostHeader.replace(/^app\./, '') : process.env.MARKETING_HOSTNAME
+    return NextResponse.redirect(
+      new URL(`${isLocal ? 'http' : 'https'}://${marketingHost}${pathname}`, request.url),
+    )
+  }
+
   // App host: refresh the Supabase session, then gate.
   const user = await updateSession(request, response)
+
+  // Redirect root '/' on the app subdomain to dashboard or login
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
+  }
+
   // The login page is for logged-OUT users only — bounce an active session home.
   if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))

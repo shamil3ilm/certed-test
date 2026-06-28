@@ -13,7 +13,16 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
 
   // getResource uses the caller's RLS-scoped client → null unless they may see it.
   const resource = await getResource(ctx.params.id)
-  if (!resource || resource.status !== 'active' || !resource.drive_file_id) {
+  if (!resource || resource.status !== 'active') {
+    return new Response('Not found', { status: 404 })
+  }
+
+  // If it's a direct URL/link resource (no Drive file id), redirect directly
+  if (!resource.drive_file_id && resource.drive_link) {
+    return Response.redirect(resource.drive_link, 302)
+  }
+
+  if (!resource.drive_file_id) {
     return new Response('Not found', { status: 404 })
   }
 

@@ -24,55 +24,26 @@ function Shell({ children, subtitle }: { children: React.ReactNode; subtitle: st
         </div>
         <div className="mt-6">{children}</div>
         <p className="mt-6 text-center text-xs text-slate-400">
-          Cert-Ed Academia · student &amp; teacher portal
+          Cert-Ed Academia
         </p>
       </div>
     </main>
   )
 }
 
+import { DevLoginForm } from './DevLoginForm'
+
 async function DevLogin({ error }: { error?: string }) {
   const profiles = await listProfiles()
   const demoEmails = profiles.slice(0, 4).map((p) => p.email)
   return (
     <Shell subtitle="Sign in with your email and password.">
-      {error && (
-        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          Incorrect email or password.
-        </p>
-      )}
-      <form action="/api/dev/login" method="post" className="space-y-3">
-        <label className="block text-sm">
-          <span className="text-slate-600">Email</span>
-          <input
-            name="email"
-            type="email"
-            required
-            autoComplete="username"
-            placeholder="name@mock.test"
-            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-600">Password</span>
-          <input
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            placeholder="••••••••"
-            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          />
-        </label>
-        <button className="btn btn-primary w-full">
-          Sign in
-        </button>
-      </form>
+      <DevLoginForm error={!!error} />
 
-      <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-500">
-        <p className="font-medium text-slate-600">Demo accounts (mock mode)</p>
-        <p className="mt-1">Password for all: <code className="rounded bg-white px-1 py-0.5 text-slate-700">cert-ed</code></p>
-        <ul className="mt-1 space-y-0.5">
+      <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3.5 text-xs text-slate-500">
+        <p className="font-medium text-slate-650">Demo accounts (mock mode)</p>
+        <p className="mt-1">Password for all: <code className="rounded bg-white px-1 py-0.5 border border-slate-100 text-slate-700">cert-ed</code></p>
+        <ul className="mt-1.5 space-y-0.5 font-mono">
           {demoEmails.map((e) => (
             <li key={e}><code className="text-slate-600">{e}</code></li>
           ))}

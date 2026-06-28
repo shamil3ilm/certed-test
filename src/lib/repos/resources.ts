@@ -63,3 +63,28 @@ export async function deleteResource(id: string): Promise<void> {
   const supabase = await createClient()
   await supabase.from('resources').delete().eq('id', id)
 }
+
+/** Creates an active link-based resource directly (no Drive file upload needed) */
+export async function createLinkResource(input: {
+  course_id: string
+  title: string
+  drive_link: string
+  uploaded_by: string
+}): Promise<Resource> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('resources')
+    .insert({
+      course_id: input.course_id,
+      title: input.title,
+      drive_file_id: null,
+      drive_link: input.drive_link,
+      uploaded_by: input.uploaded_by,
+      status: 'active',
+    })
+    .select('*')
+    .single()
+  if (error) throw new Error(`resources.createLink: ${error.message}`)
+  return data as Resource
+}
+

@@ -10,7 +10,7 @@ describe('resolveHost', () => {
     expect(resolveHost('certedacademia.com')).toBe('marketing')
     expect(resolveHost('www.certedacademia.com')).toBe('marketing')
   })
-  it('treats bare localhost as app in dev', () => {
-    expect(resolveHost('localhost:3000')).toBe('app')
+  it('treats bare localhost as marketing in dev', () => {
+    expect(resolveHost('localhost:3000')).toBe('marketing')
   })
 })
