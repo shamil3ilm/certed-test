@@ -8,10 +8,24 @@ export const metadata: Metadata = {
   title: "Cert-Ed Academia",
   icons: {
     icon: [
-      { url: "/icon/icon_color.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon/favicon_96.png", sizes: "96x96", type: "image/png" },
+      {
+        url: "/icon/icon_color.svg?v=4",
+        media: "(prefers-color-scheme: light)",
+        type: "image/svg+xml",
+      },
+      {
+        url: "/icon/icon_white.png?v=4",
+        media: "(prefers-color-scheme: dark)",
+        type: "image/png",
+      },
+      {
+        url: "/favicon/favicon_96.png?v=4",
+        sizes: "96x96",
+        type: "image/png",
+        media: "not all",
+      },
     ],
-    apple: "/favicon/favicon_152.png",
+    apple: "/favicon/favicon_152.png?v=4",
   },
 };
 
