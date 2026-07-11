@@ -3,7 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // Pinged daily by Vercel Cron so the free Supabase project doesn't pause.
 export async function GET(req: Request) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET
+  // Fail closed: an unset secret must never make the endpoint public.
+  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 })
   }
   const supabase = createAdminClient()
