@@ -61,9 +61,3 @@ export function persist(): void {
     /* best-effort persistence in dev */
   }
 }
-
-/** Dev helper: wipe back to the seeded state (also rewrites the file). */
-export function resetMockDb(): void {
-  holder[KEY] = buildSeed()
-  persist()
-}

@@ -19,13 +19,26 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     persist()
     return { data: row.last_number as number, error: null }
   }
-  if (fn === 'teaches_course' || fn === 'is_enrolled') {
+  if (fn === 'teaches_class' || fn === 'is_enrolled') {
     const me = profileByUid(uid)
     if (!me) return { data: false, error: null }
-    const tbl = fn === 'teaches_course' ? table('course_teachers') : table('enrollments')
-    const idCol = fn === 'teaches_course' ? 'teacher_id' : 'student_id'
-    const found = tbl.some((r) => r[idCol] === me.id && r.course_id === args.p_course_id)
+    const tbl = fn === 'teaches_class' ? table('class_teachers') : table('enrollments')
+    const idCol = fn === 'teaches_class' ? 'teacher_id' : 'student_id'
+    const found = tbl.some((r) => r[idCol] === me.id && r.class_id === args.p_class_id)
     return { data: found, error: null }
+  }
+  if (fn === 'finance_totals') {
+    const rows = table(args.p_kind === 'receipt' ? 'receipts' : 'payslips')
+    const byCur = new Map<string, { currency: string; live_total: number; live_count: number }>()
+    for (const r of rows) {
+      if (r.voided) continue
+      const cur = String(r.currency)
+      const e = byCur.get(cur) ?? { currency: cur, live_total: 0, live_count: 0 }
+      e.live_total += Number(r.total)
+      e.live_count += 1
+      byCur.set(cur, e)
+    }
+    return { data: [...byCur.values()], error: null }
   }
   return { data: null, error: { message: `mock rpc not implemented: ${fn}` } }
 }
