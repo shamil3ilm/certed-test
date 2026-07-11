@@ -1,31 +1,45 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+// This endpoint is unauthenticated and relays to an external Apps Script, so
+// validate + bound every field to limit spam-relay abuse. (A rate limiter keyed
+// on IP is the remaining hardening — needs an edge KV/Redis store.)
+const contactSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(200),
+  phone: z.string().trim().max(40).optional().default(''),
+  message: z.string().trim().min(1).max(5000),
+});
 
 export async function POST(request: Request) {
+    let raw: unknown;
     try {
-        const body = await request.json();
-        const { name, email, phone, message } = body;
+        raw = await request.json();
+    } catch {
+        return NextResponse.json({ success: false, error: 'Invalid request.' }, { status: 400 });
+    }
 
-        if (!name || !email || !message) {
-            return NextResponse.json(
-                { error: 'Name, email, and message are required fields.' },
-                { status: 400 }
-            );
-        }
+    const parsed = contactSchema.safeParse(raw);
+    if (!parsed.success) {
+        return NextResponse.json(
+            { success: false, error: 'Please fill in all fields correctly.' },
+            { status: 400 },
+        );
+    }
+    const { name, email, phone, message } = parsed.data;
 
-        const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
+    const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
+    if (!GOOGLE_SCRIPT_URL) {
+        return NextResponse.json(
+            { success: false, error: 'Server configuration error.' },
+            { status: 500 }
+        );
+    }
 
-        if (!GOOGLE_SCRIPT_URL) {
-            return NextResponse.json(
-                { success: false, error: 'Server configuration error.' },
-                { status: 500 }
-            );
-        }
-
+    try {
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             redirect: 'follow',
             body: JSON.stringify({ name, email, phone, message }),
         });
@@ -35,7 +49,6 @@ export async function POST(request: Request) {
         }
 
         const text = await response.text();
-
         let result;
         try {
             result = JSON.parse(text);
@@ -45,14 +58,12 @@ export async function POST(request: Request) {
 
         if (result.success || result.result === 'success') {
             return NextResponse.json({ success: true });
-        } else {
-            return NextResponse.json(
-                { success: false, error: result.error || 'Unknown error' },
-                { status: 500 }
-            );
         }
-
-    } catch (error) {
+        return NextResponse.json(
+            { success: false, error: result.error || 'Unknown error' },
+            { status: 500 }
+        );
+    } catch {
         return NextResponse.json(
             { success: false, error: 'Internal Server Error' },
             { status: 500 }

@@ -148,7 +148,7 @@ export default function Contact() {
                                                     value={formData.countryCode}
                                                     onChange={handleChange}
                                                     disabled={status === 'loading'}
-                                                    className="bg-transparent border-none outline-none text-gray-700 text-sm focus:ring-0 cursor-pointer disabled:cursor-not-allowed font-medium w-20 px-1"
+                                                    className="bg-transparent border-none outline-none text-gray-700 text-base focus:ring-0 cursor-pointer disabled:cursor-not-allowed font-medium w-20 px-1"
                                                 >
                                                     <option value="+91">+91</option>
                                                     <option value="+971">+971</option>
@@ -202,7 +202,7 @@ export default function Contact() {
                                 <button
                                     type="submit"
                                     disabled={status === 'loading'}
-                                    className="w-full bg-primary hover:bg-blue-900 text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                                    className="w-full bg-primary hover:bg-[#0f365c] text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-primary/40 disabled:cursor-not-allowed"
                                 >
                                     {status === 'loading' ? (
                                         <>Sending... <Loader2 className="w-5 h-5 animate-spin" /></>
