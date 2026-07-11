@@ -16,12 +16,10 @@ function safeMoney(n: number, cur: string): string {
 export function IssueForm({
   partyLabel,
   parties,
-  partyKey,
   endpoint,
 }: {
   partyLabel: string
   parties: Party[]
-  partyKey: 'student_id' | 'teacher_id'
   endpoint: string
 }) {
   const [partyId, setPartyId] = useState('')
@@ -54,7 +52,7 @@ export function IssueForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          [partyKey]: partyId,
+          party_id: partyId,
           issue_date: new Date(issueDate).toISOString(),
           currency,
           discount: discount ? Number(discount) : undefined,
@@ -72,9 +70,9 @@ export function IssueForm({
   return (
     <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap gap-3">
-        <label className="text-sm">
+        <label className="min-w-0 text-sm">
           {partyLabel}
-          <select value={partyId} onChange={(e) => setPartyId(e.target.value)} required className="mt-1 block rounded border px-2 py-1">
+          <select value={partyId} onChange={(e) => setPartyId(e.target.value)} required className="mt-1 block w-full max-w-full rounded border px-2 py-1">
             <option value="">Select…</option>
             {parties.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
@@ -87,17 +85,21 @@ export function IssueForm({
         </label>
         <label className="text-sm">
           Currency
-          <input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} className="mt-1 block w-20 rounded border px-2 py-1" />
+          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block w-24 rounded border px-2 py-1">
+            {['INR', 'AED', 'SAR', 'QAR', 'OMR', 'KWD', 'BHD', 'USD'].map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </label>
       </div>
 
       <div className="space-y-2">
         {lines.map((l, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input placeholder="Subject" value={l.subject} onChange={(e) => setLine(i, { subject: e.target.value })} className="flex-1 rounded border px-2 py-1" />
-            <input placeholder="Hours" type="number" step="0.25" value={l.hours} onChange={(e) => setLine(i, { hours: e.target.value })} className="w-24 rounded border px-2 py-1" />
-            <input placeholder="Rate/hr" type="number" step="0.01" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} className="w-28 rounded border px-2 py-1" />
-            <span className="w-24 text-right text-sm text-slate-500">
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <input placeholder="Subject" value={l.subject} onChange={(e) => setLine(i, { subject: e.target.value })} className="w-full min-w-0 rounded border px-2 py-1 sm:flex-1" />
+            <input placeholder="Hours" type="number" step="0.25" value={l.hours} onChange={(e) => setLine(i, { hours: e.target.value })} className="w-20 rounded border px-2 py-1 sm:w-24" />
+            <input placeholder="Rate/hr" type="number" step="0.01" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} className="w-24 rounded border px-2 py-1 sm:w-28" />
+            <span className="w-16 text-right text-sm text-slate-500 sm:w-24">
               {safeMoney(lineAmount(Number(l.hours) || 0, Number(l.rate) || 0), currency)}
             </span>
             {lines.length > 1 && (

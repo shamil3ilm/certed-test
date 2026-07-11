@@ -24,3 +24,13 @@ export function formatMoney(amount: number, currency: string): string {
     maximumFractionDigits: 2,
   }).format(amount)
 }
+
+/** Sums non-void finance docs per currency into one display string (e.g. "₹1,200 + $50"). */
+export function totalByCurrency(
+  rows: { total: number; currency: string; voided: boolean }[],
+): string {
+  const m = new Map<string, number>()
+  rows.filter((r) => !r.voided).forEach((r) => m.set(r.currency, (m.get(r.currency) ?? 0) + Number(r.total)))
+  const g = [...m.entries()]
+  return g.length ? g.map(([c, t]) => formatMoney(t, c)).join(' + ') : formatMoney(0, 'INR')
+}

@@ -31,8 +31,10 @@ export type OrgInfo = {
 
 export type BrandAssets = { louisGeorge: string; daggerSquare: string; logo: string }
 
-const NAVY = '#1E2A63'
-const BLUE = '#4AA7DD'
+// Match the on-screen brand tokens (globals.css --primary / --secondary) so the
+// printed receipt/pay slip reads the same as the app.
+const NAVY = '#124d7e'
+const BLUE = '#50b5e1'
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

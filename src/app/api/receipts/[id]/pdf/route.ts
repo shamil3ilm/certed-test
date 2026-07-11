@@ -1,15 +1,9 @@
-import { requireRoleApi } from '@/lib/auth/requireRole'
-import { getReceipt } from '@/lib/repos/receipts'
-import { streamDriveFile } from '@/lib/drive/download'
+import { pdfHandler } from '@/lib/finance/handlers'
 
-export async function GET(_req: Request, ctx: { params: { id: string } }) {
-  try {
-    await requireRoleApi(['admin', 'teacher', 'student'])
-  } catch {
-    return new Response('Forbidden', { status: 403 })
-  }
-  // getReceipt is RLS-scoped: the owning student or an admin only.
-  const receipt = await getReceipt(ctx.params.id)
-  if (!receipt?.drive_file_id) return new Response('Not found', { status: 404 })
-  return streamDriveFile(receipt.drive_file_id, `${receipt.number}.pdf`)
-}
+// Headless-Chromium render: pin the Node runtime and allow generous time so the
+// cold-start (Chromium unpack + launch, a few seconds after idle) can't hit
+// Hobby's ~10s default and 504 on the first download.
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
+export const GET = pdfHandler('receipt')
