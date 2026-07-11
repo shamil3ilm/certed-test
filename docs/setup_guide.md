@@ -1,147 +1,133 @@
-# External Services Setup Guide
+# Setup Guide
 
-This document covers every external service you need to configure before going live:
-Google Drive (file storage for resources and submissions) and Google Meet (live classes).
+Cert-Ed Academia needs only **one** external service to go live: **Supabase**
+(Postgres + Auth). Google is used only as a **sign-in provider**, configured
+inside Supabase — the app itself holds no Google API credentials.
 
----
-
-## Part 1 — Google Cloud Project (One-time)
-
-> Do this first. Both Drive and Meet use the same GCP project / OAuth client.
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com/) → **New Project** → name it `cert-ed-academia`.
-2. Enable APIs:
-   - **Google Drive API** — `APIs & Services → Library → Google Drive API → Enable`
-   - **Google Calendar API** *(needed later if you auto-create Meet links via Calendar)* → Enable
-3. Create OAuth credentials:
-   - `APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID`
-   - Application type: **Web application**
-   - Name: `Cert-Ed App`
-   - **Authorised JavaScript origins:**
-     ```
-     https://app.certedacademia.com
-     http://localhost:3000
-     ```
-   - **Authorised redirect URIs:**
-     ```
-     https://<supabase-project-ref>.supabase.co/auth/v1/callback
-     http://localhost:5555/oauth2callback
-     ```
-   - Click **Create** → copy **Client ID** and **Client Secret** → save in `.env.local`
+**Files are Google Drive _links_, not uploads.** Tutors and students paste a
+public "Anyone with the link" Google Drive URL for resources, assignment briefs,
+and submissions; the app stores and opens the link. In this default setup there
+is **no** Google Drive API or `googleapis` dependency to configure. *(An optional
+Drive Picker — Part 3 — adds client-side Google keys, but still no server-side
+Google credentials or refresh token.)*
 
 ---
 
-## Part 2 — OAuth Consent Screen (Critical)
+## Local development (no services needed)
 
-> If left in "Testing" mode, Google expires the Drive refresh token **every 7 days**.
+For local work, run in **mock mode** — a JSON-file fake of Supabase, so nothing
+external is required. In `.env.local`:
 
-1. `APIs & Services → OAuth consent screen`
-2. Fill in: App name = `Cert-Ed Academia`, Support email, Developer contact email.
-3. Scopes → Add:
-   - `https://www.googleapis.com/auth/drive.file` *(only files the app creates — secure)*
-4. Publishing status → Click **Publish App** → confirm.
+```bash
+MOCK_MODE=1
+NEXT_PUBLIC_MOCK_MODE=1
+NEXT_PUBLIC_SUPABASE_URL=http://mock.local   # sentinel so the portal is "configured"
+APP_HOSTNAME=app.certedacademia.com
+MARKETING_HOSTNAME=certedacademia.com
+# MOCK_PASSWORD=cert-ed          # optional; shared password for the seeded demo users
+# MOCK_CHROME_PATH=C:\path\chrome.exe   # optional; Chrome for finance-PDF rendering
+```
+
+Then `npm run dev`. Sign in at `/login` with a demo account (e.g.
+`admin@mock.test` / `cert-ed`). The mock DB reseeds if you delete `.mock-db.json`.
 
 ---
 
-## Part 3 — Google Drive Token (Server-side Institute Account)
+## Part 1 — Supabase project
 
-The app writes files to the **institute's Google Drive** using a refresh token. This is a one-time setup per environment.
-
-### Step 1 — Add redirect URI for the token script
-
-In GCP → Credentials → your OAuth client, ensure `http://localhost:5555/oauth2callback` is in **Authorised redirect URIs**.
-
-### Step 2 — Set env vars
-
-In `.env.local`:
-```bash
-GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-```
-
-### Step 3 — Run the consent script
-
-```bash
-node --env-file=.env.local scripts/drive-consent.mjs
-```
-
-Open the printed URL **in the browser signed in as the institute's Google account** (the one that will own all Drive files). After consent, copy the printed token:
-
-```bash
-GOOGLE_REFRESH_TOKEN=your-refresh-token-here
-```
-
-Paste into `.env.local` and into **Vercel → Environment Variables** for production.
-
-### Step 4 — Optional: Pre-create the root Drive folder
-
-```bash
-GOOGLE_DRIVE_ROOT_FOLDER_ID=        # leave empty — auto-created as "Cert-Ed Academia"
-```
-
-Or create a folder manually in Drive, get its ID from the URL:
-`https://drive.google.com/drive/folders/**FOLDER_ID_HERE**`, and set it in the env.
-
----
-
-## Part 4 — Supabase Projects
-
-1. [supabase.com](https://supabase.com) → **New project** (create 2: `cert-ed-prod` and `cert-ed-preview`).
-2. For each, go to **Project Settings → API** and copy:
+1. [supabase.com](https://supabase.com) → **New project** (create one per
+   environment, e.g. `cert-ed-prod` and `cert-ed-preview`).
+2. **Project Settings → API** — copy:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` *(server only, never expose)*
-3. **Authentication → Providers → Google** → Enable, paste Client ID + Secret.
-4. **Authentication → URL Configuration:**
-   - Site URL: `https://app.certedacademia.com`
-   - Redirect URLs: `http://localhost:3000/**` and your Vercel preview domain pattern.
-5. Apply all migrations (**SQL Editor** or `supabase db push`):
-   - Run files `0001` through `0008` from `supabase/migrations/` in order.
-6. Seed the first admin:
+3. **SQL Editor** (or `supabase db push`) — apply the migrations in order:
+   run `0001` through `0006` from `supabase/migrations/`.
+4. Seed the first admin (everything else is managed in-app via the Users hub):
+
 ```bash
 node --env-file=.env.local -e "
-import('@supabase/supabase-js').then(async ({createClient}) => {
+import('@supabase/supabase-js').then(async ({ createClient }) => {
   const c = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   const { error } = await c.from('profiles').upsert(
     { email: process.env.SEED_ADMIN_EMAIL, full_name: 'Admin', role: 'admin', status: 'active' },
-    { onConflict: 'email' }
+    { onConflict: 'email' },
   )
   console.log(error ?? 'Admin seeded')
 })"
 ```
 
+Access is **allowlist-only**: a user can sign in only if an admin has already
+created their `profiles` row (matched by email; bound to their Google identity
+on first login).
+
 ---
 
-## Part 5 — Google Meet (Tutor–Student Live Sessions)
+## Part 2 — Google sign-in
 
-Google Meet links do **not** require any API credentials for basic use — tutors create them manually and paste the URL into the academy system. The app already stores `drive_link` fields on resources and calendar events for this purpose.
+Google is only an OAuth **login provider** — the credentials live in Supabase,
+not in the app.
 
-### Recommended workflow
+1. [console.cloud.google.com](https://console.cloud.google.com/) → **New Project**.
+2. **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+   - Application type: **Web application**
+   - **Authorised redirect URI:** `https://<supabase-project-ref>.supabase.co/auth/v1/callback`
+   - Copy the **Client ID** and **Client Secret**.
+3. **APIs & Services → OAuth consent screen** — set the app name / support email,
+   then **Publish App** (in "Testing" mode only whitelisted Google accounts can sign in).
+   No special scopes are needed — default email/profile is enough.
+4. In Supabase → **Authentication → Providers → Google** → Enable, paste the
+   Client ID + Secret.
+5. Supabase → **Authentication → URL Configuration:**
+   - Site URL: `https://app.certedacademia.com`
+   - Redirect URLs: your production + preview domains.
 
-| Who | Action |
+---
+
+## Part 3 — Files & live classes (Google Drive / Meet links)
+
+No API setup — everything is a pasted link:
+
+| Feature | How it works |
 |---|---|
-| **Tutor / Admin** | Opens [meet.google.com](https://meet.google.com), clicks **New meeting → Create a meeting for later**, copies the link. |
-| **Admin** | Goes to **Calendar** in the portal → creates a calendar event → pastes the Meet link in the **description** or **location** field. |
-| **Students** | Open the Calendar page → click the event → see the Meet link in the description → join. |
+| **Resources / assignment briefs** | Tutor pastes a Google Drive **share link** (set sharing to *"Anyone with the link"*). Students click **Open Link**. |
+| **Submissions** | Student pastes a Drive link to their work; the tutor opens it from the review page. |
+| **Live classes** | Tutor/Admin creates a Google Meet at [meet.google.com](https://meet.google.com), copies the link, and adds it under **Class meet** (per class) or **Academy-wide** (admin). |
 
-### Optional: Auto-generate Meet links via Google Calendar API
+*(Auto-generating Meet links via the Google Calendar API is a possible future
+enhancement, not part of the current app.)*
 
-If you want the admin to auto-generate a Meet link when creating events, this requires enabling the **Google Calendar API** in GCP and using `conferenceData` in event creation. This is a Phase 2 enhancement. The steps are:
+### Optional: one-click uploads via the Google Drive Picker
 
-1. Enable `Google Calendar API` in GCP.
-2. Create a service account with **Calendar Editor** role on the institute calendar.
-3. Download the service account JSON key → store contents as `GOOGLE_CALENDAR_SERVICE_KEY` env var.
-4. When inserting a calendar event, pass:
-   ```js
-   conferenceData: { createRequest: { requestId: uuid(), conferenceSolutionKey: { type: 'hangoutsMeet' } } }
-   ```
-   This returns a `hangoutLink` you can save and display to students.
+By default, submissions are pasted links (above). You can optionally add an
+**"Attach from Drive"** button so students upload in one click to their *own*
+Drive (no central storage; the app links to the file). One-time Google Cloud setup:
+
+1. **Google Cloud project** → note its **project number** → `NEXT_PUBLIC_GOOGLE_APP_ID`.
+2. **APIs & Services → Enable APIs:** enable **Google Picker API** and **Google Drive API**.
+3. **Credentials → API key** → restrict to the **Picker API** + your site's HTTP referrers → `NEXT_PUBLIC_GOOGLE_API_KEY`.
+4. **Credentials → OAuth client ID → Web application** → add your origin(s) to *Authorized JavaScript origins* → `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.
+5. **OAuth consent screen:** the only scope is `.../auth/drive.file` (non-sensitive — the app touches only files it creates; no verification review needed for internal use). Publish, or add your users as testers.
+6. Set the three `NEXT_PUBLIC_GOOGLE_*` vars in Vercel; leave them unset to keep paste-only. The Picker never runs in mock mode.
+
+Files stay in each student's Drive — the deliberate initial-phase choice. Central
+storage (academy Drive API or object storage) can replace it later without
+changing the submissions model. See
+`docs/superpowers/specs/2026-07-10-drive-picker-submissions-design.md`.
 
 ---
 
-## Part 6 — Environment Variables Checklist
+## Part 4 — Contact form (optional)
 
-Copy this into your `.env.local` (and mirror to Vercel production + preview):
+The marketing contact form posts to a Google Apps Script web app. If you use it,
+set `GOOGLE_SCRIPT_URL` to the deployed script URL; otherwise the endpoint
+returns a friendly "not configured" response.
+
+---
+
+## Part 5 — Environment variables checklist
+
+Mirror these to Vercel (production + preview):
 
 ```bash
 # ── Supabase ──────────────────────────────────────────────────────────────────
@@ -149,33 +135,37 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...           # server only
 
-# ── Google ────────────────────────────────────────────────────────────────────
-GOOGLE_CLIENT_ID=123456789.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-...
-GOOGLE_REFRESH_TOKEN=1//0e...              # institute Drive account token
-GOOGLE_DRIVE_ROOT_FOLDER_ID=              # optional — auto-created if blank
-
-# ── App hostnames ─────────────────────────────────────────────────────────────
+# ── App host routing ──────────────────────────────────────────────────────────
 APP_HOSTNAME=app.certedacademia.com
 MARKETING_HOSTNAME=certedacademia.com
 
-# ── Admin seed ────────────────────────────────────────────────────────────────
-SEED_ADMIN_EMAIL=admin@yourdomain.com
+# ── Ops ───────────────────────────────────────────────────────────────────────
+CRON_SECRET=a-long-random-string           # protects /api/cron/*
+SEED_ADMIN_EMAIL=admin@yourdomain.com      # used only by the seed command above
+# GOOGLE_SCRIPT_URL=https://script.google.com/...   # optional — marketing contact form
 
-# ── Security ──────────────────────────────────────────────────────────────────
-CRON_SECRET=a-long-random-string          # protects /api/cron/*
+# ── Google Drive Picker (optional — client-side; see Part 3) ──────────────────
+# NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+# NEXT_PUBLIC_GOOGLE_API_KEY=
+# NEXT_PUBLIC_GOOGLE_APP_ID=
 ```
+
+There are **no** `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` /
+`GOOGLE_REFRESH_TOKEN` variables — Google sign-in is configured entirely inside
+Supabase, and there is no server-side Google API access.
 
 ---
 
-## Summary of What's Been Implemented in Code
+## Summary of what's implemented
 
 | Feature | Status |
 |---|---|
-| Many-to-many tutor–student relationships (`mentorships` table) | ✅ Done |
-| Tutor access to mentee submissions across all courses (RLS) | ✅ Done (migration 0008) |
-| Comment threads on submissions (tutor ↔ student) | ✅ Done |
-| Reminders panel on dashboard (all roles) | ✅ Done |
-| Google Drive resource links (open in Drive instead of download) | ✅ Done |
-| Google Meet — manual link paste workflow | ✅ Works via Calendar event description |
-| Google Meet — auto-generate via Calendar API | ⏳ Phase 2 optional enhancement |
+| Allowlist auth (Google sign-in, first-login binding) | ✅ |
+| Classes with Stream / Classwork / People; admin-owned lifecycle | ✅ |
+| Many-to-many tutor↔student mentorships + mentee overview | ✅ |
+| Assignments + Drive-link submissions (on-time/late) | ✅ |
+| Resources + announcements + meet links (per-class **and** academy-wide) | ✅ |
+| Comment threads (submissions / resources / meets) | ✅ |
+| Finance: receipts + pay slips, PDF on demand | ✅ |
+| Calendar + recurring timetable | ✅ |
+| Reminders, dashboards, settings | ✅ |

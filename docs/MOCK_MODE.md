@@ -138,20 +138,18 @@ Wired (guarded by isMock()) into:
   src/lib/supabase/server.ts      createClient()        → mock server client
   src/lib/supabase/admin.ts       createAdminClient()   → mock admin client
   src/lib/supabase/middleware.ts  updateSession()       → reads mock cookie
-  src/lib/drive/{upload,download,resumable,courseFolder,financeFolder}.ts → local FS
   src/lib/pdf/renderPdf.ts        htmlToPdf()           → minimal placeholder PDF
 
 Dev-only routes (404 unless MOCK_MODE):
   src/app/api/dev/login           sets the role cookie, redirects to /dashboard
   src/app/api/dev/logout          clears the cookie
-  src/app/api/dev/drive-put       receives the resumable upload PUT, saves bytes
 
 Login UI:
   src/app/(prt)/login/page.tsx    shows the role picker when NEXT_PUBLIC_MOCK_MODE=1
 ```
 
 ### RPCs the fake implements
-`next_document_number` (atomic receipt/pay‑slip counter), `teaches_course`,
+`next_document_number` (atomic receipt/pay‑slip counter), `teaches_class`,
 `is_enrolled` — mirroring the Postgres functions used by the real RLS.
 
 ---
