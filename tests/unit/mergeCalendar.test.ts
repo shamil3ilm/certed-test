@@ -5,13 +5,13 @@ const input: MergeInput = {
   slotOccurrences: [
     { slotId: 's-1', startIso: '2026-07-06T03:30:00.000Z', endIso: '2026-07-06T04:30:00.000Z' },
   ],
-  slotMeta: { 's-1': { subject: 'Maths', courseId: 'c-1', location: 'Room 1' } },
+  slotMeta: { 's-1': { subject: 'Maths', classId: 'c-1', location: 'Room 1' } },
   events: [
-    { id: 'e-1', title: 'Holiday', event_date: '2026-07-15', start_time: null, end_time: null, course_id: null, kind: 'holiday' },
-    { id: 'e-2', title: 'Extra class', event_date: '2026-07-10', start_time: '14:00', end_time: '15:00', course_id: 'c-1', kind: 'event' },
+    { id: 'e-1', title: 'Holiday', event_date: '2026-07-15', start_time: null, end_time: null, class_id: null, kind: 'holiday' },
+    { id: 'e-2', title: 'Extra class', event_date: '2026-07-10', start_time: '14:00', end_time: '15:00', class_id: 'c-1', kind: 'event' },
   ],
   assignments: [
-    { id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', course_id: 'c-1' },
+    { id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', class_id: 'c-1' },
   ],
   anchorTz: 'Asia/Kolkata',
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { addUserSchema } from '@/lib/validation/user'
 import { createAnnouncementSchema } from '@/lib/validation/announcement'
-import { createCourseSchema, enrollmentSchema } from '@/lib/validation/course'
+import { createClassSchema } from '@/lib/validation/class'
 
 describe('addUserSchema', () => {
   it('accepts a valid teacher', () => {
@@ -18,7 +18,7 @@ describe('addUserSchema', () => {
 describe('createAnnouncementSchema', () => {
   it('accepts a global announcement (null course)', () => {
     expect(
-      createAnnouncementSchema.safeParse({ course_id: null, title: 'Hi', message: 'Welcome' }).success,
+      createAnnouncementSchema.safeParse({ class_id: null, title: 'Hi', message: 'Welcome' }).success,
     ).toBe(true)
   })
   it('rejects an empty title', () => {
@@ -27,11 +27,8 @@ describe('createAnnouncementSchema', () => {
 })
 
 describe('course schemas', () => {
-  it('createCourseSchema needs a non-empty name', () => {
-    expect(createCourseSchema.safeParse({ name: '' }).success).toBe(false)
-    expect(createCourseSchema.safeParse({ name: 'Physics' }).success).toBe(true)
-  })
-  it('enrollmentSchema needs uuids', () => {
-    expect(enrollmentSchema.safeParse({ student_id: 'x', course_id: 'y' }).success).toBe(false)
+  it('createClassSchema needs a non-empty name', () => {
+    expect(createClassSchema.safeParse({ name: '' }).success).toBe(false)
+    expect(createClassSchema.safeParse({ name: 'Physics' }).success).toBe(true)
   })
 })

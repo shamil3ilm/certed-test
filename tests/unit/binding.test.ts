@@ -6,7 +6,7 @@ import { bindProfileOnFirstLogin } from '@/lib/auth/binding'
 function fakeAdmin(results: Array<{ data: unknown; error?: unknown }>) {
   let i = 0
   const builder: Record<string, unknown> = {}
-  for (const m of ['from', 'select', 'eq', 'is', 'update', 'insert']) {
+  for (const m of ['from', 'select', 'eq', 'ilike', 'is', 'update', 'insert']) {
     builder[m] = () => builder
   }
   builder.maybeSingle = async () => results[i++]

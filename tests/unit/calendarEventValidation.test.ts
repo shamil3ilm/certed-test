@@ -7,7 +7,7 @@ const base = {
   event_date: '2026-07-15',
   start_time: '14:00',
   end_time: '15:00',
-  course_id: '11111111-1111-4111-8111-111111111111',
+  class_id: '11111111-1111-4111-8111-111111111111',
   kind: 'event',
 }
 
@@ -17,7 +17,7 @@ describe('createEventSchema', () => {
   })
   it('accepts a global all-day event (no course, no times)', () => {
     expect(createEventSchema.safeParse({
-      title: 'Holiday', event_date: '2026-08-15', course_id: null, kind: 'holiday',
+      title: 'Holiday', event_date: '2026-08-15', class_id: null, kind: 'holiday',
     }).success).toBe(true)
   })
   it('rejects an unknown kind', () => {

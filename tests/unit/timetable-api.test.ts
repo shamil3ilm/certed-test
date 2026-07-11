@@ -7,9 +7,9 @@ const COURSE = '11111111-1111-4111-8111-111111111111'
 const OTHER = '33333333-3333-4333-8333-333333333333'
 
 const teaches = vi.fn(async (..._a: any[]) => true)
-vi.mock('@/lib/auth/courseScope', () => ({ teachesCourse: (...a: any[]) => teaches(...a) }))
+vi.mock('@/lib/auth/classScope', () => ({ teachesClass: (...a: any[]) => teaches(...a) }))
 
-const created = { id: 'slot-1', course_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: '09:00', end_time: '10:00' }
+const created = { id: 'slot-1', class_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: '09:00', end_time: '10:00' }
 const createSlot = vi.fn(async (..._a: any[]) => created)
 const listSlots = vi.fn(async (..._a: any[]) => [created])
 vi.mock('@/lib/repos/timetableSlots', () => ({
@@ -22,7 +22,7 @@ import { GET, POST } from '@/app/api/timetable/route'
 const body = (o: any) => new Request('http://t/api/timetable', {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(o),
 })
-const valid = { course_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: '09:00', end_time: '10:00' }
+const valid = { class_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: '09:00', end_time: '10:00' }
 
 beforeEach(() => {
   vi.clearAllMocks() // reset call history so per-test not.toHaveBeenCalled() assertions are isolated
@@ -40,7 +40,7 @@ describe('POST /api/timetable', () => {
 
   it('teacher who does NOT teach the course is forbidden', async () => {
     teaches.mockResolvedValue(false)
-    const res = await POST(body({ ...valid, course_id: OTHER }))
+    const res = await POST(body({ ...valid, class_id: OTHER }))
     expect(res.status).toBe(403)
     expect(createSlot).not.toHaveBeenCalled()
   })
