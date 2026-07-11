@@ -1,23 +1,31 @@
 'use client'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Reminder } from '@/lib/repos/reminders'
 import { createReminderAction, deleteReminderAction } from './actions'
+import { useUI } from '../Providers'
+import { formatDate, formatDateTime, DISPLAY_TZ } from '@/lib/time/format'
 
-function formatRemindAt(iso: string) {
+function formatRemindAt(iso: string, tz?: string) {
   const d = new Date(iso)
   const now = new Date()
   const diff = d.getTime() - now.getTime()
-  if (diff < 0) return { label: d.toLocaleString(), overdue: true }
+  if (diff < 0) return { label: formatDateTime(iso, tz), overdue: true }
   const hours = Math.floor(diff / 3600000)
   if (hours < 24) return { label: `in ${hours}h`, overdue: false }
   const days = Math.floor(diff / 86400000)
-  return { label: `in ${days}d · ${d.toLocaleDateString()}`, overdue: false }
+  return { label: `in ${days}d · ${formatDate(iso, tz)}`, overdue: false }
 }
 
 export function ReminderPanel({ initialReminders }: { initialReminders: Reminder[] }) {
   const [reminders, setReminders] = useState(initialReminders)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
+  // SSR/first render use the institute zone; after mount, the viewer's device zone.
+  const [deviceLocal, setDeviceLocal] = useState(false)
+  useEffect(() => setDeviceLocal(true), [])
+  const { toast } = useUI()
+  const router = useRouter()
 
   function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -25,7 +33,8 @@ export function ReminderPanel({ initialReminders }: { initialReminders: Reminder
     const title = String(fd.get('title') ?? '').trim()
     const remind_at = String(fd.get('remind_at') ?? '').trim()
     if (!title || !remind_at) return
-    // Optimistic
+    // Optimistic add, rolled back if the server rejects.
+    const snapshot = reminders
     setReminders((prev) => [
       ...prev,
       {
@@ -39,14 +48,30 @@ export function ReminderPanel({ initialReminders }: { initialReminders: Reminder
       },
     ])
     setOpen(false)
-    startTransition(() => createReminderAction(fd))
+    startTransition(async () => {
+      try {
+        await createReminderAction(fd)
+        router.refresh() // reconcile the temp id with the saved row
+      } catch {
+        setReminders(snapshot)
+        toast('Could not save reminder', 'error')
+      }
+    })
   }
 
   function handleDelete(id: string) {
+    const snapshot = reminders
     setReminders((prev) => prev.filter((r) => r.id !== id))
     const fd = new FormData()
     fd.set('id', id)
-    startTransition(() => deleteReminderAction(fd))
+    startTransition(async () => {
+      try {
+        await deleteReminderAction(fd)
+      } catch {
+        setReminders(snapshot)
+        toast('Could not delete reminder', 'error')
+      }
+    })
   }
 
   const sorted = [...reminders].sort(
@@ -105,7 +130,7 @@ export function ReminderPanel({ initialReminders }: { initialReminders: Reminder
       ) : (
         <ul className="mt-3 space-y-2">
           {sorted.map((r) => {
-            const { label, overdue } = formatRemindAt(r.remind_at)
+            const { label, overdue } = formatRemindAt(r.remind_at, deviceLocal ? undefined : DISPLAY_TZ)
             return (
               <li
                 key={r.id}
@@ -117,7 +142,7 @@ export function ReminderPanel({ initialReminders }: { initialReminders: Reminder
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{r.title}</p>
                   {r.description && <p className="mt-0.5 truncate text-xs text-slate-500">{r.description}</p>}
-                  <p className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-400'}`}>{label}</p>
+                  <p suppressHydrationWarning className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-400'}`}>{label}</p>
                 </div>
                 <button
                   type="button"
