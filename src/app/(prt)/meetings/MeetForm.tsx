@@ -3,11 +3,13 @@
 import { useState, useTransition } from 'react'
 import { createMeetLinkAction } from './actions'
 
-type Course = { id: string; name: string }
+type ClassRow = { id: string; name: string }
 
-export function MeetForm({ courses, canGlobal }: { courses: Course[]; canGlobal: boolean }) {
+export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGlobal: boolean }) {
   const [isPending, startTransition] = useTransition()
-  const [courseId, setCourseId] = useState(courses[0]?.id ?? '')
+  const [classId, setClassId] = useState(classes[0]?.id ?? '')
+  // Inside a single class there's nothing to choose — the scope is that class.
+  const single = classes.length === 1 && !canGlobal
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [description, setDescription] = useState('')
@@ -20,7 +22,7 @@ export function MeetForm({ courses, canGlobal }: { courses: Course[]; canGlobal:
     if (!title.trim() || !url.trim()) return
 
     const formData = new FormData()
-    formData.append('courseId', courseId)
+    formData.append('classId', classId)
     formData.append('title', title.trim())
     formData.append('url', url.trim())
     formData.append('description', description.trim())
@@ -47,21 +49,23 @@ export function MeetForm({ courses, canGlobal }: { courses: Course[]; canGlobal:
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500">Course Scope</label>
-          <select
-            value={courseId}
-            onChange={(e) => setCourseId(e.target.value)}
-            required
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
-          >
-            {canGlobal && <option value="global">Global (All Courses)</option>}
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+      <div className={single ? 'space-y-1' : 'grid gap-4 sm:grid-cols-2'}>
+        {!single && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500">Class scope</label>
+            <select
+              value={classId}
+              onChange={(e) => setClassId(e.target.value)}
+              required
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
+            >
+              {canGlobal && <option value="global">Global (all classes)</option>}
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Title</label>
@@ -70,7 +74,7 @@ export function MeetForm({ courses, canGlobal }: { courses: Course[]; canGlobal:
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Maths Doubt Class"
             required
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-850 focus:border-primary focus:bg-white focus:outline-none"
+            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
           />
         </div>
       </div>
@@ -83,7 +87,7 @@ export function MeetForm({ courses, canGlobal }: { courses: Course[]; canGlobal:
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://meet.google.com/..."
           required
-          className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-850 focus:border-primary focus:bg-white focus:outline-none"
+          className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
         />
       </div>
 
@@ -94,7 +98,7 @@ export function MeetForm({ courses, canGlobal }: { courses: Course[]; canGlobal:
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Topics to cover, timings, worksheets to bring..."
           rows={2}
-          className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-850 focus:border-primary focus:bg-white focus:outline-none"
+          className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
         />
       </div>
 

@@ -2,25 +2,26 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { createMeetLink, deleteMeetLink } from '@/lib/repos/meetLinks'
-import { createMeetComment } from '@/lib/repos/meetComments'
+import { createMeetLink, deleteMeetLink, getMeetLink } from '@/lib/repos/meetLinks'
+import { canManageScope } from '@/lib/repos/classes'
+import { linkUrl } from '@/lib/validation/url'
 import { z } from 'zod'
 
 const meetLinkSchema = z.object({
-  courseId: z.string().uuid().nullable().or(z.literal('')),
+  classId: z.string().uuid().nullable().or(z.literal('')),
   title: z.string().trim().min(1).max(200),
-  url: z.string().trim().url(),
+  url: linkUrl,
   description: z.string().trim().max(1000).optional(),
 })
 
 export async function createMeetLinkAction(formData: FormData) {
   const me = await requireRole(['teacher', 'admin'])
 
-  const rawCourseId = formData.get('courseId')
-  const courseId = rawCourseId === '' || rawCourseId === 'global' ? null : (rawCourseId as string)
+  const rawClassId = formData.get('classId')
+  const classId = rawClassId === '' || rawClassId === 'global' ? null : (rawClassId as string)
 
   const parsed = meetLinkSchema.safeParse({
-    courseId,
+    classId,
     title: formData.get('title'),
     url: formData.get('url'),
     description: formData.get('description'),
@@ -30,34 +31,28 @@ export async function createMeetLinkAction(formData: FormData) {
     throw new Error('Invalid meet link data: ' + parsed.error.message)
   }
 
+  // A class meet requires managing that class; a global meet (null) is admin-only.
+  if (!(await canManageScope(me, classId))) {
+    throw new Error('Not allowed to post a meet link to this class')
+  }
+
   const { title, url, description } = parsed.data
   await createMeetLink({
-    course_id: courseId || null,
+    class_id: classId || null,
     title,
     url,
     description,
     created_by: me.id,
   })
 
-  revalidatePath('/meetings')
+  revalidatePath('/classroom', 'layout')
 }
 
 export async function deleteMeetLinkAction(id: string) {
-  await requireRole(['teacher', 'admin'])
+  const me = await requireRole(['teacher', 'admin'])
+  const link = await getMeetLink(id)
+  if (!link) return
+  if (!(await canManageScope(me, link.class_id))) return
   await deleteMeetLink(id)
-  revalidatePath('/meetings')
-}
-
-export async function addMeetCommentAction(formData: FormData) {
-  const me = await requireRole(['teacher', 'admin', 'student'])
-
-  const meetLinkId = formData.get('meetLinkId') as string
-  const content = formData.get('content') as string
-
-  if (!meetLinkId || !content?.trim()) {
-    throw new Error('Missing comment details')
-  }
-
-  await createMeetComment(meetLinkId, me.id, content.trim())
-  revalidatePath('/meetings')
+  revalidatePath('/classroom', 'layout')
 }

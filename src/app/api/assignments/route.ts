@@ -16,10 +16,11 @@ export async function POST(req: Request) {
   try {
     // RLS enforces teacher-of-course/admin on insert.
     const a = await createAssignment({
-      course_id: parsed.data.course_id,
+      class_id: parsed.data.class_id,
       title: parsed.data.title,
       description: parsed.data.description ?? null,
       due_date: new Date(parsed.data.due_date).toISOString(),
+      attachment_drive_link: parsed.data.attachment_drive_link ?? null,
       created_by: me.id,
     })
     await writeAudit({ actor_id: me.id, action: 'assignment.create', entity_type: 'assignment', entity_id: a.id })

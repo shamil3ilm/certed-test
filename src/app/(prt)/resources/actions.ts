@@ -3,20 +3,20 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
 import { createLinkResource } from '@/lib/repos/resources'
-import { createResourceComment } from '@/lib/repos/resourceComments'
+import { linkUrl } from '@/lib/validation/url'
 import { z } from 'zod'
 
 const linkResourceSchema = z.object({
-  courseId: z.string().uuid(),
+  classId: z.string().uuid(),
   title: z.string().trim().min(1).max(200),
-  url: z.string().trim().url(),
+  url: linkUrl,
 })
 
 export async function createLinkResourceAction(formData: FormData) {
   const me = await requireRole(['teacher', 'admin'])
 
   const parsed = linkResourceSchema.safeParse({
-    courseId: formData.get('courseId'),
+    classId: formData.get('classId'),
     title: formData.get('title'),
     url: formData.get('url'),
   })
@@ -25,27 +25,14 @@ export async function createLinkResourceAction(formData: FormData) {
     throw new Error('Invalid input data')
   }
 
-  const { courseId, title, url } = parsed.data
+  const { classId, title, url } = parsed.data
   await createLinkResource({
-    course_id: courseId,
+    class_id: classId,
     title,
     drive_link: url,
     uploaded_by: me.id,
   })
 
   revalidatePath('/resources')
-}
-
-export async function addResourceCommentAction(formData: FormData) {
-  const me = await requireRole(['teacher', 'admin', 'student'])
-
-  const resourceId = formData.get('resourceId') as string
-  const content = formData.get('content') as string
-
-  if (!resourceId || !content?.trim()) {
-    throw new Error('Missing comment details')
-  }
-
-  await createResourceComment(resourceId, me.id, content.trim())
-  revalidatePath('/resources')
+  revalidatePath('/classroom', 'layout')
 }

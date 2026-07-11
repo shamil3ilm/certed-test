@@ -1,43 +1,31 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
-import { deleteMeetLinkAction, addMeetCommentAction } from './actions'
+import { useTransition } from 'react'
+import { deleteMeetLinkAction } from './actions'
+import { CommentThread } from '../CommentThread'
+import { useUI } from '../Providers'
+import { LocalTime } from '../LocalTime'
 import type { MeetLink } from '@/lib/repos/meetLinks'
-import type { MeetComment } from '@/lib/repos/meetComments'
+import type { Comment } from '@/lib/repos/comments'
 
 type Profile = { id: string; email: string; full_name: string | null; role: string }
-
-function roleColor(role?: string | null) {
-  if (role === 'admin') return 'bg-violet-100 text-violet-800 border-violet-200'
-  if (role === 'teacher') return 'bg-sky-100 text-sky-800 border-sky-200'
-  return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-}
-
-function roleBubble(role?: string | null) {
-  if (role === 'admin') return 'bg-violet-50 border-violet-200'
-  if (role === 'teacher') return 'bg-sky-50 border-sky-200'
-  return 'bg-emerald-50 border-emerald-200'
-}
-
-function roleTag(role?: string | null) {
-  if (role === 'teacher') return 'Tutor'
-  if (role === 'admin') return 'Admin'
-  return 'Student'
-}
 
 export function MeetList({
   meetLinks,
   initialComments,
   me,
-  courses,
+  classes,
+  isAdmin,
 }: {
   meetLinks: MeetLink[]
-  initialComments: Record<string, MeetComment[]>
+  initialComments: Map<string, Comment[]>
   me: Profile
-  courses: { id: string; name: string }[]
+  classes: { id: string; name: string }[]
+  isAdmin: boolean
 }) {
-  const courseMap = new Map(courses.map((c) => [c.id, c.name]))
+  const classMap = new Map(classes.map((c) => [c.id, c.name]))
   const canManage = me.role === 'admin' || me.role === 'teacher'
+  const currentClassId = classes[0]?.id ?? null
 
   return (
     <div className="space-y-4">
@@ -50,10 +38,11 @@ export function MeetList({
           <MeetCard
             key={link.id}
             link={link}
-            courseName={courseMap.get(link.course_id ?? '') ?? 'Global'}
-            comments={initialComments[link.id] ?? []}
+            classLabel={classMap.get(link.class_id ?? '') ?? 'Academy-wide'}
+            comments={initialComments.get(link.id) ?? []}
             me={me}
-            canManage={canManage}
+            // Global (null) links are admin-only; a class link is managed by its class's teacher.
+            canManage={canManage && (isAdmin || link.class_id === currentClassId)}
           />
         ))
       )}
@@ -63,40 +52,50 @@ export function MeetList({
 
 function MeetCard({
   link,
-  courseName,
-  comments: initialComments,
+  classLabel,
+  comments,
   me,
   canManage,
 }: {
   link: MeetLink
-  courseName: string
-  comments: MeetComment[]
+  classLabel: string
+  comments: Comment[]
   me: Profile
   canManage: boolean
 }) {
+  const { confirm, toast } = useUI()
   const [isDeleting, startDeleteTransition] = useTransition()
-  const handleDelete = () => {
-    if (!confirm('Are you sure you want to delete this meeting link?')) return
-    startDeleteTransition(() => deleteMeetLinkAction(link.id))
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: 'Remove this meeting link?',
+      message: "It's hidden from the class but kept on record.",
+      confirmLabel: 'Remove',
+      variant: 'warning',
+    })
+    if (!ok) return
+    startDeleteTransition(async () => {
+      await deleteMeetLinkAction(link.id)
+      toast('Meeting link removed', 'success')
+    })
   }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-              link.course_id ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600'
+              link.class_id ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600'
             }`}>
-              {courseName}
+              {classLabel}
             </span>
             <span className="text-xs text-slate-400">
-              {new Date(link.created_at).toLocaleDateString()}
+              <LocalTime iso={link.created_at} mode="date" />
             </span>
           </div>
-          <h3 className="mt-2 text-base font-bold text-slate-900">{link.title}</h3>
+          <h3 className="mt-2 break-words text-base font-bold text-slate-900">{link.title}</h3>
           {link.description && (
-            <p className="mt-1 text-sm text-slate-500 whitespace-pre-wrap">{link.description}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{link.description}</p>
           )}
         </div>
 
@@ -104,7 +103,7 @@ function MeetCard({
           <button
             onClick={handleDelete}
             disabled={isDeleting}
-            className="text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+            className="-m-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
             title="Delete link"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -128,116 +127,13 @@ function MeetCard({
         </a>
       </div>
 
-      {/* Embedded Comments Thread */}
-      <MeetCommentsSection
-        meetLinkId={link.id}
-        initialComments={initialComments}
-        me={me}
+      <CommentThread
+        entityType="meet"
+        entityId={link.id}
+        me={{ id: me.id, role: me.role }}
+        initialComments={comments}
+        placeholder="Ask a question or discuss…"
       />
-    </div>
-  )
-}
-
-function MeetCommentsSection({
-  meetLinkId,
-  initialComments,
-  me,
-}: {
-  meetLinkId: string
-  initialComments: MeetComment[]
-  me: Profile
-}) {
-  const [comments, setComments] = useState(initialComments)
-  const [isPending, startTransition] = useTransition()
-  const [text, setText] = useState('')
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState(false)
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const val = text.trim()
-    if (!val) return
-
-    // Optimistic UI update
-    setComments((prev) => [
-      ...prev,
-      {
-        id: `temp-${Date.now()}`,
-        meet_link_id: meetLinkId,
-        author_id: me.id,
-        content: val,
-        created_at: new Date().toISOString(),
-        author_name: 'You',
-        author_role: me.role,
-      },
-    ])
-
-    setText('')
-    const fd = new FormData()
-    fd.set('meetLinkId', meetLinkId)
-    fd.set('content', val)
-
-    startTransition(async () => {
-      await addMeetCommentAction(fd)
-    })
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-  }
-
-  return (
-    <div className="mt-4 border-t border-slate-100 pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-primary transition-colors focus:outline-none"
-      >
-        <svg className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
-          <path d="M6 4l4 4-4 4V4z" />
-        </svg>
-        {comments.length === 0 ? 'Add a comment' : `${comments.length} comment${comments.length !== 1 ? 's' : ''}`}
-      </button>
-
-      {open && (
-        <div className="mt-3 space-y-3">
-          {comments.map((c) => {
-            const isMine = c.author_id === me.id
-            return (
-              <div key={c.id} className={`flex gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold border ${roleColor(c.author_role)}`}>
-                  {(c.author_name ?? '?').slice(0, 1).toUpperCase()}
-                </span>
-                <div className={`max-w-[80%] ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
-                  <span className="text-[10px] text-slate-400">
-                    {isMine ? 'You' : c.author_name ?? 'Unknown'} · {roleTag(c.author_role)} ·{' '}
-                    {new Date(c.created_at).toLocaleString()}
-                  </span>
-                  <div className={`rounded-2xl border px-3 py-2 text-sm leading-relaxed ${roleBubble(c.author_role)}`}>
-                    {c.content}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          <div ref={bottomRef} />
-
-          <form onSubmit={handleSubmit} className="flex gap-2 pt-1">
-            <input
-              type="text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Ask a question or discuss..."
-              disabled={isPending}
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={isPending || !text.trim()}
-              className="rounded-xl bg-primary px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-40"
-            >
-              Send
-            </button>
-          </form>
-        </div>
-      )}
     </div>
   )
 }

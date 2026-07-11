@@ -1,160 +1,112 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useResumableUpload } from '@/lib/hooks/useResumableUpload'
 import { createLinkResourceAction } from './actions'
+import { checkDriveLink } from '@/lib/driveLink'
 
-type Course = { id: string; name: string }
+type ClassRow = { id: string; name: string }
 
-export function UploadForm({ courses }: { courses: Course[] }) {
-  const { upload, status: uploadStatus, error: uploadError } = useResumableUpload()
+/**
+ * Share a resource as a Google Drive link. In this phase we don't upload files
+ * through the Drive API — teachers upload to their own Drive and paste the share
+ * link here; Supabase stores the record.
+ */
+export function UploadForm({ classes }: { classes: ClassRow[] }) {
   const [isPending, startTransition] = useTransition()
-  
-  const [mode, setMode] = useState<'file' | 'link'>('file')
   const [title, setTitle] = useState('')
-  const [courseId, setCourseId] = useState(courses[0]?.id ?? '')
-  const [file, setFile] = useState<File | null>(null)
+  const [classId, setClassId] = useState(classes[0]?.id ?? '')
   const [url, setUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const single = classes.length === 1
+  const linkCheck = checkDriveLink(url)
 
-  async function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!courseId || !title.trim()) return
-
-    if (mode === 'file') {
-      if (!file) return
-      const res = await upload({ courseId, title: title.trim(), file })
-      if (res) {
+    if (!classId || !title.trim() || !url.trim()) return
+    const formData = new FormData()
+    formData.append('classId', classId)
+    formData.append('title', title.trim())
+    formData.append('url', url.trim())
+    startTransition(async () => {
+      try {
+        await createLinkResourceAction(formData)
         setTitle('')
-        setFile(null)
-        location.reload()
+        setUrl('')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Something went wrong')
       }
-    } else {
-      if (!url.trim()) return
-      const formData = new FormData()
-      formData.append('courseId', courseId)
-      formData.append('title', title.trim())
-      formData.append('url', url.trim())
-
-      startTransition(async () => {
-        try {
-          await createLinkResourceAction(formData)
-          setTitle('')
-          setUrl('')
-          location.reload()
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Something went wrong')
-        }
-      })
-    }
+    })
   }
-
-  const isUploading = uploadStatus === 'uploading' || isPending
 
   return (
     <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="border-b border-slate-100 pb-3">
         <h2 className="text-base font-semibold text-slate-900">Share a resource</h2>
-        
-        {/* Mode switcher tabs */}
-        <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
-          <button
-            type="button"
-            onClick={() => setMode('file')}
-            disabled={isUploading}
-            className={`rounded-md px-3 py-1 transition-colors ${
-              mode === 'file' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Upload File
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('link')}
-            disabled={isUploading}
-            className={`rounded-md px-3 py-1 transition-colors ${
-              mode === 'link' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Share Link
-          </button>
-        </div>
+        <p className="mt-0.5 text-xs text-slate-500">Paste a Google Drive share link to the material.</p>
       </div>
 
-      {(error || uploadError) && (
-        <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">
-          {error || uploadError}
-        </div>
-      )}
+      {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</div>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500">Course</label>
-          <select
-            value={courseId}
-            onChange={(e) => setCourseId(e.target.value)}
-            required
-            disabled={isUploading}
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
-          >
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+      <div className={single ? 'space-y-1' : 'grid gap-3 sm:grid-cols-2'}>
+        {!single && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500">Class</label>
+            <select
+              value={classId}
+              onChange={(e) => setClassId(e.target.value)}
+              required
+              disabled={isPending}
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
+            >
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500">Resource Title</label>
+          <label className="text-xs font-medium text-slate-500">Resource title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Chapter 4 Practice Questions"
             required
-            disabled={isUploading}
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-850 focus:border-primary focus:bg-white focus:outline-none"
+            disabled={isPending}
+            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
           />
         </div>
       </div>
 
-      {mode === 'file' ? (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500">Select File</label>
-          <input
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            required
-            disabled={isUploading}
-            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-          />
-        </div>
-      ) : (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500">Link URL</label>
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://notion.so/..."
-            required
-            disabled={isUploading}
-            className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-850 focus:border-primary focus:bg-white focus:outline-none"
-          />
-        </div>
-      )}
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-slate-500">Google Drive link</label>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://drive.google.com/..."
+          required
+          disabled={isPending}
+          className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
+        />
+        {linkCheck === 'folder' && (
+          <p className="text-xs text-amber-600">
+            That looks like a Drive <span className="font-medium">folder</span> link — link the specific file so students open just this resource.
+          </p>
+        )}
+        {linkCheck === 'not-drive' && (
+          <p className="text-xs text-amber-600">
+            That isn’t a Drive link — fine for Google Docs, YouTube or a website. Just make sure it opens for students who aren’t signed in as you.
+          </p>
+        )}
+        <p className="text-xs text-slate-400">
+          Set the file’s sharing to <span className="font-medium text-slate-500">“Anyone with the link”</span> so students can open it — test it in a private/incognito window. Naming it <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps your Drive tidy.
+        </p>
+      </div>
 
-      <button
-        type="submit"
-        disabled={isUploading}
-        className="btn btn-primary"
-      >
-        {isUploading
-          ? mode === 'file'
-            ? 'Uploading to Drive...'
-            : 'Saving Link...'
-          : mode === 'file'
-          ? 'Upload to Drive'
-          : 'Share Link'}
+      <button type="submit" disabled={isPending} className="btn btn-primary">
+        {isPending ? 'Sharing…' : 'Share link'}
       </button>
     </form>
   )
