@@ -67,6 +67,13 @@ create policy profiles_self_update on profiles for update
 create policy profiles_admin_write on profiles for all
   using (is_active_admin()) with check (is_active_admin());
 
+-- A self-service profile update may change only name / class level — never role,
+-- status, email, or the auth binding. The self-update policy scopes WHICH row;
+-- this restricts WHICH columns. Admin writes go through the service-role client,
+-- which bypasses these column grants.
+revoke update on table profiles from authenticated;
+grant update (full_name, class_level) on table profiles to authenticated;
+
 create policy org_read on org_settings for select using (auth.uid() is not null);
 create policy org_admin_write on org_settings for all
   using (is_active_admin()) with check (is_active_admin());

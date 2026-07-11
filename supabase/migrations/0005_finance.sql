@@ -1,5 +1,6 @@
--- Phase 4 — Finance: receipts (students) + pay slips (teachers), both immutable
--- once issued (correction = void + reissue). Depends on 0001 (helpers).
+-- Finance: receipts (students) + pay slips (teachers), immutable once issued
+-- (correction = void + reissue). PDFs are generated on demand, not stored.
+-- Depends on 0001 (helpers).
 
 create table receipts (
   id uuid primary key default gen_random_uuid(),
@@ -13,12 +14,13 @@ create table receipts (
   subtotal numeric(12,2) not null,
   discount numeric(12,2),
   total numeric(12,2) not null,                  -- subtotal - coalesce(discount,0)
-  drive_file_id text,
-  drive_link text,
   voided boolean not null default false,
   created_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
+create index receipts_student_idx on receipts (student_id);
+create index receipts_created_idx on receipts (created_at desc);
+
 create table receipt_lines (
   id uuid primary key default gen_random_uuid(),
   receipt_id uuid not null references receipts(id) on delete cascade,
@@ -27,6 +29,7 @@ create table receipt_lines (
   rate numeric(12,2) not null,
   amount numeric(12,2) not null
 );
+create index receipt_lines_receipt_idx on receipt_lines (receipt_id);
 
 create table payslips (
   id uuid primary key default gen_random_uuid(),
@@ -39,12 +42,13 @@ create table payslips (
   subtotal numeric(12,2) not null,
   discount numeric(12,2),
   total numeric(12,2) not null,
-  drive_file_id text,
-  drive_link text,
   voided boolean not null default false,
   created_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
+create index payslips_teacher_idx on payslips (teacher_id);
+create index payslips_created_idx on payslips (created_at desc);
+
 create table payslip_lines (
   id uuid primary key default gen_random_uuid(),
   payslip_id uuid not null references payslips(id) on delete cascade,
@@ -53,6 +57,7 @@ create table payslip_lines (
   rate numeric(12,2) not null,
   amount numeric(12,2) not null
 );
+create index payslip_lines_payslip_idx on payslip_lines (payslip_id);
 
 create table document_counters (
   doc_type text not null,                        -- 'receipt' | 'payslip'
@@ -116,3 +121,22 @@ create policy payslip_lines_admin_write on payslip_lines for all
 
 create policy counters_admin on document_counters for all
   using (is_active_admin()) with check (is_active_admin());
+
+-- Per-currency, non-voided totals computed in SQL (no rows shipped to the app).
+-- SECURITY INVOKER (default) so RLS applies: an admin sees all, anyone else only
+-- their own rows.
+create or replace function finance_totals(p_kind text)
+returns table (currency text, live_total numeric, live_count bigint)
+language sql
+stable
+as $$
+  select r.currency, coalesce(sum(r.total), 0)::numeric, count(*)::bigint
+  from receipts r
+  where p_kind = 'receipt' and r.voided = false
+  group by r.currency
+  union all
+  select p.currency, coalesce(sum(p.total), 0)::numeric, count(*)::bigint
+  from payslips p
+  where p_kind = 'payslip' and p.voided = false
+  group by p.currency;
+$$;
