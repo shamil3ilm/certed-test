@@ -1,5 +1,6 @@
 import { requireRole } from '@/lib/auth/requireRole'
-import { PageHeader, Panel } from '../ui'
+import { isMock } from '@/lib/mock/env'
+import { PageHeader, Panel, roleLabel } from '../ui'
 import { updateProfileAction, changePasswordAction } from './actions'
 
 export default async function SettingsPage({
@@ -21,15 +22,24 @@ export default async function SettingsPage({
 
       <div className="mt-4 space-y-6">
         <Panel title="Profile">
-          <dl className="mb-4 grid grid-cols-2 gap-3 text-sm">
-            <div>
+          <dl className="mb-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            <div className="min-w-0">
               <dt className="text-xs uppercase tracking-wide text-slate-400">Email</dt>
-              <dd className="text-slate-700">{me.email}</dd>
+              <dd className="break-all text-slate-700">{me.email}</dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-slate-400">Role</dt>
-              <dd className="capitalize text-slate-700">{me.role}</dd>
+              <dd className="text-slate-700">{roleLabel(me.role)}</dd>
             </div>
+            {me.role === 'student' && (
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-400">Class</dt>
+                <dd className="text-slate-700">
+                  {me.class_level ?? '—'}
+                  <span className="ml-1 text-xs text-slate-400">(set by your academy)</span>
+                </dd>
+              </div>
+            )}
           </dl>
           <form action={updateProfileAction} className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
@@ -40,16 +50,6 @@ export default async function SettingsPage({
                 className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
               />
             </label>
-            {me.role === 'student' && (
-              <label className="text-sm">
-                <span className="text-slate-600">Class</span>
-                <input
-                  name="class_level"
-                  defaultValue={me.class_level ?? ''}
-                  className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                />
-              </label>
-            )}
             <div className="sm:col-span-2">
               <button className="btn btn-primary">
                 Save profile
@@ -85,7 +85,7 @@ export default async function SettingsPage({
                 Change password
               </button>
               <p className="mt-2 text-xs text-slate-400">
-                This becomes your sign-in password. (Mock mode stores it locally.)
+                This becomes your sign-in password.{isMock() && ' (Demo mode stores it locally.)'}
               </p>
             </div>
           </form>

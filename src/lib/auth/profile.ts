@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 
 export type Profile = {
@@ -10,8 +11,12 @@ export type Profile = {
   class_level: string | null
 }
 
-/** Loads the signed-in user's allowlist profile, or null if not signed in / not allowlisted. */
-export async function getProfile(): Promise<Profile | null> {
+/**
+ * Loads the signed-in user's allowlist profile, or null if not signed in / not
+ * allowlisted. Wrapped in React `cache()` so the layout, page and header all
+ * share ONE `auth.getUser()` + profiles read per request instead of 2–3.
+ */
+export const getProfile = cache(async (): Promise<Profile | null> => {
   // Portal is dormant until Supabase is configured — degrade gracefully
   // instead of throwing (mirrors the middleware env-guard).
   if (
@@ -31,4 +36,4 @@ export async function getProfile(): Promise<Profile | null> {
     .eq('auth_user_id', user.id)
     .maybeSingle()
   return (data as Profile) ?? null
-}
+})

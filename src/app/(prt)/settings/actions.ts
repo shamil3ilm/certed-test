@@ -12,9 +12,9 @@ const ALL = ['admin', 'teacher', 'student'] as const
 
 export async function updateProfileAction(formData: FormData) {
   const me = await requireRole([...ALL])
+  // Class/grade is an admin-controlled fact — self-service only edits the name.
   const full_name = String(formData.get('full_name') ?? '').trim() || null
-  const class_level = String(formData.get('class_level') ?? '').trim() || null
-  await updateOwnProfile(me.id, { full_name, class_level })
+  await updateOwnProfile(me.id, { full_name })
   await writeAudit({ actor_id: me.id, action: 'profile.update', entity_type: 'profile', entity_id: me.id })
   revalidatePath('/settings')
   redirect('/settings?saved=profile')

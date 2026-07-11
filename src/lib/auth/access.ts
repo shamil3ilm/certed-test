@@ -7,9 +7,9 @@ import type { Profile } from './profile'
  */
 export function canAccessResource(
   role: Profile['role'],
-  ctx: { isEnrolled: boolean; teachesCourse: boolean },
+  ctx: { isEnrolled: boolean; teachesClass: boolean },
 ): boolean {
   if (role === 'admin') return true
-  if (role === 'teacher') return ctx.teachesCourse
+  if (role === 'teacher') return ctx.teachesClass
   return ctx.isEnrolled
 }

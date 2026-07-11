@@ -23,11 +23,14 @@ export async function bindProfileOnFirstLogin(
     .maybeSingle()
   if (existing.data) return (existing.data as { id: string }).id
 
-  // Find an allowlist row by email.
+  // Find the allowlist row by exact (normalized) email. Emails are stored
+  // lower-cased on write, so an exact match is case-insensitive without the
+  // LIKE-wildcard collision that .ilike(email) would allow (a `_`/`%` in one
+  // address pattern-matching another).
   const found = await admin
     .from('profiles')
     .select('id, auth_user_id, status')
-    .eq('email', email)
+    .eq('email', email.trim().toLowerCase())
     .maybeSingle()
   const row = found.data as { id: string; auth_user_id: string | null } | null
   if (!row) return null

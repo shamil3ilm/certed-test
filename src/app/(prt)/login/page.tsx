@@ -35,13 +35,13 @@ import { DevLoginForm } from './DevLoginForm'
 
 async function DevLogin({ error }: { error?: string }) {
   const profiles = await listProfiles()
-  const demoEmails = profiles.slice(0, 4).map((p) => p.email)
+  const demoEmails = profiles.slice(0, 5).map((p) => p.email)
   return (
     <Shell subtitle="Sign in with your email and password.">
       <DevLoginForm error={!!error} />
 
       <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3.5 text-xs text-slate-500">
-        <p className="font-medium text-slate-650">Demo accounts (mock mode)</p>
+        <p className="font-medium text-slate-600">Demo accounts (mock mode)</p>
         <p className="mt-1">Password for all: <code className="rounded bg-white px-1 py-0.5 border border-slate-100 text-slate-700">cert-ed</code></p>
         <ul className="mt-1.5 space-y-0.5 font-mono">
           {demoEmails.map((e) => (
