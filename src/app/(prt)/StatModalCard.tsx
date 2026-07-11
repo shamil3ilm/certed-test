@@ -1,7 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import Link from 'next/link'
+import { Modal } from './Modal'
 
-type Item = { primary: string; secondary?: string }
+type Item = { primary: string; secondary?: ReactNode; href?: string }
 type Section = { heading: string; total?: string; items: Item[] }
 
 export function StatModalCard({
@@ -48,43 +50,56 @@ export function StatModalCard({
         </div>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-900/40 p-4" onClick={() => setOpen(false)}>
-          <div
-            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">
-                {title} <span className="text-slate-400">({count})</span>
-              </h2>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
-            </div>
-
-            {groups.map((g, gi) => (
-              <div key={gi} className="mt-4 first:mt-3">
-                {g.heading && (
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{g.heading}</span>
-                    {g.total && <span className="text-sm font-semibold text-slate-700">{g.total}</span>}
-                  </div>
-                )}
-                <ul className="mt-1 space-y-0.5">
-                  {g.items.map((it, i) => (
-                    <li key={i} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
-                      <span className="text-slate-700">{it.primary}</span>
-                      {it.secondary && <span className="shrink-0 text-xs text-slate-400">{it.secondary}</span>}
-                    </li>
-                  ))}
-                  {g.items.length === 0 && (
-                    <li className="py-3 text-center text-sm text-slate-400">{empty ?? 'Nothing to show.'}</li>
-                  )}
-                </ul>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={
+          <>
+            {title} <span className="text-slate-400">({count})</span>
+          </>
+        }
+      >
+        {groups.map((g, gi) => (
+          <div key={gi} className="mt-4 first:mt-0">
+            {g.heading && (
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{g.heading}</span>
+                {g.total && <span className="text-sm font-semibold text-slate-700">{g.total}</span>}
               </div>
-            ))}
+            )}
+            <ul className="mt-1 space-y-0.5">
+              {g.items.map((it, i) => {
+                const row = (
+                  <>
+                    <span className="min-w-0 truncate text-slate-700">{it.primary}</span>
+                    {it.secondary && <span className="shrink-0 text-xs text-slate-400">{it.secondary}</span>}
+                  </>
+                )
+                return (
+                  <li key={i}>
+                    {it.href ? (
+                      <Link
+                        href={it.href}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition hover:bg-slate-50"
+                      >
+                        {row}
+                      </Link>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                        {row}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+              {g.items.length === 0 && (
+                <li className="py-3 text-center text-sm text-slate-400">{empty ?? 'Nothing to show.'}</li>
+              )}
+            </ul>
           </div>
-        </div>
-      )}
+        ))}
+      </Modal>
     </>
   )
 }

@@ -4,6 +4,7 @@ import { getProfile } from '@/lib/auth/profile'
 import { ProfileMenu } from './ProfileMenu'
 import { MobileNav } from './MobileNav'
 import { navFor } from './nav'
+import { roleLabel } from './ui'
 
 export async function PortalHeader() {
   const profile = await getProfile()
@@ -33,7 +34,7 @@ export async function PortalHeader() {
           <div className="flex shrink-0 items-center gap-3">
             <span className="hidden text-right text-xs leading-tight text-gray-500 sm:block">
               {profile.full_name ?? profile.email}
-              <span className="block capitalize text-gray-400">{profile.role}</span>
+              <span className="block text-gray-400">{roleLabel(profile.role)}</span>
             </span>
             <ProfileMenu
               name={profile.full_name ?? profile.email}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PortalHeader } from "./PortalHeader";
 import { PortalProviders } from "./Providers";
+import { IdleLogout } from "./IdleLogout";
 
 export const metadata: Metadata = {
   title: "Cert-Ed Academia — App",
@@ -18,6 +19,7 @@ export default function AppLayout({
   return (
     <div className="prt-scope flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <PortalProviders>
+        <IdleLogout />
         <PortalHeader />
         <div className="flex-1">{children}</div>
         <footer className="mt-8 border-t border-slate-200">

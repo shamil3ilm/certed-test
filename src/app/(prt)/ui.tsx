@@ -1,4 +1,160 @@
-import type { ReactNode } from 'react'
+import type { ElementType, ReactNode } from 'react'
+
+/* ----------------------------------------------------------------------------
+ * Design tokens & helpers — the single source for the repeated visual patterns
+ * (cards, avatars, empty states, badges, role tones, class banners). Import
+ * these instead of re-typing the class strings so the look stays consistent.
+ * Brand colours themselves live as CSS variables in globals.css (--primary…).
+ * ------------------------------------------------------------------------- */
+
+/** Join class names, dropping falsy values. */
+export function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ')
+}
+
+/** The standard white content-box surface (used ~35× before this existed). */
+export const CARD = 'rounded-2xl border border-slate-200 bg-white shadow-sm'
+
+/** Two-letter initials from a display name. */
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
+}
+
+/** Role → tone class strings (avatar chip, comment bubble, text badge). */
+export function roleTone(role?: string | null): { avatar: string; bubble: string; badge: string } {
+  if (role === 'admin')
+    return {
+      avatar: 'bg-violet-100 text-violet-700 border-violet-200',
+      bubble: 'bg-violet-50 border-violet-200',
+      badge: 'bg-violet-100 text-violet-800 border-violet-200',
+    }
+  if (role === 'teacher')
+    return {
+      avatar: 'bg-sky-100 text-sky-700 border-sky-200',
+      bubble: 'bg-sky-50 border-sky-200',
+      badge: 'bg-sky-100 text-sky-800 border-sky-200',
+    }
+  return {
+    avatar: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    bubble: 'bg-emerald-50 border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  }
+}
+
+/** Human label for a role, from the student's point of view. */
+export function roleLabel(role?: string | null): string {
+  if (role === 'teacher') return 'Tutor'
+  if (role === 'admin') return 'Admin'
+  return 'Student'
+}
+
+/** Deterministic on-brand gradient for a class banner, keyed by class id. */
+const CLASS_BANNERS = [
+  'from-primary to-secondary',
+  'from-secondary to-primary',
+  'from-sky-500 to-primary',
+  'from-primary to-emerald-500',
+  'from-violet-500 to-primary',
+  'from-secondary to-teal-500',
+]
+export function classBanner(id: string): string {
+  let h = 0
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
+  return CLASS_BANNERS[h % CLASS_BANNERS.length]
+}
+
+/** White content box. `interactive` adds the standard lift-on-hover. */
+export function Card({
+  as: As = 'div',
+  interactive = false,
+  className = '',
+  id,
+  children,
+}: {
+  as?: ElementType
+  interactive?: boolean
+  className?: string
+  id?: string
+  children: ReactNode
+}) {
+  return (
+    <As id={id} className={cx(CARD, interactive && 'transition hover:-translate-y-0.5 hover:shadow-md', className)}>
+      {children}
+    </As>
+  )
+}
+
+/** Dashed placeholder shown when a list/section is empty. */
+export function EmptyState({
+  as: As = 'div',
+  className = '',
+  children,
+}: {
+  as?: ElementType
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <As className={cx('rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400', className)}>
+      {children}
+    </As>
+  )
+}
+
+/** Round initials chip, tinted by the member's role. */
+export function Avatar({
+  name,
+  role,
+  size = 'md',
+  className = '',
+}: {
+  name: string
+  role?: string | null
+  size?: 'sm' | 'md'
+  className?: string
+}) {
+  const dims = size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-sm'
+  return (
+    <span className={cx('grid shrink-0 place-items-center rounded-full border font-semibold', dims, roleTone(role).avatar, className)}>
+      {initials(name)}
+    </span>
+  )
+}
+
+/** Coloured dot + label, e.g. a calendar/legend key. */
+export function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} aria-hidden />
+      {label}
+    </span>
+  )
+}
+
+/** Small status pill. */
+export function Badge({
+  tone = 'slate',
+  className = '',
+  children,
+}: {
+  tone?: 'slate' | 'primary' | 'success' | 'warning' | 'danger'
+  className?: string
+  children: ReactNode
+}) {
+  const tones: Record<string, string> = {
+    slate: 'bg-slate-100 text-slate-600',
+    primary: 'bg-primary/10 text-primary',
+    success: 'bg-emerald-100 text-emerald-700',
+    warning: 'bg-amber-100 text-amber-700',
+    danger: 'bg-red-100 text-red-700',
+  }
+  return (
+    <span className={cx('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold', tones[tone], className)}>
+      {children}
+    </span>
+  )
+}
 
 /** Consistent page title block used across all portal pages. */
 export function PageHeader({
@@ -7,7 +163,7 @@ export function PageHeader({
   action,
 }: {
   title: string
-  description?: string
+  description?: ReactNode
   action?: ReactNode
 }) {
   return (

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { roleLabel, initials } from './ui'
 
 export function ProfileMenu({ name, email, role }: { name: string; email: string; role: string }) {
   const [open, setOpen] = useState(false)
@@ -14,12 +15,7 @@ export function ProfileMenu({ name, email, role }: { name: string; email: string
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  const initials = (name || email)
-    .split(/\s+/)
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
+  const badge = initials(name || email)
 
   return (
     <div className="relative" ref={ref}>
@@ -29,14 +25,14 @@ export function ProfileMenu({ name, email, role }: { name: string; email: string
         aria-expanded={open}
         className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-semibold text-white shadow-sm ring-2 ring-white transition hover:opacity-90"
       >
-        {initials}
+        {badge}
       </button>
 
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="truncate text-sm font-medium text-slate-900">{name}</p>
-            <p className="truncate text-xs capitalize text-slate-400">{email} · {role}</p>
+            <p className="truncate text-xs text-slate-400">{email} · {roleLabel(role)}</p>
           </div>
           <Link
             href="/settings"

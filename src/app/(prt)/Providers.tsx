@@ -1,5 +1,6 @@
 'use client'
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import { Modal } from './Modal'
 
 type ToastType = 'success' | 'error' | 'info'
 type ToastItem = { id: number; msg: string; type: ToastType }
@@ -69,26 +70,18 @@ export function PortalProviders({ children }: { children: ReactNode }) {
         ))}
       </div>
 
-      {/* Confirm / warning dialog */}
-      {confirmState && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-900/40 p-4" onClick={() => close(false)}>
-          <div
-            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-base font-semibold text-slate-900">{confirmState.title}</h2>
-            {confirmState.message && <p className="mt-1 text-sm text-slate-500">{confirmState.message}</p>}
-            <div className="mt-5 flex justify-end gap-2">
-              <button className="btn btn-ghost" onClick={() => close(false)}>
-                {confirmState.cancelLabel ?? 'Cancel'}
-              </button>
-              <button className={`btn ${confirmBtn}`} onClick={() => close(true)}>
-                {confirmState.confirmLabel ?? 'Confirm'}
-              </button>
-            </div>
-          </div>
+      {/* Confirm / warning dialog — reuses the one shared Modal shell */}
+      <Modal open={!!confirmState} onClose={() => close(false)} size="sm" title={confirmState?.title}>
+        {confirmState?.message && <p className="text-sm text-slate-500">{confirmState.message}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="btn btn-ghost" onClick={() => close(false)}>
+            {confirmState?.cancelLabel ?? 'Cancel'}
+          </button>
+          <button className={`btn ${confirmBtn}`} onClick={() => close(true)}>
+            {confirmState?.confirmLabel ?? 'Confirm'}
+          </button>
         </div>
-      )}
+      </Modal>
     </Ctx.Provider>
   )
 }
