@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth/profile'
-import { listCourses } from '@/lib/repos/courses'
-import { listCourseTeachers } from '@/lib/repos/courseTeachers'
+import { listClasses } from '@/lib/repos/classes'
+import { listClassTeachers } from '@/lib/repos/classTeachers'
 import { listProfiles } from '@/lib/repos/users'
 import { CalendarView } from './CalendarView'
 import { TimetableManager } from './TimetableManager'
@@ -16,20 +16,25 @@ export default async function CalendarPage() {
   const canManage = profile.role === 'teacher' || profile.role === 'admin'
   const isAdmin = profile.role === 'admin'
 
-  // Course + teacher option lists for the management forms, scoped by role:
-  // an admin manages all courses/teachers; a teacher only the courses they teach.
-  let courses: { id: string; name: string }[] = []
+  // ClassRow + teacher option lists for the management forms, scoped by role:
+  // an admin manages all classes/teachers; a teacher only the classes they teach.
+  let classes: { id: string; name: string }[] = []
   let teachers: { id: string; name: string }[] = []
   if (canManage) {
-    const all = await listCourses()
     if (isAdmin) {
-      courses = all.map((c) => ({ id: c.id, name: c.name }))
-      teachers = (await listProfiles())
+      // Independent reads — classes and the teacher roster in parallel.
+      const [allClasses, profiles] = await Promise.all([listClasses(), listProfiles()])
+      classes = allClasses.filter((c) => c.status === 'active').map((c) => ({ id: c.id, name: c.name }))
+      teachers = profiles
         .filter((p) => p.role === 'teacher')
         .map((p) => ({ id: p.id, name: p.full_name ?? p.email }))
     } else {
-      const mine = new Set((await listCourseTeachers()).map((ct) => ct.course_id))
-      courses = all.filter((c) => mine.has(c.id)).map((c) => ({ id: c.id, name: c.name }))
+      const [allClasses, myTeaching] = await Promise.all([listClasses(), listClassTeachers()])
+      // Explicit scope filter (don't rely on RLS alone) — mirrors the dashboard.
+      const mine = new Set(myTeaching.filter((ct) => ct.teacher_id === profile.id).map((ct) => ct.class_id))
+      classes = allClasses
+        .filter((c) => c.status === 'active' && mine.has(c.id))
+        .map((c) => ({ id: c.id, name: c.name }))
       teachers = [{ id: profile.id, name: profile.full_name ?? profile.email }]
     }
   }
@@ -37,8 +42,8 @@ export default async function CalendarPage() {
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6">
       <PageHeader title="Calendar" />
-      <CalendarView canManage={canManage} courses={courses} isAdmin={isAdmin} />
-      {canManage && <TimetableManager courses={courses} teachers={teachers} isAdmin={isAdmin} />}
+      <CalendarView canManage={canManage} classes={classes} isAdmin={isAdmin} />
+      {canManage && <TimetableManager classes={classes} teachers={teachers} isAdmin={isAdmin} />}
     </main>
   )
 }

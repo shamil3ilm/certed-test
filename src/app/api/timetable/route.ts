@@ -1,6 +1,6 @@
 import { ok, fail, created } from '@/lib/api/response'
 import { getProfile } from '@/lib/auth/profile'
-import { teachesCourse } from '@/lib/auth/courseScope'
+import { teachesClass } from '@/lib/auth/classScope'
 import { createSlotSchema } from '@/lib/validation/timetableSlot'
 import { createSlot, listSlots } from '@/lib/repos/timetableSlots'
 import { writeAudit } from '@/lib/repos/audit'
@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   const profile = await getProfile()
   if (!profile || profile.status !== 'active') return fail('no-access', 401)
   const url = new URL(request.url)
-  const courseId = url.searchParams.get('courseId') ?? undefined
-  const data = await listSlots({ courseId, activeOnly: false }) // RLS scopes the rows
+  const classId = url.searchParams.get('classId') ?? undefined
+  const data = await listSlots({ classId, activeOnly: false }) // RLS scopes the rows
   return ok(data)
 }
 
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const parsed = createSlotSchema.safeParse(raw)
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'invalid', 400)
 
-  if (profile.role === 'teacher' && !(await teachesCourse(parsed.data.course_id))) {
+  if (profile.role === 'teacher' && !(await teachesClass(parsed.data.class_id))) {
     return fail('forbidden', 403)
   }
 

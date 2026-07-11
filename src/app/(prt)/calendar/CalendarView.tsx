@@ -3,15 +3,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
+import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { EventInput } from '@fullcalendar/core'
 import { useUI } from '../Providers'
+import { LegendDot } from '../ui'
+import { Modal } from '../Modal'
 
 type Opt = { id: string; name: string }
 type CalendarItem = {
   id: string; source: 'slot' | 'event' | 'assignment'
   title: string; start: string; end: string | null; allDay: boolean
-  courseId: string | null; kind: string; location?: string | null
+  classId: string | null; kind: string; location?: string | null
 }
 
 const COLORS: Record<string, string> = {
@@ -23,11 +26,11 @@ const KINDS = ['event', 'holiday', 'cancellation', 'reschedule'] as const
 
 export function CalendarView({
   canManage,
-  courses = [],
+  classes = [],
   isAdmin = false,
 }: {
   canManage: boolean
-  courses?: Opt[]
+  classes?: Opt[]
   isAdmin?: boolean
 }) {
   const deviceTz = useMemo(
@@ -37,7 +40,21 @@ export function CalendarView({
   const [error, setError] = useState<string | null>(null)
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [eventInfo, setEventInfo] = useState<EventDetail | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
   const calRef = useRef<FullCalendar | null>(null)
+
+  // Phones get the agenda (list) view by default — a clear, scannable
+  // "what's on, per day" instead of a cramped month grid.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const apply = () => {
+      setIsMobile(mq.matches)
+      calRef.current?.getApi().changeView(mq.matches ? 'listWeek' : 'dayGridMonth')
+    }
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
 
   const fetchEvents = useCallback(
     async (info: { startStr: string; endStr: string }): Promise<EventInput[]> => {
@@ -58,7 +75,7 @@ export function CalendarView({
         allDay: i.allDay,
         backgroundColor: COLORS[i.source],
         borderColor: COLORS[i.source],
-        extendedProps: { source: i.source, kind: i.kind, courseId: i.courseId },
+        extendedProps: { source: i.source, kind: i.kind, classId: i.classId },
       }))
     },
     [],
@@ -66,19 +83,30 @@ export function CalendarView({
 
   return (
     <section className="mt-4">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <LegendDot color={COLORS.slot} label="Class" />
+        <LegendDot color={COLORS.event} label="Event / holiday" />
+        <LegendDot color={COLORS.assignment} label="Deadline" />
+      </div>
       <p className="mb-2 text-xs text-slate-500" data-tz={deviceTz}>
-        All times shown in your timezone: <span className="font-medium">{deviceTz}</span>
-        {canManage && <span className="text-slate-400"> · click a date to schedule</span>}
+        Times shown in your timezone: <span className="font-medium">{deviceTz}</span>
+        {canManage && <span className="text-slate-400"> · tap a date to schedule</span>}
       </p>
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:p-3">
         <FullCalendar
           ref={calRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           timeZone={deviceTz}
-          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
-          buttonText={{ dayGridMonth: 'Month', timeGridWeek: 'Week', today: 'Today' }}
+          headerToolbar={
+            isMobile
+              ? { left: 'prev,next', center: 'title', right: 'today' }
+              : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' }
+          }
+          footerToolbar={isMobile ? { center: 'listWeek,dayGridMonth' } : undefined}
+          buttonText={{ dayGridMonth: 'Month', timeGridWeek: 'Week', listWeek: 'Agenda', today: 'Today' }}
+          dayMaxEventRows={3}
           height="auto"
           events={fetchEvents}
           dateClick={canManage ? (info) => setModalDate(info.dateStr) : undefined}
@@ -101,7 +129,7 @@ export function CalendarView({
       {modalDate && (
         <ScheduleModal
           date={modalDate}
-          courses={courses}
+          classes={classes}
           isAdmin={isAdmin}
           onClose={() => setModalDate(null)}
           onCreated={() => {
@@ -116,19 +144,19 @@ export function CalendarView({
 
 function ScheduleModal({
   date,
-  courses,
+  classes,
   isAdmin,
   onClose,
   onCreated,
 }: {
   date: string
-  courses: Opt[]
+  classes: Opt[]
   isAdmin: boolean
   onClose: () => void
   onCreated: () => void
 }) {
   const [title, setTitle] = useState('')
-  const [courseId, setCourseId] = useState(isAdmin ? '' : courses[0]?.id ?? '')
+  const [classId, setClassId] = useState(isAdmin ? '' : classes[0]?.id ?? '')
   const [kind, setKind] = useState<(typeof KINDS)[number]>('event')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
@@ -160,7 +188,7 @@ function ScheduleModal({
           title,
           event_date: date,
           kind,
-          course_id: courseId || null,
+          class_id: classId || null,
           start_time: start || undefined,
           end_time: end || undefined,
         }),
@@ -179,15 +207,7 @@ function ScheduleModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Schedule for {date}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
-        </div>
+    <Modal open onClose={onClose} title={`Schedule for ${date}`}>
         {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
@@ -206,25 +226,25 @@ function ScheduleModal({
         <p className="mt-3 text-xs font-medium text-slate-500">Add to schedule</p>
         <form onSubmit={submit} className="mt-2 grid gap-3 sm:grid-cols-2">
           <label className="text-sm sm:col-span-2">Title
-            <input value={title} required onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Doubt-clearing session" />
+            <input value={title} required onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Doubt-clearing session" className="mt-1 block w-full" />
           </label>
-          <label className="text-sm">Course
-            <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+          <label className="text-sm">Class
+            <select value={classId} onChange={(e) => setClassId(e.target.value)} className="mt-1 block w-full">
               {isAdmin && <option value="">Global (all)</option>}
-              {!isAdmin && courses.length === 0 && <option value="">No courses</option>}
-              {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {!isAdmin && classes.length === 0 && <option value="">No classes</option>}
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
           <label className="text-sm">Kind
-            <select value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}>
+            <select value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])} className="mt-1 block w-full">
               {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
           </label>
           <label className="text-sm">Start (optional)
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 block w-full" />
           </label>
           <label className="text-sm">End (optional)
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1 block w-full" />
           </label>
           <div className="mt-1 flex gap-2 sm:col-span-2">
             <button type="submit" disabled={busy} className="btn btn-primary">
@@ -235,8 +255,7 @@ function ScheduleModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -255,26 +274,27 @@ function EventDetailModal({ info, onClose }: { info: EventDetail; onClose: () =>
       : `${start.toLocaleDateString(undefined, dateOpts)}, ${start.toLocaleTimeString(undefined, timeOpts)}${end ? ` – ${end.toLocaleTimeString(undefined, timeOpts)}` : ''}`
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-900/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORS[info.source] ?? '#94a3b8' }} />
-            <h2 className="truncate text-base font-semibold text-slate-900">{info.title}</h2>
-          </div>
-          <button onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORS[info.source] ?? '#94a3b8' }} />
+          <span className="truncate">{info.title}</span>
+        </span>
+      }
+    >
+      <dl className="space-y-2 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-slate-400">Type</dt>
+          <dd className="capitalize text-slate-700">{typeLabel}</dd>
         </div>
-        <dl className="mt-3 space-y-2 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-slate-400">Type</dt>
-            <dd className="capitalize text-slate-700">{typeLabel}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-slate-400">When</dt>
-            <dd className="text-right text-slate-700">{when}</dd>
-          </div>
-        </dl>
-      </div>
-    </div>
+        <div className="flex justify-between gap-3">
+          <dt className="shrink-0 text-slate-400">When</dt>
+          <dd className="text-right text-slate-700">{when}</dd>
+        </div>
+      </dl>
+    </Modal>
   )
 }

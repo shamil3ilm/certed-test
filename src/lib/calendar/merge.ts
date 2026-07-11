@@ -30,20 +30,20 @@ export type CalendarItem = {
   start: string              // absolute UTC ISO, OR "YYYY-MM-DD" when allDay
   end: string | null
   allDay: boolean
-  courseId: string | null
+  classId: string | null
   kind: CalendarEventKind | 'timetable' | 'deadline'
   location?: string | null
 }
 
 export type MergeInput = {
   slotOccurrences: SlotOccurrence[]
-  slotMeta: Record<string, { subject: string; courseId: string; location: string | null }>
+  slotMeta: Record<string, { subject: string; classId: string; location: string | null }>
   events: Array<{
     id: string; title: string; event_date: string
     start_time: string | null; end_time: string | null
-    course_id: string | null; kind: CalendarEventKind
+    class_id: string | null; kind: CalendarEventKind
   }>
-  assignments: Array<{ id: string; title: string; due_date: string; course_id: string }>
+  assignments: Array<{ id: string; title: string; due_date: string; class_id: string }>
   anchorTz: string
 }
 
@@ -59,7 +59,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       start: occ.startIso,
       end: occ.endIso,
       allDay: false,
-      courseId: meta?.courseId ?? null,
+      classId: meta?.classId ?? null,
       kind: 'timetable',
       location: meta?.location ?? null,
     })
@@ -74,7 +74,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       start: timed ? zonedDateTimeToIso(ev.event_date, ev.start_time!, input.anchorTz) : ev.event_date,
       end: timed && ev.end_time ? zonedDateTimeToIso(ev.event_date, ev.end_time, input.anchorTz) : null,
       allDay: !timed,
-      courseId: ev.course_id,
+      classId: ev.class_id,
       kind: ev.kind,
     })
   }
@@ -87,7 +87,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       start: a.due_date,   // already an absolute instant (Phase 3 stores UTC)
       end: null,
       allDay: false,
-      courseId: a.course_id,
+      classId: a.class_id,
       kind: 'deadline',
     })
   }

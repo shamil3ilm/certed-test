@@ -1,6 +1,6 @@
 import { ok, fail, created } from '@/lib/api/response'
 import { getProfile } from '@/lib/auth/profile'
-import { teachesCourse } from '@/lib/auth/courseScope'
+import { teachesClass } from '@/lib/auth/classScope'
 import { createEventSchema } from '@/lib/validation/calendarEvent'
 import { createEvent, listEvents } from '@/lib/repos/calendarEvents'
 import { writeAudit } from '@/lib/repos/audit'
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const from = url.searchParams.get('from') ?? undefined
   const to = url.searchParams.get('to') ?? undefined
-  const data = await listEvents({ from, to }) // RLS scopes the rows
+  const data = await listEvents({ from, to, limit: 500 }) // RLS scopes the rows; cap the management list
   return ok(data)
 }
 
@@ -25,10 +25,10 @@ export async function POST(request: Request) {
   const parsed = createEventSchema.safeParse(raw)
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'invalid', 400)
 
-  // Global events (course_id null) are admin-only; teachers may only create course events they teach.
+  // Global events (class_id null) are admin-only; teachers may only create course events they teach.
   if (profile.role === 'teacher') {
-    if (parsed.data.course_id == null) return fail('forbidden', 403)
-    if (!(await teachesCourse(parsed.data.course_id))) return fail('forbidden', 403)
+    if (parsed.data.class_id == null) return fail('forbidden', 403)
+    if (!(await teachesClass(parsed.data.class_id))) return fail('forbidden', 403)
   }
 
   const event = await createEvent(parsed.data, profile.id)
