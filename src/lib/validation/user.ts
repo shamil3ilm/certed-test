@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 export const roleSchema = z.enum(['admin', 'teacher', 'student'])
-export type Role = z.infer<typeof roleSchema>
 
 export const addUserSchema = z.object({
   email: z.string().email(),

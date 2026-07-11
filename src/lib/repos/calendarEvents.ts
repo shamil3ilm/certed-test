@@ -10,7 +10,7 @@ export type CalendarEvent = {
   event_date: string   // "YYYY-MM-DD" wall-clock date in org_settings.timezone
   start_time: string | null
   end_time: string | null
-  course_id: string | null   // null = global
+  class_id: string | null   // null = global
   kind: CalendarEventKind
   slot_id: string | null
   created_by: string
@@ -18,11 +18,14 @@ export type CalendarEvent = {
 }
 
 // RLS scopes the rows: global events + enrolled/taught course events / admin sees all.
-export async function listEvents(opts: { from?: string; to?: string } = {}): Promise<CalendarEvent[]> {
+export async function listEvents(
+  opts: { from?: string; to?: string; limit?: number } = {},
+): Promise<CalendarEvent[]> {
   const supabase = await createClient()
   let q = supabase.from('calendar_events').select('*').order('event_date', { ascending: true })
   if (opts.from) q = q.gte('event_date', opts.from)
   if (opts.to) q = q.lte('event_date', opts.to)
+  if (opts.limit) q = q.limit(opts.limit)
   const { data, error } = await q
   if (error) throw new Error(`listEvents: ${error.message}`)
   return (data ?? []) as CalendarEvent[]
@@ -45,7 +48,7 @@ export async function createEvent(input: CreateEventInput, createdBy: string): P
       event_date: input.event_date,
       start_time: input.start_time ?? null,
       end_time: input.end_time ?? null,
-      course_id: input.course_id ?? null,
+      class_id: input.class_id ?? null,
       kind: input.kind,
       slot_id: input.slot_id ?? null,
       created_by: createdBy,

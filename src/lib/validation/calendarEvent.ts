@@ -13,7 +13,7 @@ export const createEventSchema = z
     event_date: isoDate,
     start_time: hhmm.optional(),
     end_time: hhmm.optional(),
-    course_id: z.string().uuid().nullable().optional(),
+    class_id: z.string().uuid().nullable().optional(),
     kind: calendarEventKind,
     slot_id: z.string().uuid().nullable().optional(),
   })
@@ -33,7 +33,7 @@ export const updateEventSchema = z
     event_date: isoDate,
     start_time: hhmm.nullable(),
     end_time: hhmm.nullable(),
-    course_id: z.string().uuid().nullable(),
+    class_id: z.string().uuid().nullable(),
     kind: calendarEventKind,
     slot_id: z.string().uuid().nullable(),
   })
@@ -41,4 +41,3 @@ export const updateEventSchema = z
 
 export type CreateEventInput = z.infer<typeof createEventSchema>
 export type UpdateEventInput = z.infer<typeof updateEventSchema>
-export { isoDate }

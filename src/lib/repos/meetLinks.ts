@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export type MeetLink = {
   id: string
-  course_id: string | null
+  class_id: string | null
   title: string
   url: string
   description: string | null
@@ -11,19 +11,17 @@ export type MeetLink = {
   created_at: string
 }
 
-export async function listMeetLinks(courseId?: string): Promise<MeetLink[]> {
+export async function listMeetLinks(classId?: string): Promise<MeetLink[]> {
   const supabase = await createClient()
-  let query = supabase
+  const { data, error } = await supabase
     .from('meet_links')
     .select('*')
     .eq('active', true)
     .order('created_at', { ascending: false })
-  if (courseId) {
-    query = query.eq('course_id', courseId)
-  }
-  const { data, error } = await query
   if (error) throw new Error(`meetLinks.list: ${error.message}`)
-  return (data ?? []) as MeetLink[]
+  const rows = (data ?? []) as MeetLink[]
+  // A class view includes academy-wide (null) links too; no classId = global listing.
+  return classId ? rows.filter((m) => m.class_id === classId || m.class_id === null) : rows
 }
 
 export async function getMeetLink(id: string): Promise<MeetLink | null> {
@@ -33,7 +31,7 @@ export async function getMeetLink(id: string): Promise<MeetLink | null> {
 }
 
 export async function createMeetLink(input: {
-  course_id: string | null
+  class_id: string | null
   title: string
   url: string
   description?: string | null
@@ -43,7 +41,7 @@ export async function createMeetLink(input: {
   const { data, error } = await supabase
     .from('meet_links')
     .insert({
-      course_id: input.course_id,
+      class_id: input.class_id,
       title: input.title,
       url: input.url,
       description: input.description ?? null,
@@ -56,23 +54,9 @@ export async function createMeetLink(input: {
   return data as MeetLink
 }
 
-export async function updateMeetLink(
-  id: string,
-  patch: Partial<{ title: string; url: string; description: string | null; active: boolean }>,
-): Promise<MeetLink> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('meet_links')
-    .update(patch)
-    .eq('id', id)
-    .select('*')
-    .single()
-  if (error) throw new Error(`meetLinks.update: ${error.message}`)
-  return data as MeetLink
-}
-
+/** Soft-remove: deactivate the link (kept on record) rather than deleting it. */
 export async function deleteMeetLink(id: string): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('meet_links').delete().eq('id', id)
+  const { error } = await supabase.from('meet_links').update({ active: false }).eq('id', id)
   if (error) throw new Error(`meetLinks.delete: ${error.message}`)
 }

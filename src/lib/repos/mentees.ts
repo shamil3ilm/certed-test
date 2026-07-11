@@ -1,0 +1,138 @@
+import { cache } from 'react'
+import { createAdminClient } from '@/lib/supabase/admin'
+import type { Profile } from '@/lib/auth/profile'
+import { getProfileById } from './users'
+
+/**
+ * Mentee (pastoral) views for a mentor. A mentor may not teach the mentee's
+ * classes, so RLS would hide the data — these helpers use the service-role
+ * client but ALWAYS gate on a verified, active mentorship first (or admin).
+ */
+
+export type MenteeSubmission = {
+  assignmentId: string
+  assignmentTitle: string
+  classLabel: string
+  status: string
+  submittedAt: string
+  driveLink: string | null
+}
+
+export type MenteeOverdue = {
+  assignmentId: string
+  assignmentTitle: string
+  classLabel: string
+  dueDate: string
+}
+
+export type MenteeOverview = {
+  student: Profile
+  classes: { id: string; name: string }[]
+  submissions: MenteeSubmission[]
+  overdue: MenteeOverdue[]
+}
+
+/**
+ * Admin, or a teacher with an active mentorship over this student. Cached
+ * per-request: the mentee page gate and getMenteeOverview's defense-in-depth
+ * re-check pass the same (profile, studentId), so the check runs once.
+ */
+export const canMentor = cache(async (me: Profile, studentId: string): Promise<boolean> => {
+  if (me.role === 'admin') return true
+  if (me.role !== 'teacher') return false
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('mentorships')
+    .select('id')
+    .eq('teacher_id', me.id)
+    .eq('student_id', studentId)
+    .eq('active', true)
+    .maybeSingle()
+  return !!data
+})
+
+/**
+ * Everything a mentor needs to look after one mentee, scoped to that student.
+ * Re-checks mentorship itself (defense-in-depth) so the service-role queries
+ * below can never run for a caller who isn't the mentee's mentor / an admin.
+ */
+export async function getMenteeOverview(me: Profile, studentId: string): Promise<MenteeOverview | null> {
+  if (!(await canMentor(me, studentId))) return null
+  const student = await getProfileById(studentId)
+  if (!student) return null
+  const admin = createAdminClient()
+
+  const { data: enr } = await admin
+    .from('enrollments')
+    .select('class_id')
+    .eq('student_id', studentId)
+    .eq('active', true)
+  const classIds = [...new Set((enr ?? []).map((r: { class_id: string }) => r.class_id))]
+
+  const [{ data: classes }, { data: assignments }, { data: subs }] = await Promise.all([
+    classIds.length
+      ? admin.from('classes').select('id, name').in('id', classIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    classIds.length
+      ? admin
+          .from('assignments')
+          .select('id, title, class_id, due_date')
+          .in('class_id', classIds)
+          .eq('status', 'active')
+      : Promise.resolve({ data: [] as { id: string; title: string; class_id: string; due_date: string }[] }),
+    admin
+      .from('submissions')
+      .select('assignment_id, status, submitted_at, drive_link')
+      .eq('student_id', studentId)
+      .eq('is_active', true),
+  ])
+
+  const classLabel = new Map(((classes ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name]))
+  const assignmentById = new Map(
+    ((assignments ?? []) as { id: string; title: string; class_id: string; due_date: string }[]).map((a) => [a.id, a]),
+  )
+  const submittedIds = new Set(((subs ?? []) as { assignment_id: string }[]).map((s) => s.assignment_id))
+
+  const submissions: MenteeSubmission[] = ((subs ?? []) as {
+    assignment_id: string
+    status: string
+    submitted_at: string
+    drive_link: string | null
+  }[])
+    .map((s) => {
+      const a = assignmentById.get(s.assignment_id)
+      return {
+        assignmentId: s.assignment_id,
+        assignmentTitle: a?.title ?? 'Assignment',
+        classLabel: a ? classLabel.get(a.class_id) ?? 'Class' : 'Class',
+        status: s.status,
+        submittedAt: s.submitted_at,
+        driveLink: s.drive_link,
+      }
+    })
+    .sort((x, y) => (x.submittedAt < y.submittedAt ? 1 : -1))
+    .slice(0, 10)
+
+  const now = Date.now()
+  const overdue: MenteeOverdue[] = ((assignments ?? []) as {
+    id: string
+    title: string
+    class_id: string
+    due_date: string
+  }[])
+    .filter((a) => Date.parse(a.due_date) < now && !submittedIds.has(a.id))
+    .sort((x, y) => (x.due_date < y.due_date ? 1 : -1))
+    .map((a) => ({
+      assignmentId: a.id,
+      assignmentTitle: a.title,
+      classLabel: classLabel.get(a.class_id) ?? 'Class',
+      dueDate: a.due_date,
+    }))
+
+  return {
+    student,
+    classes: ((classes ?? []) as { id: string; name: string }[]).map((c) => ({ id: c.id, name: c.name })),
+    submissions,
+    overdue,
+  }
+}

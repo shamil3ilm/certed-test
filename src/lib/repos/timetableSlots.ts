@@ -3,7 +3,7 @@ import type { CreateSlotInput, UpdateSlotInput } from '@/lib/validation/timetabl
 
 export type TimetableSlot = {
   id: string
-  course_id: string
+  class_id: string
   subject: string
   teacher_id: string | null
   day_of_week: number
@@ -15,10 +15,10 @@ export type TimetableSlot = {
 }
 
 // RLS scopes the rows: enrolled student / teacher-of-course / admin.
-export async function listSlots(opts: { courseId?: string; activeOnly?: boolean } = {}): Promise<TimetableSlot[]> {
+export async function listSlots(opts: { classId?: string; activeOnly?: boolean } = {}): Promise<TimetableSlot[]> {
   const supabase = await createClient()
   let q = supabase.from('timetable_slots').select('*').order('day_of_week', { ascending: true })
-  if (opts.courseId) q = q.eq('course_id', opts.courseId)
+  if (opts.classId) q = q.eq('class_id', opts.classId)
   if (opts.activeOnly !== false) q = q.eq('active', true)
   const { data, error } = await q
   if (error) throw new Error(`listSlots: ${error.message}`)
@@ -37,7 +37,7 @@ export async function createSlot(input: CreateSlotInput): Promise<TimetableSlot>
   const { data, error } = await supabase
     .from('timetable_slots')
     .insert({
-      course_id: input.course_id,
+      class_id: input.class_id,
       subject: input.subject,
       teacher_id: input.teacher_id ?? null,
       day_of_week: input.day_of_week,

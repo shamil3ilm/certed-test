@@ -5,7 +5,7 @@ const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be HH:mm (24h)'
 
 export const createSlotSchema = z
   .object({
-    course_id: z.string().uuid(),
+    class_id: z.string().uuid(),
     subject: z.string().min(1).max(200),
     teacher_id: z.string().uuid().optional(),
     day_of_week: z.number().int().min(0).max(6),

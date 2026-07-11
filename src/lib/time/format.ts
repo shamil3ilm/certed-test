@@ -1,10 +1,43 @@
 /**
- * Format an absolute instant (UTC ISO string) for display.
- *
- * Phase 8 timezone rule: data is stored as absolute instants and DISPLAYED in the
- * viewer's device timezone. `formatInstant` lets a caller pin an explicit IANA zone
- * (used in tests and for the institute-anchor previews); `formatInstantDevice` uses the
- * runtime's resolved device zone, which is what end users see in the UI.
+ * Institute display zone. Used as the deterministic SSR/first-render fallback in
+ * <LocalTime>, which then re-renders in the viewer's own device zone after mount.
+ * (Server rendering can't know the viewer's zone, so a fixed fallback is what
+ * keeps hydration from mismatching; the client swap gives everyone device-local
+ * time consistently.) Never use bare toLocale* in components — use <LocalTime>.
+ */
+export const DISPLAY_TZ = 'Asia/Kolkata'
+
+/** "20 Jun 2026". Omit timeZone to format in the runtime zone (the device, on the client). */
+export function formatDate(iso: string, timeZone?: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(d)
+}
+
+/** "20 Jun 2026, 1:30 pm". Omit timeZone to format in the runtime zone (the device, on the client). */
+export function formatDateTime(iso: string, timeZone?: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(d)
+}
+
+/**
+ * Format an absolute instant (UTC ISO string) for display. Data is stored as
+ * absolute instants; a caller may pin an explicit IANA zone (used in tests and
+ * the institute-anchor previews), otherwise the runtime's device zone is used.
  */
 export function formatInstant(iso: string, timeZone?: string): string {
   const d = new Date(iso)
@@ -18,14 +51,4 @@ export function formatInstant(iso: string, timeZone?: string): string {
     minute: '2-digit',
     hour12: false,
   }).format(d)
-}
-
-/** Device-timezone variant: formats the instant in the runtime's resolved zone. */
-export function formatInstantDevice(iso: string): string {
-  return formatInstant(iso)
-}
-
-/** The viewer's auto-detected device timezone (falls back to UTC if Intl is unavailable). */
-export function deviceTimeZone(): string {
-  return typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
 }

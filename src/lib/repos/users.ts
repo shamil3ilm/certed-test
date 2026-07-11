@@ -13,27 +13,59 @@ export async function listProfiles(): Promise<Profile[]> {
   return (data ?? []) as Profile[]
 }
 
+export type ProfileLite = { id: string; full_name: string | null; email: string; role: string }
+
+/** A person's display name: their full name, or their email as a fallback. */
+export const displayName = (p: { full_name: string | null; email: string }): string =>
+  p.full_name ?? p.email
+
 /**
- * Resolves display names for the given profile ids via the service-role client.
- * Used where RLS would otherwise hide other users' rows (e.g. a teacher viewing
- * the names of students who submitted to their assignment).
+ * Profiles for the given ids, keyed by id, via the service-role client — the one
+ * place that resolves users the caller may not otherwise read under RLS (e.g. a
+ * teacher seeing the names of students who submitted). Callers gate access first.
  */
-export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, string>> {
+export async function getProfilesByIds(ids: string[]): Promise<Map<string, ProfileLite>> {
   if (ids.length === 0) return new Map()
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('id, full_name, email').in('id', ids)
-  return new Map(
-    ((data ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => [
-      p.id,
-      p.full_name ?? p.email,
-    ]),
-  )
+  const { data } = await admin.from('profiles').select('id, full_name, email, role').in('id', ids)
+  return new Map(((data ?? []) as ProfileLite[]).map((p) => [p.id, p]))
+}
+
+/** Display names keyed by id (built on getProfilesByIds). */
+export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, string>> {
+  const profiles = await getProfilesByIds(ids)
+  return new Map([...profiles].map(([id, p]) => [id, displayName(p)]))
 }
 
 /** Loads a single profile by id via the service-role client (for issuance snapshots). */
 export async function getProfileById(id: string): Promise<Profile | null> {
   const admin = createAdminClient()
   const { data } = await admin.from('profiles').select('*').eq('id', id).maybeSingle()
+  return (data as Profile) ?? null
+}
+
+/** Active people of one role (id + display name), for class-management pickers.
+ *  Service-role: callers gate with canManageClass first. */
+export async function listActiveByRole(
+  role: 'teacher' | 'student',
+): Promise<{ id: string; name: string }[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('id, full_name, email')
+    .eq('role', role)
+    .eq('status', 'active')
+    .order('full_name')
+  return ((data ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => ({
+    id: p.id,
+    name: p.full_name ?? p.email,
+  }))
+}
+
+/** Finds an existing allowlisted profile by normalized email (exact, lower-cased). */
+export async function getProfileByEmail(email: string): Promise<Profile | null> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('profiles').select('*').eq('email', email.trim().toLowerCase()).maybeSingle()
   return (data as Profile) ?? null
 }
 
@@ -44,7 +76,7 @@ export async function addUser(input: AddUserInput): Promise<Profile> {
     .from('profiles')
     .upsert(
       {
-        email: input.email,
+        email: input.email.trim().toLowerCase(),
         full_name: input.full_name ?? null,
         role: input.role,
         class_level: input.class_level ?? null,

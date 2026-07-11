@@ -5,8 +5,8 @@ export type Submission = {
   id: string
   assignment_id: string
   student_id: string
-  drive_file_id: string
   drive_link: string | null
+  file_name: string | null
   status: SubmissionStatus
   submitted_at: string
   is_active: boolean
@@ -25,21 +25,6 @@ export async function listSubmissionsForAssignment(assignmentId: string): Promis
   return (data ?? []) as Submission[]
 }
 
-export async function getActiveSubmission(
-  assignmentId: string,
-  studentId: string,
-): Promise<Submission | null> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('submissions')
-    .select('*')
-    .eq('assignment_id', assignmentId)
-    .eq('student_id', studentId)
-    .eq('is_active', true)
-    .maybeSingle()
-  return (data as Submission) ?? null
-}
-
 export async function listMyActiveSubmissions(studentId: string): Promise<Submission[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -51,18 +36,12 @@ export async function listMyActiveSubmissions(studentId: string): Promise<Submis
   return (data ?? []) as Submission[]
 }
 
-export async function getSubmission(id: string): Promise<Submission | null> {
-  const supabase = await createClient()
-  const { data } = await supabase.from('submissions').select('*').eq('id', id).maybeSingle()
-  return (data as Submission) ?? null
-}
-
 /** Records a submission, superseding any prior active one (kept as history). */
 export async function recordSubmission(input: {
   assignment_id: string
   student_id: string
-  drive_file_id: string
   drive_link: string | null
+  file_name?: string | null
   due_date: string
 }): Promise<Submission> {
   const supabase = await createClient()
@@ -81,8 +60,8 @@ export async function recordSubmission(input: {
     .insert({
       assignment_id: input.assignment_id,
       student_id: input.student_id,
-      drive_file_id: input.drive_file_id,
       drive_link: input.drive_link,
+      file_name: input.file_name ?? null,
       submitted_at: submittedAt,
       status,
       is_active: true,

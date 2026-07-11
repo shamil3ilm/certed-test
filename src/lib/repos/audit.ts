@@ -4,34 +4,9 @@ export type AuditAction =
   | 'user.add'
   | 'user.revoke'
   | 'user.restore'
-  | 'course.create'
-  | 'course.archive'
+  | 'class.create'
+  | 'class.archive'
   | (string & {})
-
-export type AuditEntry = {
-  id: string
-  actor_id: string | null
-  action: string
-  entity_type: string
-  entity_id: string | null
-  created_at: string
-}
-
-/** Lists recent audit entries (admin history), newest first, optionally by department. */
-export async function listAuditLog(
-  opts: { entityType?: string; limit?: number } = {},
-): Promise<AuditEntry[]> {
-  const admin = createAdminClient()
-  let q = admin
-    .from('audit_log')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(opts.limit ?? 150)
-  if (opts.entityType) q = q.eq('entity_type', opts.entityType)
-  const { data, error } = await q
-  if (error) throw new Error(`audit.list: ${error.message}`)
-  return (data ?? []) as AuditEntry[]
-}
 
 /** Records a sensitive action. Uses the service-role client (server-only). */
 export async function writeAudit(entry: {
