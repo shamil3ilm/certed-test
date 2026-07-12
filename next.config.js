@@ -8,8 +8,8 @@ const nextConfig = {
     // NOT bundled into serverless functions by default — trace them in so the
     // render doesn't ENOENT on Vercel. (Verify on a preview deploy.)
     outputFileTracingIncludes: {
-      '/api/receipts/[id]/pdf': ['./public/fonts/**', './public/lockups/**'],
-      '/api/payslips/[id]/pdf': ['./public/fonts/**', './public/lockups/**'],
+      '/api/receipts/[id]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
+      '/api/payslips/[id]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
     },
   },
   // Defense-in-depth security headers (HSTS is added at the Vercel edge).
