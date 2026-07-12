@@ -53,8 +53,8 @@ NEXT_PUBLIC_MOCK_MODE=1     # tells the login page to show the role picker (clie
 # Sentinel values so the env-guards treat the portal as "configured".
 # Never used to reach a real server in mock mode.
 NEXT_PUBLIC_SUPABASE_URL=http://mock.local
-NEXT_PUBLIC_SUPABASE_ANON_KEY=mock-anon-key
-SUPABASE_SERVICE_ROLE_KEY=mock-service-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=mock-publishable-key
+SUPABASE_SECRET_KEY=mock-secret-key
 
 APP_HOSTNAME=app.certedacademia.com
 MARKETING_HOSTNAME=certedacademia.com

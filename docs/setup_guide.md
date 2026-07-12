@@ -39,8 +39,8 @@ Then `npm run dev`. Sign in at `/login` with a demo account (e.g.
    environment, e.g. `cert-ed-prod` and `cert-ed-preview`).
 2. **Project Settings → API** — copy:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` *(server only, never expose)*
+   - `Publishable` key (new `sb_publishable_…` format; legacy `anon` `eyJ…` also works) → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `Secret` key (new `sb_secret_…` format; legacy `service_role` `eyJ…` also works) → `SUPABASE_SECRET_KEY` *(server only, never expose)*
 3. **SQL Editor** (or `supabase db push`) — apply the migrations in order:
    run `0001` through `0006` from `supabase/migrations/`.
 4. Seed the first admin (everything else is managed in-app via the Users hub):
@@ -48,7 +48,7 @@ Then `npm run dev`. Sign in at `/login` with a demo account (e.g.
 ```bash
 node --env-file=.env.local -e "
 import('@supabase/supabase-js').then(async ({ createClient }) => {
-  const c = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const c = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY)
   const { error } = await c.from('profiles').upsert(
     { email: process.env.SEED_ADMIN_EMAIL, full_name: 'Admin', role: 'admin', status: 'active' },
     { onConflict: 'email' },
@@ -132,8 +132,8 @@ Mirror these to Vercel (production + preview):
 ```bash
 # ── Supabase ──────────────────────────────────────────────────────────────────
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...           # server only
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...   # or legacy anon eyJ...
+SUPABASE_SECRET_KEY=sb_secret_...           # server only
 
 # ── App host routing ──────────────────────────────────────────────────────────
 APP_HOSTNAME=app.certedacademia.com

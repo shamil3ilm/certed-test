@@ -5,6 +5,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact']
 const PUBLIC_APP_PATHS = [
   '/login',
+  '/register',
   '/auth/callback',
   '/access-pending',
   '/access-revoked',
@@ -17,12 +18,16 @@ export async function middleware(request: NextRequest) {
   // marketing site serve every request untouched.
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   ) {
     return NextResponse.next()
   }
 
-  const kind = resolveHost(request.headers.get('host'))
+  // PORTAL_ONLY (preview/test deploys on a single `*.vercel.app` host): force every
+  // request to the portal so it's reachable without an `app.` subdomain. Absent in
+  // real deploys, where the marketing/app dual-host split applies.
+  const portalOnly = process.env.PORTAL_ONLY === '1'
+  const kind = portalOnly ? 'app' : resolveHost(request.headers.get('host'))
   const { pathname } = request.nextUrl
   const response = NextResponse.next()
 
@@ -43,7 +48,7 @@ export async function middleware(request: NextRequest) {
   // App host: check if it's a marketing path (other than '/') to redirect to marketing site.
   // This ensures marketing paths are not exposed on the app host.
   const isMarketing = MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/')
-  if (isMarketing && pathname !== '/') {
+  if (!portalOnly && isMarketing && pathname !== '/') {
     const hostHeader = request.headers.get('host') ?? ''
     const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
     const marketingHost = isLocal ? hostHeader.replace(/^app\./, '') : process.env.MARKETING_HOSTNAME
