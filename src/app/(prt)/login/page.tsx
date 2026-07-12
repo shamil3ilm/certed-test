@@ -4,6 +4,7 @@ import { isMock } from '@/lib/mock/env'
 import { getProfile } from '@/lib/auth/profile'
 import { listProfiles } from '@/lib/repos/users'
 import { GoogleSignIn } from './GoogleSignIn'
+import { PasswordLoginForm } from './PasswordLoginForm'
 
 function Shell({ children, subtitle }: { children: React.ReactNode; subtitle: string }) {
   return (
@@ -56,7 +57,7 @@ async function DevLogin({ error }: { error?: string }) {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string }
+  searchParams: { error?: string; registered?: string }
 }) {
   // Login is for logged-out users only — route an existing session to the right place.
   const existing = await getProfile()
@@ -68,8 +69,20 @@ export default async function LoginPage({
 
   if (isMock()) return <DevLogin error={searchParams.error} />
   return (
-    <Shell subtitle="Sign in with your institute Google account.">
+    <Shell subtitle="Sign in to your account.">
+      {searchParams.registered && (
+        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          Account created — sign in below.
+        </p>
+      )}
+      <PasswordLoginForm />
+      <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
+      </div>
       <GoogleSignIn />
+      <p className="mt-4 text-center text-xs text-slate-500">
+        First time? <a href="/register" className="font-medium text-primary hover:underline">Set up your account</a>
+      </p>
     </Shell>
   )
 }

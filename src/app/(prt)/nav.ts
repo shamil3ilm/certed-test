@@ -11,6 +11,10 @@ export const NAV: Record<string, NavItem[]> = {
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/finance', label: 'Finance' },
   ],
+  sub_admin: [
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/admin/users', label: 'Users' },
+  ],
   teacher: [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/classroom', label: 'Classes' },

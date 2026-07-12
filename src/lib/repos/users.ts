@@ -4,10 +4,13 @@ import type { Profile } from '@/lib/auth/profile'
 import type { AddUserInput, EditUserInput } from '@/lib/validation/user'
 
 export async function listProfiles(): Promise<Profile[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  // Service-role: the Users hub is gated (admin + sub_admin) in code, and RLS
+  // is_active_admin() would otherwise hide the list from a sub_admin. Explicit
+  // columns so setup_code_hash never leaves the server.
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('profiles')
-    .select('*')
+    .select('id, auth_user_id, email, full_name, role, status, class_level, created_at')
     .order('created_at', { ascending: false })
   if (error) throw new Error(`users.list: ${error.message}`)
   return (data ?? []) as Profile[]
@@ -69,8 +72,12 @@ export async function getProfileByEmail(email: string): Promise<Profile | null> 
   return (data as Profile) ?? null
 }
 
-/** Allowlist a user by email (idempotent). Uses the service-role client. */
-export async function addUser(input: AddUserInput): Promise<Profile> {
+/** Allowlist a user by email (idempotent), optionally stamping a hashed setup
+ *  code so they can self-register a password. Uses the service-role client. */
+export async function addUser(
+  input: AddUserInput,
+  setupCode?: { hash: string; expiresAt: string },
+): Promise<Profile> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('profiles')
@@ -81,6 +88,8 @@ export async function addUser(input: AddUserInput): Promise<Profile> {
         role: input.role,
         class_level: input.class_level ?? null,
         status: 'active',
+        setup_code_hash: setupCode?.hash ?? null,
+        setup_code_expires_at: setupCode?.expiresAt ?? null,
       },
       { onConflict: 'email' },
     )
@@ -88,6 +97,50 @@ export async function addUser(input: AddUserInput): Promise<Profile> {
     .single()
   if (error) throw new Error(`users.add: ${error.message}`)
   return data as Profile
+}
+
+/** Issues/replaces a user's one-time setup code (stores the hash). Service-role. */
+export async function setSetupCode(profileId: string, hash: string, expiresAt: string): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ setup_code_hash: hash, setup_code_expires_at: expiresAt })
+    .eq('id', profileId)
+  if (error) throw new Error(`users.setSetupCode: ${error.message}`)
+}
+
+export type RegistrationTarget = {
+  id: string
+  auth_user_id: string | null
+  status: string
+  setup_code_hash: string | null
+  setup_code_expires_at: string | null
+}
+
+/** Fields needed to validate a self-registration, by normalized email. Service-role. */
+export async function getRegistrationTarget(email: string): Promise<RegistrationTarget | null> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('id, auth_user_id, status, setup_code_hash, setup_code_expires_at')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle()
+  return (data as RegistrationTarget) ?? null
+}
+
+/** Binds a freshly-created auth user to the profile and consumes the setup code.
+ *  The `is null` guard makes concurrent claims safe; returns false if already claimed. */
+export async function bindPasswordAccount(profileId: string, authUserId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profiles')
+    .update({ auth_user_id: authUserId, setup_code_hash: null, setup_code_expires_at: null })
+    .eq('id', profileId)
+    .is('auth_user_id', null)
+    .select('id')
+    .maybeSingle()
+  if (error) throw new Error(`users.bindPassword: ${error.message}`)
+  return !!data
 }
 
 /**

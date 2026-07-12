@@ -4,18 +4,18 @@ import { listProfiles } from '@/lib/repos/users'
 import { listMentorships } from '@/lib/repos/mentorships'
 import type { Profile } from '@/lib/auth/profile'
 import {
-  addUserAction,
   revokeUserAction,
   restoreUserAction,
   editUserAction,
   assignMentorAction,
   removeMentorAction,
 } from './actions'
-import { PageHeader, StatCard, Card, Avatar, EmptyState, cx } from '../../ui'
-import { Field, Input, Select, SubmitButton } from '../../form'
+import { PageHeader, StatCard, Card, Avatar, EmptyState, cx, roleLabel } from '../../ui'
+import { SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { AddUserForm } from './AddUserForm'
 
-const ROLES = ['student', 'teacher', 'admin'] as const
+const ADMIN_TIER = new Set(['admin', 'sub_admin'])
 
 type Tab = 'students' | 'tutors' | 'mentors' | 'admins'
 const TABS: { key: Tab; label: string }[] = [
@@ -31,8 +31,21 @@ function StatusChip({ status }: { status: string }) {
   )
 }
 
-/** Account row with inline edit + revoke/restore (shared by every people tab). */
-function UserRow({ p, self = false, mentorSubtitle }: { p: Profile; self?: boolean; mentorSubtitle?: string }) {
+/** Account row with inline edit + revoke/restore. Read-only when the caller
+ *  (a Sub Admin) isn't allowed to manage this account (i.e. an admin-tier row). */
+function UserRow({
+  p,
+  self = false,
+  manageable,
+  roleOptions,
+  mentorSubtitle,
+}: {
+  p: Profile
+  self?: boolean
+  manageable: boolean
+  roleOptions: string[]
+  mentorSubtitle?: string
+}) {
   const isStudent = p.role === 'student'
   return (
     <Card as="li" className="p-3">
@@ -45,51 +58,57 @@ function UserRow({ p, self = false, mentorSubtitle }: { p: Profile; self?: boole
               {self && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">You</span>}
             </p>
             <p className="truncate text-xs text-slate-400">
-              {p.email} · status: <StatusChip status={p.status} />
+              {p.email} · {roleLabel(p.role)} · status: <StatusChip status={p.status} />
               {mentorSubtitle ? ` · ${mentorSubtitle}` : ''}
             </p>
           </div>
         </div>
-        <form action={editUserAction} className="flex flex-wrap items-end gap-2">
-          <input type="hidden" name="id" value={p.id} />
-          <label className="text-xs">
-            Name
-            <input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1 block rounded border px-2 py-1 text-sm" />
-          </label>
-          <label className="text-xs">
-            Role
-            {/* You can't demote yourself — that would risk locking the academy out. */}
-            <select name="role" defaultValue={p.role} disabled={self} className="mt-1 block rounded border px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400">
-              {ROLES.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </label>
-          {isStudent && (
-            <label className="text-xs">
-              Class
-              <input name="class_level" defaultValue={p.class_level ?? ''} className="mt-1 block w-20 rounded border px-2 py-1 text-sm" />
-            </label>
-          )}
-          <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving…">Save</SubmitButton>
-        </form>
-        <div className="ml-auto">
-          {self ? (
-            <span className="text-xs italic text-slate-400">Your own account</span>
-          ) : p.status === 'disabled' ? (
-            <form action={restoreUserAction}>
+        {manageable ? (
+          <>
+            <form action={editUserAction} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="id" value={p.id} />
-              <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring…">Restore</SubmitButton>
+              <label className="text-xs">
+                Name
+                <input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1 block rounded border px-2 py-1 text-sm" />
+              </label>
+              <label className="text-xs">
+                Role
+                {/* You can't demote yourself — that would risk locking the academy out. */}
+                <select name="role" defaultValue={p.role} disabled={self} className="mt-1 block rounded border px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400">
+                  {roleOptions.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </label>
+              {isStudent && (
+                <label className="text-xs">
+                  Class
+                  <input name="class_level" defaultValue={p.class_level ?? ''} className="mt-1 block w-20 rounded border px-2 py-1 text-sm" />
+                </label>
+              )}
+              <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving…">Save</SubmitButton>
             </form>
-          ) : (
-            <form action={revokeUserAction}>
-              <input type="hidden" name="id" value={p.id} />
-              <ConfirmSubmit className="btn btn-sm btn-danger" title="Revoke access?" message="They are signed out and blocked on their next request." confirmLabel="Revoke">
-                Revoke
-              </ConfirmSubmit>
-            </form>
-          )}
-        </div>
+            <div className="ml-auto">
+              {self ? (
+                <span className="text-xs italic text-slate-400">Your own account</span>
+              ) : p.status === 'disabled' ? (
+                <form action={restoreUserAction}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring…">Restore</SubmitButton>
+                </form>
+              ) : (
+                <form action={revokeUserAction}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <ConfirmSubmit className="btn btn-sm btn-danger" title="Revoke access?" message="They are signed out and blocked on their next request." confirmLabel="Revoke">
+                    Revoke
+                  </ConfirmSubmit>
+                </form>
+              )}
+            </div>
+          </>
+        ) : (
+          <span className="ml-auto text-xs italic text-slate-400">Managed by a Super Admin</span>
+        )}
       </div>
     </Card>
   )
@@ -98,14 +117,16 @@ function UserRow({ p, self = false, mentorSubtitle }: { p: Profile; self?: boole
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: { tab?: string; added?: string; error?: string }
+  searchParams: { tab?: string }
 }) {
-  const me = await requireRole(['admin'])
+  const me = await requireRole(['admin', 'sub_admin'])
+  const isSuper = me.role === 'admin'
+  const roleOptions = isSuper ? ['student', 'teacher', 'sub_admin', 'admin'] : ['student', 'teacher']
   const [profiles, links] = await Promise.all([listProfiles(), listMentorships()])
 
   const students = profiles.filter((p) => p.role === 'student')
   const tutors = profiles.filter((p) => p.role === 'teacher')
-  const admins = profiles.filter((p) => p.role === 'admin')
+  const admins = profiles.filter((p) => ADMIN_TIER.has(p.role))
 
   const nameOf = (id: string) => {
     const p = profiles.find((x) => x.id === id)
@@ -123,17 +144,6 @@ export default async function AdminUsersPage({
         description="Everyone in the academy — students, tutors, mentors and admins — in one place. Allowlist by email; accounts bind on first login."
       />
 
-      {searchParams.added && (
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          User added. They can sign in with that email (mock: shared demo password; production: Google on first login).
-        </div>
-      )}
-      {searchParams.error === 'email-exists' && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          A user with that email already exists — edit them below instead of re-adding.
-        </div>
-      )}
-
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Students" value={students.length} />
         <StatCard label="Tutors" value={tutors.length} />
@@ -141,31 +151,8 @@ export default async function AdminUsersPage({
         <StatCard label="Admins" value={admins.length} />
       </section>
 
-      {/* Add anyone */}
-      <form action={addUserAction} className={cx('mt-6 flex flex-wrap items-end gap-3 p-4', 'rounded-2xl border border-slate-200 bg-white shadow-sm')}>
-        <Field label="Email" className="w-full sm:w-48"><Input name="email" type="email" required /></Field>
-        <Field label="Name" className="w-full sm:w-40"><Input name="full_name" /></Field>
-        <Field label="Role" className="w-full sm:w-32">
-          <Select name="role" defaultValue="student">
-            {ROLES.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Class" className="w-full sm:w-28"><Input name="class_level" /></Field>
-        <Field label={<>Mentor <span className="text-slate-400">(students)</span></>} className="w-full sm:w-40">
-          <Select name="mentor_id" defaultValue="">
-            <option value="">None</option>
-            {tutors.map((t) => (
-              <option key={t.id} value={t.id}>{t.full_name ?? t.email}</option>
-            ))}
-          </Select>
-        </Field>
-        <SubmitButton pendingLabel="Adding…">Add user</SubmitButton>
-        <p className="w-full text-xs text-slate-400">
-          Use the exact Google address they’ll sign in with — a typo or a different account means they can’t get in.
-        </p>
-      </form>
+      {/* Add anyone (client form — surfaces the one-time setup code inline) */}
+      <AddUserForm roles={roleOptions} tutors={tutors.map((t) => ({ id: t.id, name: t.full_name ?? t.email }))} />
 
       {/* Sub-view tabs */}
       <nav className="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200">
@@ -177,7 +164,7 @@ export default async function AdminUsersPage({
               'shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition',
               tab === t.key
                 ? 'border-primary text-primary'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800',
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800',
             )}
           >
             {t.label}
@@ -193,7 +180,7 @@ export default async function AdminUsersPage({
               const subtitle = m.length
                 ? `mentor: ${m.map((l) => nameOf(l.teacher_id)).join(', ')}`
                 : 'no mentor'
-              return <UserRow key={s.id} p={s} self={s.id === me.id} mentorSubtitle={subtitle} />
+              return <UserRow key={s.id} p={s} self={s.id === me.id} manageable roleOptions={roleOptions} mentorSubtitle={subtitle} />
             })}
             {students.length === 0 && <EmptyState as="li">No students yet.</EmptyState>}
           </ul>
@@ -202,7 +189,7 @@ export default async function AdminUsersPage({
         {tab === 'tutors' && (
           <ul className="space-y-2">
             {tutors.map((t) => (
-              <UserRow key={t.id} p={t} self={t.id === me.id} />
+              <UserRow key={t.id} p={t} self={t.id === me.id} manageable roleOptions={roleOptions} />
             ))}
             {tutors.length === 0 && <EmptyState as="li">No tutors yet.</EmptyState>}
           </ul>
@@ -211,7 +198,7 @@ export default async function AdminUsersPage({
         {tab === 'admins' && (
           <ul className="space-y-2">
             {admins.map((a) => (
-              <UserRow key={a.id} p={a} self={a.id === me.id} />
+              <UserRow key={a.id} p={a} self={a.id === me.id} manageable={isSuper} roleOptions={roleOptions} />
             ))}
             {admins.length === 0 && <EmptyState as="li">No admins yet.</EmptyState>}
           </ul>

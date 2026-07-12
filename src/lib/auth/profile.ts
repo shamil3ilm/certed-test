@@ -6,7 +6,7 @@ export type Profile = {
   auth_user_id: string | null
   email: string
   full_name: string | null
-  role: 'admin' | 'teacher' | 'student'
+  role: 'admin' | 'sub_admin' | 'teacher' | 'student'
   status: 'active' | 'pending' | 'disabled'
   class_level: string | null
 }
@@ -21,7 +21,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   // instead of throwing (mirrors the middleware env-guard).
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   ) {
     return null
   }

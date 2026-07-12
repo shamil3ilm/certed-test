@@ -29,6 +29,12 @@ export function roleTone(role?: string | null): { avatar: string; bubble: string
       bubble: 'bg-violet-50 border-violet-200',
       badge: 'bg-violet-100 text-violet-800 border-violet-200',
     }
+  if (role === 'sub_admin')
+    return {
+      avatar: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      bubble: 'bg-indigo-50 border-indigo-200',
+      badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    }
   if (role === 'teacher')
     return {
       avatar: 'bg-sky-100 text-sky-700 border-sky-200',
@@ -45,7 +51,8 @@ export function roleTone(role?: string | null): { avatar: string; bubble: string
 /** Human label for a role, from the student's point of view. */
 export function roleLabel(role?: string | null): string {
   if (role === 'teacher') return 'Tutor'
-  if (role === 'admin') return 'Admin'
+  if (role === 'admin') return 'Super Admin'
+  if (role === 'sub_admin') return 'Sub Admin'
   return 'Student'
 }
 

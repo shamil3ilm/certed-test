@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-export const roleSchema = z.enum(['admin', 'teacher', 'student'])
+export const roleSchema = z.enum(['admin', 'sub_admin', 'teacher', 'student'])
+
+/** Roles a Sub Admin is allowed to create/assign (never the admin tier). */
+export const subAdminAssignableRoles = ['teacher', 'student'] as const
 
 export const addUserSchema = z.object({
   email: z.string().email(),
@@ -16,3 +19,11 @@ export const editUserSchema = z.object({
   class_level: z.string().max(20).nullable().optional(),
 })
 export type EditUserInput = z.infer<typeof editUserSchema>
+
+/** Self-registration: allowlisted email + admin-issued setup code + new password. */
+export const registerSchema = z.object({
+  email: z.string().email(),
+  code: z.string().trim().min(1).max(40),
+  password: z.string().min(8).max(200),
+})
+export type RegisterInput = z.infer<typeof registerSchema>
