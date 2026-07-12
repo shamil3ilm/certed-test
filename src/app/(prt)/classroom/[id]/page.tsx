@@ -112,7 +112,7 @@ export default async function ClassStreamPage({ params }: { params: { id: string
 
         {canManage && archivedAnnouncements.length > 0 && (
           <details className="text-sm">
-            <summary className="cursor-pointer text-xs font-medium text-slate-400 hover:text-primary">
+            <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-primary">
               {archivedAnnouncements.length} archived post{archivedAnnouncements.length !== 1 ? 's' : ''}
             </summary>
             <ul className="mt-2 space-y-2">

@@ -24,7 +24,7 @@ export function ClassTabs({ id }: { id: string }) {
             className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
               active
                 ? 'border-primary text-primary'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'
             }`}
           >
             {t.label}

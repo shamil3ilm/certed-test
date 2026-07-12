@@ -23,7 +23,7 @@ export function ProfileMenu({ name, email, role }: { name: string; email: string
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-semibold text-white shadow-sm ring-2 ring-white transition hover:opacity-90"
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-semibold text-white shadow-sm ring-2 ring-white transition hover:scale-105 hover:shadow-md"
       >
         {badge}
       </button>

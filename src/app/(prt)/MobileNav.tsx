@@ -1,11 +1,13 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 type NavItem = { href: string; label: string }
 
 export function MobileNav({ links }: { links: NavItem[] }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
   return (
     <>
       <button
@@ -28,16 +30,24 @@ export function MobileNav({ links }: { links: NavItem[] }) {
               <button onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">✕</button>
             </div>
             <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
-              {links.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={() => setOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-primary/5 hover:text-primary"
-                >
-                  {l.label}
-                </Link>
-              ))}
+              {links.map((l) => {
+                const active = pathname === l.href || pathname.startsWith(l.href + '/')
+                return (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={active ? 'page' : undefined}
+                    className={
+                      active
+                        ? 'rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary'
+                        : 'rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-primary/5 hover:text-primary'
+                    }
+                  >
+                    {l.label}
+                  </Link>
+                )
+              })}
             </nav>
             <a
               href="/api/logout"

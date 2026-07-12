@@ -87,7 +87,7 @@ export function ReminderPanel({ initialReminders }: { initialReminders: Reminder
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-primary hover:text-primary"
+          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-primary hover:bg-primary/5 hover:text-primary"
         >
           + Add
         </button>

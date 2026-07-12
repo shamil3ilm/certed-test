@@ -36,7 +36,7 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <Link
         href={`/classroom/${assignment.class_id}/classwork`}
-        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:text-primary"
+        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
       >
         ← Back to {course?.name ?? 'class'} · Classwork
       </Link>

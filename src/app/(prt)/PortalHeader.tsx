@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { getProfile } from '@/lib/auth/profile'
 import { ProfileMenu } from './ProfileMenu'
 import { MobileNav } from './MobileNav'
+import { NavLinks } from './NavLinks'
 import { navFor } from './nav'
 import { roleLabel } from './ui'
 
@@ -45,17 +46,7 @@ export async function PortalHeader() {
         </div>
 
         {/* Row 2 — nav bar under the logo (large screens only) */}
-        <nav className="hidden flex-wrap items-center justify-center gap-1 border-t border-gray-100 py-2 md:flex">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-primary/5 hover:text-primary"
-            >
-              {l.label}
-            </Link>
-          ))}
-        </nav>
+        <NavLinks links={links} />
       </div>
     </header>
   )

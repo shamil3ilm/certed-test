@@ -103,11 +103,11 @@ export function IssueForm({
               {safeMoney(lineAmount(Number(l.hours) || 0, Number(l.rate) || 0), currency)}
             </span>
             {lines.length > 1 && (
-              <button type="button" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-slate-400">×</button>
+              <button type="button" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-slate-400 transition hover:text-red-600">×</button>
             )}
           </div>
         ))}
-        <button type="button" onClick={() => setLines((ls) => [...ls, { subject: '', hours: '', rate: '' }])} className="text-sm text-primary">
+        <button type="button" onClick={() => setLines((ls) => [...ls, { subject: '', hours: '', rate: '' }])} className="text-sm font-medium text-primary transition hover:underline">
           + Add line
         </button>
       </div>

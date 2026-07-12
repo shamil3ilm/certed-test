@@ -17,7 +17,7 @@ export default async function MenteePage({ params }: { params: { id: string } })
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <Link
         href="/students"
-        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:text-primary"
+        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
       >
         ← All mentees
       </Link>

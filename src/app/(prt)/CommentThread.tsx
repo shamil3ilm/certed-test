@@ -73,7 +73,7 @@ export function CommentThread({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-primary focus:outline-none"
+        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-primary hover:underline focus:outline-none"
         aria-expanded={open}
       >
         <svg className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
