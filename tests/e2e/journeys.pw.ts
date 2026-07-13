@@ -94,7 +94,7 @@ test('TEACHER — create assignment + comment on a student submission', async ({
   // Comment on Sara's seeded submission via the review page
   await page.goto(`/assignments/${SEED.asgMath}`)
   const thread = page.locator('form', { has: page.getByRole('button', { name: 'Send' }) }).first()
-  await thread.locator('input[type=text]').fill('Great work, Sara!')
+  await thread.locator('textarea').fill('Great work, Sara!')
   await thread.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('Great work, Sara!')).toBeVisible()
 })

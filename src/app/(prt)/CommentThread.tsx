@@ -32,8 +32,7 @@ export function CommentThread({
   const bottomRef = useRef<HTMLDivElement>(null)
   const { toast } = useUI()
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function send() {
     const val = text.trim()
     if (!val) return
     const tempId = `temp-${new Date().getTime()}`
@@ -66,6 +65,11 @@ export function CommentThread({
       }
     })
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    send()
   }
 
   return (
@@ -109,13 +113,20 @@ export function CommentThread({
           <div ref={bottomRef} />
 
           <form onSubmit={handleSubmit} className="flex gap-2 pt-1">
-            <input
-              type="text"
+            <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter sends; Shift+Enter inserts a newline.
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  send()
+                }
+              }}
+              rows={1}
               placeholder={placeholder}
               disabled={isPending}
-              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+              className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
             />
             <button
               type="submit"
