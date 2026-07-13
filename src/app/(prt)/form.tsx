@@ -53,7 +53,7 @@ export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<
         type="button"
         onClick={() => setShow((s) => !s)}
         aria-label={show ? 'Hide password' : 'Show password'}
-        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition hover:text-slate-600 focus:outline-none"
+        className="absolute inset-y-0 right-0 flex items-center rounded pr-3 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {show ? (
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">

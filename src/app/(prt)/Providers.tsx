@@ -51,8 +51,8 @@ export function PortalProviders({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ toast, confirm }}>
       {children}
 
-      {/* Toasts */}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
+      {/* Toasts — announced to assistive tech (the only success/error signal for the forms) */}
+      <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -64,7 +64,7 @@ export function PortalProviders({ children }: { children: ReactNode }) {
                   : 'border-slate-200 bg-white text-slate-700'
             }`}
           >
-            <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '⚠' : 'ℹ'}</span>
+            <span aria-hidden="true">{t.type === 'success' ? '✓' : t.type === 'error' ? '⚠' : 'ℹ'}</span>
             {t.msg}
           </div>
         ))}

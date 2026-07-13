@@ -15,18 +15,19 @@ const SEED = {
 const PAGES: Record<string, string[]> = {
   admin: [
     '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
-    `/classroom/${SEED.math}/people`, '/calendar', '/admin/users', '/admin/finance',
-    '/settings', `/assignments/${SEED.asgMath}`,
+    `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/calendar',
+    '/admin/users', '/admin/finance', '/settings', `/assignments/${SEED.asgMath}`,
   ],
   teacher: [
     '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
-    `/classroom/${SEED.math}/people`, '/calendar', '/students', '/payslips',
-    '/settings', `/assignments/${SEED.asgMath}`,
+    `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/calendar',
+    '/students', '/payslips', '/settings', `/assignments/${SEED.asgMath}`,
   ],
   mentor: ['/dashboard', '/classroom', '/students', `/students/${SEED.sara}`, '/calendar', '/payslips', '/settings'],
   student: [
     '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
-    `/classroom/${SEED.math}/people`, '/receipts', '/calendar', '/settings',
+    `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/receipts',
+    '/calendar', '/settings',
   ],
 }
 

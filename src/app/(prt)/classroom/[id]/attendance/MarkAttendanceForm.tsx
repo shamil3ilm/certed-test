@@ -8,9 +8,9 @@ import type { AttendanceStatus } from '@/lib/repos/attendance'
 type Row = { id: string; name: string; status: AttendanceStatus }
 
 const OPTIONS: { value: AttendanceStatus; label: string; on: string }[] = [
-  { value: 'present', label: 'Present', on: 'bg-emerald-600 text-white' },
-  { value: 'late', label: 'Late', on: 'bg-amber-500 text-white' },
-  { value: 'absent', label: 'Absent', on: 'bg-red-600 text-white' },
+  { value: 'present', label: 'Present', on: 'bg-emerald-700 text-white' },
+  { value: 'late', label: 'Late', on: 'bg-amber-700 text-white' },
+  { value: 'absent', label: 'Absent', on: 'bg-red-700 text-white' },
 ]
 
 export function MarkAttendanceForm({

@@ -22,6 +22,7 @@ export function ClassTabs({ id }: { id: string }) {
           <Link
             key={t.label}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
               active
                 ? 'border-primary text-primary'

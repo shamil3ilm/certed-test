@@ -77,10 +77,10 @@ export function CommentThread({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-primary hover:underline focus:outline-none"
+        className="flex items-center gap-1.5 rounded text-xs font-semibold text-slate-500 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         aria-expanded={open}
       >
-        <svg className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+        <svg aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
           <path d="M6 4l4 4-4 4V4z" />
         </svg>
         {comments.length === 0
@@ -125,6 +125,7 @@ export function CommentThread({
                 }
               }}
               rows={1}
+              aria-label={placeholder}
               placeholder={placeholder}
               disabled={isPending}
               className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
