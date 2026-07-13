@@ -1,12 +1,13 @@
+import type { ReactNode } from 'react'
 import { requireRole } from '@/lib/auth/requireRole'
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { LocalTime } from '../LocalTime'
-import { listProfiles } from '@/lib/repos/users'
+import { listProfiles, getProfileNamesByIds } from '@/lib/repos/users'
 import { listClasses } from '@/lib/repos/classes'
 import { listEnrollments } from '@/lib/repos/enrollments'
 import { listClassTeachers } from '@/lib/repos/classTeachers'
 import { listAssignments } from '@/lib/repos/assignments'
-import { listMyActiveSubmissions } from '@/lib/repos/submissions'
+import { listMyActiveSubmissions, listUngradedSubmissions } from '@/lib/repos/submissions'
 import { listEvents, type CalendarEvent } from '@/lib/repos/calendarEvents'
 import { financeTotals, listRecentDocs, listMyDocs, type FinanceTotal } from '@/lib/repos/financeDocs'
 import { listMyReminders, type Reminder } from '@/lib/repos/reminders'
@@ -18,6 +19,37 @@ import { ReminderPanel } from './ReminderPanel'
 // Accurate per-currency totals from the SQL aggregate (already excludes voided).
 const fmtTotals = (totals: FinanceTotal[], fallback = 'INR'): string =>
   totals.length ? totals.map((t) => formatMoney(t.live_total, t.currency)).join(' + ') : formatMoney(0, fallback)
+
+type TodayItem = { href: string; primary: string; secondary: ReactNode; urgent?: boolean }
+
+/**
+ * The "Today" list — the one thing each role opens the portal to see: a student's
+ * work due across every class, a tutor's queue of submissions to mark. A direct,
+ * clickable list (not a stat behind a modal), so acting on it is one tap.
+ */
+function TodayCard({ title, items, empty }: { title: string; items: TodayItem[]; empty: string }) {
+  return (
+    <Card className="mt-6 p-4 sm:p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h2>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-400">{empty}</p>
+      ) : (
+        <ul className="mt-1 divide-y divide-slate-100">
+          {items.map((it, i) => (
+            <li key={i}>
+              <a href={it.href} className="flex items-center justify-between gap-3 py-2.5 text-sm transition hover:text-primary">
+                <span className="min-w-0 truncate font-medium text-slate-800">{it.primary}</span>
+                <span className={`shrink-0 text-xs ${it.urgent ? 'font-semibold text-red-600' : 'text-slate-400'}`}>
+                  {it.secondary}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
 
 export default async function Dashboard() {
   const me = await requireRole(['admin', 'teacher', 'student'])
@@ -110,8 +142,22 @@ async function TeacherDashboard({ meId, upcoming, reminders }: { meId: string; u
     value: myAssignments.filter((a) => a.class_id === c.id).length,
   }))
 
+  // "To review": submissions on my assignments that still need a mark.
+  const ungraded = await listUngradedSubmissions(myAssignments.map((a) => a.id))
+  const reviewNames = await getProfileNamesByIds(ungraded.map((s) => s.student_id))
+  const reviewItems: TodayItem[] = ungraded.slice(0, 6).map((s) => {
+    const a = myAssignments.find((x) => x.id === s.assignment_id)
+    return {
+      href: `/assignments/${s.assignment_id}`,
+      primary: `${reviewNames.get(s.student_id) ?? 'Student'} — ${a?.title ?? 'Assignment'}`,
+      secondary: s.status === 'late' ? 'late' : 'to mark',
+      urgent: s.status === 'late',
+    }
+  })
+
   return (
     <>
+      <TodayCard title="To review" items={reviewItems} empty="Nothing waiting to be marked." />
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatModalCard label="My classes" value={myClasses.length} title="My classes"
           items={myClasses.map((c) => ({ primary: c.name, href: `/classroom/${c.id}` }))} empty="No classes assigned." />
@@ -150,8 +196,28 @@ async function StudentDashboard({ meId, upcoming, reminders }: { meId: string; u
   const pending = Math.max(0, myAssignments.length - submitted)
   const mentors = mentorMap.get(meId) ?? []
 
+  // "Due soon": work not yet submitted, across every class, most urgent first.
+  const dueItems: TodayItem[] = myAssignments
+    .filter((a) => !submittedIds.has(a.id))
+    .sort((a, b) => (a.due_date < b.due_date ? -1 : 1))
+    .slice(0, 6)
+    .map((a) => {
+      const overdue = Date.parse(a.due_date) < Date.now()
+      return {
+        href: `/classroom/${a.class_id}/classwork#assignment-${a.id}`,
+        primary: a.title,
+        secondary: overdue ? (
+          <>overdue · <LocalTime iso={a.due_date} mode="date" /></>
+        ) : (
+          <>due <LocalTime iso={a.due_date} mode="date" /></>
+        ),
+        urgent: overdue,
+      }
+    })
+
   return (
     <>
+      <TodayCard title="Due soon" items={dueItems} empty="You're all caught up 🎉" />
       {mentors.length > 0 && (
         <Card className="mt-6 flex items-center gap-3 p-4">
           <Avatar name={mentors[0].name} role="teacher" />

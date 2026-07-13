@@ -30,6 +30,22 @@ export async function listSubmissionsForAssignment(assignmentId: string): Promis
   return (data ?? []) as Submission[]
 }
 
+/** Active, not-yet-graded submissions across a set of assignments — the tutor's
+ *  "to review" queue. RLS still scopes reads to a teacher of those classes. */
+export async function listUngradedSubmissions(assignmentIds: string[]): Promise<Submission[]> {
+  if (assignmentIds.length === 0) return []
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('*')
+    .in('assignment_id', assignmentIds)
+    .eq('is_active', true)
+    .is('score', null)
+    .order('submitted_at', { ascending: true })
+  if (error) throw new Error(`submissions.listUngraded: ${error.message}`)
+  return (data ?? []) as Submission[]
+}
+
 export async function listMyActiveSubmissions(studentId: string): Promise<Submission[]> {
   const supabase = await createClient()
   const { data, error } = await supabase

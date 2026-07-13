@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export type AttendanceStatus = 'present' | 'absent' | 'late'
+// The status type + the pure summary live in a server-free module so they can be
+// unit-tested and reused on the client; re-exported here for existing callers.
+export { summarizeAttendance } from '@/lib/attendance/summary'
+export type { AttendanceStatus, AttendanceSummary } from '@/lib/attendance/summary'
+import type { AttendanceStatus } from '@/lib/attendance/summary'
 
 export type AttendanceRow = {
   id: string
@@ -58,17 +62,4 @@ export async function markAttendance(input: {
     .from('attendance')
     .upsert({ ...input, updated_at: new Date().toISOString() }, { onConflict: 'class_id,student_id,session_date' })
   if (error) throw new Error(`attendance.mark: ${error.message}`)
-}
-
-export type AttendanceSummary = { present: number; late: number; absent: number; total: number; rate: number }
-
-/** Counts + an attendance rate (late still counts as attended). Pure, so the
- *  report card and the student view can share it. */
-export function summarizeAttendance(rows: ReadonlyArray<{ status: AttendanceStatus }>): AttendanceSummary {
-  const present = rows.filter((r) => r.status === 'present').length
-  const late = rows.filter((r) => r.status === 'late').length
-  const absent = rows.filter((r) => r.status === 'absent').length
-  const total = rows.length
-  const rate = total === 0 ? 0 : Math.round(((present + late) / total) * 100)
-  return { present, late, absent, total, rate }
 }
