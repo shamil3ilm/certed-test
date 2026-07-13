@@ -37,7 +37,14 @@ const NAVY = '#124d7e'
 const BLUE = '#50b5e1'
 
 function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // Escapes quotes too — instituteName is interpolated into an alt="" attribute,
+  // and every field here can derive from a self-edited full_name.
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function buildHtml(

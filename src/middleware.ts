@@ -11,6 +11,7 @@ const PUBLIC_APP_PATHS = [
   '/access-revoked',
   '/api/dev/login', // dev-only mock sign-in (no-op unless MOCK_MODE)
   '/api/dev/logout',
+  '/api/cron', // Vercel Cron keepalive — the route enforces its own CRON_SECRET (fails closed)
 ]
 
 export async function middleware(request: NextRequest) {

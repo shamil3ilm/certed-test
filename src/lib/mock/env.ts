@@ -11,5 +11,9 @@
  * UI/flow click-through only, never a substitute for the real RLS tests.
  */
 export function isMock(): boolean {
+  // Mock mode is LOCAL-only: it writes a JSON file (impossible on Vercel's
+  // read-only FS) and stores plaintext demo passwords, so it must NEVER activate
+  // on a deployed environment even if MOCK_MODE were mistakenly set there.
+  if (process.env.VERCEL === '1') return false
   return process.env.MOCK_MODE === '1'
 }

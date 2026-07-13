@@ -24,7 +24,8 @@ export async function changePasswordAction(formData: FormData) {
   const me = await requireRole([...ALL])
   const password = String(formData.get('password') ?? '')
   const confirm = String(formData.get('confirm') ?? '')
-  if (password.length < 4 || password !== confirm) redirect('/settings?error=password')
+  // Min 8 — matches the self-registration policy (registerSchema), not weaker.
+  if (password.length < 8 || password !== confirm) redirect('/settings?error=password')
 
   if (isMock()) {
     const admin = createAdminClient()

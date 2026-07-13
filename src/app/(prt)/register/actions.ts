@@ -1,9 +1,11 @@
 'use server'
+import { headers } from 'next/headers'
 import { isMock } from '@/lib/mock/env'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { registerSchema } from '@/lib/validation/user'
 import { getRegistrationTarget, bindPasswordAccount } from '@/lib/repos/users'
 import { setupCodeValid } from '@/lib/auth/setupCode'
+import { rateLimit, clientIp } from '@/lib/security/rateLimit'
 
 export type RegisterState = { ok?: boolean; error?: string }
 
@@ -14,6 +16,10 @@ export type RegisterState = { ok?: boolean; error?: string }
  */
 export async function registerAction(_prev: RegisterState, formData: FormData): Promise<RegisterState> {
   if (isMock()) return { error: 'Password registration is only available in production mode.' }
+
+  // Throttle per IP so the setup code can't be brute-forced.
+  const rl = rateLimit(`register:${clientIp(headers())}`, { limit: 8, windowMs: 10 * 60 * 1000 })
+  if (!rl.ok) return { error: 'Too many attempts. Please wait a few minutes and try again.' }
 
   const parsed = registerSchema.safeParse({
     email: String(formData.get('email') ?? ''),

@@ -6,6 +6,7 @@ import { issueDoc } from '@/lib/finance/issue'
 import { renderDocPdf } from '@/lib/finance/render'
 import { voidDoc, listAllDocs, type FinanceKind } from '@/lib/repos/financeDocs'
 import { writeAudit } from '@/lib/repos/audit'
+import { rateLimit } from '@/lib/security/rateLimit'
 
 /**
  * Shared route-handler factories for the two finance kinds. Each `/api/receipts`
@@ -34,8 +35,10 @@ export function issueHandler(kind: FinanceKind) {
     if (!parsed.success) return fail('invalid input', 422)
     try {
       return ok(await issueDoc(kind, parsed.data, me.id))
-    } catch (e) {
-      return fail(e instanceof Error ? e.message : 'issue failed', 500)
+    } catch {
+      // Don't surface the raw Postgres/repo error text to the client — it leaks
+      // internal schema/constraint detail even to an admin.
+      return fail('Could not issue the document. Please check the details and try again.', 500)
     }
   }
 }
@@ -63,6 +66,11 @@ export function pdfHandler(kind: FinanceKind) {
       me = await requireRoleApi(['admin', 'teacher', 'student'])
     } catch {
       return new Response('Forbidden', { status: 403 })
+    }
+    // Each render spins up headless Chromium — cap per user to prevent a DoS.
+    const rl = rateLimit(`pdf:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
+    if (!rl.ok) {
+      return new Response('Too many requests', { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } })
     }
     const out = await renderDocPdf(kind, ctx.params.id, { id: me.id, role: me.role })
     if (!out) return new Response('Not found', { status: 404 })

@@ -134,7 +134,15 @@ export default async function ClassStreamPage({ params }: { params: { id: string
       <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Class meet</h2>
         {canManage && <MeetForm classes={classList} canGlobal={isAdmin} />}
-        <MeetList meetLinks={meetLinks} initialComments={commentsByMeet} me={me} classes={classList} isAdmin={isAdmin} />
+        {/* Pass only the fields MeetList needs — never the whole `me` Profile, or
+            auth_user_id / status would serialize into the client RSC payload. */}
+        <MeetList
+          meetLinks={meetLinks}
+          initialComments={commentsByMeet}
+          me={{ id: me.id, email: me.email, full_name: me.full_name, role: me.role }}
+          classes={classList}
+          isAdmin={isAdmin}
+        />
       </section>
     </div>
   )

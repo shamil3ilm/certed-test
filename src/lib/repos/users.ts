@@ -43,7 +43,13 @@ export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, s
 /** Loads a single profile by id via the service-role client (for issuance snapshots). */
 export async function getProfileById(id: string): Promise<Profile | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('*').eq('id', id).maybeSingle()
+  // Explicit columns (never select('*')) so setup_code_hash / other sensitive
+  // columns can't ride along into a caller that later forwards the object.
+  const { data } = await admin
+    .from('profiles')
+    .select('id, auth_user_id, email, full_name, role, status, class_level')
+    .eq('id', id)
+    .maybeSingle()
   return (data as Profile) ?? null
 }
 
@@ -68,7 +74,11 @@ export async function listActiveByRole(
 /** Finds an existing allowlisted profile by normalized email (exact, lower-cased). */
 export async function getProfileByEmail(email: string): Promise<Profile | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('*').eq('email', email.trim().toLowerCase()).maybeSingle()
+  const { data } = await admin
+    .from('profiles')
+    .select('id, auth_user_id, email, full_name, role, status, class_level')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle()
   return (data as Profile) ?? null
 }
 

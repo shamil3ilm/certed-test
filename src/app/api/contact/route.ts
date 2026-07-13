@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { rateLimit, clientIp } from '@/lib/security/rateLimit';
 
-// This endpoint is unauthenticated and relays to an external Apps Script, so
-// validate + bound every field to limit spam-relay abuse. (A rate limiter keyed
-// on IP is the remaining hardening — needs an edge KV/Redis store.)
+// This endpoint is unauthenticated and relays to an external Apps Script, so it
+// validates + bounds every field AND rate-limits per IP to limit spam-relay abuse.
 const contactSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(200),
@@ -12,6 +12,14 @@ const contactSchema = z.object({
 });
 
 export async function POST(request: Request) {
+    const rl = rateLimit(`contact:${clientIp(request.headers)}`, { limit: 5, windowMs: 10 * 60 * 1000 });
+    if (!rl.ok) {
+        return NextResponse.json(
+            { success: false, error: 'Too many messages. Please try again in a few minutes.' },
+            { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+        );
+    }
+
     let raw: unknown;
     try {
         raw = await request.json();
