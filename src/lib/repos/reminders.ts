@@ -33,7 +33,9 @@ export async function createReminder(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('reminders')
-    .insert({ user_id: userId, title, description, remind_at: remindAt })
+    // Explicit is_sent (don't rely on the DB default) so the reminder shows
+    // immediately in mock mode too, which doesn't apply column defaults.
+    .insert({ user_id: userId, title, description, remind_at: remindAt, is_sent: false })
     .select('*')
     .single()
   if (error) throw new Error(`reminders.create: ${error.message}`)
