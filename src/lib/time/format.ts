@@ -7,6 +7,13 @@
  */
 export const DISPLAY_TZ = 'Asia/Kolkata'
 
+/** Today's calendar date (YYYY-MM-DD) in the institute display zone — for "today"
+ *  defaults that must match the local day, not UTC (which is a day behind before
+ *  ~05:30 IST). en-CA formats as YYYY-MM-DD. */
+export function todayInDisplayZone(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TZ }).format(new Date())
+}
+
 /** "20 Jun 2026". Omit timeZone to format in the runtime zone (the device, on the client). */
 export function formatDate(iso: string, timeZone?: string): string {
   const d = new Date(iso)

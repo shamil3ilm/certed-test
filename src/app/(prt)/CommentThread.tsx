@@ -103,7 +103,7 @@ export function CommentThread({
                     {isMine ? 'You' : c.author_name ?? 'Unknown'} · {roleLabel(c.author_role)} ·{' '}
                     <LocalTime iso={c.created_at} />
                   </span>
-                  <div className={`rounded-2xl border px-3 py-2 text-sm leading-relaxed ${tone.bubble}`}>
+                  <div className={`whitespace-pre-wrap rounded-2xl border px-3 py-2 text-sm leading-relaxed ${tone.bubble}`}>
                     {c.content}
                   </div>
                 </div>
@@ -117,8 +117,9 @@ export function CommentThread({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                // Enter sends; Shift+Enter inserts a newline.
-                if (e.key === 'Enter' && !e.shiftKey) {
+                // Enter sends; Shift+Enter inserts a newline. Ignore Enter while an
+                // IME candidate is composing so it doesn't submit mid-word.
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault()
                   send()
                 }

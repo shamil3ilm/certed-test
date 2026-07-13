@@ -42,24 +42,30 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
   if (!student) return null
   const admin = createAdminClient()
 
-  const { data: enr } = await admin
-    .from('enrollments')
-    .select('class_id')
-    .eq('student_id', studentId)
-    .eq('active', true)
-  const classIds = [...new Set((enr ?? []).map((r: { class_id: string }) => r.class_id))]
-
   type AssignmentRow = { id: string; title: string; topic: string | null; class_id: string; max_marks: number | null }
-  const [{ data: classes }, { data: assignments }, { data: subs }, { data: att }] = await Promise.all([
-    classIds.length
-      ? admin.from('classes').select('id, name').in('id', classIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    classIds.length
-      ? admin.from('assignments').select('id, title, topic, class_id, max_marks').in('class_id', classIds)
-      : Promise.resolve({ data: [] as AssignmentRow[] }),
+
+  // Submissions + attendance + current enrolments, in parallel.
+  const [{ data: subs }, { data: att }, { data: enr }] = await Promise.all([
     admin.from('submissions').select('assignment_id, score').eq('student_id', studentId).eq('is_active', true),
     admin.from('attendance').select('status').eq('student_id', studentId),
+    admin.from('enrollments').select('class_id').eq('student_id', studentId).eq('active', true),
   ])
+
+  // Resolve the assignments the student actually has marks on by their OWN ids —
+  // NOT by current enrolment — so a mark earned in a class the student has since
+  // left still shows its real class/topic/max instead of a blank "Class / Assignment".
+  const subAssignmentIds = [...new Set(((subs ?? []) as { assignment_id: string }[]).map((s) => s.assignment_id))]
+  const { data: assignments } = subAssignmentIds.length
+    ? await admin.from('assignments').select('id, title, topic, class_id, max_marks').in('id', subAssignmentIds)
+    : { data: [] as AssignmentRow[] }
+
+  // Class labels: union of current enrolments and the (possibly past) classes those marks belong to.
+  const enrolledClassIds = ((enr ?? []) as { class_id: string }[]).map((r) => r.class_id)
+  const assignmentClassIds = ((assignments ?? []) as AssignmentRow[]).map((a) => a.class_id)
+  const classIds = [...new Set([...enrolledClassIds, ...assignmentClassIds])]
+  const { data: classes } = classIds.length
+    ? await admin.from('classes').select('id, name').in('id', classIds)
+    : { data: [] as { id: string; name: string }[] }
 
   const classLabel = new Map(((classes ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name]))
   const assignmentById = new Map(((assignments ?? []) as AssignmentRow[]).map((a) => [a.id, a]))
@@ -94,7 +100,7 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
             pctItems.reduce((sum, m) => sum + (m.score / (m.maxMarks as number)) * 100, 0) / pctItems.length,
           ),
         ),
-        gradedCount: marks.length,
+        gradedCount: pctItems.length,
       }
     : null
 

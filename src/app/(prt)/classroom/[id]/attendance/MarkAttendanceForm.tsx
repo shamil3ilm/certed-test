@@ -73,7 +73,7 @@ export function MarkAttendanceForm({
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3"
           >
             <span className="text-sm font-medium text-slate-800">{r.name}</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1" role="group" aria-label={`Attendance for ${r.name}`}>
               {OPTIONS.map((o) => (
                 <button
                   key={o.value}

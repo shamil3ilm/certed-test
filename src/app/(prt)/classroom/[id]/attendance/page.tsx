@@ -8,11 +8,7 @@ import {
 } from '@/lib/repos/attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { Card, EmptyState, Badge } from '../../../ui'
-
-/** UTC 'today' — the tutor can pick any date, this is just the default. */
-function todayUTC(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayInDisplayZone } from '@/lib/time/format'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
@@ -76,7 +72,11 @@ export default async function AttendancePage({
   }
 
   // ── Tutor / admin: mark the class for a chosen date ────────────────────────
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(searchParams?.date ?? '') ? searchParams!.date! : todayUTC()
+  const candidate = searchParams?.date ?? ''
+  // Format-check AND calendar-validate (rejects e.g. 2026-13-40, which would 500 the
+  // page); default to the institute-local day, not UTC.
+  const date =
+    /^\d{4}-\d{2}-\d{2}$/.test(candidate) && !Number.isNaN(Date.parse(candidate)) ? candidate : todayInDisplayZone()
   const { students } = await getClassMembers(course.id)
   const marks = await listAttendanceForClassDate(course.id, date)
   const byStudent = new Map(marks.map((m) => [m.student_id, m.status]))

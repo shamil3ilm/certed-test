@@ -25,6 +25,11 @@ export default async function ClassworkPage({ params }: { params: { id: string }
     me.role === 'student' ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
   ])
   const subByAssignment = new Map(mySubs.map((s) => [s.assignment_id, s]))
+  // Precomputed so the empty-state check matches the list students actually see.
+  const visibleAssignments = assignments.filter((a) => canManage || a.status === 'active')
+  // Server Component — renders once per request, so a request-time clock is safe.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now()
 
   // Comment state — the submission + resource loads are independent, so batch them.
   const [commentsBySub, resourceComments] = await Promise.all([
@@ -42,9 +47,7 @@ export default async function ClassworkPage({ params }: { params: { id: string }
         {canManage && <AssignmentForm classes={classList} />}
 
         <ul className="space-y-3">
-          {assignments
-            .filter((a) => canManage || a.status === 'active')
-            .map((a) => {
+          {visibleAssignments.map((a) => {
             const sub = subByAssignment.get(a.id)
             const comments = sub ? (commentsBySub.get(sub.id) ?? []) : []
             return (
@@ -60,11 +63,11 @@ export default async function ClassworkPage({ params }: { params: { id: string }
                     <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                       <span>due <LocalTime iso={a.due_date} /></span>
                       {a.status === 'archived' && <span>· archived</span>}
-                      {a.status === 'active' && !sub && Date.parse(a.due_date) < Date.now() && (
+                      {a.status === 'active' && !sub && Date.parse(a.due_date) < now && (
                         <Badge tone="danger">Overdue</Badge>
                       )}
-                      {a.status === 'active' && !sub && Date.parse(a.due_date) >= Date.now() &&
-                        Date.parse(a.due_date) - Date.now() < 172800000 && <Badge tone="warning">Due soon</Badge>}
+                      {a.status === 'active' && !sub && Date.parse(a.due_date) >= now &&
+                        Date.parse(a.due_date) - now < 172800000 && <Badge tone="warning">Due soon</Badge>}
                     </p>
                     {a.attachment_drive_link && a.attachment_drive_link !== '#' && (
                       <a
@@ -151,7 +154,7 @@ export default async function ClassworkPage({ params }: { params: { id: string }
               </Card>
             )
           })}
-          {assignments.length === 0 && (
+          {visibleAssignments.length === 0 && (
             <EmptyState as="li">No assignments yet.</EmptyState>
           )}
         </ul>

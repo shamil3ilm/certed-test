@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { requireRole } from '@/lib/auth/requireRole'
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { LocalTime } from '../LocalTime'
+import { todayInDisplayZone } from '@/lib/time/format'
 import { listProfiles, getProfileNamesByIds } from '@/lib/repos/users'
 import { listClasses } from '@/lib/repos/classes'
 import { listEnrollments } from '@/lib/repos/enrollments'
@@ -53,7 +54,7 @@ function TodayCard({ title, items, empty }: { title: string; items: TodayItem[];
 
 export default async function Dashboard() {
   const me = await requireRole(['admin', 'teacher', 'student'])
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayInDisplayZone() // institute-local day, not UTC
   const [upcoming, reminders] = await Promise.all([
     listEvents({ from: today, limit: 6 }),
     listMyReminders(me.id),
@@ -66,14 +67,14 @@ export default async function Dashboard() {
         <p className="mt-1 text-sm text-white/80">{roleLabel(me.role)} · Cert-Ed Academia portal</p>
       </div>
 
-      {me.role === 'admin' && <AdminDashboard upcoming={upcoming} reminders={reminders} meId={me.id} />}
+      {me.role === 'admin' && <AdminDashboard upcoming={upcoming} reminders={reminders} />}
       {me.role === 'teacher' && <TeacherDashboard meId={me.id} upcoming={upcoming} reminders={reminders} />}
       {me.role === 'student' && <StudentDashboard meId={me.id} upcoming={upcoming} reminders={reminders} />}
     </main>
   )
 }
 
-async function AdminDashboard({ upcoming, reminders, meId }: { upcoming: CalendarEvent[]; reminders: Reminder[]; meId: string }) {
+async function AdminDashboard({ upcoming, reminders }: { upcoming: CalendarEvent[]; reminders: Reminder[] }) {
   const [profiles, classes, enrollments, receiptTotals, payslipTotals, recentReceipts, recentPayslips] = await Promise.all([
     listProfiles(),
     listClasses(),
@@ -195,6 +196,9 @@ async function StudentDashboard({ meId, upcoming, reminders }: { meId: string; u
   const onTime = myAssignments.filter((a) => onTimeIds.has(a.id)).length
   const pending = Math.max(0, myAssignments.length - submitted)
   const mentors = mentorMap.get(meId) ?? []
+  // Server Component — renders once per request, so a request-time clock is safe.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now()
 
   // "Due soon": work not yet submitted, across every class, most urgent first.
   const dueItems: TodayItem[] = myAssignments
@@ -202,7 +206,7 @@ async function StudentDashboard({ meId, upcoming, reminders }: { meId: string; u
     .sort((a, b) => (a.due_date < b.due_date ? -1 : 1))
     .slice(0, 6)
     .map((a) => {
-      const overdue = Date.parse(a.due_date) < Date.now()
+      const overdue = Date.parse(a.due_date) < now
       return {
         href: `/classroom/${a.class_id}/classwork#assignment-${a.id}`,
         primary: a.title,
