@@ -14,6 +14,18 @@ export function todayInDisplayZone(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TZ }).format(new Date())
 }
 
+/**
+ * True only for a real YYYY-MM-DD calendar date. `Date.parse` ROLLS OVER invalid
+ * days (2026-04-31 → May 1, 2025-02-29 → Mar 1), which Postgres' `date` type then
+ * rejects — so round-trip through UTC and require the string to come back
+ * unchanged. Use before passing a user-supplied date to a `date` column query.
+ */
+export function isCalendarDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const d = new Date(`${s}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+}
+
 /** "20 Jun 2026". Omit timeZone to format in the runtime zone (the device, on the client). */
 export function formatDate(iso: string, timeZone?: string): string {
   const d = new Date(iso)

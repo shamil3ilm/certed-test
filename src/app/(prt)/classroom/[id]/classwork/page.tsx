@@ -113,7 +113,8 @@ export default async function ClassworkPage({ params }: { params: { id: string }
                           >
                             {sub.status === 'late' ? 'Submitted late' : 'On time ✓'}
                           </span>{' '}
-                          (<LocalTime iso={sub.submitted_at} />) — resubmit below to replace.
+                          (<LocalTime iso={sub.submitted_at} />)
+                          {sub.score == null && <> — resubmit below to replace.</>}
                         </p>
                         {sub.score != null && (
                           <p className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-800">
@@ -140,7 +141,13 @@ export default async function ClassworkPage({ params }: { params: { id: string }
                     ) : (
                       <p className="text-sm text-slate-500">Not submitted yet.</p>
                     )}
-                    <SubmitForm assignmentId={a.id} studentEmail={me.email} />
+                    {sub && sub.score != null ? (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Graded — ask your tutor to reopen it (clear the mark) if you need to resubmit.
+                      </p>
+                    ) : (
+                      <SubmitForm assignmentId={a.id} studentEmail={me.email} />
+                    )}
                     {sub && (
                       <CommentThread
                         entityType="submission"

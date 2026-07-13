@@ -8,7 +8,7 @@ import {
 } from '@/lib/repos/attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { Card, EmptyState, Badge } from '../../../ui'
-import { todayInDisplayZone } from '@/lib/time/format'
+import { todayInDisplayZone, isCalendarDate } from '@/lib/time/format'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
@@ -73,10 +73,9 @@ export default async function AttendancePage({
 
   // ── Tutor / admin: mark the class for a chosen date ────────────────────────
   const candidate = searchParams?.date ?? ''
-  // Format-check AND calendar-validate (rejects e.g. 2026-13-40, which would 500 the
-  // page); default to the institute-local day, not UTC.
-  const date =
-    /^\d{4}-\d{2}-\d{2}$/.test(candidate) && !Number.isNaN(Date.parse(candidate)) ? candidate : todayInDisplayZone()
+  // isCalendarDate rejects rolled-over invalid dates (2026-04-31, 2025-02-29) that
+  // would 500 against Postgres' date type; default to the institute-local day.
+  const date = isCalendarDate(candidate) ? candidate : todayInDisplayZone()
   const { students } = await getClassMembers(course.id)
   const marks = await listAttendanceForClassDate(course.id, date)
   const byStudent = new Map(marks.map((m) => [m.student_id, m.status]))

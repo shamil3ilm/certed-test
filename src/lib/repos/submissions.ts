@@ -104,6 +104,20 @@ export async function getSubmission(id: string): Promise<Submission | null> {
   return (data as Submission) ?? null
 }
 
+/** The student's current active submission for an assignment, or null. Used to
+ *  block a resubmission that would wipe an already-earned mark. */
+export async function getActiveSubmission(assignmentId: string, studentId: string): Promise<Submission | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('submissions')
+    .select('*')
+    .eq('assignment_id', assignmentId)
+    .eq('student_id', studentId)
+    .eq('is_active', true)
+    .maybeSingle()
+  return (data as Submission) ?? null
+}
+
 /**
  * Records a tutor's mark + feedback on a submission. Runs via the service role
  * because teacher-grading isn't in the submissions RLS (which only lets an admin
@@ -115,13 +129,16 @@ export async function gradeSubmission(
   input: { score: number | null; feedback: string | null; gradedBy: string },
 ): Promise<void> {
   const admin = createAdminClient()
+  // Clearing a mark (null score) also clears graded_at/graded_by, so a row never
+  // sits in a "graded_at set but no score" half-state.
+  const cleared = input.score == null
   const { error } = await admin
     .from('submissions')
     .update({
       score: input.score,
       feedback: input.feedback,
-      graded_at: new Date().toISOString(),
-      graded_by: input.gradedBy,
+      graded_at: cleared ? null : new Date().toISOString(),
+      graded_by: cleared ? null : input.gradedBy,
     })
     .eq('id', id)
   if (error) throw new Error(`submissions.grade: ${error.message}`)
