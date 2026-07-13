@@ -35,6 +35,14 @@ export default async function MenteePage({ params }: { params: { id: string } })
           </a>
           {student.class_level && <span className="text-slate-400"> · {student.class_level}</span>}
         </div>
+        <a
+          href={`/api/report-card/${student.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-sm btn-soft ml-auto shrink-0"
+        >
+          Download report card
+        </a>
       </div>
 
       {/* Classes */}

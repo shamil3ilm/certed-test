@@ -34,7 +34,17 @@ export default async function AttendancePage({
     const s = summarizeAttendance(rows)
     return (
       <div className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">My attendance</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">My attendance</h2>
+          <a
+            href={`/api/report-card/${me.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sm btn-soft"
+          >
+            Download report card
+          </a>
+        </div>
         <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4">
           <div>
             <p className="text-2xl font-bold text-slate-900">{s.rate}%</p>
