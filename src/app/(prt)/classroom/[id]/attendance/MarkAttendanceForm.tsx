@@ -1,0 +1,95 @@
+'use client'
+import { useState, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { markAttendanceAction } from './actions'
+import { useUI } from '../../../Providers'
+import type { AttendanceStatus } from '@/lib/repos/attendance'
+
+type Row = { id: string; name: string; status: AttendanceStatus }
+
+const OPTIONS: { value: AttendanceStatus; label: string; on: string }[] = [
+  { value: 'present', label: 'Present', on: 'bg-emerald-600 text-white' },
+  { value: 'late', label: 'Late', on: 'bg-amber-500 text-white' },
+  { value: 'absent', label: 'Absent', on: 'bg-red-600 text-white' },
+]
+
+export function MarkAttendanceForm({
+  classId,
+  date,
+  students,
+}: {
+  classId: string
+  date: string
+  students: Row[]
+}) {
+  const router = useRouter()
+  const { toast } = useUI()
+  const [busy, setBusy] = useState(false)
+  const [rows, setRows] = useState<Row[]>(students)
+
+  function setStatus(id: string, status: AttendanceStatus) {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status } : r)))
+  }
+
+  function setAll(status: AttendanceStatus) {
+    setRows((rs) => rs.map((r) => ({ ...r, status })))
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    const fd = new FormData()
+    fd.set('class_id', classId)
+    fd.set('session_date', date)
+    for (const r of rows) fd.set(`status:${r.id}`, r.status)
+    try {
+      await markAttendanceAction(fd)
+      toast('Attendance saved ✓', 'success')
+      router.refresh()
+    } catch {
+      toast('Could not save attendance', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setAll('present')}
+        className="text-xs font-medium text-primary hover:underline"
+      >
+        Mark all present
+      </button>
+      <ul className="space-y-2">
+        {rows.map((r) => (
+          <li
+            key={r.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3"
+          >
+            <span className="text-sm font-medium text-slate-800">{r.name}</span>
+            <div className="flex gap-1">
+              {OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setStatus(r.id, o.value)}
+                  aria-pressed={r.status === o.value}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    r.status === o.value ? o.on : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <button disabled={busy} className="btn btn-primary btn-sm">
+        {busy ? 'Saving…' : 'Save attendance'}
+      </button>
+    </form>
+  )
+}
