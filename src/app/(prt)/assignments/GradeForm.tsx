@@ -21,7 +21,7 @@ export function GradeForm({
   const router = useRouter()
   const { toast } = useUI()
   const [busy, setBusy] = useState(false)
-  const [s, setS] = useState(score != null ? String(score) : '')
+  const [s, setS] = useState(score != null ? String(Number(score)) : '')
   const [f, setF] = useState(feedback ?? '')
 
   async function onSubmit(e: FormEvent) {
@@ -33,9 +33,13 @@ export function GradeForm({
     fd.set('score', s)
     fd.set('feedback', f)
     try {
-      await gradeSubmissionAction(fd)
-      toast('Mark saved ✓', 'success')
-      router.refresh()
+      const res = await gradeSubmissionAction(fd)
+      if (res.ok) {
+        toast('Mark saved ✓', 'success')
+        router.refresh()
+      } else {
+        toast(res.error, 'error')
+      }
     } catch {
       toast('Could not save the mark', 'error')
     } finally {
@@ -46,12 +50,12 @@ export function GradeForm({
   return (
     <form onSubmit={onSubmit} className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
       <label className="text-xs font-medium text-slate-500">
-        Mark {maxMarks != null && <span className="text-slate-400">/ {maxMarks}</span>}
+        Mark {maxMarks != null && <span className="text-slate-400">/ {Number(maxMarks)}</span>}
         <input
           type="number"
           step="0.5"
           min="0"
-          max={maxMarks ?? undefined}
+          max={maxMarks != null ? Number(maxMarks) : undefined}
           value={s}
           onChange={(e) => setS(e.target.value)}
           placeholder="—"

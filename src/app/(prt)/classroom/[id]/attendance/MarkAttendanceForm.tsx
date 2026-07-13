@@ -43,9 +43,13 @@ export function MarkAttendanceForm({
     fd.set('session_date', date)
     for (const r of rows) fd.set(`status:${r.id}`, r.status)
     try {
-      await markAttendanceAction(fd)
-      toast('Attendance saved ✓', 'success')
-      router.refresh()
+      const res = await markAttendanceAction(fd)
+      if (res.ok) {
+        toast('Attendance saved ✓', 'success')
+        router.refresh()
+      } else {
+        toast(res.error, 'error')
+      }
     } catch {
       toast('Could not save attendance', 'error')
     } finally {

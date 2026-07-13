@@ -10,11 +10,13 @@ export const createAssignmentSchema = z.object({
   due_date: isoDate, // absolute ISO instant (client converts its local input to UTC)
   attachment_drive_link: linkUrl.optional(),
   topic: z.string().max(60).optional(),
-  max_marks: z.number().nonnegative().max(100000).optional(),
+  // Capped at the DB column precision numeric(6,2) → max 9999.99, so an oversized
+  // value is rejected with a clear message instead of a Postgres overflow.
+  max_marks: z.number().nonnegative().max(9999.99).optional(),
 })
 
 /** A tutor's mark + optional feedback on one submission. A null score un-grades it. */
 export const gradeSchema = z.object({
-  score: z.number().min(0).max(100000).nullable(),
+  score: z.number().min(0).max(9999.99).nullable(),
   feedback: z.string().max(2000).optional(),
 })

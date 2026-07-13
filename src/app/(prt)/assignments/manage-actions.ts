@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
 import { getAssignment, setAssignmentStatus, updateAssignment } from '@/lib/repos/assignments'
-import { gradeSubmission } from '@/lib/repos/submissions'
+import { getSubmission, gradeSubmission } from '@/lib/repos/submissions'
 import { deleteResource, getResource } from '@/lib/repos/resources'
 import { canManageClass } from '@/lib/repos/classes'
 import { writeAudit } from '@/lib/repos/audit'
@@ -59,20 +59,32 @@ export async function editAssignmentAction(formData: FormData) {
  * gated by canManageClass so only a teacher of this class (or an admin) can mark.
  * An empty mark clears a previous score.
  */
-export async function gradeSubmissionAction(formData: FormData) {
+export async function gradeSubmissionAction(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await requireRole(['admin', 'teacher'])
   const submissionId = String(formData.get('submission_id') ?? '')
-  const assignmentId = String(formData.get('assignment_id') ?? '')
-  if (!submissionId || !assignmentId) return
+  if (!submissionId) return { ok: false, error: 'Missing submission.' }
   const scoreRaw = String(formData.get('score') ?? '').trim()
   const feedbackRaw = String(formData.get('feedback') ?? '').trim()
   const parsed = gradeSchema.safeParse({
     score: scoreRaw === '' ? null : Number(scoreRaw),
     feedback: feedbackRaw || undefined,
   })
-  if (!parsed.success) return
-  const assignment = await getAssignment(assignmentId)
-  if (!assignment || !(await canManageClass(me, assignment.class_id))) return
+  if (!parsed.success) return { ok: false, error: 'Enter a valid mark (0–9999.99).' }
+
+  // Authorize against the submission's OWN assignment/class — NEVER a
+  // client-supplied assignment id, which could name a class the caller manages
+  // while the write targets a submission in a class they don't.
+  const submission = await getSubmission(submissionId)
+  if (!submission) return { ok: false, error: 'Not allowed to grade this submission.' }
+  const assignment = await getAssignment(submission.assignment_id)
+  if (!assignment || !(await canManageClass(me, assignment.class_id))) {
+    return { ok: false, error: 'Not allowed to grade this submission.' }
+  }
+  if (parsed.data.score != null && assignment.max_marks != null && parsed.data.score > Number(assignment.max_marks)) {
+    return { ok: false, error: `Mark can’t exceed the maximum (${Number(assignment.max_marks)}).` }
+  }
   await gradeSubmission(submissionId, {
     score: parsed.data.score,
     feedback: parsed.data.feedback ?? null,
@@ -80,7 +92,8 @@ export async function gradeSubmissionAction(formData: FormData) {
   })
   await writeAudit({ actor_id: me.id, action: 'submission.grade', entity_type: 'submission', entity_id: submissionId })
   revalidatePath('/classroom', 'layout')
-  revalidatePath(`/assignments/${assignmentId}`)
+  revalidatePath(`/assignments/${submission.assignment_id}`)
+  return { ok: true }
 }
 
 /** Soft-remove a material (kept on record via status='archived'). */

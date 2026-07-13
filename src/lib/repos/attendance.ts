@@ -44,22 +44,28 @@ export async function listAttendanceForStudent(studentId: string, classId?: stri
   return (data ?? []) as AttendanceRow[]
 }
 
-/**
- * Upserts one student's status for a class + session date. Runs via the service
- * role (matches the enrolments pattern and works in mock mode); callers gate with
- * canManageClass first, and RLS still restricts any direct write to a teacher of
- * the class.
- */
-export async function markAttendance(input: {
+export type AttendanceMark = {
   class_id: string
   student_id: string
   session_date: string
   status: AttendanceStatus
   marked_by: string
-}): Promise<void> {
+}
+
+/**
+ * Upserts a whole class's marks for a session date in ONE call — atomic (a
+ * partial failure rolls back rather than leaving half the roster saved) and one
+ * round-trip. Runs via the service role (matches the enrolments pattern, works
+ * in mock mode); the caller gates with canManageClass + a roster check first,
+ * and RLS still restricts any direct write to a teacher of the class + enrolment.
+ */
+export async function markAttendanceMany(rows: ReadonlyArray<AttendanceMark>): Promise<void> {
+  if (rows.length === 0) return
   const admin = createAdminClient()
+  const now = new Date().toISOString()
+  const stamped = rows.map((r) => ({ ...r, updated_at: now }))
   const { error } = await admin
     .from('attendance')
-    .upsert({ ...input, updated_at: new Date().toISOString() }, { onConflict: 'class_id,student_id,session_date' })
-  if (error) throw new Error(`attendance.mark: ${error.message}`)
+    .upsert(stamped, { onConflict: 'class_id,student_id,session_date' })
+  if (error) throw new Error(`attendance.markMany: ${error.message}`)
 }

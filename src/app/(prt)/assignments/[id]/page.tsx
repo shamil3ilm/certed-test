@@ -46,7 +46,7 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
         description={
           <>
             Due <LocalTime iso={assignment.due_date} /> · {submissions.length} submission(s)
-            {assignment.max_marks != null && <> · out of {assignment.max_marks}</>}
+            {assignment.max_marks != null && <> · out of {Number(assignment.max_marks)}</>}
           </>
         }
       />

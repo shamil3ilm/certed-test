@@ -94,6 +94,17 @@ export async function recordSubmission(input: {
 }
 
 /**
+ * One submission by id, RLS-scoped (admin, a teacher of its class, the student,
+ * or a mentor may read it). Used to authorize grading against the submission's
+ * OWN assignment/class rather than a client-supplied assignment id.
+ */
+export async function getSubmission(id: string): Promise<Submission | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('submissions').select('*').eq('id', id).maybeSingle()
+  return (data as Submission) ?? null
+}
+
+/**
  * Records a tutor's mark + feedback on a submission. Runs via the service role
  * because teacher-grading isn't in the submissions RLS (which only lets an admin
  * or the student themselves write); the caller gates with canManageClass first.

@@ -38,7 +38,16 @@ create policy attendance_read on attendance for select using (
   or exists (select 1 from profiles p where p.id = student_id and p.auth_user_id = auth.uid())
   or mentors_student(student_id)
 );
--- write: admin or a teacher of the class
+-- write: admin or a teacher of the class, AND only for a student actually
+-- enrolled in that class (blocks a forged cross-class row via the Data API).
 create policy attendance_write on attendance for all
   using (is_active_admin() or teaches_class(class_id))
-  with check (is_active_admin() or teaches_class(class_id));
+  with check (
+    (is_active_admin() or teaches_class(class_id))
+    and exists (
+      select 1 from enrollments e
+      where e.class_id = attendance.class_id
+        and e.student_id = attendance.student_id
+        and e.active
+    )
+  );

@@ -72,8 +72,10 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
         className: a ? classLabel.get(a.class_id) ?? 'Class' : 'Class',
         topic: a?.topic ?? null,
         title: a?.title ?? 'Assignment',
-        score: s.score as number,
-        maxMarks: a?.max_marks ?? null,
+        // PostgREST returns numeric columns as strings ("18.00") — coerce so the
+        // types are honest and the arithmetic below is exact.
+        score: Number(s.score),
+        maxMarks: a?.max_marks != null ? Number(a.max_marks) : null,
       }
     })
     .sort((x, y) =>
@@ -84,8 +86,13 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
   const pctItems = marks.filter((m) => m.maxMarks != null && (m.maxMarks as number) > 0)
   const average = pctItems.length
     ? {
-        percent: Math.round(
-          pctItems.reduce((sum, m) => sum + (m.score / (m.maxMarks as number)) * 100, 0) / pctItems.length,
+        // Clamp at 100 defensively — a stored score above its max_marks (legacy
+        // rows) must not produce a >100% average.
+        percent: Math.min(
+          100,
+          Math.round(
+            pctItems.reduce((sum, m) => sum + (m.score / (m.maxMarks as number)) * 100, 0) / pctItems.length,
+          ),
         ),
         gradedCount: marks.length,
       }
