@@ -10,6 +10,7 @@ const nextConfig = {
     outputFileTracingIncludes: {
       '/api/receipts/[id]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
       '/api/payslips/[id]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
+      '/api/report-card/[studentId]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
     },
   },
   // Defense-in-depth security headers (HSTS is added at the Vercel edge).
