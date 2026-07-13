@@ -21,6 +21,8 @@ export async function POST(req: Request) {
       description: parsed.data.description ?? null,
       due_date: new Date(parsed.data.due_date).toISOString(),
       attachment_drive_link: parsed.data.attachment_drive_link ?? null,
+      topic: parsed.data.topic ?? null,
+      max_marks: parsed.data.max_marks ?? null,
       created_by: me.id,
     })
     await writeAudit({ actor_id: me.id, action: 'assignment.create', entity_type: 'assignment', entity_id: a.id })

@@ -7,6 +7,8 @@ export type Assignment = {
   description: string | null
   due_date: string
   attachment_drive_link: string | null
+  topic: string | null
+  max_marks: number | null
   created_by: string | null
   status: 'active' | 'archived'
   created_at: string
@@ -44,12 +46,20 @@ export async function createAssignment(input: {
   description: string | null
   due_date: string
   attachment_drive_link?: string | null
+  topic?: string | null
+  max_marks?: number | null
   created_by: string
 }): Promise<Assignment> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('assignments')
-    .insert({ ...input, attachment_drive_link: input.attachment_drive_link ?? null, status: 'active' })
+    .insert({
+      ...input,
+      attachment_drive_link: input.attachment_drive_link ?? null,
+      topic: input.topic ?? null,
+      max_marks: input.max_marks ?? null,
+      status: 'active',
+    })
     .select('*')
     .single()
   if (error) throw new Error(`assignments.create: ${error.message}`)
@@ -65,7 +75,7 @@ export async function setAssignmentStatus(id: string, status: 'active' | 'archiv
 
 export async function updateAssignment(
   id: string,
-  patch: Partial<{ title: string; description: string | null; due_date: string; attachment_drive_link: string | null }>,
+  patch: Partial<{ title: string; description: string | null; due_date: string; attachment_drive_link: string | null; topic: string | null; max_marks: number | null }>,
 ): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('assignments').update(patch).eq('id', id)

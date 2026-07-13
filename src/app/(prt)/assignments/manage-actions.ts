@@ -2,10 +2,12 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
 import { getAssignment, setAssignmentStatus, updateAssignment } from '@/lib/repos/assignments'
+import { gradeSubmission } from '@/lib/repos/submissions'
 import { deleteResource, getResource } from '@/lib/repos/resources'
 import { canManageClass } from '@/lib/repos/classes'
 import { writeAudit } from '@/lib/repos/audit'
 import { linkUrl } from '@/lib/validation/url'
+import { gradeSchema } from '@/lib/validation/assignment'
 
 // Explicit canManageClass gate on every mutation (don't rely on RLS alone) — an
 // RLS-denied update matches 0 rows with no error, which would otherwise report a
@@ -50,6 +52,35 @@ export async function editAssignmentAction(formData: FormData) {
   })
   await writeAudit({ actor_id: me.id, action: 'assignment.edit', entity_type: 'assignment', entity_id: id })
   revalidatePath('/classroom', 'layout')
+}
+
+/**
+ * Tutor grades one submission (mark + optional feedback). Service-role write,
+ * gated by canManageClass so only a teacher of this class (or an admin) can mark.
+ * An empty mark clears a previous score.
+ */
+export async function gradeSubmissionAction(formData: FormData) {
+  const me = await requireRole(['admin', 'teacher'])
+  const submissionId = String(formData.get('submission_id') ?? '')
+  const assignmentId = String(formData.get('assignment_id') ?? '')
+  if (!submissionId || !assignmentId) return
+  const scoreRaw = String(formData.get('score') ?? '').trim()
+  const feedbackRaw = String(formData.get('feedback') ?? '').trim()
+  const parsed = gradeSchema.safeParse({
+    score: scoreRaw === '' ? null : Number(scoreRaw),
+    feedback: feedbackRaw || undefined,
+  })
+  if (!parsed.success) return
+  const assignment = await getAssignment(assignmentId)
+  if (!assignment || !(await canManageClass(me, assignment.class_id))) return
+  await gradeSubmission(submissionId, {
+    score: parsed.data.score,
+    feedback: parsed.data.feedback ?? null,
+    gradedBy: me.id,
+  })
+  await writeAudit({ actor_id: me.id, action: 'submission.grade', entity_type: 'submission', entity_id: submissionId })
+  revalidatePath('/classroom', 'layout')
+  revalidatePath(`/assignments/${assignmentId}`)
 }
 
 /** Soft-remove a material (kept on record via status='archived'). */

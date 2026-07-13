@@ -8,6 +8,7 @@ import { getProfileNamesByIds } from '@/lib/repos/users'
 import { canAccessClass } from '@/lib/repos/classes'
 import { getClass } from '@/lib/repos/classes'
 import { CommentThread } from '../../CommentThread'
+import { GradeForm } from '../GradeForm'
 import { PageHeader, Card, Avatar, EmptyState } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 
@@ -42,7 +43,12 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
       </Link>
       <PageHeader
         title={assignment.title}
-        description={<>Due <LocalTime iso={assignment.due_date} /> · {submissions.length} submission(s)</>}
+        description={
+          <>
+            Due <LocalTime iso={assignment.due_date} /> · {submissions.length} submission(s)
+            {assignment.max_marks != null && <> · out of {assignment.max_marks}</>}
+          </>
+        }
       />
 
       <div className="mt-6 space-y-4">
@@ -78,6 +84,15 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
                 </a>
               )}
             </div>
+
+            {/* Mark + feedback */}
+            <GradeForm
+              submissionId={s.id}
+              assignmentId={assignment.id}
+              maxMarks={assignment.max_marks}
+              score={s.score}
+              feedback={s.feedback}
+            />
 
             {/* Comment thread */}
             <CommentThread

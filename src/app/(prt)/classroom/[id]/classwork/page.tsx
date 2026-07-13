@@ -51,7 +51,11 @@ export default async function ClassworkPage({ params }: { params: { id: string }
               <Card as="li" key={a.id} id={`assignment-${a.id}`} className="scroll-mt-24 p-4 transition hover:shadow">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="font-medium text-slate-900">{a.title}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium text-slate-900">{a.title}</h3>
+                      {a.topic && <Badge tone="primary">{a.topic}</Badge>}
+                      {a.max_marks != null && <span className="text-xs text-slate-400">/ {a.max_marks} marks</span>}
+                    </div>
                     {a.description && <p className="mt-1 text-sm text-slate-600">{a.description}</p>}
                     <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                       <span>due <LocalTime iso={a.due_date} /></span>
@@ -108,6 +112,15 @@ export default async function ClassworkPage({ params }: { params: { id: string }
                           </span>{' '}
                           (<LocalTime iso={sub.submitted_at} />) — resubmit below to replace.
                         </p>
+                        {sub.score != null && (
+                          <p className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-800">
+                            <span className="font-semibold">
+                              Marked: {sub.score}
+                              {a.max_marks != null ? ` / ${a.max_marks}` : ''}
+                            </span>
+                            {sub.feedback && <span className="mt-0.5 block text-emerald-700">“{sub.feedback}”</span>}
+                          </p>
+                        )}
                         {sub.drive_link && (
                           <a
                             href={sub.drive_link}

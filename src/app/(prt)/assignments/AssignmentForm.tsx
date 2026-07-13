@@ -14,6 +14,8 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [brief, setBrief] = useState('')
+  const [topic, setTopic] = useState('')
+  const [maxMarks, setMaxMarks] = useState('')
   const [due, setDue] = useState('') // datetime-local — the teacher's local wall-clock
   const [busy, setBusy] = useState(false)
 
@@ -31,12 +33,16 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
           description: description || undefined,
           due_date: new Date(due).toISOString(),
           attachment_drive_link: brief.trim() || undefined,
+          topic: topic.trim() || undefined,
+          max_marks: maxMarks ? Number(maxMarks) : undefined,
         }),
       }).then((r) => r.json())
       if (!res.success) throw new Error(res.error ?? 'failed')
       setTitle('')
       setDescription('')
       setBrief('')
+      setTopic('')
+      setMaxMarks('')
       setDue('')
       toast('Assignment created', 'success')
       router.refresh()
@@ -69,6 +75,14 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
       <Field label="Brief / attachment (optional)" hint="Paste a Google Drive link to the question paper or brief.">
         <Input type="url" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="https://drive.google.com/..." />
       </Field>
+      <div className="flex flex-wrap gap-3">
+        <Field label="Topic (optional)" className="min-w-[10rem] flex-1" hint="e.g. Algebra — groups classwork">
+          <Input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Unit / chapter" />
+        </Field>
+        <Field label="Max marks (optional)" className="w-32">
+          <Input type="number" min="0" step="0.5" value={maxMarks} onChange={(e) => setMaxMarks(e.target.value)} placeholder="e.g. 20" />
+        </Field>
+      </div>
       <Field label="Due">
         <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} required />
       </Field>
