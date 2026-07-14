@@ -5,7 +5,7 @@ import { markAttendanceAction } from './actions'
 import { useUI } from '../../../Providers'
 import type { AttendanceStatus } from '@/lib/repos/attendance'
 
-type Row = { id: string; name: string; status: AttendanceStatus }
+type Row = { id: string; name: string; status: AttendanceStatus | null }
 
 const OPTIONS: { value: AttendanceStatus; label: string; on: string }[] = [
   { value: 'present', label: 'Present', on: 'bg-emerald-700 text-white' },
@@ -35,13 +35,21 @@ export function MarkAttendanceForm({
     setRows((rs) => rs.map((r) => ({ ...r, status })))
   }
 
+  const markedCount = rows.filter((r) => r.status !== null).length
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (markedCount === 0) {
+      toast('Mark at least one student first', 'error')
+      return
+    }
     setBusy(true)
     const fd = new FormData()
     fd.set('class_id', classId)
     fd.set('session_date', date)
-    for (const r of rows) fd.set(`status:${r.id}`, r.status)
+    // Only send rows the tutor actually marked — unmarked students are left out
+    // of this session entirely rather than defaulted to present.
+    for (const r of rows) if (r.status !== null) fd.set(`status:${r.id}`, r.status)
     try {
       const res = await markAttendanceAction(fd)
       if (res.ok) {
@@ -59,13 +67,18 @@ export function MarkAttendanceForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <button
-        type="button"
-        onClick={() => setAll('present')}
-        className="text-xs font-medium text-primary hover:underline"
-      >
-        Mark all present
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setAll('present')}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          Mark all present
+        </button>
+        <p className="text-xs text-slate-400">
+          {markedCount} of {rows.length} marked · unmarked students aren&apos;t recorded
+        </p>
+      </div>
       <ul className="space-y-2">
         {rows.map((r) => (
           <li
@@ -91,8 +104,8 @@ export function MarkAttendanceForm({
           </li>
         ))}
       </ul>
-      <button disabled={busy} className="btn btn-primary btn-sm">
-        {busy ? 'Saving…' : 'Save attendance'}
+      <button disabled={busy || markedCount === 0} className="btn btn-primary btn-sm">
+        {busy ? 'Saving…' : markedCount === 0 ? 'Mark students to save' : `Save attendance (${markedCount})`}
       </button>
     </form>
   )

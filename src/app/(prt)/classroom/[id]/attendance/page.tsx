@@ -79,10 +79,13 @@ export default async function AttendancePage({
   const { students } = await getClassMembers(course.id)
   const marks = await listAttendanceForClassDate(course.id, date)
   const byStudent = new Map(marks.map((m) => [m.student_id, m.status]))
+  // Unmarked students stay null (not pre-filled 'present'): the form only saves
+  // rows the tutor actually sets, so marking a few students never silently
+  // records everyone else present and inflates their report-card attendance.
   const roster = students.map((s) => ({
     id: s.id,
     name: s.name,
-    status: (byStudent.get(s.id) ?? 'present') as AttendanceStatus,
+    status: (byStudent.get(s.id) ?? null) as AttendanceStatus | null,
   }))
 
   return (
