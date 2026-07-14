@@ -8,7 +8,7 @@ export default async function SettingsPage({
 }: {
   searchParams: { saved?: string; error?: string }
 }) {
-  const me = await requireRole(['admin', 'teacher', 'student'])
+  const me = await requireRole(['admin', 'sub_admin', 'teacher', 'student'])
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -17,7 +17,7 @@ export default async function SettingsPage({
       {searchParams.saved === 'profile' && <Banner ok>Profile updated.</Banner>}
       {searchParams.saved === 'password' && <Banner ok>Password changed.</Banner>}
       {searchParams.error === 'password' && (
-        <Banner>Passwords must match and be at least 4 characters.</Banner>
+        <Banner>Passwords must match and be at least 8 characters.</Banner>
       )}
 
       <div className="mt-4 space-y-6">

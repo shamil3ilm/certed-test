@@ -14,6 +14,7 @@ export const IDS = {
   // Mentor is a SEPARATE person from the class teacher: pastoral scope only,
   // teaches none of the mentee's classes (so mentee class links are non-entry).
   mentor: 'a0000000-0000-4000-8000-000000000005',
+  subAdmin: 'a0000000-0000-4000-8000-000000000006',
   math: 'c0000000-0000-4000-8000-000000000001',
   science: 'c0000000-0000-4000-8000-000000000002',
 } as const
@@ -46,6 +47,7 @@ export function buildSeed(): MockDb {
       { id: IDS.admin, auth_user_id: 'u-admin', email: 'admin@mock.test', full_name: 'Asha Admin', role: 'admin', status: 'active', class_level: null, created_at: NOW },
       { id: IDS.teacher, auth_user_id: 'u-teacher', email: 'teacher@mock.test', full_name: 'Tarun Teacher', role: 'teacher', status: 'active', class_level: null, created_at: NOW },
       { id: IDS.mentor, auth_user_id: 'u-mentor', email: 'mentor@mock.test', full_name: 'Maya Mentor', role: 'teacher', status: 'active', class_level: null, created_at: NOW },
+      { id: IDS.subAdmin, auth_user_id: 'u-subadmin', email: 'subadmin@mock.test', full_name: 'Sunil Sub-Admin', role: 'sub_admin', status: 'active', class_level: null, created_at: NOW },
       { id: IDS.student, auth_user_id: 'u-student', email: 'student@mock.test', full_name: 'Sara Student', role: 'student', status: 'active', class_level: 'Grade 10', created_at: NOW },
       { id: IDS.student2, auth_user_id: 'u-student2', email: 'student2@mock.test', full_name: 'Sam Student', role: 'student', status: 'active', class_level: 'Grade 9', created_at: NOW },
     ],

@@ -102,6 +102,25 @@ test('TUTOR — marks attendance and adds a reminder', async ({ page }) => {
   await expect(page.getByText('Prep Chapter 5')).toBeVisible()
 })
 
+test('SUB ADMIN — lands on a real dashboard and can reach settings (no blank lock-out)', async ({ page }) => {
+  await loginAs(page, 'subadmin@mock.test')
+
+  // Regression: the dashboard used to exclude sub_admin from requireRole and
+  // bounce it back to /dashboard forever (blank page). It must now render a real,
+  // users-focused landing page.
+  await expect(page.getByRole('heading', { name: 'User management' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Manage users' })).toBeVisible()
+
+  // Settings previously bounced back to the blank dashboard — it must be reachable.
+  await page.goto('/settings')
+  await expect(page).toHaveURL(/\/settings/)
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeVisible()
+
+  // The Users hub (the one thing that always worked) still works.
+  await page.goto('/admin/users')
+  await expect(page).toHaveURL(/\/admin\/users/)
+})
+
 test('STUDENT — full journey: timetable, submit homework, materials, grade, attendance, report card', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
 

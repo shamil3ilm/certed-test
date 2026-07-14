@@ -53,12 +53,18 @@ function TodayCard({ title, items, empty }: { title: string; items: TodayItem[];
 }
 
 export default async function Dashboard() {
-  const me = await requireRole(['admin', 'teacher', 'student'])
+  // sub_admin is included so /dashboard renders for every active role — it's the
+  // universal redirect target for requireRole, so a role missing here would be
+  // bounced back to /dashboard forever (the Sub Admin blank-page lock-out).
+  const me = await requireRole(['admin', 'sub_admin', 'teacher', 'student'])
   const today = todayInDisplayZone() // institute-local day, not UTC
-  const [upcoming, reminders] = await Promise.all([
-    listEvents({ from: today, limit: 6 }),
-    listMyReminders(me.id),
-  ])
+  // A sub_admin only manages users — it has no class/event RLS reach, so skip the
+  // upcoming/reminders reads (which would return empty at best) and show a
+  // users-focused panel instead.
+  const [upcoming, reminders]: [CalendarEvent[], Reminder[]] =
+    me.role === 'sub_admin'
+      ? [[], []]
+      : await Promise.all([listEvents({ from: today, limit: 6 }), listMyReminders(me.id)])
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
@@ -68,9 +74,51 @@ export default async function Dashboard() {
       </div>
 
       {me.role === 'admin' && <AdminDashboard upcoming={upcoming} reminders={reminders} />}
+      {me.role === 'sub_admin' && <SubAdminDashboard />}
       {me.role === 'teacher' && <TeacherDashboard meId={me.id} upcoming={upcoming} reminders={reminders} />}
       {me.role === 'student' && <StudentDashboard meId={me.id} upcoming={upcoming} reminders={reminders} />}
     </main>
+  )
+}
+
+/**
+ * Sub Admins manage people, not classes/finance. Their dashboard is a real
+ * landing page — Students / Teachers / Pending counts (from the same service-role
+ * read the Users hub uses, so no RLS surprises) plus a direct link to manage them.
+ */
+async function SubAdminDashboard() {
+  const profiles = await listProfiles()
+  const students = profiles.filter((p) => p.role === 'student')
+  const teachers = profiles.filter((p) => p.role === 'teacher')
+  const pending = profiles.filter((p) => p.status === 'pending')
+
+  return (
+    <>
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatModalCard
+          label="Students" value={students.length} title="Students"
+          items={students.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.class_level ?? p.email }))}
+          empty="No students yet."
+        />
+        <StatModalCard
+          label="Teachers" value={teachers.length} title="Teachers"
+          items={teachers.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email }))}
+          empty="No teachers yet."
+        />
+        <StatModalCard
+          label="Pending access" value={pending.length} title="Pending access" tone={pending.length > 0 ? 'primary' : undefined}
+          items={pending.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email }))}
+          empty="Nobody waiting for access."
+        />
+      </section>
+      <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 p-5">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-slate-800">User management</h2>
+          <p className="mt-1 text-sm text-slate-500">Add, edit or revoke students and tutors, and assign mentors.</p>
+        </div>
+        <a href="/admin/users" className="btn btn-primary shrink-0">Manage users</a>
+      </Card>
+    </>
   )
 }
 

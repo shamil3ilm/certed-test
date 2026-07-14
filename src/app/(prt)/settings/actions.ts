@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/repos/audit'
 
-const ALL = ['admin', 'teacher', 'student'] as const
+const ALL = ['admin', 'sub_admin', 'teacher', 'student'] as const
 
 export async function updateProfileAction(formData: FormData) {
   const me = await requireRole([...ALL])
