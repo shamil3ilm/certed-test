@@ -8,6 +8,28 @@ export type AuditAction =
   | 'class.archive'
   | (string & {})
 
+export type AuditRow = {
+  id: string
+  actor_id: string | null
+  action: string
+  entity_type: string
+  entity_id: string | null
+  created_at: string
+}
+
+/** Recent audit entries, newest first, for the admin activity log. Service-role
+ *  read (the page gates to admin; audit_read RLS is admin-only too). */
+export async function listAudit(limit = 250): Promise<AuditRow[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('audit_log')
+    .select('id, actor_id, action, entity_type, entity_id, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`audit.list: ${error.message}`)
+  return (data ?? []) as AuditRow[]
+}
+
 /** Records a sensitive action. Uses the service-role client (server-only). */
 export async function writeAudit(entry: {
   actor_id: string | null

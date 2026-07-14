@@ -10,6 +10,7 @@ export const NAV: Record<string, NavItem[]> = {
     { href: '/calendar', label: 'Calendar' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/finance', label: 'Finance' },
+    { href: '/admin/history', label: 'History' },
   ],
   sub_admin: [
     { href: '/dashboard', label: 'Dashboard' },

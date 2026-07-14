@@ -78,6 +78,12 @@ test('ADMIN — create class → enrol → announce → issue receipt → add us
   await add.locator('select[name=role]').selectOption('student')
   await submitAndReload(page, () => add.getByRole('button', { name: 'Add user' }).click())
   await expect(page.getByText('e2e-newbie@mock.test')).toBeVisible()
+
+  // Activity log (previously a dead redirect to /dashboard) now renders the
+  // audited actions just performed.
+  await page.goto('/admin/history')
+  await expect(page.getByRole('heading', { name: 'Activity log' })).toBeVisible()
+  await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
 })
 
 test('TEACHER — create assignment + comment on a student submission', async ({ page }) => {
