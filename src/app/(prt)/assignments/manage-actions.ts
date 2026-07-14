@@ -78,6 +78,12 @@ export async function gradeSubmissionAction(
   // while the write targets a submission in a class they don't.
   const submission = await getSubmission(submissionId)
   if (!submission) return { ok: false, error: 'Not allowed to grade this submission.' }
+  // Guard the resubmit race: if the student replaced this submission after the
+  // tutor opened the grading UI, this row is now inactive and the report card
+  // reads only the active one — so a mark saved here would silently vanish.
+  if (!submission.is_active) {
+    return { ok: false, error: 'This submission was replaced by a newer one — reload to grade the latest.' }
+  }
   const assignment = await getAssignment(submission.assignment_id)
   if (!assignment || !(await canManageClass(me, assignment.class_id))) {
     return { ok: false, error: 'Not allowed to grade this submission.' }
