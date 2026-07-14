@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false, // don't advertise the framework (minor fingerprinting reduction)
   // Keep the headless-Chromium PDF deps out of the bundle (server-only, runtime).
   experimental: {
     serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
@@ -23,6 +24,12 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // Force HTTPS for 2 years (Vercel also sets this at the edge — belt-and-suspenders).
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          // Isolate the browsing context from cross-origin windows, but still allow
+          // popups (Google OAuth / Drive Picker open one) — 'same-origin' would break them.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+          { key: 'X-DNS-Prefetch-Control', value: 'off' },
           {
             // Defense-in-depth against injected scripts. 'unsafe-inline'/'unsafe-eval'
             // are required by the Next.js runtime; the Google hosts allow the optional
@@ -44,6 +51,13 @@ const nextConfig = {
             ].join('; '),
           },
         ],
+      },
+      {
+        // Sensitive API responses (PDFs, downloads, data) must not be embeddable
+        // cross-site. Scoped to /api only, so marketing OG-image crawlers (which
+        // fetch /public assets, not /api) are unaffected.
+        source: '/api/:path*',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
       },
     ]
   },

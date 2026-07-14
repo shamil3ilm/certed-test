@@ -12,7 +12,8 @@ export default function Contact() {
         email: '',
         countryCode: '+91',
         phone: '',
-        message: ''
+        message: '',
+        website: '' // honeypot — stays empty for real users
     });
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
@@ -46,7 +47,7 @@ export default function Contact() {
 
             if (result.success) {
                 setStatus('success');
-                setFormData({ name: '', email: '', countryCode: '+91', phone: '', message: '' });
+                setFormData({ name: '', email: '', countryCode: '+91', phone: '', message: '', website: '' });
                 // Reset success message after 5 seconds
                 setTimeout(() => setStatus('idle'), 5000);
             } else {
@@ -126,6 +127,17 @@ export default function Contact() {
                                         {errorMessage}
                                     </div>
                                 )}
+                                {/* Honeypot: off-screen, hidden from humans — bots that fill it are dropped server-side. */}
+                                <input
+                                    type="text"
+                                    id="website"
+                                    value={formData.website}
+                                    onChange={handleChange}
+                                    tabIndex={-1}
+                                    autoComplete="off"
+                                    aria-hidden="true"
+                                    className="absolute left-[-9999px] h-0 w-0 opacity-0"
+                                />
                                     <div>
                                         <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                                         <input

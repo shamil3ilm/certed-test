@@ -27,6 +27,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Invalid request.' }, { status: 400 });
     }
 
+    // Honeypot: real users never fill `website`. A filled value = bot → pretend
+    // success (so it doesn't retry) but drop the message without relaying.
+    if (
+        raw &&
+        typeof raw === 'object' &&
+        typeof (raw as Record<string, unknown>).website === 'string' &&
+        ((raw as Record<string, unknown>).website as string).trim() !== ''
+    ) {
+        return NextResponse.json({ success: true });
+    }
+
     const parsed = contactSchema.safeParse(raw);
     if (!parsed.success) {
         return NextResponse.json(
