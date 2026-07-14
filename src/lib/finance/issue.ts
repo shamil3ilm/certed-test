@@ -25,9 +25,9 @@ export async function issueDoc(
     label: l.subject,
     hours: l.hours,
     rate: l.rate,
-    amount: lineAmount(l.hours, l.rate),
+    amount: lineAmount(l.hours, l.rate, input.currency),
   }))
-  const { subtotal, total } = computeTotals(input.lines, input.discount ?? 0)
+  const { subtotal, total } = computeTotals(input.lines, input.discount ?? 0, input.currency)
   const org = await getOrgSettings()
   const year = new Date(input.issue_date).getFullYear()
   const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix

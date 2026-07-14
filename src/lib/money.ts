@@ -1,28 +1,71 @@
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100
+// The currencies the app can issue in (the finance form's dropdown + the server
+// validator both read this — one source of truth so they can't drift and let an
+// un-renderable currency string reach Intl.NumberFormat).
+export const SUPPORTED_CURRENCIES = ['INR', 'AED', 'SAR', 'QAR', 'OMR', 'KWD', 'BHD', 'USD'] as const
+export type Currency = (typeof SUPPORTED_CURRENCIES)[number]
+
+// Currency minor units (decimal places). Most currencies use 2; the GCC/Arab
+// 3-decimal currencies (fils) and the 0-decimal ones (yen/won) must be handled
+// explicitly so amounts both round and display correctly.
+const MINOR_UNITS: Record<string, number> = {
+  BHD: 3, IQD: 3, JOD: 3, KWD: 3, OMR: 3, TND: 3, LYD: 3,
+  JPY: 0, KRW: 0, VND: 0, CLP: 0,
 }
 
-export function lineAmount(hours: number, rate: number): number {
-  return round2(hours * rate)
+/** Decimal places for a currency's minor unit (2 by default). */
+export function currencyDecimals(currency: string): number {
+  return MINOR_UNITS[(currency ?? '').toUpperCase()] ?? 2
+}
+
+function roundTo(n: number, decimals: number): number {
+  const f = 10 ** decimals
+  return Math.round((n + Number.EPSILON) * f) / f
+}
+
+export function lineAmount(hours: number, rate: number, currency = 'INR'): number {
+  return roundTo(hours * rate, currencyDecimals(currency))
 }
 
 export function computeTotals(
   lines: { hours: number; rate: number }[],
   discount = 0,
+  currency = 'INR',
 ): { subtotal: number; total: number } {
-  const subtotal = round2(lines.reduce((sum, l) => sum + l.hours * l.rate, 0))
-  const total = round2(subtotal - (discount || 0))
+  const decimals = currencyDecimals(currency)
+  // Sum the ALREADY-ROUNDED line amounts (not the raw products) so the printed
+  // line amounts add up exactly to the printed subtotal — Σ round(line) rather
+  // than round(Σ line), which otherwise disagree by a minor unit or two.
+  const subtotal = roundTo(
+    lines.reduce((sum, l) => sum + roundTo(l.hours * l.rate, decimals), 0),
+    decimals,
+  )
+  const total = roundTo(subtotal - (discount || 0), decimals)
   return { subtotal, total }
 }
 
-/** Formats an amount for display/PDF. Indian grouping; 0–2 decimals. */
+/**
+ * Formats an amount for display/PDF, correct for the given currency:
+ *  - INR keeps Indian lakh/crore grouping (₹1,00,000); everything else uses
+ *    standard thousands grouping ($100,000) instead of forcing en-IN on it.
+ *  - Fraction digits follow the currency's minor unit, so KWD/BHD/OMR show fils
+ *    (1.234) and JPY shows none — and every amount on one document shows the SAME
+ *    number of decimals (₹1,200.00, not a mix of ₹1,200 and ₹333.33).
+ *  - An unknown currency would make Intl throw; fall back to a plain number so a
+ *    bad row degrades to "1,234.00 XXX" instead of a 502.
+ */
 export function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount)
+  const decimals = currencyDecimals(currency)
+  const locale = (currency ?? '').toUpperCase() === 'INR' ? 'en-IN' : 'en-US'
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(amount)
+  } catch {
+    return `${amount.toFixed(decimals)} ${currency}`
+  }
 }
 
 /** Sums non-void finance docs per currency into one display string (e.g. "₹1,200 + $50"). */

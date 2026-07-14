@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { computeTotals, lineAmount, formatMoney } from '@/lib/money'
+import { computeTotals, lineAmount, formatMoney, SUPPORTED_CURRENCIES } from '@/lib/money'
 
 type Party = { id: string; name: string }
 type Line = { subject: string; hours: string; rate: string }
@@ -31,7 +31,7 @@ export function IssueForm({
   const [error, setError] = useState<string | null>(null)
 
   const numeric = lines.map((l) => ({ hours: Number(l.hours) || 0, rate: Number(l.rate) || 0 }))
-  const { subtotal, total } = computeTotals(numeric, Number(discount) || 0)
+  const { subtotal, total } = computeTotals(numeric, Number(discount) || 0, currency)
 
   function setLine(i: number, patch: Partial<Line>) {
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)))
@@ -43,6 +43,15 @@ export function IssueForm({
     const valid = lines.filter((l) => l.subject && Number(l.hours) > 0 && Number(l.rate) >= 0)
     if (!valid.length) {
       setError('Add at least one line')
+      return
+    }
+    // Mirror the server guards so the admin sees the reason inline, not a raw 422.
+    if ((Number(discount) || 0) > subtotal) {
+      setError('Discount cannot exceed the subtotal')
+      return
+    }
+    if (total <= 0) {
+      setError('Total must be greater than zero')
       return
     }
     setBusy(true)
@@ -86,7 +95,7 @@ export function IssueForm({
         <label className="text-sm">
           Currency
           <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block w-24 rounded border px-2 py-1">
-            {['INR', 'AED', 'SAR', 'QAR', 'OMR', 'KWD', 'BHD', 'USD'].map((c) => (
+            {SUPPORTED_CURRENCIES.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -100,7 +109,7 @@ export function IssueForm({
             <input placeholder="Hours" type="number" step="0.25" value={l.hours} onChange={(e) => setLine(i, { hours: e.target.value })} className="w-20 rounded border px-2 py-1 sm:w-24" />
             <input placeholder="Rate/hr" type="number" step="0.01" value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} className="w-24 rounded border px-2 py-1 sm:w-28" />
             <span className="w-16 text-right text-sm text-slate-500 sm:w-24">
-              {safeMoney(lineAmount(Number(l.hours) || 0, Number(l.rate) || 0), currency)}
+              {safeMoney(lineAmount(Number(l.hours) || 0, Number(l.rate) || 0, currency), currency)}
             </span>
             {lines.length > 1 && (
               <button type="button" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-slate-400 transition hover:text-red-600">×</button>
@@ -121,7 +130,7 @@ export function IssueForm({
         <span className="text-base font-semibold">Total {safeMoney(total, currency)}</span>
       </div>
 
-      <button disabled={busy} className="btn btn-primary">
+      <button disabled={busy || total <= 0 || (Number(discount) || 0) > subtotal} className="btn btn-primary">
         {busy ? 'Issuing…' : 'Issue'}
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
