@@ -73,12 +73,16 @@ function UserRow({
               </label>
               <label className="text-xs">
                 Role
-                {/* You can't demote yourself — that would risk locking the academy out. */}
-                <select name="role" defaultValue={p.role} disabled={self} className="mt-1 block rounded border px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400">
+                {/* You can't demote yourself — that would risk locking the academy out.
+                    A disabled <select> submits nothing, which used to make a self-edit
+                    (name change) fail role validation and drop silently — so carry the
+                    current role in a hidden field when disabled. */}
+                <select name={self ? undefined : 'role'} defaultValue={p.role} disabled={self} className="mt-1 block rounded border px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400">
                   {roleOptions.map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
+                {self && <input type="hidden" name="role" value={p.role} />}
               </label>
               {isStudent && (
                 <label className="text-xs">

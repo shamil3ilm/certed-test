@@ -51,13 +51,18 @@ export default async function MenteePage({ params }: { params: { id: string } })
         {classes.length === 0 ? (
           <EmptyState>Not enrolled in any classes yet.</EmptyState>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {/* Not links: a mentor may not teach these classes, so the workspace
-                would 404. The names are context, not navigation. */}
-            {classes.map((c) => (
-              <Badge key={c.id} tone="primary">{c.name}</Badge>
-            ))}
-          </div>
+          <>
+            <div className="flex flex-wrap gap-2">
+              {/* Not links: a mentor may not teach these classes, so the workspace
+                  would 404. The names are context, not navigation. */}
+              {classes.map((c) => (
+                <Badge key={c.id} tone="primary">{c.name}</Badge>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              For context only — open a class from your own Classes tab if you teach it.
+            </p>
+          </>
         )}
       </section>
 

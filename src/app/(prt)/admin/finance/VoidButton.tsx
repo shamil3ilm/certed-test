@@ -11,7 +11,7 @@ export function VoidButton({ endpoint }: { endpoint: string }) {
       onClick={async () => {
         const ok = await confirm({
           title: 'Void this document?',
-          message: 'It stays on record; reissue a corrected one.',
+          message: 'It stays on record and can’t be undone. To correct it, issue a new document with the right details.',
           confirmLabel: 'Void',
           variant: 'danger',
         })
