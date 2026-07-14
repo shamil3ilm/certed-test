@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -33,28 +33,33 @@ export function CalendarView({
   classes?: Opt[]
   isAdmin?: boolean
 }) {
-  const deviceTz = useMemo(
-    () => (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'),
-    [],
-  )
+  // deviceTz is resolved on the CLIENT only. Resolving it during SSR yields the
+  // server's zone (UTC on Vercel) while the browser yields the user's real zone —
+  // that mismatch broke hydration (React #425 → #422), which tore the calendar
+  // down and aborted its in-flight event fetch (the "empty grid / Failed to fetch"
+  // symptom). Start null, resolve in an effect, and render a skeleton until then.
+  const [deviceTz, setDeviceTz] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [eventInfo, setEventInfo] = useState<EventDetail | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
   const calRef = useRef<FullCalendar | null>(null)
 
-  // Phones get the agenda (list) view by default — a clear, scannable
-  // "what's on, per day" instead of a cramped month grid.
+  // Resolve the timezone + viewport once mounted (client-only), and track
+  // viewport changes so phones get the scannable agenda (list) view.
   useEffect(() => {
+    setDeviceTz(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
     const mq = window.matchMedia('(max-width: 640px)')
-    const apply = () => {
-      setIsMobile(mq.matches)
-      calRef.current?.getApi().changeView(mq.matches ? 'listWeek' : 'dayGridMonth')
-    }
+    const apply = () => setIsMobile(mq.matches)
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [])
+
+  // Switch views when the viewport crosses the breakpoint after first mount.
+  useEffect(() => {
+    calRef.current?.getApi().changeView(isMobile ? 'listWeek' : 'dayGridMonth')
+  }, [isMobile])
 
   const fetchEvents = useCallback(
     async (info: { startStr: string; endStr: string }): Promise<EventInput[]> => {
@@ -88,16 +93,19 @@ export function CalendarView({
         <LegendDot color={COLORS.event} label="Event / holiday" />
         <LegendDot color={COLORS.assignment} label="Deadline" />
       </div>
-      <p className="mb-2 text-xs text-slate-500" data-tz={deviceTz}>
-        Times shown in your timezone: <span className="font-medium">{deviceTz}</span>
+      <p className="mb-2 text-xs text-slate-500" data-tz={deviceTz ?? undefined}>
+        Times shown in your timezone: <span className="font-medium">{deviceTz ?? '…'}</span>
         {canManage && <span className="text-slate-400"> · tap a date to schedule</span>}
       </p>
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:p-3">
+        {!deviceTz ? (
+          <div className="flex h-64 items-center justify-center text-sm text-slate-400">Loading calendar…</div>
+        ) : (
         <FullCalendar
           ref={calRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
+          initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
           timeZone={deviceTz}
           headerToolbar={
             isMobile
@@ -122,6 +130,7 @@ export function CalendarView({
             })
           }}
         />
+        )}
       </div>
 
       {eventInfo && <EventDetailModal info={eventInfo} onClose={() => setEventInfo(null)} />}
