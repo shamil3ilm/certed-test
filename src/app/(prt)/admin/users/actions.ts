@@ -115,6 +115,11 @@ export async function assignMentorAction(formData: FormData) {
   const teacher_id = String(formData.get('teacher_id') ?? '')
   const student_id = String(formData.get('student_id') ?? '')
   if (!teacher_id || !student_id) return
+  // The UI only offers valid options, but a crafted POST could pair arbitrary
+  // ids — verify the mentor is really a teacher and the mentee really a student.
+  const [teacher, student] = await Promise.all([getProfileById(teacher_id), getProfileById(student_id)])
+  if (!teacher || teacher.role !== 'teacher') return
+  if (!student || student.role !== 'student') return
   await assignMentor(teacher_id, student_id)
   await writeAudit({ actor_id: me.id, action: 'mentorship.assign', entity_type: 'mentorship', entity_id: student_id })
   revalidatePath('/admin/users')
