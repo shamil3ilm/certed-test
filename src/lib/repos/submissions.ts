@@ -100,21 +100,24 @@ export async function recordSubmission(input: {
  */
 export async function getSubmission(id: string): Promise<Submission | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('submissions').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('submissions').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`submissions.get: ${error.message}`)
   return (data as Submission) ?? null
 }
 
 /** The student's current active submission for an assignment, or null. Used to
- *  block a resubmission that would wipe an already-earned mark. */
+ *  block a resubmission that would wipe an already-earned mark — so it THROWS on a
+ *  read error (fail closed) rather than returning null and letting the resubmit through. */
 export async function getActiveSubmission(assignmentId: string, studentId: string): Promise<Submission | null> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('submissions')
     .select('*')
     .eq('assignment_id', assignmentId)
     .eq('student_id', studentId)
     .eq('is_active', true)
     .maybeSingle()
+  if (error) throw new Error(`submissions.getActive: ${error.message}`)
   return (data as Submission) ?? null
 }
 

@@ -50,6 +50,9 @@ export async function POST(request: Request) {
             headers: { 'Content-Type': 'application/json' },
             redirect: 'follow',
             body: JSON.stringify({ name, email, phone, message }),
+            // Apps Script web apps can hang on cold start — bound the wait so this
+            // route returns its own error instead of a platform timeout.
+            signal: AbortSignal.timeout(10000),
         });
 
         if (!response.ok) {

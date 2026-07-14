@@ -67,12 +67,21 @@ export function pdfHandler(kind: FinanceKind) {
     } catch {
       return new Response('Forbidden', { status: 403 })
     }
-    // Each render spins up headless Chromium — cap per user to prevent a DoS.
+    // Each render spins up headless Chromium — throttle per user to deter casual
+    // bursts (per-instance; not a hard distributed cap).
     const rl = rateLimit(`pdf:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
     if (!rl.ok) {
       return new Response('Too many requests', { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } })
     }
-    const out = await renderDocPdf(kind, ctx.params.id, { id: me.id, role: me.role })
+    let out
+    try {
+      out = await renderDocPdf(kind, ctx.params.id, { id: me.id, role: me.role })
+    } catch {
+      return new Response('Could not generate the document. Please try again in a moment.', {
+        status: 502,
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    }
     if (!out) return new Response('Not found', { status: 404 })
     return new Response(new Uint8Array(out.pdf), {
       headers: {

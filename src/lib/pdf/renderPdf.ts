@@ -18,7 +18,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
       const browser = await puppeteer.launch({ executablePath, headless: true, args: ['--no-sandbox'] })
       try {
         const page = await browser.newPage()
-        await page.setContent(html, { waitUntil: 'load' })
+        await page.setContent(html, { waitUntil: 'load', timeout: 30000 })
         const pdf = await page.pdf({ format: 'A4', printBackground: true })
         return Buffer.from(pdf)
       } finally {
