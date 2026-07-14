@@ -197,10 +197,20 @@ export async function insertDoc(
   return created
 }
 
-/** Marks a document void (immutable finance model: correction = void + reissue). */
-export async function voidDoc(kind: FinanceKind, id: string): Promise<void> {
+/**
+ * Marks a document void (immutable finance model: correction = void + reissue).
+ * Returns false if no live document with that id existed (unknown id or already
+ * voided) so the caller can 404 instead of reporting a phantom success.
+ */
+export async function voidDoc(kind: FinanceKind, id: string): Promise<boolean> {
   const k = KIND[kind]
   const admin = createAdminClient()
-  const { error } = await admin.from(k.table).update({ voided: true }).eq('id', id)
+  const { data, error } = await admin
+    .from(k.table)
+    .update({ voided: true })
+    .eq('id', id)
+    .eq('voided', false) // don't re-void; also lets us detect a no-op
+    .select('id')
   if (error) throw new Error(`${kind}.void: ${error.message}`)
+  return (data?.length ?? 0) > 0
 }

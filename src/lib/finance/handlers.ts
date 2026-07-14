@@ -52,9 +52,14 @@ export function voidHandler(kind: FinanceKind) {
     } catch (e) {
       return authFail(e)
     }
-    await voidDoc(kind, ctx.params.id)
-    await writeAudit({ actor_id: me.id, action: `${kind}.void`, entity_type: kind, entity_id: ctx.params.id })
-    return ok({ voided: true })
+    try {
+      const voided = await voidDoc(kind, ctx.params.id)
+      if (!voided) return fail('Document not found or already voided.', 404)
+      await writeAudit({ actor_id: me.id, action: `${kind}.void`, entity_type: kind, entity_id: ctx.params.id })
+      return ok({ voided: true })
+    } catch {
+      return fail('Could not void the document. Please try again.', 500)
+    }
   }
 }
 
@@ -109,7 +114,7 @@ export function exportHandler(kind: FinanceKind) {
       : ['number', party, 'issue_date', 'currency', 'subtotal', 'discount', 'total', 'voided']
     const body = rows.map((r) => {
       const cols: (string | number | boolean)[] = [r.number, csv(r.party_name)]
-      if (isReceipt) cols.push(r.class_level ?? '')
+      if (isReceipt) cols.push(csv(r.class_level ?? ''))
       cols.push(r.issue_date, r.currency, r.subtotal, r.discount ?? '', r.total, r.voided)
       return cols.join(',')
     })
