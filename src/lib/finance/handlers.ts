@@ -4,7 +4,7 @@ import { requireRoleApi } from '@/lib/auth/requireRole'
 import { issueDocSchema } from '@/lib/validation/finance'
 import { issueDoc } from '@/lib/finance/issue'
 import { renderDocPdf } from '@/lib/finance/render'
-import { voidDoc, listAllDocs, type FinanceKind } from '@/lib/repos/financeDocs'
+import { voidDoc, listAllDocs, type FinanceKind } from '@/lib/services/finance/financeDocs'
 import { writeAudit } from '@/lib/repos/audit'
 import { rateLimit } from '@/lib/security/rateLimit'
 
@@ -31,6 +31,8 @@ export function issueHandler(kind: FinanceKind) {
     } catch (e) {
       return authFail(e)
     }
+    const rl = rateLimit(`finance-issue:${me.id}`, { limit: 30, windowMs: 60 * 1000 })
+    if (!rl.ok) return fail('Too many requests. Please try again shortly.', 429)
     const parsed = issueDocSchema.safeParse(await req.json().catch(() => null))
     if (!parsed.success) return fail('invalid input', 422)
     try {
@@ -52,6 +54,8 @@ export function voidHandler(kind: FinanceKind) {
     } catch (e) {
       return authFail(e)
     }
+    const rl = rateLimit(`finance-void:${me.id}`, { limit: 30, windowMs: 60 * 1000 })
+    if (!rl.ok) return fail('Too many requests. Please try again shortly.', 429)
     try {
       const voided = await voidDoc(kind, ctx.params.id)
       if (!voided) return fail('Document not found or already voided.', 404)
@@ -101,10 +105,15 @@ export function pdfHandler(kind: FinanceKind) {
 /** GET /api/{kind}s/export — CSV of all documents (admin only). */
 export function exportHandler(kind: FinanceKind) {
   return async function GET() {
+    let me
     try {
-      await requireRoleApi(['admin'])
+      me = await requireRoleApi(['admin'])
     } catch {
       return new Response('Forbidden', { status: 403 })
+    }
+    const rl = rateLimit(`finance-export:${me.id}`, { limit: 10, windowMs: 60 * 1000 })
+    if (!rl.ok) {
+      return new Response('Too many requests', { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } })
     }
     const rows = await listAllDocs(kind)
     const isReceipt = kind === 'receipt'
@@ -118,8 +127,13 @@ export function exportHandler(kind: FinanceKind) {
       cols.push(r.issue_date, r.currency, r.subtotal, r.discount ?? '', r.total, r.voided)
       return cols.join(',')
     })
+    await writeAudit({ actor_id: me.id, action: `${kind}.export`, entity_type: kind, entity_id: null })
     return new Response([header.join(','), ...body].join('\n'), {
-      headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${kind}s.csv"` },
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="${kind}s.csv"`,
+        'Cache-Control': 'private, no-store',
+      },
     })
   }
 }

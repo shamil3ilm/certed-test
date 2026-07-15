@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { ServiceError } from '@/lib/errors'
 
 export type ApiResponse<T> =
   | { success: true; data: T }
@@ -27,4 +28,20 @@ export function authFail(error: unknown) {
   const msg = error instanceof Error ? error.message : 'error'
   const status = msg === 'forbidden' || msg === 'revoked' ? 403 : 401
   return fail(msg, status)
+}
+
+const AUTH_CODES = new Set(['no-access', 'revoked', 'forbidden'])
+
+/**
+ * Maps an error thrown by a service call to a JSON response. A typed
+ * `ServiceError` (PermissionError/NotFoundError/ValidationError) maps to its
+ * own status + message; the existing requireRole/requireRoleApi coded errors
+ * fall through to `authFail`; anything else (e.g. a raw DB error) becomes a
+ * generic 500 — never forward an unknown error's message to the client, it
+ * may contain internal schema/constraint detail.
+ */
+export function apiError(error: unknown) {
+  if (error instanceof ServiceError) return fail(error.message, error.status)
+  if (error instanceof Error && AUTH_CODES.has(error.message)) return authFail(error)
+  return fail('Something went wrong. Please try again.', 500)
 }

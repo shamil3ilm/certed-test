@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireRole } from '@/lib/auth/requireRole'
-import { listProfiles } from '@/lib/repos/users'
-import { listMentorships } from '@/lib/repos/mentorships'
+import { listProfiles } from '@/lib/services/users'
+import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
 import type { Profile } from '@/lib/auth/profile'
 import {
   revokeUserAction,
@@ -126,7 +126,7 @@ export default async function AdminUsersPage({
   const me = await requireRole(['admin', 'sub_admin'])
   const isSuper = me.role === 'admin'
   const roleOptions = isSuper ? ['student', 'teacher', 'sub_admin', 'admin'] : ['student', 'teacher']
-  const [profiles, links] = await Promise.all([listProfiles(), listMentorships()])
+  const [profiles, links] = await Promise.all([listProfiles(), listMentorshipsForUsersHub()])
 
   const students = profiles.filter((p) => p.role === 'student')
   const tutors = profiles.filter((p) => p.role === 'teacher')

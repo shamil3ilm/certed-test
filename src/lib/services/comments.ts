@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getProfilesByIds } from './users'
+import { getProfilesByIds } from '@/lib/services/users'
 
 export type CommentEntity = 'submission' | 'resource' | 'meet'
 
@@ -52,7 +52,12 @@ export async function listCommentsForEntities(
   return out
 }
 
-/** Insert a comment. RLS enforces that the author may access the parent entity. */
+/**
+ * Insert a comment. Own-scoped / RLS-only — no canManage* gate exists here
+ * because comment access is derived from the parent entity (submission /
+ * resource / meet), which RLS already checks; there is no separate
+ * "commenting" permission to centralize.
+ */
 export async function createComment(
   entityType: CommentEntity,
   entityId: string,

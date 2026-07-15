@@ -23,7 +23,11 @@ export async function listMyReminders(userId: string): Promise<Reminder[]> {
   return (data ?? []) as Reminder[]
 }
 
-/** Create a reminder for the current user. */
+/**
+ * Create a reminder for the current user. Own-scoped / RLS-only (reminders_all
+ * requires `is_self_active(user_id)`) — no separate permission check to
+ * centralize here.
+ */
 export async function createReminder(
   userId: string,
   title: string,

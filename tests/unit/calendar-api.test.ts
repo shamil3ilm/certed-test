@@ -4,7 +4,7 @@ const profile = { id: 'stud-1', email: 's@x.c', role: 'student', status: 'active
 vi.mock('@/lib/auth/profile', () => ({ getProfile: vi.fn(async () => profile) }))
 
 // org timezone anchor
-vi.mock('@/lib/repos/orgSettings', () => ({
+vi.mock('@/lib/services/finance/orgSettings', () => ({
   getOrgSettings: vi.fn(async () => ({ timezone: 'Asia/Kolkata' })),
 }))
 
@@ -13,17 +13,17 @@ const listSlots = vi.fn(async (..._a: any[]) => [
   { id: 's-1', class_id: 'c-1', subject: 'Maths', teacher_id: null,
     day_of_week: 1, start_time: '09:00', end_time: '10:00', mode_or_location: 'Room 1', active: true },
 ])
-vi.mock('@/lib/repos/timetableSlots', () => ({ listSlots: (...a: any[]) => listSlots(...a) }))
+vi.mock('@/lib/services/timetableSlots', () => ({ listSlots: (...a: any[]) => listSlots(...a) }))
 
 const listEvents = vi.fn(async (..._a: any[]) => [
   { id: 'e-1', title: 'Holiday', event_date: '2026-07-13', start_time: null, end_time: null, class_id: null, kind: 'holiday' },
 ])
-vi.mock('@/lib/repos/calendarEvents', () => ({ listEvents: (...a: any[]) => listEvents(...a) }))
+vi.mock('@/lib/services/calendarEvents', () => ({ listEvents: (...a: any[]) => listEvents(...a) }))
 
 const listAssignments = vi.fn(async (..._a: any[]) => [
   { id: 'a-1', class_id: 'c-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', status: 'active' },
 ])
-vi.mock('@/lib/repos/assignments', () => ({ listAssignments: (...a: any[]) => listAssignments(...a) }))
+vi.mock('@/lib/services/assignments', () => ({ listAssignments: (...a: any[]) => listAssignments(...a) }))
 
 import { GET } from '@/app/api/calendar/route'
 

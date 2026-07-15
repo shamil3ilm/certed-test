@@ -27,3 +27,18 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(200),
 })
 export type RegisterInput = z.infer<typeof registerSchema>
+
+/** Self-service profile edit (settings page): name only — class/grade is admin-controlled. */
+export const updateProfileSchema = z.object({
+  full_name: z.string().trim().max(120).optional(),
+})
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+
+/** Self-service password change — same bounds as registerSchema's password. */
+export const changePasswordSchema = z
+  .object({
+    password: z.string().min(8).max(200),
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, { message: 'Passwords do not match', path: ['confirm'] })
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

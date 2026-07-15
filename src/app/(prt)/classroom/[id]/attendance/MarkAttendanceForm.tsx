@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { markAttendanceAction } from './actions'
 import { useUI } from '../../../Providers'
-import type { AttendanceStatus } from '@/lib/repos/attendance'
+import type { AttendanceStatus } from '@/lib/services/attendance'
 
 type Row = { id: string; name: string; status: AttendanceStatus | null }
 

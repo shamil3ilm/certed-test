@@ -1,8 +1,7 @@
-import { ok, fail, authFail } from '@/lib/api/response'
+import { ok, fail, authFail, apiError } from '@/lib/api/response'
 import { requireRoleApi } from '@/lib/auth/requireRole'
 import { createAssignmentSchema } from '@/lib/validation/assignment'
-import { createAssignment } from '@/lib/repos/assignments'
-import { writeAudit } from '@/lib/repos/audit'
+import { createAssignment } from '@/lib/services/assignments'
 
 export async function POST(req: Request) {
   let me
@@ -14,8 +13,7 @@ export async function POST(req: Request) {
   const parsed = createAssignmentSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail('invalid input', 422)
   try {
-    // RLS enforces teacher-of-course/admin on insert.
-    const a = await createAssignment({
+    const a = await createAssignment(me, {
       class_id: parsed.data.class_id,
       title: parsed.data.title,
       description: parsed.data.description ?? null,
@@ -23,11 +21,9 @@ export async function POST(req: Request) {
       attachment_drive_link: parsed.data.attachment_drive_link ?? null,
       topic: parsed.data.topic ?? null,
       max_marks: parsed.data.max_marks ?? null,
-      created_by: me.id,
     })
-    await writeAudit({ actor_id: me.id, action: 'assignment.create', entity_type: 'assignment', entity_id: a.id })
     return ok({ id: a.id })
-  } catch {
-    return fail('not allowed to create for this course', 403)
+  } catch (e) {
+    return apiError(e)
   }
 }

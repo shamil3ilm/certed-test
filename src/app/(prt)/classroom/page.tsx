@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { requireRole } from '@/lib/auth/requireRole'
-import { listMyClasses, type ClassSummary } from '@/lib/repos/classes'
+import { listMyClasses, type ClassSummary } from '@/lib/services/classes'
 import { PageHeader, EmptyState, CARD, classBanner, cx } from '../ui'
 import { Field, Input, SubmitButton } from '../form'
 import { createClassAction } from './class-actions'

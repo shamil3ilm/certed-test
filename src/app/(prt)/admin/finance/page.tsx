@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/auth/requireRole'
-import { listProfiles } from '@/lib/repos/users'
-import { listRecentDocs, type FinanceDoc } from '@/lib/repos/financeDocs'
+import { listProfiles } from '@/lib/services/users'
+import { listRecentDocs, type FinanceDoc } from '@/lib/services/finance/financeDocs'
 import { formatMoney } from '@/lib/money'
 import { IssueForm } from './IssueForm'
 import { VoidButton } from './VoidButton'

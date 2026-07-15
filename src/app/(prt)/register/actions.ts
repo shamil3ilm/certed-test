@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import { isMock } from '@/lib/mock/env'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { registerSchema } from '@/lib/validation/user'
-import { getRegistrationTarget, bindPasswordAccount } from '@/lib/repos/users'
+import { getRegistrationTarget, bindPasswordAccount } from '@/lib/services/users'
 import { setupCodeValid } from '@/lib/auth/setupCode'
 import { rateLimit, clientIp } from '@/lib/security/rateLimit'
 

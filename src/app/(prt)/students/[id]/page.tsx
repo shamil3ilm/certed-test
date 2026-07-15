@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireRole } from '@/lib/auth/requireRole'
-import { canMentor, getMenteeOverview } from '@/lib/repos/mentees'
+import { canMentor, getMenteeOverview } from '@/lib/services/mentees'
 import { PageHeader, Card, Avatar, EmptyState, Badge } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 

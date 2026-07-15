@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { makeClient } from '../stubs/supabaseQueryBuilder'
 
 const profile = { id: 'teacher-1', email: 't@x.c', role: 'teacher', status: 'active' } as any
 vi.mock('@/lib/auth/profile', () => ({ getProfile: vi.fn(async () => profile) }))
@@ -9,14 +10,20 @@ const OTHER = '33333333-3333-4333-8333-333333333333'
 const teaches = vi.fn(async (..._a: any[]) => true)
 vi.mock('@/lib/auth/classScope', () => ({ teachesClass: (...a: any[]) => teaches(...a) }))
 
-const created = { id: 'slot-1', class_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: '09:00', end_time: '10:00' }
-const createSlot = vi.fn(async (..._a: any[]) => created)
-const listSlots = vi.fn(async (..._a: any[]) => [created])
-vi.mock('@/lib/repos/timetableSlots', () => ({
-  createSlot: (...a: any[]) => createSlot(...a),
-  listSlots: (...a: any[]) => listSlots(...a),
-}))
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
+vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
 
+const created = { id: 'slot-1', class_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: '09:00', end_time: '10:00' }
+// createSlot's permission check (canWriteClass) now lives INSIDE the service,
+// not the route — so this test exercises the real service (only `listSlots`
+// is stubbed, as a pure read unrelated to the permission behavior under test).
+const listSlots = vi.fn(async (..._a: any[]) => [created])
+vi.mock('@/lib/services/timetableSlots', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/services/timetableSlots')>()
+  return { ...actual, listSlots: (...a: any[]) => listSlots(...a) }
+})
+
+import { createClient } from '@/lib/supabase/server'
 import { GET, POST } from '@/app/api/timetable/route'
 
 const body = (o: any) => new Request('http://t/api/timetable', {
@@ -27,6 +34,7 @@ const valid = { class_id: COURSE, subject: 'Maths', day_of_week: 1, start_time: 
 beforeEach(() => {
   vi.clearAllMocks() // reset call history so per-test not.toHaveBeenCalled() assertions are isolated
   profile.role = 'teacher'; profile.status = 'active'; teaches.mockResolvedValue(true)
+  vi.mocked(createClient).mockResolvedValue(makeClient({ data: created, error: null }) as any)
 })
 
 describe('POST /api/timetable', () => {
@@ -35,27 +43,27 @@ describe('POST /api/timetable', () => {
     const json = await res.json()
     expect(res.status).toBe(201)
     expect(json.success).toBe(true)
-    expect(createSlot).toHaveBeenCalled()
+    expect(createClient).toHaveBeenCalled()
   })
 
   it('teacher who does NOT teach the course is forbidden', async () => {
     teaches.mockResolvedValue(false)
     const res = await POST(body({ ...valid, class_id: OTHER }))
     expect(res.status).toBe(403)
-    expect(createSlot).not.toHaveBeenCalled()
+    expect(createClient).not.toHaveBeenCalled()
   })
 
   it('a student is forbidden from creating a slot', async () => {
     profile.role = 'student'
     const res = await POST(body(valid))
     expect(res.status).toBe(403)
-    expect(createSlot).not.toHaveBeenCalled()
+    expect(createClient).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid slot with 400 (end before start)', async () => {
     const res = await POST(body({ ...valid, start_time: '10:00', end_time: '09:00' }))
     expect(res.status).toBe(400)
-    expect(createSlot).not.toHaveBeenCalled()
+    expect(createClient).not.toHaveBeenCalled()
   })
 })
 

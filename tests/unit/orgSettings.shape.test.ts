@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { receiptNumber } from '@/lib/repos/orgSettings'
+import { receiptNumber } from '@/lib/services/finance/orgSettings'
 
 describe('receiptNumber', () => {
   it('formats prefix-year-padded', () => {

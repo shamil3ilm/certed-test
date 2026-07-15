@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Reminder } from '@/lib/repos/reminders'
+import type { Reminder } from '@/lib/services/reminders'
 import { createReminderAction, deleteReminderAction } from './actions'
 import { useUI } from '../Providers'
 import { formatDate, formatDateTime, DISPLAY_TZ } from '@/lib/time/format'

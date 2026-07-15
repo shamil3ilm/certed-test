@@ -1,32 +1,24 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { getAssignment, setAssignmentStatus, updateAssignment } from '@/lib/repos/assignments'
-import { getSubmission, gradeSubmission } from '@/lib/repos/submissions'
-import { deleteResource, getResource } from '@/lib/repos/resources'
-import { canManageClass } from '@/lib/repos/classes'
-import { writeAudit } from '@/lib/repos/audit'
+import { archiveAssignment, editAssignment } from '@/lib/services/assignments'
+import { gradeSubmission } from '@/lib/services/submissions'
+import { archiveResource } from '@/lib/services/resources'
 import { linkUrl } from '@/lib/validation/url'
 import { gradeSchema } from '@/lib/validation/assignment'
+import { ServiceError } from '@/lib/errors'
 
-// Explicit canManageClass gate on every mutation (don't rely on RLS alone) — an
-// RLS-denied update matches 0 rows with no error, which would otherwise report a
-// false success.
+// Permission check + audit on every mutation now happens inside each service
+// — not swallowed to a no-op here, thrown errors propagate to the portal
+// error boundary (or, for actions with a structured return, are mapped to
+// { ok: false, error }).
 
 export async function archiveAssignmentAction(formData: FormData) {
   const me = await requireRole(['admin', 'teacher'])
   const id = String(formData.get('id') ?? '')
   const status = String(formData.get('status') ?? 'archived') === 'active' ? 'active' : 'archived'
   if (!id) return
-  const assignment = await getAssignment(id)
-  if (!assignment || !(await canManageClass(me, assignment.class_id))) return
-  await setAssignmentStatus(id, status)
-  await writeAudit({
-    actor_id: me.id,
-    action: `assignment.${status === 'active' ? 'restore' : 'archive'}`,
-    entity_type: 'assignment',
-    entity_id: id,
-  })
+  await archiveAssignment(me, id, status)
   revalidatePath('/classroom', 'layout')
 }
 
@@ -42,22 +34,19 @@ export async function editAssignmentAction(formData: FormData) {
   // Same URL-scheme guard as every other link write path — a stored javascript:/
   // data: link would otherwise render as a clickable href for students.
   if (brief && !linkUrl.safeParse(brief).success) return
-  const assignment = await getAssignment(id)
-  if (!assignment || !(await canManageClass(me, assignment.class_id))) return
-  await updateAssignment(id, {
+  await editAssignment(me, id, {
     title,
     description: description || null,
     due_date: new Date(dueIso).toISOString(),
     attachment_drive_link: brief || null,
   })
-  await writeAudit({ actor_id: me.id, action: 'assignment.edit', entity_type: 'assignment', entity_id: id })
   revalidatePath('/classroom', 'layout')
 }
 
 /**
- * Tutor grades one submission (mark + optional feedback). Service-role write,
- * gated by canManageClass so only a teacher of this class (or an admin) can mark.
- * An empty mark clears a previous score.
+ * Tutor grades one submission (mark + optional feedback). Permission check,
+ * grading-race guard, max-marks validation, and audit all happen inside the
+ * service. An empty mark clears a previous score.
  */
 export async function gradeSubmissionAction(
   formData: FormData,
@@ -73,43 +62,28 @@ export async function gradeSubmissionAction(
   })
   if (!parsed.success) return { ok: false, error: 'Enter a valid mark (0–9999.99).' }
 
-  // Authorize against the submission's OWN assignment/class — NEVER a
-  // client-supplied assignment id, which could name a class the caller manages
-  // while the write targets a submission in a class they don't.
-  const submission = await getSubmission(submissionId)
-  if (!submission) return { ok: false, error: 'Not allowed to grade this submission.' }
-  // Guard the resubmit race: if the student replaced this submission after the
-  // tutor opened the grading UI, this row is now inactive and the report card
-  // reads only the active one — so a mark saved here would silently vanish.
-  if (!submission.is_active) {
-    return { ok: false, error: 'This submission was replaced by a newer one — reload to grade the latest.' }
+  try {
+    const { assignmentId } = await gradeSubmission(me, {
+      submissionId,
+      score: parsed.data.score,
+      feedback: parsed.data.feedback ?? null,
+    })
+    revalidatePath('/classroom', 'layout')
+    revalidatePath(`/assignments/${assignmentId}`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof ServiceError ? e.message : 'Something went wrong. Please try again.' }
   }
-  const assignment = await getAssignment(submission.assignment_id)
-  if (!assignment || !(await canManageClass(me, assignment.class_id))) {
-    return { ok: false, error: 'Not allowed to grade this submission.' }
-  }
-  if (parsed.data.score != null && assignment.max_marks != null && parsed.data.score > Number(assignment.max_marks)) {
-    return { ok: false, error: `Mark can’t exceed the maximum (${Number(assignment.max_marks)}).` }
-  }
-  await gradeSubmission(submissionId, {
-    score: parsed.data.score,
-    feedback: parsed.data.feedback ?? null,
-    gradedBy: me.id,
-  })
-  await writeAudit({ actor_id: me.id, action: 'submission.grade', entity_type: 'submission', entity_id: submissionId })
-  revalidatePath('/classroom', 'layout')
-  revalidatePath(`/assignments/${submission.assignment_id}`)
-  return { ok: true }
 }
 
-/** Soft-remove a material (kept on record via status='archived'). */
+/** Soft-remove a material (kept on record via status='archived'). Permission
+ *  check + audit happen inside the service; a not-found/not-authorized error
+ *  propagates to the portal error boundary, same as every other action's
+ *  thrown errors (not swallowed to a silent no-op). */
 export async function deleteResourceAction(formData: FormData) {
   const me = await requireRole(['admin', 'teacher'])
   const id = String(formData.get('id') ?? '')
   if (!id) return
-  const resource = await getResource(id)
-  if (!resource || !(await canManageClass(me, resource.class_id))) return
-  await deleteResource(id)
-  await writeAudit({ actor_id: me.id, action: 'resource.delete', entity_type: 'resource', entity_id: id })
+  await archiveResource(me, id)
   revalidatePath('/classroom', 'layout')
 }

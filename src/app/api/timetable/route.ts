@@ -1,9 +1,7 @@
-import { ok, fail, created } from '@/lib/api/response'
+import { ok, fail, created, apiError } from '@/lib/api/response'
 import { getProfile } from '@/lib/auth/profile'
-import { teachesClass } from '@/lib/auth/classScope'
 import { createSlotSchema } from '@/lib/validation/timetableSlot'
-import { createSlot, listSlots } from '@/lib/repos/timetableSlots'
-import { writeAudit } from '@/lib/repos/audit'
+import { createSlot, listSlots } from '@/lib/services/timetableSlots'
 
 export async function GET(request: Request) {
   const profile = await getProfile()
@@ -17,18 +15,18 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const profile = await getProfile()
   if (!profile || profile.status !== 'active') return fail('no-access', 401)
-  if (profile.role !== 'teacher' && profile.role !== 'admin') return fail('forbidden', 403)
 
   let raw: unknown
   try { raw = await request.json() } catch { return fail('invalid-json', 400) }
   const parsed = createSlotSchema.safeParse(raw)
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'invalid', 400)
 
-  if (profile.role === 'teacher' && !(await teachesClass(parsed.data.class_id))) {
-    return fail('forbidden', 403)
+  try {
+    // Permission check (incl. active-teacher validation) + audit all happen
+    // inside the service.
+    const slot = await createSlot(profile, parsed.data)
+    return created(slot)
+  } catch (e) {
+    return apiError(e)
   }
-
-  const slot = await createSlot(parsed.data)
-  await writeAudit({ actor_id: profile.id, action: 'timetable.create', entity_type: 'timetable_slot', entity_id: slot.id })
-  return created(slot)
 }

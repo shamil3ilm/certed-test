@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { isMock } from '@/lib/mock/env'
 import { getProfile } from '@/lib/auth/profile'
-import { listProfiles } from '@/lib/repos/users'
+import { listProfiles } from '@/lib/services/users'
 import { GoogleSignIn } from './GoogleSignIn'
 import { PasswordLoginForm } from './PasswordLoginForm'
 

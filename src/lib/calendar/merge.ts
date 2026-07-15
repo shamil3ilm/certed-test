@@ -1,5 +1,5 @@
 import type { SlotOccurrence } from '@/lib/time/expandSlots'
-import type { CalendarEventKind } from '@/lib/repos/calendarEvents'
+import type { CalendarEventKind } from '@/lib/services/calendarEvents'
 
 // A wall-clock "YYYY-MM-DD" + "HH:mm" in `anchorTz` → absolute UTC instant.
 // Reuses the same DST-correct primitive as expandSlots, kept local to avoid a circular import.

@@ -2,7 +2,7 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { getReportCardData } from './data'
 import { buildReportCardHtml } from './template'
-import { getOrgSettings } from '@/lib/repos/orgSettings'
+import { getOrgSettings } from '@/lib/services/finance/orgSettings'
 import { htmlToPdf } from '@/lib/pdf/renderPdf'
 
 /**

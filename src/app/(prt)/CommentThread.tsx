@@ -4,7 +4,7 @@ import { addCommentAction } from './comment-actions'
 import { roleTone, roleLabel } from './ui'
 import { useUI } from './Providers'
 import { LocalTime } from './LocalTime'
-import type { Comment, CommentEntity } from '@/lib/repos/comments'
+import type { Comment, CommentEntity } from '@/lib/services/comments'
 
 /**
  * The one comment thread used everywhere — assignment submissions, class

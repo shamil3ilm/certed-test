@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/auth/requireRole'
 import { listAudit } from '@/lib/repos/audit'
-import { getProfilesByIds } from '@/lib/repos/users'
+import { getProfilesByIds } from '@/lib/services/users'
 import { PageHeader, EmptyState } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 

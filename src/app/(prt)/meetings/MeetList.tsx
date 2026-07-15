@@ -5,8 +5,8 @@ import { deleteMeetLinkAction } from './actions'
 import { CommentThread } from '../CommentThread'
 import { useUI } from '../Providers'
 import { LocalTime } from '../LocalTime'
-import type { MeetLink } from '@/lib/repos/meetLinks'
-import type { Comment } from '@/lib/repos/comments'
+import type { MeetLink } from '@/lib/services/meetLinks'
+import type { Comment } from '@/lib/services/comments'
 
 type Profile = { id: string; email: string; full_name: string | null; role: string }
 

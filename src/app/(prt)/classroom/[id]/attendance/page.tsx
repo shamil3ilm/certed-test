@@ -1,11 +1,11 @@
 import { requireClassAccess } from '../../access'
-import { getClassMembers } from '@/lib/repos/classes'
+import { getClassMembers } from '@/lib/services/classes'
 import {
   listAttendanceForClassDate,
   listAttendanceForStudent,
   summarizeAttendance,
   type AttendanceStatus,
-} from '@/lib/repos/attendance'
+} from '@/lib/services/attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { Card, EmptyState, Badge } from '../../../ui'
 import { todayInDisplayZone, isCalendarDate } from '@/lib/time/format'

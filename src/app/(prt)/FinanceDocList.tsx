@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { requireRole } from '@/lib/auth/requireRole'
 import type { Profile } from '@/lib/auth/profile'
-import { listMyDocs, type FinanceKind } from '@/lib/repos/financeDocs'
+import { listMyDocs, type FinanceKind } from '@/lib/services/finance/financeDocs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { PageHeader, StatCard } from './ui'
 

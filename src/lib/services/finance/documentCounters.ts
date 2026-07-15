@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { receiptNumber } from '@/lib/repos/orgSettings'
+import { receiptNumber } from '@/lib/services/finance/orgSettings'
 
 /**
  * Allocates the next sequential document number atomically (via the

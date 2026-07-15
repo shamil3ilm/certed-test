@@ -1,9 +1,9 @@
 import 'server-only'
 import { lineAmount, computeTotals } from '@/lib/money'
-import { getOrgSettings } from '@/lib/repos/orgSettings'
-import { allocateNumber } from '@/lib/repos/documentCounters'
-import { getProfileById } from '@/lib/repos/users'
-import { insertDoc, type FinanceKind, type FinanceLine } from '@/lib/repos/financeDocs'
+import { getOrgSettings } from '@/lib/services/finance/orgSettings'
+import { allocateNumber } from '@/lib/services/finance/documentCounters'
+import { getProfileById } from '@/lib/services/users'
+import { insertDoc, type FinanceKind, type FinanceLine } from '@/lib/services/finance/financeDocs'
 import { writeAudit } from '@/lib/repos/audit'
 import type { IssueDocInput } from '@/lib/validation/finance'
 
@@ -19,7 +19,8 @@ export async function issueDoc(
   actorId: string,
 ): Promise<{ id: string; number: string }> {
   const party = await getProfileById(input.party_id)
-  if (!party) throw new Error(`${kind === 'receipt' ? 'student' : 'teacher'} not found`)
+  const expectedRole = kind === 'receipt' ? 'student' : 'teacher'
+  if (!party || party.role !== expectedRole) throw new Error(`${expectedRole} not found`)
 
   const lines: FinanceLine[] = input.lines.map((l) => ({
     label: l.subject,

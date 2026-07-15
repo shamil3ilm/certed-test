@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireRole } from '@/lib/auth/requireRole'
-import { studentIdsOfTeacher } from '@/lib/repos/mentorships'
-import { getProfileNamesByIds } from '@/lib/repos/users'
+import { studentIdsOfTeacher } from '@/lib/services/mentorships'
+import { getProfileNamesByIds } from '@/lib/services/users'
 import { PageHeader, Avatar, EmptyState, CARD, cx } from '../ui'
 
 export default async function StudentsPage() {

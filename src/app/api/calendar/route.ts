@@ -1,9 +1,9 @@
 import { ok, fail } from '@/lib/api/response'
 import { getProfile } from '@/lib/auth/profile'
-import { getOrgSettings } from '@/lib/repos/orgSettings'
-import { listSlots } from '@/lib/repos/timetableSlots'
-import { listEvents } from '@/lib/repos/calendarEvents'
-import { listAssignments } from '@/lib/repos/assignments'
+import { getOrgSettings } from '@/lib/services/finance/orgSettings'
+import { listSlots } from '@/lib/services/timetableSlots'
+import { listEvents } from '@/lib/services/calendarEvents'
+import { listAssignments } from '@/lib/services/assignments'
 import { expandSlots, type ExpandableSlot } from '@/lib/time/expandSlots'
 import { mergeCalendar } from '@/lib/calendar/merge'
 

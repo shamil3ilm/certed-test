@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import { requireRole } from '@/lib/auth/requireRole'
 import type { Profile } from '@/lib/auth/profile'
-import { getClass, type ClassRow } from '@/lib/repos/classes'
-import { canAccessClass } from '@/lib/repos/classes'
+import { getClass, type ClassRow } from '@/lib/services/classes'
+import { canAccessClass } from '@/lib/permission'
 
 /**
  * Page guard for a single class workspace: enforces role + status (via

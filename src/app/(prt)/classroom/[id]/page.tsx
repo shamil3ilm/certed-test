@@ -1,7 +1,7 @@
 import { requireClassAccess } from '../access'
-import { listAnnouncementsForClass } from '@/lib/repos/announcements'
-import { listMeetLinks } from '@/lib/repos/meetLinks'
-import { listCommentsForEntities } from '@/lib/repos/comments'
+import { listAnnouncementsForClass } from '@/lib/services/announcements'
+import { listMeetLinks } from '@/lib/services/meetLinks'
+import { listCommentsForEntities } from '@/lib/services/comments'
 import { LocalTime } from '../../LocalTime'
 import {
   createAnnouncementAction,

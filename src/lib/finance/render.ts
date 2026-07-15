@@ -1,9 +1,9 @@
 import 'server-only'
-import { getOrgSettings, type OrgSettings } from '@/lib/repos/orgSettings'
+import { getOrgSettings, type OrgSettings } from '@/lib/services/finance/orgSettings'
 import { buildReceiptHtml, buildPayslipHtml, type OrgInfo } from '@/lib/pdf/template'
 import { brandAssets } from '@/lib/pdf/brandAssets'
 import { htmlToPdf } from '@/lib/pdf/renderPdf'
-import { getDoc, getDocLines, type FinanceKind } from '@/lib/repos/financeDocs'
+import { getDoc, getDocLines, type FinanceKind } from '@/lib/services/finance/financeDocs'
 
 /**
  * Finance PDFs are generated on demand (printed when downloaded) and never

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { isMock } from '@/lib/mock/env'
 import { MOCK_COOKIE } from '@/lib/mock/session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { writeAudit } from '@/lib/repos/audit'
 
 /**
  * Dev-only credential sign-in. POST email + password (form-encoded). All mock
@@ -23,7 +24,10 @@ export async function POST(request: Request) {
   const form = await request.formData()
   const email = String(form.get('email') ?? '').trim().toLowerCase()
   const password = String(form.get('password') ?? '')
-  const fail = () => NextResponse.redirect(new URL('/login?error=1', request.url), 303)
+  const fail = (actorId: string | null = null) => {
+    void writeAudit({ actor_id: actorId, action: 'auth.login_failure', entity_type: 'profile', entity_id: actorId })
+    return NextResponse.redirect(new URL('/login?error=1', request.url), 303)
+  }
   if (!email || !password) return fail()
 
   const admin = createAdminClient()
@@ -33,7 +37,7 @@ export async function POST(request: Request) {
   // A password the user set in Settings wins; otherwise the shared demo password.
   const ownPassword = (profile.password as string | null) ?? null
   const ok = ownPassword ? password === ownPassword : password === DEV_PASSWORD
-  if (!ok) return fail()
+  if (!ok) return fail(profile.id as string)
 
   let uid = (profile.auth_user_id as string | null) ?? null
   if (!uid) {
@@ -41,6 +45,7 @@ export async function POST(request: Request) {
     await admin.from('profiles').update({ auth_user_id: uid }).eq('id', profile.id)
   }
 
+  await writeAudit({ actor_id: profile.id as string, action: 'auth.login_success', entity_type: 'profile', entity_id: profile.id as string })
   const res = NextResponse.redirect(new URL('/dashboard', request.url), 303)
   res.cookies.set(MOCK_COOKIE, uid, { httpOnly: true, sameSite: 'lax', path: '/' })
   return res

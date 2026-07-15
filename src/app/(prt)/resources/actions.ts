@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { createLinkResource } from '@/lib/repos/resources'
+import { createLinkResource } from '@/lib/services/resources'
 import { linkUrl } from '@/lib/validation/url'
 import { z } from 'zod'
 
@@ -25,12 +25,12 @@ export async function createLinkResourceAction(formData: FormData) {
     throw new Error('Invalid input data')
   }
 
-  const { classId, title, url } = parsed.data
-  await createLinkResource({
-    class_id: classId,
-    title,
-    drive_link: url,
-    uploaded_by: me.id,
+  // Permission check + write + audit all happen inside the service — this
+  // action can't reach the insert without going through them.
+  await createLinkResource(me, {
+    class_id: parsed.data.classId,
+    title: parsed.data.title,
+    drive_link: parsed.data.url,
   })
 
   revalidatePath('/resources')

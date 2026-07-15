@@ -1,9 +1,9 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
-import { getProfileById } from '@/lib/repos/users'
-import { canMentor } from '@/lib/repos/mentees'
-import { summarizeAttendance, type AttendanceStatus, type AttendanceSummary } from '@/lib/repos/attendance'
+import { getProfileById } from '@/lib/services/users'
+import { canMentor } from '@/lib/services/mentees'
+import { summarizeAttendance, type AttendanceStatus, type AttendanceSummary } from '@/lib/services/attendance'
 
 export type ReportMark = {
   className: string

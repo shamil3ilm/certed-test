@@ -1,8 +1,10 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfilesByIds } from './users'
+import { getProfilesByIds } from '@/lib/services/users'
 import type { Profile } from '@/lib/auth/profile'
+import { writeAudit } from '@/lib/repos/audit'
+import { PermissionError } from '@/lib/errors'
 
 export type ClassRow = {
   id: string
@@ -26,25 +28,48 @@ export const getClass = cache(async (id: string): Promise<ClassRow | null> => {
   return (data as ClassRow) ?? null
 })
 
-// Mutations run via the service role; callers gate with role / canManageClass first.
-export async function createClass(name: string): Promise<ClassRow> {
+function requireAdmin(actor: Profile): void {
+  if (actor.role !== 'admin') throw new PermissionError('Admin only.')
+}
+
+/**
+ * Whole-class management (create, rename, archive/restore) is ADMIN-ONLY — a
+ * single tutor shouldn't be able to rename/hide a shared class or change its
+ * teaching staff. Day-to-day student enrolment lives in enrollments.ts.
+ */
+export async function createClass(actor: Profile, name: string): Promise<ClassRow> {
+  requireAdmin(actor)
   const admin = createAdminClient()
   // Explicit status (don't rely on the DB default) so mock mode also marks it active.
   const { data, error } = await admin.from('classes').insert({ name, status: 'active' }).select('*').single()
   if (error) throw new Error(`classes.create: ${error.message}`)
-  return data as ClassRow
+  const created = data as ClassRow
+  await writeAudit({ actor_id: actor.id, action: 'class.create', entity_type: 'class', entity_id: created.id })
+  return created
 }
 
-export async function setClassStatus(id: string, status: 'active' | 'archived'): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('classes').update({ status }).eq('id', id)
-  if (error) throw new Error(`classes.setStatus: ${error.message}`)
-}
-
-export async function renameClass(id: string, name: string): Promise<void> {
+export async function renameClass(actor: Profile, id: string, name: string): Promise<void> {
+  requireAdmin(actor)
   const admin = createAdminClient()
   const { error } = await admin.from('classes').update({ name }).eq('id', id)
   if (error) throw new Error(`classes.rename: ${error.message}`)
+  await writeAudit({ actor_id: actor.id, action: 'class.rename', entity_type: 'class', entity_id: id })
+}
+
+export async function archiveClass(actor: Profile, id: string): Promise<void> {
+  requireAdmin(actor)
+  const admin = createAdminClient()
+  const { error } = await admin.from('classes').update({ status: 'archived' }).eq('id', id)
+  if (error) throw new Error(`classes.setStatus: ${error.message}`)
+  await writeAudit({ actor_id: actor.id, action: 'class.archive', entity_type: 'class', entity_id: id })
+}
+
+export async function restoreClass(actor: Profile, id: string): Promise<void> {
+  requireAdmin(actor)
+  const admin = createAdminClient()
+  const { error } = await admin.from('classes').update({ status: 'active' }).eq('id', id)
+  if (error) throw new Error(`classes.setStatus: ${error.message}`)
+  await writeAudit({ actor_id: actor.id, action: 'class.restore', entity_type: 'class', entity_id: id })
 }
 
 /**
@@ -111,34 +136,6 @@ export async function listMyClasses(profile: Profile): Promise<ClassSummary[]> {
   }))
 }
 
-/**
- * True if the caller may enter this class. Cached per-request: with `getProfile`
- * also cached, the layout and page pass the same profile ref + classId, so the
- * membership check runs once.
- */
-export const canAccessClass = cache(async (profile: Profile, classId: string): Promise<boolean> => {
-  if (profile.role === 'admin') return true
-  const admin = createAdminClient()
-  if (profile.role === 'teacher') {
-    const { data } = await admin
-      .from('class_teachers')
-      .select('id')
-      .eq('teacher_id', profile.id)
-      .eq('class_id', classId)
-      .eq('active', true)
-      .maybeSingle()
-    return !!data
-  }
-  const { data } = await admin
-    .from('enrollments')
-    .select('id')
-    .eq('student_id', profile.id)
-    .eq('class_id', classId)
-    .eq('active', true)
-    .maybeSingle()
-  return !!data
-})
-
 /** Teachers + students of a class, with display names resolved. */
 export async function getClassMembers(classId: string): Promise<ClassMembers> {
   const admin = createAdminClient()
@@ -167,27 +164,6 @@ export async function getClassMembers(classId: string): Promise<ClassMembers> {
     teachers: teacherRows.map((r) => toMember(r.teacher_id, r.id)),
     students: studentRows.map((r) => toMember(r.student_id, r.id)),
   }
-}
-
-/** Can this user manage the class (roster + settings)? Admin, or a tutor of it. */
-export async function canManageClass(profile: Profile, classId: string): Promise<boolean> {
-  if (profile.role === 'admin') return true
-  if (profile.role !== 'teacher') return false
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('class_teachers')
-    .select('id')
-    .eq('teacher_id', profile.id)
-    .eq('class_id', classId)
-    .eq('active', true)
-    .maybeSingle()
-  return !!data
-}
-
-/** Class-scoped manage rule for content that can also be academy-wide: a class
- *  action needs canManageClass; a global (null class_id) action is admin-only. */
-export async function canManageScope(profile: Profile, classId: string | null): Promise<boolean> {
-  return classId === null ? profile.role === 'admin' : canManageClass(profile, classId)
 }
 
 export type MentorContact = { name: string; email: string }

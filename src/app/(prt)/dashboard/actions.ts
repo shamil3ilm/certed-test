@@ -1,15 +1,18 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { createReminder, deleteReminder } from '@/lib/repos/reminders'
+import { createReminder, deleteReminder } from '@/lib/services/reminders'
+import { createReminderSchema } from '@/lib/validation/reminder'
 
 export async function createReminderAction(formData: FormData) {
   const me = await requireRole(['admin', 'teacher', 'student'])
-  const title = String(formData.get('title') ?? '').trim()
-  const description = String(formData.get('description') ?? '').trim() || null
-  const remind_at = String(formData.get('remind_at') ?? '').trim()
-  if (!title || !remind_at) return
-  await createReminder(me.id, title, description, remind_at)
+  const parsed = createReminderSchema.safeParse({
+    title: formData.get('title'),
+    description: String(formData.get('description') ?? '').trim() || undefined,
+    remind_at: formData.get('remind_at'),
+  })
+  if (!parsed.success) return
+  await createReminder(me.id, parsed.data.title, parsed.data.description ?? null, parsed.data.remind_at)
   revalidatePath('/dashboard')
 }
 

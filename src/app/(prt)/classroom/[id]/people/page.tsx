@@ -1,6 +1,6 @@
 import { requireClassAccess } from '../../access'
-import { getClassMembers, mentorsByStudent, type ClassMember } from '@/lib/repos/classes'
-import { listActiveByRole } from '@/lib/repos/users'
+import { getClassMembers, mentorsByStudent, type ClassMember } from '@/lib/services/classes'
+import { listActiveByRole } from '@/lib/services/users'
 import { Avatar, Card, EmptyState, cx, CARD } from '../../../ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'

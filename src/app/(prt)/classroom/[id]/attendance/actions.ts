@@ -1,18 +1,13 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { canManageClass, getClassMembers } from '@/lib/repos/classes'
-import { markAttendanceMany, type AttendanceMark } from '@/lib/repos/attendance'
-import { attendanceMarkSchema } from '@/lib/validation/attendance'
-import { writeAudit } from '@/lib/repos/audit'
+import { markAttendance, type MarkAttendanceInput } from '@/lib/services/attendance'
+import { ServiceError } from '@/lib/errors'
 
 /**
  * Marks a whole class for one session date in a single atomic write. Each
- * student's status arrives as a `status:<studentId>` field. Gated by
- * canManageClass (a tutor of THIS class or an admin) and — critically — each
- * student_id must be on this class's roster, so a forged status:<foreignId>
- * can't create a cross-class attendance row (which would pollute that student's
- * report card).
+ * student's status arrives as a `status:<studentId>` field. Permission check,
+ * roster-membership filtering, and audit all happen inside the service.
  */
 export async function markAttendanceAction(
   formData: FormData,
@@ -20,30 +15,19 @@ export async function markAttendanceAction(
   const me = await requireRole(['admin', 'teacher'])
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
-  if (!classId || !(await canManageClass(me, classId))) {
-    return { ok: false, error: 'Not allowed to mark attendance for this class.' }
-  }
+  if (!classId) return { ok: false, error: 'Missing class or date.' }
 
-  const { students } = await getClassMembers(classId)
-  const enrolled = new Set(students.map((s) => s.id))
-
-  const rows: AttendanceMark[] = []
+  const marks: MarkAttendanceInput[] = []
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith('status:')) continue
-    const studentId = key.slice('status:'.length)
-    if (!enrolled.has(studentId)) continue // reject anyone not on this class's roster
-    const parsed = attendanceMarkSchema.safeParse({
-      class_id: classId,
-      student_id: studentId,
-      session_date: date,
-      status: String(value),
-    })
-    if (parsed.success) rows.push({ ...parsed.data, marked_by: me.id })
+    marks.push({ student_id: key.slice('status:'.length), status: String(value) })
   }
-  if (rows.length === 0) return { ok: false, error: 'Nothing to save — check the date and roster.' }
 
-  await markAttendanceMany(rows)
-  await writeAudit({ actor_id: me.id, action: 'attendance.mark', entity_type: 'class', entity_id: classId })
-  revalidatePath(`/classroom/${classId}/attendance`)
-  return { ok: true, saved: rows.length }
+  try {
+    const { saved } = await markAttendance(me, { classId, sessionDate: date, marks })
+    revalidatePath(`/classroom/${classId}/attendance`)
+    return { ok: true, saved }
+  } catch (e) {
+    return { ok: false, error: e instanceof ServiceError ? e.message : 'Something went wrong. Please try again.' }
+  }
 }

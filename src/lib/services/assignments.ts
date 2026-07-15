@@ -1,4 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import type { Profile } from '@/lib/auth/profile'
+import { canManageClass } from '@/lib/permission'
+import { writeAudit } from '@/lib/repos/audit'
+import { PermissionError, NotFoundError } from '@/lib/errors'
 
 export type Assignment = {
   id: string
@@ -40,7 +44,7 @@ export async function getAssignment(id: string): Promise<Assignment | null> {
   return (data as Assignment) ?? null
 }
 
-export async function createAssignment(input: {
+export type CreateAssignmentInput = {
   class_id: string
   title: string
   description: string | null
@@ -48,13 +52,26 @@ export async function createAssignment(input: {
   attachment_drive_link?: string | null
   topic?: string | null
   max_marks?: number | null
-  created_by: string
-}): Promise<Assignment> {
+}
+
+/**
+ * Explicit canManageClass gate — the route this replaces relied on RLS alone
+ * for insert authorization; every other write path in the app double-checks
+ * app-side too, so this closes that inconsistency (a hardening change, not
+ * just a mechanical move).
+ */
+export async function createAssignment(actor: Profile, input: CreateAssignmentInput): Promise<Assignment> {
+  if (!(await canManageClass(actor, input.class_id))) {
+    throw new PermissionError('Not allowed to create an assignment for this class.')
+  }
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('assignments')
     .insert({
-      ...input,
+      class_id: input.class_id,
+      title: input.title,
+      description: input.description,
+      due_date: input.due_date,
       attachment_drive_link: input.attachment_drive_link ?? null,
       topic: input.topic ?? null,
       max_marks: input.max_marks ?? null,
@@ -63,21 +80,45 @@ export async function createAssignment(input: {
     .select('*')
     .single()
   if (error) throw new Error(`assignments.create: ${error.message}`)
-  return data as Assignment
+  const created = data as Assignment
+  await writeAudit({ actor_id: actor.id, action: 'assignment.create', entity_type: 'assignment', entity_id: created.id })
+  return created
+}
+
+async function requireManageable(actor: Profile, id: string): Promise<Assignment> {
+  const a = await getAssignment(id)
+  if (!a) throw new NotFoundError('Assignment not found')
+  if (!(await canManageClass(actor, a.class_id))) throw new PermissionError('Not authorized for this assignment')
+  return a
 }
 
 /** Soft archive / restore (reversible). */
-export async function setAssignmentStatus(id: string, status: 'active' | 'archived'): Promise<void> {
+export async function archiveAssignment(actor: Profile, id: string, status: 'active' | 'archived'): Promise<void> {
+  await requireManageable(actor, id)
   const supabase = await createClient()
   const { error } = await supabase.from('assignments').update({ status }).eq('id', id)
   if (error) throw new Error(`assignments.setStatus: ${error.message}`)
+  await writeAudit({
+    actor_id: actor.id,
+    action: `assignment.${status === 'active' ? 'restore' : 'archive'}`,
+    entity_type: 'assignment',
+    entity_id: id,
+  })
 }
 
-export async function updateAssignment(
+export async function editAssignment(
+  actor: Profile,
   id: string,
-  patch: Partial<{ title: string; description: string | null; due_date: string; attachment_drive_link: string | null; topic: string | null; max_marks: number | null }>,
+  patch: Partial<{
+    title: string
+    description: string | null
+    due_date: string
+    attachment_drive_link: string | null
+  }>,
 ): Promise<void> {
+  await requireManageable(actor, id)
   const supabase = await createClient()
   const { error } = await supabase.from('assignments').update(patch).eq('id', id)
   if (error) throw new Error(`assignments.update: ${error.message}`)
+  await writeAudit({ actor_id: actor.id, action: 'assignment.edit', entity_type: 'assignment', entity_id: id })
 }

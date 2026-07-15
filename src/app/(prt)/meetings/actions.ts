@@ -2,8 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/requireRole'
-import { createMeetLink, deleteMeetLink, getMeetLink } from '@/lib/repos/meetLinks'
-import { canManageScope } from '@/lib/repos/classes'
+import { createMeetLink, deleteMeetLink } from '@/lib/services/meetLinks'
 import { linkUrl } from '@/lib/validation/url'
 import { z } from 'zod'
 
@@ -31,28 +30,15 @@ export async function createMeetLinkAction(formData: FormData) {
     throw new Error('Invalid meet link data: ' + parsed.error.message)
   }
 
-  // A class meet requires managing that class; a global meet (null) is admin-only.
-  if (!(await canManageScope(me, classId))) {
-    throw new Error('Not allowed to post a meet link to this class')
-  }
-
   const { title, url, description } = parsed.data
-  await createMeetLink({
-    class_id: classId || null,
-    title,
-    url,
-    description,
-    created_by: me.id,
-  })
+  // Permission check + write + audit all happen inside the service.
+  await createMeetLink(me, { class_id: classId, title, url, description })
 
   revalidatePath('/classroom', 'layout')
 }
 
 export async function deleteMeetLinkAction(id: string) {
   const me = await requireRole(['teacher', 'admin'])
-  const link = await getMeetLink(id)
-  if (!link) return
-  if (!(await canManageScope(me, link.class_id))) return
-  await deleteMeetLink(id)
+  await deleteMeetLink(me, id)
   revalidatePath('/classroom', 'layout')
 }
