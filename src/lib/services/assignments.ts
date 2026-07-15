@@ -76,6 +76,7 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
       topic: input.topic ?? null,
       max_marks: input.max_marks ?? null,
       status: 'active',
+      created_by: actor.id,
     })
     .select('*')
     .single()

@@ -6,6 +6,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * are structurally identical — they differ only in table/column names — so the
  * shape lives in KIND and every function takes a `kind`. DB rows are normalized
  * to one domain type (`FinanceDoc`) so callers never touch the raw columns.
+ *
+ * Unlike every other file under services/, the mutations here (insertDoc,
+ * voidDoc) do NOT embed their own permission check — that's an intentional,
+ * narrower exception: this module predates the repos->services migration and
+ * was already the reference implementation for it (validate -> totals ->
+ * write -> audit lives in lib/finance/issue.ts and lib/finance/handlers.ts,
+ * both of which gate with requireRoleApi(['admin']) first). If a new caller
+ * is ever added, it must gate the same way — these functions do not enforce
+ * it themselves.
  */
 
 const KIND = {

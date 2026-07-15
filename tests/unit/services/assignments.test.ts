@@ -38,6 +38,15 @@ describe('createAssignment', () => {
       actor_id: 'teacher-1', action: 'assignment.create', entity_type: 'assignment', entity_id: 'a-1',
     })
   })
+
+  it('stamps created_by on the insert (regression: silently dropped in the repos->services move)', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    const client = makeClient({ data: assignmentRow, error: null })
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await createAssignment(actor, { class_id: 'class-1', title: 'HW', description: null, due_date: 't' })
+    const builder = client.from.mock.results[0].value
+    expect(builder.insert).toHaveBeenCalledWith(expect.objectContaining({ created_by: 'teacher-1' }))
+  })
 })
 
 describe('archiveAssignment / editAssignment', () => {
