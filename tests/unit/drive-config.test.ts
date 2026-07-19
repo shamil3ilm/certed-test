@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { readDriveConfig, isPickerConfigured } from '@/lib/google/driveConfig'
+import { readDriveConfig, isPickerConfigured } from '@/lib/google/drive-config'
 
 afterEach(() => vi.unstubAllEnvs())
 

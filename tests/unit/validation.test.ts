@@ -4,11 +4,11 @@ import { createAnnouncementSchema } from '@/lib/validation/announcement'
 import { createClassSchema } from '@/lib/validation/class'
 
 describe('addUserSchema', () => {
-  it('accepts a valid teacher', () => {
-    expect(addUserSchema.safeParse({ email: 'a@b.com', role: 'teacher' }).success).toBe(true)
+  it('accepts a valid tutor', () => {
+    expect(addUserSchema.safeParse({ email: 'a@b.com', role: 'tutor' }).success).toBe(true)
   })
   it('rejects a bad email', () => {
-    expect(addUserSchema.safeParse({ email: 'nope', role: 'teacher' }).success).toBe(false)
+    expect(addUserSchema.safeParse({ email: 'nope', role: 'tutor' }).success).toBe(false)
   })
   it('rejects an invalid role', () => {
     expect(addUserSchema.safeParse({ email: 'a@b.com', role: 'root' }).success).toBe(false)

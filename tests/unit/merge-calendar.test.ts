@@ -58,4 +58,39 @@ describe('mergeCalendar', () => {
     expect(items.find((i) => i.source === 'assignment')!.id).toBe('assignment-a-1')
     expect(items.find((i) => i.id === 'event-e-1')!.kind).toBe('holiday')
   })
+
+  // The s-1 occurrence is 2026-07-06T03:30Z === 09:00 on 2026-07-06 in IST.
+  it('a cancellation naming the slot on its date suppresses that occurrence', () => {
+    const withCancel: MergeInput = {
+      ...input,
+      events: [
+        ...input.events,
+        { id: 'e-3', title: 'No class (holiday)', event_date: '2026-07-06', start_time: null, end_time: null, class_id: 'c-1', kind: 'cancellation', slot_id: 's-1' },
+      ],
+    }
+    const items = mergeCalendar(withCancel)
+    expect(items.find((i) => i.source === 'slot')).toBeUndefined() // occurrence suppressed
+    expect(items.find((i) => i.id === 'event-e-3')).toBeDefined() // cancellation note still shows
+  })
+
+  it('a reschedule naming the slot suppresses the original occurrence too', () => {
+    const withReschedule: MergeInput = {
+      ...input,
+      events: [{ id: 'e-4', title: 'Moved to 2pm', event_date: '2026-07-06', start_time: '14:00', end_time: '15:00', class_id: 'c-1', kind: 'reschedule', slot_id: 's-1' }],
+    }
+    const items = mergeCalendar(withReschedule)
+    expect(items.find((i) => i.source === 'slot')).toBeUndefined()
+    expect(items.find((i) => i.id === 'event-e-4')!.start).toBe('2026-07-06T08:30:00.000Z') // shown at the new time
+  })
+
+  it('does not suppress when the cancellation is on a different date or has no slot_id', () => {
+    const other: MergeInput = {
+      ...input,
+      events: [
+        { id: 'e-5', title: 'Cancel other day', event_date: '2026-07-13', start_time: null, end_time: null, class_id: 'c-1', kind: 'cancellation', slot_id: 's-1' },
+        { id: 'e-6', title: 'Generic note', event_date: '2026-07-06', start_time: null, end_time: null, class_id: 'c-1', kind: 'cancellation', slot_id: null },
+      ],
+    }
+    expect(mergeCalendar(other).find((i) => i.source === 'slot')).toBeDefined() // not suppressed
+  })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShareRequest } from '@/lib/google/driveShare'
+import { buildShareRequest } from '@/lib/google/drive-share'
 
 describe('buildShareRequest', () => {
   it('POSTs an anyone-reader permission to the file', () => {

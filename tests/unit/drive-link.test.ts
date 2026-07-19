@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkDriveLink } from '@/lib/driveLink'
+import { checkDriveLink } from '@/lib/drive-link'
 
 describe('checkDriveLink', () => {
   it('stays quiet on empty / whitespace input', () => {

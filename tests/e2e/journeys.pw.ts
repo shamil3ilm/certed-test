@@ -1,37 +1,12 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
+import { SEED, loginAs, submitAndReload } from './support'
 
-// Full-browser end-to-end journeys per persona, exercising the `'use server'`
+// Full-browser end-to-end journeys per persona, exercising the 'use server'
 // FORM submissions that HTTP-level tests can't reach (create class, enrol, post
 // announcement, issue receipt, add user, create assignment, comment, submit).
 // Runs against the production build in MOCK mode (seed reset before the run).
 
-const SEED = {
-  math: 'c0000000-0000-4000-8000-000000000001',
-  science: 'c0000000-0000-4000-8000-000000000002',
-  asgMath: 'a5000000-0000-4000-8000-000000000001', // "Problem set 3", has Sara's seeded submission
-}
-
-// Click a server-action submit, wait for the POST to land, then reload. (In this
-// mock/host setup the action's own RSC revalidation refetch fails, so the write
-// succeeds but the streamed view stays stale — a fresh GET shows the result.)
-async function submitAndReload(page: Page, click: () => Promise<void>) {
-  await Promise.all([
-    page.waitForResponse((r) => r.request().method() === 'POST', { timeout: 15000 }).catch(() => null),
-    click(),
-  ])
-  await page.waitForTimeout(300)
-  await page.reload()
-}
-
-async function loginAs(page: Page, email: string) {
-  await page.goto('/login')
-  await page.fill('input[name=email]', email)
-  await page.fill('input[name=password]', 'cert-ed')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL('**/dashboard')
-}
-
-test('ADMIN — create class → enrol → announce → issue receipt → add user', async ({ page }) => {
+test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', async ({ page }) => {
   await loginAs(page, 'admin@mock.test')
 
   // Create a class via the New-class form
@@ -57,7 +32,7 @@ test('ADMIN — create class → enrol → announce → issue receipt → add us
   await submitAndReload(page, () => post.getByRole('button', { name: 'Post', exact: true }).click())
   await expect(page.getByRole('heading', { name: 'Welcome to Physics' })).toBeVisible()
 
-  // Issue a receipt (8h × ₹600 = ₹4,800) for Sara
+  // Issue a receipt (8h x Rs 600 = Rs 4,800) for Sara
   await page.goto('/admin/finance')
   const rec = page.locator('section:has-text("Issue fee receipt")').locator('form', {
     has: page.getByRole('button', { name: 'Issue', exact: true }),
@@ -79,15 +54,14 @@ test('ADMIN — create class → enrol → announce → issue receipt → add us
   await submitAndReload(page, () => add.getByRole('button', { name: 'Add user' }).click())
   await expect(page.getByText('e2e-newbie@mock.test')).toBeVisible()
 
-  // Activity log (previously a dead redirect to /dashboard) now renders the
-  // audited actions just performed.
+  // The activity log renders the audited actions just performed.
   await page.goto('/admin/history')
   await expect(page.getByRole('heading', { name: 'Activity log' })).toBeVisible()
   await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
 })
 
-test('TEACHER — create assignment + comment on a student submission', async ({ page }) => {
-  await loginAs(page, 'teacher@mock.test')
+test('TUTOR -- create assignment + comment on a student submission', async ({ page }) => {
+  await loginAs(page, 'tutor@mock.test')
 
   // Create an assignment in the Math classwork tab
   await page.goto(`/classroom/${SEED.math}/classwork`)
@@ -105,7 +79,7 @@ test('TEACHER — create assignment + comment on a student submission', async ({
   await expect(page.getByText('Great work, Sara!')).toBeVisible()
 })
 
-test('STUDENT — submit an assignment (Drive link)', async ({ page }) => {
+test('STUDENT -- submit an assignment (Drive link)', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
 
   // Submit to the Science assignment (Sara enrolled, not yet submitted)
@@ -115,7 +89,7 @@ test('STUDENT — submit an assignment (Drive link)', async ({ page }) => {
   await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
 })
 
-test('MENTOR — sees only assigned mentees, teaches no classes', async ({ page }) => {
+test('MENTOR -- sees only assigned mentees, teaches no classes', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
   await page.goto('/students')
   await expect(page.getByText('Sara Student').first()).toBeVisible()
@@ -124,15 +98,28 @@ test('MENTOR — sees only assigned mentees, teaches no classes', async ({ page 
   await expect(page.getByText('No classes assigned')).toBeVisible()
 })
 
-test('SCOPING — student is blocked from admin finance', async ({ page }) => {
+test('SCOPING -- student is blocked from admin finance', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
   await page.goto('/admin/finance')
   await expect(page.getByText('Issue fee receipt')).toHaveCount(0)
 })
 
-test('SCOPING — mentor cannot enter a mentee class (404)', async ({ page }) => {
+test('SCOPING -- mentor cannot enter a mentee class (404)', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
   await page.goto(`/classroom/${SEED.math}`)
   await expect(page.getByText('404')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Classwork' })).toHaveCount(0)
+})
+
+// Ported from the retired phase1 suite: the actionable "Today" dashboard panels
+// render per persona (student "Due soon", tutor "To review").
+test('DASHBOARD -- student "Due soon" + tutor "To review" panels render', async ({ page }) => {
+  await loginAs(page, 'student@mock.test')
+  await page.goto('/dashboard')
+  await expect(page.getByRole('heading', { name: 'Due soon' })).toBeVisible()
+
+  await page.goto('/api/dev/logout')
+  await loginAs(page, 'tutor@mock.test')
+  await page.goto('/dashboard')
+  await expect(page.getByRole('heading', { name: 'To review' })).toBeVisible()
 })

@@ -48,8 +48,8 @@ describe('buildReceiptHtml', () => {
 
 describe('buildPayslipHtml', () => {
   const html = buildPayslipHtml({ ...doc, number: 'CEA-P-2026-0003', partyName: 'Ravi' }, org, assets)
-  it('uses TEACHER and omits the class line', () => {
-    expect(html).toContain('TEACHER')
+  it('uses TUTOR and omits the class line', () => {
+    expect(html).toContain('TUTOR')
     expect(html).toContain('Ravi')
     expect(html).not.toContain('Class 5')
   })

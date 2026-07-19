@@ -1,24 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const profile = { id: 'stud-1', email: 's@x.c', role: 'student', status: 'active' } as any
-vi.mock('@/lib/auth/profile', () => ({ getProfile: vi.fn(async () => profile) }))
+vi.mock('@/lib/session/actor-context', () => ({
+  getActorContext: vi.fn(async () => ({
+    userId: 'auth-1',
+    profile: profile.status === 'pending' ? profile : profile,
+    accessState: profile.status === 'active' ? 'active' : profile.status === 'disabled' ? 'disabled' : 'pending',
+  })),
+}))
 
 // org timezone anchor
-vi.mock('@/lib/services/finance/orgSettings', () => ({
+vi.mock('@/lib/services/finance/org-settings', () => ({
   getOrgSettings: vi.fn(async () => ({ timezone: 'Asia/Kolkata' })),
 }))
 
 // RLS-scoped repo reads (the route trusts RLS to scope; here we return fixed rows)
 const listSlots = vi.fn(async (..._a: any[]) => [
-  { id: 's-1', class_id: 'c-1', subject: 'Maths', teacher_id: null,
+  { id: 's-1', class_id: 'c-1', subject: 'Maths', tutor_id: null,
     day_of_week: 1, start_time: '09:00', end_time: '10:00', mode_or_location: 'Room 1', active: true },
 ])
-vi.mock('@/lib/services/timetableSlots', () => ({ listSlots: (...a: any[]) => listSlots(...a) }))
+vi.mock('@/lib/services/timetable-slots', () => ({ listSlots: (...a: any[]) => listSlots(...a) }))
 
 const listEvents = vi.fn(async (..._a: any[]) => [
   { id: 'e-1', title: 'Holiday', event_date: '2026-07-13', start_time: null, end_time: null, class_id: null, kind: 'holiday' },
 ])
-vi.mock('@/lib/services/calendarEvents', () => ({ listEvents: (...a: any[]) => listEvents(...a) }))
+vi.mock('@/lib/services/calendar-events', () => ({ listEvents: (...a: any[]) => listEvents(...a) }))
 
 const listAssignments = vi.fn(async (..._a: any[]) => [
   { id: 'a-1', class_id: 'c-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', status: 'active' },

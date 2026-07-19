@@ -1,41 +1,19 @@
-import { test, expect, type Page, type Locator } from '@playwright/test'
+import { test, expect, type Locator } from '@playwright/test'
+import { SEED, loginAs, submitAndReload } from './support'
 
-// Complete Tutor + Student persona journeys — every capability each role needs,
+// Complete Tutor + Student persona journeys -- every capability each role needs,
 // end to end in MOCK mode. The Tutor tests run first and set up the state
 // (resource, grade, attendance) the Student tests then read.
 
-const SEED = {
-  math: 'c0000000-0000-4000-8000-000000000001',
-  science: 'c0000000-0000-4000-8000-000000000002',
-  asgMath: 'a5000000-0000-4000-8000-000000000001', // "Problem set 3", Sara has a submission
-}
-
-async function submitAndReload(page: Page, click: () => Promise<void>) {
-  await Promise.all([
-    page.waitForResponse((r) => r.request().method() === 'POST', { timeout: 15000 }).catch(() => null),
-    click(),
-  ])
-  await page.waitForTimeout(300)
-  await page.reload()
-}
-
-async function loginAs(page: Page, email: string) {
-  await page.goto('/login')
-  await page.fill('input[name=email]', email)
-  await page.fill('input[name=password]', 'cert-ed')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL('**/dashboard')
-}
-
-/** Comment threads are collapsed until they have comments — open before typing. */
+/** Comment threads are collapsed until they have comments -- open before typing. */
 async function ensureThreadOpen(scope: Locator) {
   const ta = scope.locator('textarea')
   const visible = (await ta.count()) > 0 && (await ta.first().isVisible().catch(() => false))
   if (!visible) await scope.getByRole('button', { name: /Add a comment/ }).first().click()
 }
 
-test('TUTOR — shares a meet link, a resource, and comments on the resource', async ({ page }) => {
-  await loginAs(page, 'teacher@mock.test')
+test('TUTOR -- shares a meet link, a resource, and comments on the resource', async ({ page }) => {
+  await loginAs(page, 'tutor@mock.test')
 
   // Share a meeting link on the class Stream
   await page.goto(`/classroom/${SEED.math}`)
@@ -45,7 +23,7 @@ test('TUTOR — shares a meet link, a resource, and comments on the resource', a
   await submitAndReload(page, () => meet.getByRole('button', { name: 'Share link' }).click())
   await expect(page.getByText('E2E Doubt Session').first()).toBeVisible()
 
-  // Share a resource in Classwork → Materials
+  // Share a resource in Classwork -> Materials
   await page.goto(`/classroom/${SEED.math}/classwork`)
   const upload = page.locator('form:has-text("Share a resource")')
   await upload.getByPlaceholder('e.g. Chapter 4 Practice Questions').fill('E2E Worksheet PDF')
@@ -61,8 +39,8 @@ test('TUTOR — shares a meet link, a resource, and comments on the resource', a
   await expect(page.getByText('Please review this before class')).toBeVisible()
 })
 
-test('TUTOR — creates an assignment, grades homework + comments on it', async ({ page }) => {
-  await loginAs(page, 'teacher@mock.test')
+test('TUTOR -- creates an assignment, grades homework + comments on it', async ({ page }) => {
+  await loginAs(page, 'tutor@mock.test')
 
   // Create an assignment
   await page.goto(`/classroom/${SEED.math}/classwork`)
@@ -86,8 +64,8 @@ test('TUTOR — creates an assignment, grades homework + comments on it', async 
   await expect(page.getByText('Well done, Sara!')).toBeVisible()
 })
 
-test('TUTOR — marks attendance and adds a reminder', async ({ page }) => {
-  await loginAs(page, 'teacher@mock.test')
+test('TUTOR -- marks attendance and adds a reminder', async ({ page }) => {
+  await loginAs(page, 'tutor@mock.test')
 
   await page.goto(`/classroom/${SEED.math}/attendance`)
   await page.getByRole('button', { name: 'Mark all present' }).click()
@@ -102,16 +80,14 @@ test('TUTOR — marks attendance and adds a reminder', async ({ page }) => {
   await expect(page.getByText('Prep Chapter 5')).toBeVisible()
 })
 
-test('SUB ADMIN — lands on a real dashboard and can reach settings (no blank lock-out)', async ({ page }) => {
+test('SUB ADMIN -- lands on a real dashboard and can reach settings (no blank lock-out)', async ({ page }) => {
   await loginAs(page, 'subadmin@mock.test')
 
-  // Regression: the dashboard used to exclude sub_admin from requireRole and
-  // bounce it back to /dashboard forever (blank page). It must now render a real,
-  // users-focused landing page.
+  // A sub_admin lands on a real, users-focused dashboard (not a blank redirect).
   await expect(page.getByRole('heading', { name: 'User management' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Manage users' })).toBeVisible()
 
-  // Settings previously bounced back to the blank dashboard — it must be reachable.
+  // Settings is reachable for a sub_admin.
   await page.goto('/settings')
   await expect(page).toHaveURL(/\/settings/)
   await expect(page.getByRole('button', { name: 'Save profile' })).toBeVisible()
@@ -121,7 +97,7 @@ test('SUB ADMIN — lands on a real dashboard and can reach settings (no blank l
   await expect(page).toHaveURL(/\/admin\/users/)
 })
 
-test('STUDENT — full journey: timetable, submit homework, materials, grade, attendance, report card', async ({ page }) => {
+test('STUDENT -- full journey: timetable, submit homework, materials, grade, attendance, report card', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
 
   // Dashboard "Due soon" + the timetable/calendar

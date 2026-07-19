@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePickerDoc } from '@/lib/google/pickerResult'
+import { parsePickerDoc } from '@/lib/google/picker-result'
 
 describe('parsePickerDoc', () => {
   it('returns null for null/undefined', () => {

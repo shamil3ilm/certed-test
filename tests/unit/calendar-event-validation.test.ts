@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createEventSchema, updateEventSchema } from '@/lib/validation/calendarEvent'
+import { createEventSchema, updateEventSchema } from '@/lib/validation/calendar-event'
 
 const base = {
   title: 'Parents meeting',

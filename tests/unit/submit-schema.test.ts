@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { submissionInputSchema } from '@/lib/assignments/submitSchema'
+import { submissionInputSchema } from '@/lib/assignments/submit-schema'
 
 const uuid = 'a5000000-0000-4000-8000-000000000001'
 

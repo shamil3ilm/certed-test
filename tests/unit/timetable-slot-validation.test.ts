@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { createSlotSchema, updateSlotSchema } from '@/lib/validation/timetableSlot'
+import { createSlotSchema, updateSlotSchema } from '@/lib/validation/timetable-slot'
 
 const base = {
   class_id: '11111111-1111-4111-8111-111111111111',
   subject: 'Maths',
-  teacher_id: '22222222-2222-4222-8222-222222222222',
+  tutor_id: '22222222-2222-4222-8222-222222222222',
   day_of_week: 1,
   start_time: '09:00',
   end_time: '10:00',
@@ -15,8 +15,8 @@ describe('createSlotSchema', () => {
   it('accepts a valid slot', () => {
     expect(createSlotSchema.safeParse(base).success).toBe(true)
   })
-  it('accepts a slot without a teacher or location', () => {
-    const { teacher_id, mode_or_location, ...rest } = base
+  it('accepts a slot without a tutor or location', () => {
+    const { tutor_id, mode_or_location, ...rest } = base
     expect(createSlotSchema.safeParse(rest).success).toBe(true)
   })
   it('rejects a non-uuid class_id', () => {

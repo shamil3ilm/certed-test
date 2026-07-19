@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeStatus } from '@/lib/assignments/lateStatus'
+import { computeStatus } from '@/lib/assignments/late-status'
 
 const due = '2026-06-25T18:00:00.000Z'
 

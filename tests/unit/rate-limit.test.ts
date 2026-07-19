@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rateLimit, clientIp } from '@/lib/security/rateLimit'
+import { rateLimit, clientIp } from '@/lib/security/rate-limit'
 
 describe('rateLimit', () => {
   it('allows up to the limit then blocks within the window', () => {

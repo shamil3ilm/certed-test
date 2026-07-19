@@ -29,7 +29,7 @@ describe('bindProfileOnFirstLogin', () => {
       { data: { id: 'p2', auth_user_id: null } },
       { data: { id: 'p2' } },
     ])
-    expect(await bindProfileOnFirstLogin('u2', 'teacher@b.com', admin)).toBe('p2')
+    expect(await bindProfileOnFirstLogin('u2', 'tutor@b.com', admin)).toBe('p2')
   })
   it('refuses to rebind a row already bound to a different user', async () => {
     const admin = fakeAdmin([

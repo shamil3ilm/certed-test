@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { expandSlots, type ExpandableSlot } from '@/lib/time/expandSlots'
+import { expandSlots, type ExpandableSlot } from '@/lib/time/expand-slots'
 import { formatInstant } from '@/lib/time/format'
 
 // A Monday 09:00–10:00 slot anchored to Asia/Kolkata (UTC+5:30, no DST).
