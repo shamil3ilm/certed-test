@@ -8,7 +8,9 @@ SELECT
   id,
   CASE
     WHEN role = 'teacher' THEN 'tutor'::persona_name
-    ELSE role::persona_name
+    -- Postgres forbids a direct enum->enum cast (user_role -> persona_name);
+    -- route through text. admin/sub_admin/student exist in both enums.
+    ELSE role::text::persona_name
   END,
   'global'::persona_scope_type,
   CASE WHEN status = 'active' THEN 'active' ELSE 'inactive' END
