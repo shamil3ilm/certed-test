@@ -1,16 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { checkDriveLink } from '@/lib/drive-link'
+import { assertActionOk } from '../action-client'
 import { createLinkResourceAction } from './actions'
-import { checkDriveLink } from '@/lib/driveLink'
 
 type ClassRow = { id: string; name: string }
 
-/**
- * Share a resource as a Google Drive link. In this phase we don't upload files
- * through the Drive API — teachers upload to their own Drive and paste the share
- * link here; Supabase stores the record.
- */
 export function UploadForm({ classes }: { classes: ClassRow[] }) {
   const [isPending, startTransition] = useTransition()
   const [title, setTitle] = useState('')
@@ -20,21 +16,23 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
   const single = classes.length === 1
   const linkCheck = checkDriveLink(url)
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
     setError(null)
     if (!classId || !title.trim() || !url.trim()) return
+
     const formData = new FormData()
     formData.append('classId', classId)
     formData.append('title', title.trim())
     formData.append('url', url.trim())
+
     startTransition(async () => {
       try {
-        await createLinkResourceAction(formData)
+        assertActionOk(await createLinkResourceAction(formData), 'Something went wrong')
         setTitle('')
         setUrl('')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong')
+      } catch (submitError) {
+        setError(submitError instanceof Error ? submitError.message : 'Something went wrong')
       }
     })
   }
@@ -54,13 +52,15 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
             <label className="text-xs font-medium text-slate-500">Class</label>
             <select
               value={classId}
-              onChange={(e) => setClassId(e.target.value)}
+              onChange={(event) => setClassId(event.target.value)}
               required
               disabled={isPending}
               className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
             >
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {classes.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
               ))}
             </select>
           </div>
@@ -70,7 +70,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
           <label className="text-xs font-medium text-slate-500">Resource title</label>
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(event) => setTitle(event.target.value)}
             placeholder="e.g. Chapter 4 Practice Questions"
             required
             disabled={isPending}
@@ -84,7 +84,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
         <input
           type="url"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(event) => setUrl(event.target.value)}
           placeholder="https://drive.google.com/..."
           required
           disabled={isPending}
@@ -92,21 +92,21 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
         />
         {linkCheck === 'folder' && (
           <p className="text-xs text-amber-600">
-            That looks like a Drive <span className="font-medium">folder</span> link — link the specific file so students open just this resource.
+            That looks like a Drive <span className="font-medium">folder</span> link - link the specific file so students open just this resource.
           </p>
         )}
         {linkCheck === 'not-drive' && (
           <p className="text-xs text-amber-600">
-            That isn’t a Drive link — fine for Google Docs, YouTube or a website. Just make sure it opens for students who aren’t signed in as you.
+            That is not a Drive link - fine for Google Docs, YouTube, or a website. Just make sure it opens for students who are not signed in as you.
           </p>
         )}
         <p className="text-xs text-slate-400">
-          Set the file’s sharing to <span className="font-medium text-slate-500">“Anyone with the link”</span> so students can open it — test it in a private/incognito window. Naming it <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps your Drive tidy.
+          Set the file sharing to <span className="font-medium text-slate-500">"Anyone with the link"</span> so students can open it - test it in a private/incognito window. Naming it <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps your Drive tidy.
         </p>
       </div>
 
       <button type="submit" disabled={isPending} className="btn btn-primary">
-        {isPending ? 'Sharing…' : 'Share link'}
+        {isPending ? 'Sharing...' : 'Share link'}
       </button>
     </form>
   )

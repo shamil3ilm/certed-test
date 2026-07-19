@@ -1,105 +1,112 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireRole } from '@/lib/auth/requireRole'
-import { getAssignment } from '@/lib/services/assignments'
-import { listSubmissionsForAssignment } from '@/lib/services/submissions'
-import { listCommentsForEntities } from '@/lib/services/comments'
-import { getProfileNamesByIds } from '@/lib/services/users'
-import { canAccessClass } from '@/lib/permission'
-import { getClass } from '@/lib/services/classes'
+import { requireCapability } from '@/lib/auth/require-role'
+import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { CommentThread } from '../../CommentThread'
-import { GradeForm } from '../GradeForm'
-import { PageHeader, Card, Avatar, EmptyState } from '../../ui'
 import { LocalTime } from '../../LocalTime'
+import { Avatar, Card, EmptyState, PageHeader } from '../../ui'
+import { GradeForm } from '../GradeForm'
 
 export default async function AssignmentDetail({ params }: { params: { id: string } }) {
-  const me = await requireRole(['admin', 'teacher'])
-  const assignment = await getAssignment(params.id)
-  if (!assignment) notFound()
-  // Explicit boundary: only an admin or a teacher OF THIS CLASS may review its
-  // submissions (student names + links). Don't rely on RLS alone. The access
-  // check, class lookup and submissions are independent — fetch in parallel.
-  const [allowed, course, submissions] = await Promise.all([
-    canAccessClass(me, assignment.class_id),
-    getClass(assignment.class_id),
-    listSubmissionsForAssignment(params.id),
-  ])
-  if (!allowed) notFound()
-
-  // Names + comments both derive only from submissions — one query + one author
-  // lookup each, run together.
-  const [names, commentsBySub] = await Promise.all([
-    getProfileNamesByIds(submissions.map((s) => s.student_id)),
-    listCommentsForEntities('submission', submissions.map((s) => s.id)),
-  ])
+  const me = await requireCapability('viewGrading')
+  const data = await loadAssignmentDetailPageData(me, params.id)
+  if (!data) notFound()
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <Link
-        href={`/classroom/${assignment.class_id}/classwork`}
+        href={`/classroom/${data.assignment.class_id}/classwork`}
         className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
       >
-        ← Back to {course?.name ?? 'class'} · Classwork
+        Back to {data.course?.name ?? 'class'} - Classwork
       </Link>
       <PageHeader
-        title={assignment.title}
+        title={data.assignment.title}
         description={
           <>
-            Due <LocalTime iso={assignment.due_date} /> · {submissions.length} submission(s)
-            {assignment.max_marks != null && <> · out of {Number(assignment.max_marks)}</>}
+            Due <LocalTime iso={data.assignment.due_date} /> - {data.submissions.length} submission(s)
+            {data.assignment.max_marks != null && <> - out of {Number(data.assignment.max_marks)}</>}
           </>
         }
       />
 
       <div className="mt-6 space-y-4">
-        {submissions.length === 0 && <EmptyState>No submissions yet.</EmptyState>}
+        {data.submissions.length === 0 && <EmptyState>No submissions yet.</EmptyState>}
 
-        {submissions.map((s) => (
-          <Card key={s.id} className="p-4 transition hover:shadow">
-            {/* Submission header row */}
+        {data.submissions.map((submission) => (
+          <Card key={submission.id} id={`sub-${submission.id}`} className="scroll-mt-24 p-4 transition hover:shadow">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <Avatar name={names.get(s.student_id) ?? '?'} role="student" />
+                <Avatar name={data.names.get(submission.student_id) ?? '?'} role="student" />
                 <div>
-                  <p className="font-medium text-slate-900">{names.get(s.student_id) ?? s.student_id}</p>
+                  <p className="font-medium text-slate-900">
+                    {data.names.get(submission.student_id) ?? submission.student_id}
+                  </p>
                   <p className="text-xs text-slate-400">
-                    Submitted <LocalTime iso={s.submitted_at} />
-                    {' · '}
-                    <span className={s.status === 'late' ? 'text-red-600 font-semibold' : 'text-emerald-700 font-semibold'}>
-                      {s.status}
+                    Submitted <LocalTime iso={submission.submitted_at} />
+                    {' - '}
+                    <span className={submission.status === 'late' ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'}>
+                      {submission.status}
                     </span>
                   </p>
                 </div>
               </div>
-              {s.drive_link && s.drive_link !== '#' && (
+              {submission.drive_link && submission.drive_link !== '#' && (
                 <a
-                  href={s.drive_link}
+                  href={submission.drive_link}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-sm btn-soft inline-flex max-w-[14rem] items-center gap-1"
-                  title={s.file_name ?? undefined}
+                  title={submission.file_name ?? undefined}
                 >
-                  <span className="truncate">{s.file_name ?? 'Open in Drive'}</span>
-                  <span aria-hidden>↗</span>
+                  <span className="truncate">{submission.file_name ?? 'Open in Drive'}</span>
+                  <span aria-hidden>{'->'}</span>
                 </a>
               )}
             </div>
 
-            {/* Mark + feedback */}
             <GradeForm
-              submissionId={s.id}
-              assignmentId={assignment.id}
-              maxMarks={assignment.max_marks}
-              score={s.score}
-              feedback={s.feedback}
+              submissionId={submission.id}
+              assignmentId={data.assignment.id}
+              maxMarks={data.assignment.max_marks}
+              score={submission.score}
+              feedback={submission.feedback}
             />
 
-            {/* Comment thread */}
+            {(data.historyByStudent.get(submission.student_id)?.length ?? 0) > 0 && (
+              <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-xs">
+                <summary className="cursor-pointer font-medium text-slate-500">
+                  {data.historyByStudent.get(submission.student_id)!.length} previous version
+                  {data.historyByStudent.get(submission.student_id)!.length > 1 ? 's' : ''} (replaced)
+                </summary>
+                <ul className="mt-2 space-y-1">
+                  {data.historyByStudent.get(submission.student_id)!.map((prior) => (
+                    <li key={prior.id} className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400">
+                        Submitted <LocalTime iso={prior.submitted_at} /> - {prior.status}
+                      </span>
+                      {prior.drive_link && prior.drive_link !== '#' && (
+                        <a
+                          href={prior.drive_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="max-w-[12rem] truncate font-medium text-primary hover:underline"
+                          title={prior.file_name ?? undefined}
+                        >
+                          {prior.file_name ?? 'Open'} {'->'}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             <CommentThread
               entityType="submission"
-              entityId={s.id}
+              entityId={submission.id}
               me={{ id: me.id, role: me.role }}
-              initialComments={commentsBySub.get(s.id) ?? []}
+              initialComments={data.commentsBySub.get(submission.id) ?? []}
             />
           </Card>
         ))}

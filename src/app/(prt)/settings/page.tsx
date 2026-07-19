@@ -1,24 +1,27 @@
-import { requireRole } from '@/lib/auth/requireRole'
+import { requireActiveProfile } from '@/lib/auth/require-role'
 import { isMock } from '@/lib/mock/env'
-import { PageHeader, Panel, roleLabel } from '../ui'
-import { updateProfileAction, changePasswordAction } from './actions'
+import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
+import { PageHeader, Panel } from '../ui'
+import { changePasswordAction, updateProfileAction } from './actions'
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: { saved?: string; error?: string }
+  searchParams: SettingsSearchParams
 }) {
-  const me = await requireRole(['admin', 'sub_admin', 'teacher', 'student'])
+  // Self-service page: any signed-in active user manages their own profile.
+  const me = await requireActiveProfile()
+  const data = await loadSettingsPageData(me, searchParams, isMock())
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <PageHeader title="Settings" description="Manage your profile and password." />
 
-      {searchParams.saved === 'profile' && <Banner ok>Profile updated.</Banner>}
-      {searchParams.saved === 'password' && <Banner ok>Password changed.</Banner>}
-      {searchParams.error === 'password' && (
-        <Banner>Passwords must match and be at least 8 characters.</Banner>
-      )}
+      {data.alerts.map((alert) => (
+        <Banner key={`${alert.tone}:${alert.message}`} ok={alert.tone === 'success'}>
+          {alert.message}
+        </Banner>
+      ))}
 
       <div className="mt-4 space-y-6">
         <Panel title="Profile">
@@ -29,13 +32,13 @@ export default async function SettingsPage({
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-slate-400">Role</dt>
-              <dd className="text-slate-700">{roleLabel(me.role)}</dd>
+              <dd className="text-slate-700">{data.roleLabel}</dd>
             </div>
-            {me.role === 'student' && (
+            {data.showStudentClass && (
               <div>
                 <dt className="text-xs uppercase tracking-wide text-slate-400">Class</dt>
                 <dd className="text-slate-700">
-                  {me.class_level ?? '—'}
+                  {data.studentClassLabel}
                   <span className="ml-1 text-xs text-slate-400">(set by your academy)</span>
                 </dd>
               </div>
@@ -51,9 +54,7 @@ export default async function SettingsPage({
               />
             </label>
             <div className="sm:col-span-2">
-              <button className="btn btn-primary">
-                Save profile
-              </button>
+              <button className="btn btn-primary">Save profile</button>
             </div>
           </form>
         </Panel>
@@ -81,12 +82,8 @@ export default async function SettingsPage({
               />
             </label>
             <div className="sm:col-span-2">
-              <button className="btn btn-primary">
-                Change password
-              </button>
-              <p className="mt-2 text-xs text-slate-400">
-                This becomes your sign-in password.{isMock() && ' (Demo mode stores it locally.)'}
-              </p>
+              <button className="btn btn-primary">Change password</button>
+              <p className="mt-2 text-xs text-slate-400">{data.passwordHelpText}</p>
             </div>
           </form>
         </Panel>
@@ -97,11 +94,7 @@ export default async function SettingsPage({
 
 function Banner({ children, ok }: { children: React.ReactNode; ok?: boolean }) {
   return (
-    <p
-      className={`mb-4 rounded-lg px-3 py-2 text-sm ${
-        ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-      }`}
-    >
+    <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
       {children}
     </p>
   )

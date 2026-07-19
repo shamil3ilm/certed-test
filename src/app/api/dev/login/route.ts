@@ -1,57 +1,29 @@
 import { NextResponse } from 'next/server'
 import { isMock } from '@/lib/mock/env'
-import { MOCK_COOKIE } from '@/lib/mock/session'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { writeAudit } from '@/lib/repos/audit'
-
-/**
- * Dev-only credential sign-in. POST email + password (form-encoded). All mock
- * users share one password (MOCK_PASSWORD, default "cert-ed"). On success the
- * caller's mock identity is bound (allowlist-only users bind on first login) and
- * the session cookie is set. Passwordless login is intentionally NOT supported.
- */
-const DEV_PASSWORD = process.env.MOCK_PASSWORD || 'cert-ed'
+import { MOCK_COOKIE, getMockUidFromStore } from '@/lib/mock/session'
+import { loginMockPasswordUser } from '@/lib/services/mock-auth'
 
 export async function POST(request: Request) {
   if (!isMock()) return new NextResponse('Not found', { status: 404 })
 
-  // Single session: you must sign out before signing in as someone else.
-  const { getMockUidFromStore } = await import('@/lib/mock/session')
   if (await getMockUidFromStore()) {
     return NextResponse.redirect(new URL('/dashboard', request.url), 303)
   }
 
   const form = await request.formData()
-  const email = String(form.get('email') ?? '').trim().toLowerCase()
-  const password = String(form.get('password') ?? '')
-  const fail = (actorId: string | null = null) => {
-    void writeAudit({ actor_id: actorId, action: 'auth.login_failure', entity_type: 'profile', entity_id: actorId })
+  const result = await loginMockPasswordUser(
+    String(form.get('email') ?? ''),
+    String(form.get('password') ?? ''),
+  )
+  if (!result.ok) {
     return NextResponse.redirect(new URL('/login?error=1', request.url), 303)
   }
-  if (!email || !password) return fail()
 
-  const admin = createAdminClient()
-  const { data: profile } = await admin.from('profiles').select('*').eq('email', email).maybeSingle()
-  if (!profile) return fail()
-
-  // A password the user set in Settings wins; otherwise the shared demo password.
-  const ownPassword = (profile.password as string | null) ?? null
-  const ok = ownPassword ? password === ownPassword : password === DEV_PASSWORD
-  if (!ok) return fail(profile.id as string)
-
-  let uid = (profile.auth_user_id as string | null) ?? null
-  if (!uid) {
-    uid = `mock:${profile.id as string}`
-    await admin.from('profiles').update({ auth_user_id: uid }).eq('id', profile.id)
-  }
-
-  await writeAudit({ actor_id: profile.id as string, action: 'auth.login_success', entity_type: 'profile', entity_id: profile.id as string })
   const res = NextResponse.redirect(new URL('/dashboard', request.url), 303)
-  res.cookies.set(MOCK_COOKIE, uid, { httpOnly: true, sameSite: 'lax', path: '/' })
+  res.cookies.set(MOCK_COOKIE, result.uid, { httpOnly: true, sameSite: 'lax', path: '/' })
   return res
 }
 
-// Passwordless login removed — always require the credential form.
 export function GET(request: Request) {
   return NextResponse.redirect(new URL('/login', request.url))
 }

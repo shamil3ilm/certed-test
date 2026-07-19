@@ -1,37 +1,52 @@
-import { requireRole } from '@/lib/auth/requireRole'
-import { listAudit } from '@/lib/repos/audit'
-import { getProfilesByIds } from '@/lib/services/users'
+import Link from 'next/link'
+import { requireCapability } from '@/lib/auth/require-role'
+import { historyUrl, loadHistoryPageData } from '@/lib/services/page-data/history'
 import { PageHeader, EmptyState } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 
-// Split an action code ("submission.grade") into scope + verb for display.
-function actionParts(action: string): { scope: string; verb: string } {
-  const i = action.indexOf('.')
-  return i === -1 ? { scope: '', verb: action } : { scope: action.slice(0, i), verb: action.slice(i + 1) }
-}
-
-// Colour the verb by whether it created/removed something, so the log scans fast.
-const VERB_TONE: Record<string, string> = {
-  add: 'text-emerald-700', create: 'text-emerald-700', restore: 'text-emerald-700',
-  assign: 'text-emerald-700', issue: 'text-emerald-700', update: 'text-slate-700',
-  edit: 'text-slate-700', grade: 'text-slate-700', password: 'text-slate-700', mark: 'text-slate-700',
-  revoke: 'text-red-700', delete: 'text-red-700', archive: 'text-red-700',
-  remove: 'text-red-700', void: 'text-red-700',
-}
-
-const LIMIT = 250
-
-export default async function HistoryPage() {
-  await requireRole(['admin'])
-  const rows = await listAudit(LIMIT)
-  const actors = await getProfilesByIds(rows.map((r) => r.actor_id).filter((x): x is string => !!x))
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: { page?: string; action?: string; actor?: string }
+}) {
+  await requireCapability('viewHistory')
+  const { filters, rows, total, totalPages } = await loadHistoryPageData(searchParams)
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Activity log"
-        description="Sensitive actions across the academy — user changes, grading, finance and more — newest first. Read-only."
+        description="Sensitive actions across the academy - user changes, grading, finance and more - newest first. Read-only."
       />
+
+      <form className="mt-2 flex flex-wrap items-end gap-2">
+        <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
+          Action
+          <input
+            type="search"
+            name="action"
+            defaultValue={filters.action ?? ''}
+            placeholder="e.g. grade, revoke, void..."
+            className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          />
+        </label>
+        <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
+          Actor
+          <input
+            type="search"
+            name="actor"
+            defaultValue={filters.actor ?? ''}
+            placeholder="Name or email..."
+            className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          />
+        </label>
+        <button className="btn btn-sm btn-soft">Apply</button>
+        {(filters.action || filters.actor) && (
+          <Link href="/admin/history" className="text-xs font-medium text-slate-400 hover:text-primary">
+            Clear
+          </Link>
+        )}
+      </form>
 
       {rows.length === 0 ? (
         <EmptyState>No activity recorded yet.</EmptyState>
@@ -47,35 +62,53 @@ export default async function HistoryPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
-                const actor = r.actor_id ? actors.get(r.actor_id) : null
-                const { scope, verb } = actionParts(r.action)
-                return (
-                  <tr key={r.id}>
-                    <td className="whitespace-nowrap text-slate-500">
-                      <LocalTime iso={r.created_at} mode="datetime" />
-                    </td>
-                    <td className="whitespace-nowrap text-slate-700">
-                      {actor ? (actor.full_name ?? actor.email) : <span className="italic text-slate-400">System</span>}
-                    </td>
-                    <td className="whitespace-nowrap">
-                      {scope && <span className="text-slate-400">{scope} · </span>}
-                      <span className={`font-semibold ${VERB_TONE[verb] ?? 'text-slate-700'}`}>{verb}</span>
-                    </td>
-                    <td className="whitespace-nowrap text-slate-500">
-                      {r.entity_type}
-                      {r.entity_id && <span className="ml-1.5 font-mono text-xs text-slate-400">{r.entity_id.slice(0, 8)}</span>}
-                    </td>
-                  </tr>
-                )
-              })}
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="whitespace-nowrap text-slate-500">
+                    <LocalTime iso={row.created_at} mode="datetime" />
+                  </td>
+                  <td className="whitespace-nowrap text-slate-700">
+                    {row.actorLabel ?? <span className="italic text-slate-400">System</span>}
+                  </td>
+                  <td className="whitespace-nowrap">
+                    {row.actionScope && <span className="text-slate-400">{row.actionScope} - </span>}
+                    <span className={`font-semibold ${row.actionVerbTone}`}>{row.actionVerb}</span>
+                  </td>
+                  <td className="whitespace-nowrap text-slate-500">
+                    {row.entity_type}
+                    {row.entityShortId && <span className="ml-1.5 font-mono text-xs text-slate-400">{row.entityShortId}</span>}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
 
-      {rows.length >= LIMIT && (
-        <p className="mt-3 text-xs text-slate-400">Showing the most recent {LIMIT} actions.</p>
+      {totalPages > 1 && (
+        <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
+          <span>
+            Page {filters.page} of {totalPages} - {total} total
+          </span>
+          <div className="flex gap-2">
+            {filters.page > 1 && (
+              <Link
+                href={historyUrl({ page: filters.page - 1, action: filters.action, actor: filters.actor })}
+                className="btn btn-sm btn-soft"
+              >
+                Previous
+              </Link>
+            )}
+            {filters.page < totalPages && (
+              <Link
+                href={historyUrl({ page: filters.page + 1, action: filters.action, actor: filters.actor })}
+                className="btn btn-sm btn-soft"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
       )}
     </main>
   )

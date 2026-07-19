@@ -1,25 +1,46 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth/requireRole'
-import { createReminder, deleteReminder } from '@/lib/services/reminders'
-import { createReminderSchema } from '@/lib/validation/reminder'
+import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
+import { requireRole } from '@/lib/auth/require-role'
+import { createReminderFromActionInput, deleteReminder, markReminderSent } from '@/lib/services/reminders'
 
-export async function createReminderAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher', 'student'])
-  const parsed = createReminderSchema.safeParse({
-    title: formData.get('title'),
-    description: String(formData.get('description') ?? '').trim() || undefined,
-    remind_at: formData.get('remind_at'),
-  })
-  if (!parsed.success) return
-  await createReminder(me.id, parsed.data.title, parsed.data.description ?? null, parsed.data.remind_at)
-  revalidatePath('/dashboard')
+export async function createReminderAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireRole(['admin', 'tutor', 'student'])
+  try {
+    await createReminderFromActionInput(me.id, {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      remind_at: formData.get('remind_at'),
+    })
+    revalidatePath('/dashboard')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
 }
 
-export async function deleteReminderAction(formData: FormData) {
-  await requireRole(['admin', 'teacher', 'student'])
+export async function deleteReminderAction(formData: FormData): Promise<ActionStatusResult> {
+  await requireRole(['admin', 'tutor', 'student'])
   const id = String(formData.get('id') ?? '').trim()
-  if (!id) return
-  await deleteReminder(id)
-  revalidatePath('/dashboard')
+  if (!id) return actionDone()
+  try {
+    await deleteReminder(id)
+    revalidatePath('/dashboard')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
+}
+
+export async function markReminderSentAction(formData: FormData): Promise<ActionStatusResult> {
+  await requireRole(['admin', 'tutor', 'student'])
+  const id = String(formData.get('id') ?? '').trim()
+  if (!id) return actionDone()
+  try {
+    await markReminderSent(id)
+    revalidatePath('/dashboard')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
 }

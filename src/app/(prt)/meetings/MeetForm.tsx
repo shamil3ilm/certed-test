@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { assertActionOk } from '../action-client'
 import { createMeetLinkAction } from './actions'
 
 type ClassRow = { id: string; name: string }
@@ -8,15 +9,14 @@ type ClassRow = { id: string; name: string }
 export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGlobal: boolean }) {
   const [isPending, startTransition] = useTransition()
   const [classId, setClassId] = useState(classes[0]?.id ?? '')
-  // Inside a single class there's nothing to choose — the scope is that class.
   const single = classes.length === 1 && !canGlobal
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
     setError(null)
 
     if (!title.trim() || !url.trim()) return
@@ -29,12 +29,12 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
 
     startTransition(async () => {
       try {
-        await createMeetLinkAction(formData)
+        assertActionOk(await createMeetLinkAction(formData), 'Something went wrong')
         setTitle('')
         setUrl('')
         setDescription('')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong')
+      } catch (submitError) {
+        setError(submitError instanceof Error ? submitError.message : 'Something went wrong')
       }
     })
   }
@@ -42,12 +42,8 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-900">Share a Meet Link</h2>
-      
-      {error && (
-        <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+
+      {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</div>}
 
       <div className={single ? 'space-y-1' : 'grid gap-4 sm:grid-cols-2'}>
         {!single && (
@@ -55,13 +51,15 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
             <label className="text-xs font-medium text-slate-500">Class scope</label>
             <select
               value={classId}
-              onChange={(e) => setClassId(e.target.value)}
+              onChange={(event) => setClassId(event.target.value)}
               required
               className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
             >
               {canGlobal && <option value="global">Global (all classes)</option>}
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {classes.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
               ))}
             </select>
           </div>
@@ -71,7 +69,7 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
           <label className="text-xs font-medium text-slate-500">Title</label>
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(event) => setTitle(event.target.value)}
             placeholder="e.g. Maths Doubt Class"
             required
             className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
@@ -84,7 +82,7 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
         <input
           type="url"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(event) => setUrl(event.target.value)}
           placeholder="https://meet.google.com/..."
           required
           className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
@@ -92,21 +90,17 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-500">Description (Optional)</label>
+        <label className="text-xs font-medium text-slate-500">Description (optional)</label>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(event) => setDescription(event.target.value)}
           placeholder="Topics to cover, timings, worksheets to bring..."
           rows={2}
           className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:bg-white focus:outline-none"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="btn btn-primary w-full justify-center sm:w-auto"
-      >
+      <button type="submit" disabled={isPending} className="btn btn-primary w-full justify-center sm:w-auto">
         {isPending ? 'Sharing...' : 'Share link'}
       </button>
     </form>

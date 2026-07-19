@@ -1,20 +1,22 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireRole } from '@/lib/auth/requireRole'
-import { createClassSchema } from '@/lib/validation/class'
-import { createClass, archiveClass, restoreClass, renameClass } from '@/lib/services/classes'
-import { enrolStudent, removeStudent } from '@/lib/services/enrollments'
-import { addTutor, removeTutor } from '@/lib/services/classTeachers'
+import { requireRole } from '@/lib/auth/require-role'
+import {
+  createClassFromActionInput,
+  archiveClassFromActionInput,
+  restoreClassFromActionInput,
+  renameClassFromActionInput,
+} from '@/lib/services/classes'
+import { enrolStudentFromActionInput, removeStudentFromActionInput } from '@/lib/services/enrollments'
+import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/services/class-tutors'
 
 const refresh = () => revalidatePath('/classroom', 'layout')
 
 /** Create a class (admin-only — admins own the class lifecycle; tutors run day-to-day). */
 export async function createClassAction(formData: FormData) {
   const me = await requireRole(['admin'])
-  const parsed = createClassSchema.safeParse({ name: String(formData.get('name') ?? '') })
-  if (!parsed.success) return
-  const course = await createClass(me, parsed.data.name)
+  const course = await createClassFromActionInput(me, { name: formData.get('name') })
   redirect(`/classroom/${course.id}`)
 }
 
@@ -26,61 +28,57 @@ export async function createClassAction(formData: FormData) {
 
 export async function renameClassAction(formData: FormData) {
   const me = await requireRole(['admin'])
-  const id = String(formData.get('id') ?? '')
-  const parsed = createClassSchema.safeParse({ name: String(formData.get('name') ?? '') })
-  if (!id || !parsed.success) return
-  await renameClass(me, id, parsed.data.name)
+  await renameClassFromActionInput(me, {
+    id: formData.get('id'),
+    name: formData.get('name'),
+  })
   refresh()
 }
 
 export async function archiveClassAction(formData: FormData) {
   const me = await requireRole(['admin'])
-  const id = String(formData.get('id') ?? '')
-  if (!id) return
-  await archiveClass(me, id)
+  await archiveClassFromActionInput(me, { id: formData.get('id') })
   refresh()
 }
 
 export async function restoreClassAction(formData: FormData) {
   const me = await requireRole(['admin'])
-  const id = String(formData.get('id') ?? '')
-  if (!id) return
-  await restoreClass(me, id)
+  await restoreClassFromActionInput(me, { id: formData.get('id') })
   refresh()
 }
 
 export async function addTutorAction(formData: FormData) {
   const me = await requireRole(['admin'])
-  const classId = String(formData.get('class_id') ?? '')
-  const teacherId = String(formData.get('teacher_id') ?? '')
-  if (!classId || !teacherId) return
-  await addTutor(me, { classId, teacherId })
+  await addTutorFromActionInput(me, {
+    class_id: formData.get('class_id'),
+    tutor_id: formData.get('tutor_id'),
+  })
   refresh()
 }
 
 export async function removeTutorAction(formData: FormData) {
   const me = await requireRole(['admin'])
-  const classId = String(formData.get('class_id') ?? '')
-  const teacherId = String(formData.get('teacher_id') ?? '')
-  if (!classId || !teacherId) return
-  await removeTutor(me, { classId, teacherId })
+  await removeTutorFromActionInput(me, {
+    class_id: formData.get('class_id'),
+    tutor_id: formData.get('tutor_id'),
+  })
   refresh()
 }
 
 export async function enrolStudentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const classId = String(formData.get('class_id') ?? '')
-  const studentId = String(formData.get('student_id') ?? '')
-  if (!classId || !studentId) return
-  await enrolStudent(me, { classId, studentId })
+  const me = await requireRole(['admin', 'tutor'])
+  await enrolStudentFromActionInput(me, {
+    class_id: formData.get('class_id'),
+    student_id: formData.get('student_id'),
+  })
   refresh()
 }
 
 export async function removeStudentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const classId = String(formData.get('class_id') ?? '')
-  const studentId = String(formData.get('student_id') ?? '')
-  if (!classId || !studentId) return
-  await removeStudent(me, { classId, studentId })
+  const me = await requireRole(['admin', 'tutor'])
+  await removeStudentFromActionInput(me, {
+    class_id: formData.get('class_id'),
+    student_id: formData.get('student_id'),
+  })
   refresh()
 }

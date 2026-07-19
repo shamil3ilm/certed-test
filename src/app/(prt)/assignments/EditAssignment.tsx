@@ -1,20 +1,27 @@
 'use client'
+
 import { useState, useTransition } from 'react'
-import { editAssignmentAction } from './manage-actions'
+import { assertActionOk } from '../action-client'
 import { Field, Input, Textarea } from '../form'
 import { useUI } from '../Providers'
+import { editAssignmentAction } from './manage-actions'
 
-/** ISO instant → value for a datetime-local input, in the viewer's own timezone. */
 function toLocalInput(iso: string): string {
-  const d = new Date(iso)
-  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+  const date = new Date(iso)
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
   return local.toISOString().slice(0, 16)
 }
 
 export function EditAssignment({
   assignment,
 }: {
-  assignment: { id: string; title: string; description: string | null; due_date: string; attachment_drive_link: string | null }
+  assignment: {
+    id: string
+    title: string
+    description: string | null
+    due_date: string
+    attachment_drive_link: string | null
+  }
 }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState(assignment.title)
@@ -24,21 +31,23 @@ export function EditAssignment({
   const [isPending, startTransition] = useTransition()
   const { toast } = useUI()
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
+  function submit(event: React.FormEvent) {
+    event.preventDefault()
     if (!title.trim() || !due) return
-    const fd = new FormData()
-    fd.set('id', assignment.id)
-    fd.set('title', title.trim())
-    fd.set('description', description)
-    fd.set('due_date', new Date(due).toISOString()) // convert local wall-clock → UTC on the client
-    fd.set('attachment_drive_link', brief.trim())
+
+    const formData = new FormData()
+    formData.set('id', assignment.id)
+    formData.set('title', title.trim())
+    formData.set('description', description)
+    formData.set('due_date', new Date(due).toISOString())
+    formData.set('attachment_drive_link', brief.trim())
+
     startTransition(async () => {
       try {
-        await editAssignmentAction(fd)
+        assertActionOk(await editAssignmentAction(formData), 'Could not save changes')
         setOpen(false)
-      } catch {
-        toast('Could not save changes', 'error')
+      } catch (error) {
+        toast(error instanceof Error ? error.message : 'Could not save changes', 'error')
       }
     })
   }
@@ -53,15 +62,30 @@ export function EditAssignment({
 
   return (
     <form onSubmit={submit} className="mt-3 w-full space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} required /></Field>
-      <Field label="Description (optional)"><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} /></Field>
-      <Field label="Due"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} required /></Field>
+      <Field label="Title">
+        <Input value={title} onChange={(event) => setTitle(event.target.value)} required />
+      </Field>
+      <Field label="Description (optional)">
+        <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} />
+      </Field>
+      <Field label="Due">
+        <Input type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} required />
+      </Field>
       <Field label="Brief link (optional)">
-        <Input type="url" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="https://drive.google.com/..." />
+        <Input
+          type="url"
+          value={brief}
+          onChange={(event) => setBrief(event.target.value)}
+          placeholder="https://drive.google.com/..."
+        />
       </Field>
       <div className="flex gap-2">
-        <button disabled={isPending} className="btn btn-sm btn-primary">{isPending ? 'Saving…' : 'Save'}</button>
-        <button type="button" onClick={() => setOpen(false)} className="btn btn-sm btn-ghost">Cancel</button>
+        <button disabled={isPending} className="btn btn-sm btn-primary">
+          {isPending ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="btn btn-sm btn-ghost">
+          Cancel
+        </button>
       </div>
     </form>
   )

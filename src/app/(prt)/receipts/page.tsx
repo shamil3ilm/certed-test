@@ -5,7 +5,7 @@ export default function ReceiptsPage() {
     <FinanceDocList
       kind="receipt"
       ownerRole="student"
-      allowedRoles={['admin', 'teacher', 'student']}
+      allowedRoles={['admin', 'tutor', 'student']}
       title="My receipts"
       description="Your fee receipts, newest first."
       statLabel="Receipts"

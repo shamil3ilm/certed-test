@@ -1,10 +1,11 @@
 'use client'
+
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { assertActionOk } from '../action-client'
 import { gradeSubmissionAction } from './manage-actions'
 import { useUI } from '../Providers'
 
-/** Tutor's inline mark + feedback control on the submission-review page. */
 export function GradeForm({
   submissionId,
   assignmentId,
@@ -21,30 +22,41 @@ export function GradeForm({
   const router = useRouter()
   const { toast } = useUI()
   const [busy, setBusy] = useState(false)
-  const [s, setS] = useState(score != null ? String(Number(score)) : '')
-  const [f, setF] = useState(feedback ?? '')
+  const [scoreValue, setScoreValue] = useState(score != null ? String(Number(score)) : '')
+  const [feedbackValue, setFeedbackValue] = useState(feedback ?? '')
+  const isGraded = score != null
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function saveGrade(sendScore: string, sendFeedback: string, okMessage: string, failMessage: string) {
     setBusy(true)
-    const fd = new FormData()
-    fd.set('submission_id', submissionId)
-    fd.set('assignment_id', assignmentId)
-    fd.set('score', s)
-    fd.set('feedback', f)
+    const formData = new FormData()
+    formData.set('submission_id', submissionId)
+    formData.set('assignment_id', assignmentId)
+    formData.set('score', sendScore)
+    formData.set('feedback', sendFeedback)
+
     try {
-      const res = await gradeSubmissionAction(fd)
-      if (res.ok) {
-        toast('Mark saved ✓', 'success')
-        router.refresh()
-      } else {
-        toast(res.error, 'error')
-      }
-    } catch {
-      toast('Could not save the mark', 'error')
+      assertActionOk(await gradeSubmissionAction(formData), failMessage)
+      toast(okMessage, 'success')
+      router.refresh()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : failMessage, 'error')
     } finally {
       setBusy(false)
     }
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    await saveGrade(scoreValue, feedbackValue, 'Mark saved', 'Could not save the mark')
+  }
+
+  // Reopen = clear the mark (empty score). A graded submission blocks the
+  // student's resubmission; clearing it lets them submit again. This makes the
+  // "ask your tutor to reopen it" instruction an actual, discoverable control.
+  async function onReopen() {
+    setScoreValue('')
+    setFeedbackValue('')
+    await saveGrade('', '', 'Reopened for resubmission', 'Could not reopen the submission')
   }
 
   return (
@@ -56,24 +68,29 @@ export function GradeForm({
           step="0.5"
           min="0"
           max={maxMarks != null ? Number(maxMarks) : undefined}
-          value={s}
-          onChange={(e) => setS(e.target.value)}
-          placeholder="—"
+          value={scoreValue}
+          onChange={(event) => setScoreValue(event.target.value)}
+          placeholder="-"
           className="mt-1 block w-24 rounded border px-2 py-1 text-sm"
         />
       </label>
       <label className="min-w-[12rem] flex-1 text-xs font-medium text-slate-500">
         Feedback (optional)
         <input
-          value={f}
-          onChange={(e) => setF(e.target.value)}
-          placeholder="Well done — recheck Q5…"
+          value={feedbackValue}
+          onChange={(event) => setFeedbackValue(event.target.value)}
+          placeholder="Well done - recheck Q5."
           className="mt-1 block w-full rounded border px-2 py-1 text-sm"
         />
       </label>
       <button disabled={busy} className="btn btn-sm btn-primary">
-        {busy ? 'Saving…' : 'Save mark'}
+        {busy ? 'Saving...' : 'Save mark'}
       </button>
+      {isGraded && (
+        <button type="button" disabled={busy} onClick={onReopen} className="btn btn-sm btn-ghost text-amber-700">
+          Reopen for resubmission
+        </button>
+      )}
     </form>
   )
 }

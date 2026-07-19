@@ -1,6 +1,8 @@
 'use client'
+
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { assertActionOk } from '../../../action-client'
 import { markAttendanceAction } from './actions'
 import { useUI } from '../../../Providers'
 import type { AttendanceStatus } from '@/lib/services/attendance'
@@ -28,38 +30,39 @@ export function MarkAttendanceForm({
   const [rows, setRows] = useState<Row[]>(students)
 
   function setStatus(id: string, status: AttendanceStatus) {
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status } : r)))
+    setRows((currentRows) => currentRows.map((row) => (row.id === id ? { ...row, status } : row)))
   }
 
   function setAll(status: AttendanceStatus) {
-    setRows((rs) => rs.map((r) => ({ ...r, status })))
+    setRows((currentRows) => currentRows.map((row) => ({ ...row, status })))
   }
 
-  const markedCount = rows.filter((r) => r.status !== null).length
+  const markedCount = rows.filter((row) => row.status !== null).length
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
     if (markedCount === 0) {
       toast('Mark at least one student first', 'error')
       return
     }
+
     setBusy(true)
-    const fd = new FormData()
-    fd.set('class_id', classId)
-    fd.set('session_date', date)
-    // Only send rows the tutor actually marked — unmarked students are left out
-    // of this session entirely rather than defaulted to present.
-    for (const r of rows) if (r.status !== null) fd.set(`status:${r.id}`, r.status)
-    try {
-      const res = await markAttendanceAction(fd)
-      if (res.ok) {
-        toast('Attendance saved ✓', 'success')
-        router.refresh()
-      } else {
-        toast(res.error, 'error')
+    const formData = new FormData()
+    formData.set('class_id', classId)
+    formData.set('session_date', date)
+
+    for (const row of rows) {
+      if (row.status !== null) {
+        formData.set(`status:${row.id}`, row.status)
       }
-    } catch {
-      toast('Could not save attendance', 'error')
+    }
+
+    try {
+      const result = assertActionOk(await markAttendanceAction(formData), 'Could not save attendance')
+      toast(`Attendance saved (${result?.saved ?? markedCount})`, 'success')
+      router.refresh()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not save attendance', 'error')
     } finally {
       setBusy(false)
     }
@@ -76,28 +79,28 @@ export function MarkAttendanceForm({
           Mark all present
         </button>
         <p className="text-xs text-slate-400">
-          {markedCount} of {rows.length} marked · unmarked students aren&apos;t recorded
+          {markedCount} of {rows.length} marked - unmarked students are not recorded
         </p>
       </div>
       <ul className="space-y-2">
-        {rows.map((r) => (
+        {rows.map((row) => (
           <li
-            key={r.id}
+            key={row.id}
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3"
           >
-            <span className="text-sm font-medium text-slate-800">{r.name}</span>
-            <div className="flex gap-1" role="group" aria-label={`Attendance for ${r.name}`}>
-              {OPTIONS.map((o) => (
+            <span className="text-sm font-medium text-slate-800">{row.name}</span>
+            <div className="flex gap-1" role="group" aria-label={`Attendance for ${row.name}`}>
+              {OPTIONS.map((option) => (
                 <button
-                  key={o.value}
+                  key={option.value}
                   type="button"
-                  onClick={() => setStatus(r.id, o.value)}
-                  aria-pressed={r.status === o.value}
+                  onClick={() => setStatus(row.id, option.value)}
+                  aria-pressed={row.status === option.value}
                   className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                    r.status === o.value ? o.on : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    row.status === option.value ? option.on : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                   }`}
                 >
-                  {o.label}
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -105,7 +108,7 @@ export function MarkAttendanceForm({
         ))}
       </ul>
       <button disabled={busy || markedCount === 0} className="btn btn-primary btn-sm">
-        {busy ? 'Saving…' : markedCount === 0 ? 'Mark students to save' : `Save attendance (${markedCount})`}
+        {busy ? 'Saving...' : markedCount === 0 ? 'Mark students to save' : `Save attendance (${markedCount})`}
       </button>
     </form>
   )

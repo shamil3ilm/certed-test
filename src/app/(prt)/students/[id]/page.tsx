@@ -1,17 +1,19 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireRole } from '@/lib/auth/requireRole'
-import { canMentor, getMenteeOverview } from '@/lib/services/mentees'
-import { PageHeader, Card, Avatar, EmptyState, Badge } from '../../ui'
+import { requireCapability } from '@/lib/auth/require-role'
+import { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
+import { MessageUserButton } from '../../messages/MessageUserButton'
+import { Avatar, Badge, Card, EmptyState, PageHeader } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function MenteePage({ params }: { params: { id: string } }) {
-  const me = await requireRole(['admin', 'teacher'])
-  if (!(await canMentor(me, params.id))) notFound()
-  const overview = await getMenteeOverview(me, params.id)
-  if (!overview) notFound()
-  const { student, classes, submissions, overdue } = overview
-  const name = student.full_name ?? student.email
+  // viewMentees gate (admin/tutor/mentor); the per-mentee scope is then enforced
+  // by canMentor inside the loader, which returns null -> notFound for others.
+  const me = await requireCapability('viewMentees')
+  const data = await loadMenteeDetailPageData(me, params.id)
+  if (!data) notFound()
+
+  const { student, classes, submissions, overdue } = data.overview
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -19,33 +21,35 @@ export default async function MenteePage({ params }: { params: { id: string } })
         href="/students"
         className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
       >
-        ← All mentees
+        Back to all mentees
       </Link>
 
       <PageHeader
-        title={name}
-        description="Your mentee — their progress across all classes, so you can look after them like a class teacher."
+        title={data.name}
+        description="Your mentee - their progress across all classes, so you can look after them like a class tutor."
       />
 
       <div className="mb-5 flex items-center gap-3">
-        <Avatar name={name} role="student" size="md" />
+        <Avatar name={data.name} role="student" size="md" />
         <div className="min-w-0 text-sm">
           <a href={`mailto:${student.email}`} className="font-medium text-primary hover:underline">
             {student.email}
           </a>
-          {student.class_level && <span className="text-slate-400"> · {student.class_level}</span>}
+          {student.class_level && <span className="text-slate-400"> - {student.class_level}</span>}
         </div>
-        <a
-          href={`/api/report-card/${student.id}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-sm btn-soft ml-auto shrink-0"
-        >
-          Download report card
-        </a>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <MessageUserButton recipientId={student.id} className="btn-sm btn-soft" />
+          <a
+            href={`/api/report-card/${student.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sm btn-soft"
+          >
+            Download report card
+          </a>
+        </div>
       </div>
 
-      {/* Classes */}
       <section className="mb-6">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Classes</h2>
         {classes.length === 0 ? (
@@ -53,32 +57,31 @@ export default async function MenteePage({ params }: { params: { id: string } })
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
-              {/* Not links: a mentor may not teach these classes, so the workspace
-                  would 404. The names are context, not navigation. */}
-              {classes.map((c) => (
-                <Badge key={c.id} tone="primary">{c.name}</Badge>
+              {classes.map((course) => (
+                <Badge key={course.id} tone="primary">
+                  {course.name}
+                </Badge>
               ))}
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              For context only — open a class from your own Classes tab if you teach it.
+              For context only - open a class from your own Classes tab if you teach it.
             </p>
           </>
         )}
       </section>
 
-      {/* Needs attention */}
       {overdue.length > 0 && (
         <section className="mb-6">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-red-500">Needs attention</h2>
           <Card className="divide-y divide-slate-100 p-0">
-            {overdue.map((o) => (
-              <div key={o.assignmentId} className="flex items-center justify-between gap-3 p-3 text-sm">
+            {overdue.map((item) => (
+              <div key={item.assignmentId} className="flex items-center justify-between gap-3 p-3 text-sm">
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-800">{o.assignmentTitle}</p>
-                  <p className="text-xs text-slate-400">{o.classLabel}</p>
+                  <p className="truncate font-medium text-slate-800">{item.assignmentTitle}</p>
+                  <p className="text-xs text-slate-400">{item.classLabel}</p>
                 </div>
                 <span className="shrink-0 text-xs font-semibold text-red-600">
-                  overdue · due <LocalTime iso={o.dueDate} mode="date" />
+                  overdue - due <LocalTime iso={item.dueDate} mode="date" />
                 </span>
               </div>
             ))}
@@ -86,28 +89,27 @@ export default async function MenteePage({ params }: { params: { id: string } })
         </section>
       )}
 
-      {/* Recent submissions */}
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Recent submissions</h2>
         {submissions.length === 0 ? (
           <EmptyState>No submissions yet.</EmptyState>
         ) : (
           <Card className="divide-y divide-slate-100 p-0">
-            {submissions.map((s) => (
-              <div key={`${s.assignmentId}-${s.submittedAt}`} className="flex items-center justify-between gap-3 p-3 text-sm">
+            {submissions.map((submission) => (
+              <div key={`${submission.assignmentId}-${submission.submittedAt}`} className="flex items-center justify-between gap-3 p-3 text-sm">
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-800">{s.assignmentTitle}</p>
+                  <p className="truncate font-medium text-slate-800">{submission.assignmentTitle}</p>
                   <p className="text-xs text-slate-400">
-                    {s.classLabel} · <LocalTime iso={s.submittedAt} />
+                    {submission.classLabel} - <LocalTime iso={submission.submittedAt} />
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className={s.status === 'late' ? 'text-xs font-semibold text-red-600' : 'text-xs font-semibold text-emerald-700'}>
-                    {s.status === 'late' ? 'Late' : 'On time'}
+                  <span className={submission.status === 'late' ? 'text-xs font-semibold text-red-600' : 'text-xs font-semibold text-emerald-700'}>
+                    {submission.status === 'late' ? 'Late' : 'On time'}
                   </span>
-                  {s.driveLink && (
-                    <a href={s.driveLink} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline">
-                      Open ↗
+                  {submission.driveLink && (
+                    <a href={submission.driveLink} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline">
+                      Open {'->'}
                     </a>
                   )}
                 </div>

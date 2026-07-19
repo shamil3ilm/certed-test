@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
-import { requireRole } from '@/lib/auth/requireRole'
+import { requireRole } from '@/lib/auth/require-role'
 import type { Profile } from '@/lib/auth/profile'
-import { listMyDocs, type FinanceKind } from '@/lib/services/finance/financeDocs'
+import { listMyDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { PageHeader, StatCard } from './ui'
 
 /**
  * Self-service list of a user's own finance documents (receipts for students,
- * pay slips for teachers). One component for both — the receipts/payslips pages
+ * pay slips for tutors). One component for both — the receipts/payslips pages
  * are thin wrappers that pass the kind and copy.
  */
 export async function FinanceDocList({

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireRole } from '@/lib/auth/requireRole'
+import { requireRole } from '@/lib/auth/require-role'
 import type { Profile } from '@/lib/auth/profile'
 import { getClass, type ClassRow } from '@/lib/services/classes'
 import { canAccessClass } from '@/lib/permission'
@@ -11,7 +11,7 @@ import { canAccessClass } from '@/lib/permission'
  */
 export async function requireClassAccess(
   classId: string,
-  roles: Profile['role'][] = ['admin', 'teacher', 'student'],
+  roles: Profile['role'][] = ['admin', 'tutor', 'student'],
 ): Promise<{ me: Profile; course: ClassRow }> {
   const me = await requireRole(roles)
   const course = await getClass(classId)

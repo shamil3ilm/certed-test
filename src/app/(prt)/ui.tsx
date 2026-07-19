@@ -1,10 +1,10 @@
 import type { ElementType, ReactNode } from 'react'
 
 /* ----------------------------------------------------------------------------
- * Design tokens & helpers — the single source for the repeated visual patterns
+ * Design tokens & helpers -- the single source for the repeated visual patterns
  * (cards, avatars, empty states, badges, role tones, class banners). Import
  * these instead of re-typing the class strings so the look stays consistent.
- * Brand colours themselves live as CSS variables in globals.css (--primary…).
+ * Brand colours themselves live as CSS variables in globals.css (--primary etc).
  * ------------------------------------------------------------------------- */
 
 /** Join class names, dropping falsy values. */
@@ -12,7 +12,7 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
 }
 
-/** The standard white content-box surface (used ~35× before this existed). */
+/** The standard white content-box surface (used ~35x before this existed). */
 export const CARD = 'rounded-2xl border border-slate-200 bg-white shadow-sm'
 
 /** Two-letter initials from a display name. */
@@ -21,7 +21,7 @@ export function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
 }
 
-/** Role → tone class strings (avatar chip, comment bubble, text badge). */
+/** Role -> tone class strings (avatar chip, comment bubble, text badge). */
 export function roleTone(role?: string | null): { avatar: string; bubble: string; badge: string } {
   if (role === 'admin')
     return {
@@ -35,7 +35,7 @@ export function roleTone(role?: string | null): { avatar: string; bubble: string
       bubble: 'bg-indigo-50 border-indigo-200',
       badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     }
-  if (role === 'teacher')
+  if (role === 'tutor')
     return {
       avatar: 'bg-sky-100 text-sky-700 border-sky-200',
       bubble: 'bg-sky-50 border-sky-200',
@@ -48,11 +48,28 @@ export function roleTone(role?: string | null): { avatar: string; bubble: string
   }
 }
 
-/** Human label for a role, from the student's point of view. */
+/** Display label for a profile's role (its fixed identity), from the student's
+ *  point of view. Use for rows that carry a stored role -- comment authors, the
+ *  Users list -- where loading personas per row would be an N+1. For the signed-in
+ *  user prefer personaLabel, whose personas are already in the actor context. */
 export function roleLabel(role?: string | null): string {
-  if (role === 'teacher') return 'Tutor'
+  if (role === 'tutor') return 'Tutor'
   if (role === 'admin') return 'Super Admin'
   if (role === 'sub_admin') return 'Sub Admin'
+  return 'Student'
+}
+
+/** Highest-privilege label for a set of active personas -- the persona-native
+ *  replacement for roleLabel that reflects the real authorization model rather
+ *  than a single profiles.role value. */
+export function personaLabel(personas: ReadonlyArray<{ persona_name: string; scope_type: string; status: string }>): string {
+  const hasGlobal = (name: string) =>
+    personas.some((p) => p.persona_name === name && p.scope_type === 'global' && p.status === 'active')
+  const hasMentor = personas.some((p) => p.persona_name === 'mentor' && p.status === 'active')
+  if (hasGlobal('admin')) return 'Super Admin'
+  if (hasGlobal('sub_admin')) return 'Sub Admin'
+  if (hasGlobal('tutor')) return 'Tutor'
+  if (hasMentor) return 'Mentor'
   return 'Student'
 }
 

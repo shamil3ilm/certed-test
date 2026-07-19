@@ -1,6 +1,7 @@
 'use client';
 
 import SectionWrapper from '@/app/components/SectionWrapper';
+import { GENERIC_ERROR_MESSAGE } from '@/lib/api/messages';
 import { Mail, Phone, Send, Loader2 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import Image from 'next/image';
@@ -52,7 +53,7 @@ export default function Contact() {
                 setTimeout(() => setStatus('idle'), 5000);
             } else {
                 setStatus('error');
-                setErrorMessage(result.error || 'Something went wrong. Please try again.');
+                setErrorMessage(result.error || GENERIC_ERROR_MESSAGE);
             }
         } catch (error) {
             setStatus('error');

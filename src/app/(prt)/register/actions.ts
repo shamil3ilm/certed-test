@@ -1,52 +1,48 @@
 'use server'
 import { headers } from 'next/headers'
+import { actionDone, actionFail, type ActionStatusResult } from '@/lib/api/action-error'
+import { ERROR_CODES, type ErrorCode } from '@/lib/api/error-codes'
 import { isMock } from '@/lib/mock/env'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { completePasswordRegistration } from '@/lib/services/users'
+import { rateLimit, clientIp } from '@/lib/security/rate-limit'
 import { registerSchema } from '@/lib/validation/user'
-import { getRegistrationTarget, bindPasswordAccount } from '@/lib/services/users'
-import { setupCodeValid } from '@/lib/auth/setupCode'
-import { rateLimit, clientIp } from '@/lib/security/rateLimit'
 
-export type RegisterState = { ok?: boolean; error?: string }
+export type RegisterState = ActionStatusResult & { errorCode?: ErrorCode }
 
 /**
  * Self-registration: an allowlisted, unclaimed profile whose setup code matches
- * gets a Supabase auth account created (email pre-confirmed) and bound. Errors are
- * deliberately uniform so we never reveal whether the email or the code was wrong.
+ * gets a Supabase auth account created and bound. The action owns input parsing
+ * and throttling; the user domain owns the registration workflow itself.
  */
 export async function registerAction(_prev: RegisterState, formData: FormData): Promise<RegisterState> {
-  if (isMock()) return { error: 'Password registration is only available in production mode.' }
+  if (isMock()) {
+    return {
+      ...actionFail('Password registration is only available in production mode.', ERROR_CODES.invalidRequest),
+      errorCode: ERROR_CODES.invalidRequest,
+    }
+  }
 
-  // Throttle per IP so the setup code can't be brute-forced.
   const rl = rateLimit(`register:${clientIp(headers())}`, { limit: 8, windowMs: 10 * 60 * 1000 })
-  if (!rl.ok) return { error: 'Too many attempts. Please wait a few minutes and try again.' }
+  if (!rl.ok) {
+    return {
+      ...actionFail('Too many attempts. Please wait a few minutes and try again.', ERROR_CODES.rateLimited),
+      errorCode: ERROR_CODES.rateLimited,
+    }
+  }
 
   const parsed = registerSchema.safeParse({
     email: String(formData.get('email') ?? ''),
     code: String(formData.get('code') ?? ''),
     password: String(formData.get('password') ?? ''),
   })
-  if (!parsed.success) return { error: 'Check your email, code, and password (min 8 characters).' }
-  const { email, code, password } = parsed.data
-
-  const invalid = { error: 'That email or code isn’t valid, or the account is already set up.' }
-  const target = await getRegistrationTarget(email)
-  if (!target || target.status !== 'active' || target.auth_user_id) return invalid
-  if (!setupCodeValid(code, target.setup_code_hash, target.setup_code_expires_at)) return invalid
-
-  const admin = createAdminClient()
-  const { data, error } = await admin.auth.admin.createUser({
-    email: email.trim().toLowerCase(),
-    password,
-    email_confirm: true,
-  })
-  if (error || !data?.user) return { error: 'Could not create your account. Please try again.' }
-
-  const bound = await bindPasswordAccount(target.id, data.user.id)
-  if (!bound) {
-    // Lost a race to another claim — remove the orphaned auth user.
-    await admin.auth.admin.deleteUser(data.user.id)
-    return { error: 'This account was just set up by someone else.' }
+  if (!parsed.success) {
+    return {
+      ...actionFail('Check your email, code, and password (min 8 characters).', ERROR_CODES.invalidInput),
+      errorCode: ERROR_CODES.invalidInput,
+    }
   }
-  return { ok: true }
+
+  const result = await completePasswordRegistration(parsed.data)
+  if ('ok' in result) return actionDone()
+  return { ...actionFail(result.error, result.code), errorCode: result.code }
 }

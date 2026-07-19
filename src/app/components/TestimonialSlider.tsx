@@ -69,11 +69,11 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
 
             {/* Card Container */}
             <div className="bg-gray-50 p-8 sm:p-12 md:p-16 rounded-[2rem] border border-gray-100 relative shadow-sm min-h-[350px] flex flex-col justify-center transition-all duration-300">
-                <div className="text-primary text-6xl font-serif absolute top-6 left-8 opacity-10">"</div>
+                <div className="text-primary text-6xl font-serif absolute top-6 left-8 opacity-10">&ldquo;</div>
 
                 <div className={`transition-opacity duration-300 ${isFading ? 'opacity-0' : 'opacity-100'} relative z-10 flex flex-col items-center text-center w-full`}>
                     <p className="text-gray-600 text-base md:text-lg italic mb-10 pt-4 leading-relaxed font-medium max-w-4xl mx-auto">
-                        "{currentT.quote}"
+                        &ldquo;{currentT.quote}&rdquo;
                     </p>
 
                     <div className="flex flex-col items-center">

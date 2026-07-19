@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { roleLabel, initials } from './ui'
+import { initials } from './ui'
 
-export function ProfileMenu({ name, email, role }: { name: string; email: string; role: string }) {
+export function ProfileMenu({ name, email, roleLabel }: { name: string; email: string; roleLabel: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -32,7 +32,7 @@ export function ProfileMenu({ name, email, role }: { name: string; email: string
         <div className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="truncate text-sm font-medium text-slate-900">{name}</p>
-            <p className="truncate text-xs text-slate-400">{email} · {roleLabel(role)}</p>
+            <p className="truncate text-xs text-slate-400">{email} · {roleLabel}</p>
           </div>
           <Link
             href="/settings"

@@ -1,36 +1,22 @@
+import type { PersonaAssignment } from '@/lib/session/actor-context'
+import { hasCapability } from '@/lib/capabilities'
+
 export type NavItem = { href: string; label: string }
 
-// The portal is class-centric (Google Classroom-style): Announcements, Resources,
-// Meetings and Assignments all live inside a class under /classroom, so they no
-// longer appear as top-level destinations.
-export const NAV: Record<string, NavItem[]> = {
-  admin: [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/classroom', label: 'Classes' },
-    { href: '/calendar', label: 'Calendar' },
-    { href: '/admin/users', label: 'Users' },
-    { href: '/admin/finance', label: 'Finance' },
-    { href: '/admin/history', label: 'History' },
-  ],
-  sub_admin: [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/admin/users', label: 'Users' },
-  ],
-  teacher: [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/classroom', label: 'Classes' },
-    { href: '/calendar', label: 'Calendar' },
-    { href: '/students', label: 'My mentees' },
-    { href: '/payslips', label: 'Pay slips' },
-  ],
-  student: [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/classroom', label: 'Classes' },
-    { href: '/calendar', label: 'Calendar' },
-    { href: '/receipts', label: 'Receipts' },
-  ],
-}
+const NAV_RULES: Array<NavItem & { when: (personas: Array<{ persona_name: string }>) => boolean }> = [
+  { href: '/dashboard', label: 'Dashboard', when: (personas) => hasCapability(personas, 'viewDashboard') },
+  { href: '/messages', label: 'Messages', when: (personas) => hasCapability(personas, 'viewMessages') },
+  { href: '/classroom', label: 'Classes', when: (personas) => hasCapability(personas, 'viewClasses') },
+  { href: '/calendar', label: 'Calendar', when: (personas) => hasCapability(personas, 'viewCalendar') },
+  { href: '/grading', label: 'Grading', when: (personas) => hasCapability(personas, 'viewGrading') },
+  { href: '/students', label: 'My mentees', when: (personas) => hasCapability(personas, 'viewMentees') },
+  { href: '/payslips', label: 'Pay slips', when: (personas) => hasCapability(personas, 'viewPayslips') },
+  { href: '/receipts', label: 'Receipts', when: (personas) => hasCapability(personas, 'viewReceipts') },
+  { href: '/admin/users', label: 'Users', when: (personas) => hasCapability(personas, 'viewUsers') },
+  { href: '/admin/finance', label: 'Finance', when: (personas) => hasCapability(personas, 'viewFinance') },
+  { href: '/admin/history', label: 'History', when: (personas) => hasCapability(personas, 'viewHistory') },
+]
 
-export function navFor(role: string): NavItem[] {
-  return NAV[role] ?? []
+export function navFor(personas: PersonaAssignment[]): NavItem[] {
+  return NAV_RULES.filter((item) => item.when(personas)).map(({ href, label }) => ({ href, label }))
 }
