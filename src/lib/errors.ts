@@ -34,3 +34,10 @@ export class ValidationError extends ServiceError {
     this.name = 'ValidationError'
   }
 }
+
+export class RateLimitError extends ServiceError {
+  constructor(message = 'Too many requests. Please slow down and try again.') {
+    super(message, 429)
+    this.name = 'RateLimitError'
+  }
+}

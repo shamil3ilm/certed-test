@@ -1,0 +1,5 @@
+export const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.'
+export const INVALID_REQUEST_MESSAGE = 'Invalid request.'
+export const INVALID_INPUT_MESSAGE = 'Invalid input.'
+export const TOO_MANY_REQUESTS_MESSAGE = 'Too many requests. Please try again shortly.'
+export const TOO_MANY_MESSAGES_MESSAGE = 'Too many messages. Please try again in a few minutes.'
