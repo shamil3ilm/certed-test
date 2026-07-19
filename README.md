@@ -34,7 +34,7 @@ Open the app host and sign in at `/login` with a demo account — `admin@mock.te
 
 ## Going live
 
-See **[docs/setup_guide.md](docs/setup_guide.md)** — create a Supabase project, apply migrations `0001`–`0006`, configure Google sign-in **inside Supabase**, and seed the first admin.
+See **[docs/setup-guide.md](docs/setup-guide.md)** — create a Supabase project, apply migrations `0001`–`0006`, configure Google sign-in **inside Supabase**, and seed the first admin.
 
 ## Testing
 

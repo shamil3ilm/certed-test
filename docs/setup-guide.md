@@ -112,8 +112,7 @@ Drive (no central storage; the app links to the file). One-time Google Cloud set
 
 Files stay in each student's Drive — the deliberate initial-phase choice. Central
 storage (academy Drive API or object storage) can replace it later without
-changing the submissions model. See
-`docs/superpowers/specs/2026-07-10-drive-picker-submissions-design.md`.
+changing the submissions model.
 
 ---
 
