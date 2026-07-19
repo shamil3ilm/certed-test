@@ -1,11 +1,14 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireActiveProfile } from '@/lib/auth/require-role'
 import { createReminderFromActionInput, deleteReminder, markReminderSent } from '@/lib/services/reminders'
 
+// Reminders are personal self-service (own-scoped by RLS), so these guard on an
+// active session rather than a fixed role list — anyone who can reach the
+// dashboard manages their own reminders, mentors included.
 export async function createReminderAction(formData: FormData): Promise<ActionStatusResult> {
-  const me = await requireRole(['admin', 'tutor', 'student'])
+  const me = await requireActiveProfile()
   try {
     await createReminderFromActionInput(me.id, {
       title: formData.get('title'),
@@ -20,7 +23,7 @@ export async function createReminderAction(formData: FormData): Promise<ActionSt
 }
 
 export async function deleteReminderAction(formData: FormData): Promise<ActionStatusResult> {
-  await requireRole(['admin', 'tutor', 'student'])
+  await requireActiveProfile()
   const id = String(formData.get('id') ?? '').trim()
   if (!id) return actionDone()
   try {
@@ -33,7 +36,7 @@ export async function deleteReminderAction(formData: FormData): Promise<ActionSt
 }
 
 export async function markReminderSentAction(formData: FormData): Promise<ActionStatusResult> {
-  await requireRole(['admin', 'tutor', 'student'])
+  await requireActiveProfile()
   const id = String(formData.get('id') ?? '').trim()
   if (!id) return actionDone()
   try {

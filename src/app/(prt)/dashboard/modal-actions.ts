@@ -1,5 +1,5 @@
 'use server'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireActiveProfile } from '@/lib/auth/require-role'
 import { hasCapability, isAdminTier } from '@/lib/capabilities'
 import { listProfiles } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
@@ -12,13 +12,13 @@ import { formatMoney, formatMoneyTotals } from '@/lib/money'
  * lists can grow with the whole academy (every student, every tutor, every
  * class), so they're fetched only when the modal is actually opened —
  * StatModalCard's `load` prop — instead of on every dashboard page load.
- * Each action re-checks the role itself; the dashboard page's own
- * `requireRole` gate only proves you're SOME active role, not that you're
- * allowed to see academy-wide people/class data.
+ * Each action asserts the specific CAPABILITY itself; the dashboard page's own
+ * `viewDashboard` gate only proves you can see a dashboard, not that you're
+ * allowed to read academy-wide people/class/finance data.
  */
 
 export async function loadStudentsModal() {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireActiveProfile()
   if (!hasCapability(me, 'manageUsers')) throw new Error('forbidden')
   const profiles = await listProfiles()
   const students = profiles.filter((p) => p.role === 'student')
@@ -26,7 +26,7 @@ export async function loadStudentsModal() {
 }
 
 export async function loadTutorsModal() {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireActiveProfile()
   if (!hasCapability(me, 'manageUsers')) throw new Error('forbidden')
   const profiles = await listProfiles()
   const tutors = profiles.filter((p) => p.role === 'tutor')
@@ -34,7 +34,7 @@ export async function loadTutorsModal() {
 }
 
 export async function loadPendingModal() {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireActiveProfile()
   if (!hasCapability(me, 'manageUsers')) throw new Error('forbidden')
   const profiles = await listProfiles()
   const pending = profiles.filter((p) => p.status === 'pending')
@@ -42,7 +42,7 @@ export async function loadPendingModal() {
 }
 
 export async function loadActiveClassesModal() {
-  const me = await requireRole(['admin'])
+  const me = await requireActiveProfile()
   if (!isAdminTier(me)) throw new Error('forbidden')
   const [classes, enrollCounts] = await Promise.all([listClasses(), countEnrollmentsPerClass()])
   const active = classes.filter((c) => c.status === 'active')
@@ -56,7 +56,7 @@ export async function loadActiveClassesModal() {
 }
 
 export async function loadFinanceModal() {
-  const me = await requireRole(['admin'])
+  const me = await requireActiveProfile()
   if (!hasCapability(me, 'viewFinance')) throw new Error('forbidden')
   const [receiptTotals, payslipTotals, recentReceipts, recentPayslips] = await Promise.all([
     financeTotals('receipt'),
