@@ -1,9 +1,9 @@
 import 'server-only'
-import { getOrgSettings, type OrgSettings } from '@/lib/services/finance/orgSettings'
+import { getOrgSettings, type OrgSettings } from '@/lib/services/finance/org-settings'
 import { buildReceiptHtml, buildPayslipHtml, type OrgInfo } from '@/lib/pdf/template'
-import { brandAssets } from '@/lib/pdf/brandAssets'
-import { htmlToPdf } from '@/lib/pdf/renderPdf'
-import { getDoc, getDocLines, type FinanceKind } from '@/lib/services/finance/financeDocs'
+import { brandAssets } from '@/lib/pdf/brand-assets'
+import { htmlToPdf } from '@/lib/pdf/render-pdf'
+import { getDoc, getDocLines, type FinanceKind } from '@/lib/services/finance/finance-docs'
 
 /**
  * Finance PDFs are generated on demand (printed when downloaded) and never
@@ -39,11 +39,13 @@ function fmtDate(iso: string): string {
 export async function renderDocPdf(
   kind: FinanceKind,
   id: string,
-  viewer: { id: string; role: string },
+  viewer: { id: string; role?: string },
 ): Promise<{ pdf: Buffer; number: string } | null> {
+  const { loadPersonaFlags } = await import('@/lib/permission/personas')
   const doc = await getDoc(kind, id)
   if (!doc) return null
-  if (viewer.role !== 'admin' && doc.party_id !== viewer.id) return null
+  const { isAdmin } = await loadPersonaFlags(viewer.id)
+  if (!isAdmin && doc.party_id !== viewer.id) return null
   const [lines, org] = await Promise.all([getDocLines(kind, id), getOrgSettings()])
   const build = kind === 'receipt' ? buildReceiptHtml : buildPayslipHtml
   const html = build(

@@ -2,8 +2,8 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { getReportCardData } from './data'
 import { buildReportCardHtml } from './template'
-import { getOrgSettings } from '@/lib/services/finance/orgSettings'
-import { htmlToPdf } from '@/lib/pdf/renderPdf'
+import { getOrgSettings } from '@/lib/services/finance/org-settings'
+import { htmlToPdf } from '@/lib/pdf/render-pdf'
 
 /**
  * Report card to PDF bytes. Returns null when the viewer isn't allowed to see

@@ -1,6 +1,6 @@
 'use client'
-import { readDriveConfig } from './driveConfig'
-import { parsePickerDoc, type PickedFile } from './pickerResult'
+import { readDriveConfig } from './drive-config'
+import { parsePickerDoc, type PickedFile } from './picker-result'
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
 const GAPI_SRC = 'https://apis.google.com/js/api.js'

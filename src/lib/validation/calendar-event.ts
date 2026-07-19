@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { hhmm } from '@/lib/validation/timetableSlot'
+import { hhmm } from '@/lib/validation/timetable-slot'
 
 // "YYYY-MM-DD" calendar date (interpreted as a wall-clock date in org_settings.timezone).
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')

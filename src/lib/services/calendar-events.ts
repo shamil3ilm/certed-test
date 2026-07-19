@@ -1,9 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth/profile'
-import type { CreateEventInput, UpdateEventInput } from '@/lib/validation/calendarEvent'
+import { createEventSchema, updateEventSchema, type CreateEventInput, type UpdateEventInput } from '@/lib/validation/calendar-event'
 import { canWriteClass } from '@/lib/permission'
-import { writeAudit } from '@/lib/repos/audit'
-import { PermissionError, NotFoundError } from '@/lib/errors'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { PermissionError, NotFoundError, ValidationError, RateLimitError } from '@/lib/errors'
+import { rateLimit } from '@/lib/security/rate-limit'
+import { z } from 'zod'
+
+/** Per-user throttle across the calendar-write API surface (create/update/delete),
+ *  applied at the API boundary so a misbehaving client can't spam writes. */
+function assertCalendarWriteRate(actorId: string): void {
+  if (!rateLimit(`calendar-write:${actorId}`, { limit: 60, windowMs: 60_000 }).ok) {
+    throw new RateLimitError('Too many calendar changes in a short time. Please wait a moment.')
+  }
+}
 
 export type CalendarEventKind = 'event' | 'holiday' | 'cancellation' | 'reschedule'
 
@@ -19,6 +29,32 @@ export type CalendarEvent = {
   slot_id: string | null
   created_by: string
   created_at: string
+}
+
+const eventIdSchema = z.string().uuid()
+
+export function validateCreateEventInput(input: unknown): CreateEventInput {
+  const parsed = createEventSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues[0]?.message ?? 'invalid')
+  }
+  return parsed.data
+}
+
+export function validateUpdateEventInput(input: unknown): UpdateEventInput {
+  const parsed = updateEventSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues[0]?.message ?? 'invalid')
+  }
+  return parsed.data
+}
+
+export function validateEventId(input: unknown): string {
+  const parsed = eventIdSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError('Invalid event id')
+  }
+  return parsed.data
 }
 
 // RLS scopes the rows: global events + enrolled/taught course events / admin sees all.
@@ -43,7 +79,7 @@ export async function getEvent(id: string): Promise<CalendarEvent | null> {
 }
 
 /**
- * Global events (class_id null) are admin-only; teachers may only create
+ * Global events (class_id null) are admin-only; tutors may only create
  * course events they teach — canWriteClass covers exactly this rule.
  */
 export async function createEvent(actor: Profile, input: CreateEventInput): Promise<CalendarEvent> {
@@ -68,14 +104,19 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
     .single()
   if (error) throw new Error(`createEvent: ${error.message}`)
   const created = data as CalendarEvent
-  await writeAudit({ actor_id: actor.id, action: 'event.create', entity_type: 'calendar_event', entity_id: created.id })
+  await auditPrivilegedAction(actor, 'event.create', 'calendar_event', created.id)
   return created
+}
+
+export async function createEventFromApiInput(actor: Profile, input: unknown): Promise<CalendarEvent> {
+  assertCalendarWriteRate(actor.id)
+  return createEvent(actor, validateCreateEventInput(input))
 }
 
 /**
  * Defense-in-depth: if the caller is MOVING the event, re-authorize the
  * DESTINATION class too — not just the class it currently belongs to. RLS
- * also blocks this, but don't let a teacher reassign an event to a class
+ * also blocks this, but don't let a tutor reassign an event to a class
  * they don't teach (or to a global/null event) if the RLS policy is ever
  * loosened.
  */
@@ -92,13 +133,17 @@ export async function updateEvent(actor: Profile, id: string, patch: UpdateEvent
   const supabase = await createClient()
   const { data, error } = await supabase.from('calendar_events').update(patch).eq('id', id).select('*').single()
   if (error) throw new Error(`updateEvent: ${error.message}`)
-  await writeAudit({
-    actor_id: actor.id,
-    action: moved ? 'event.move' : 'event.update',
-    entity_type: 'calendar_event',
-    entity_id: id,
-  })
+  await auditPrivilegedAction(actor, moved ? 'event.move' : 'event.update', 'calendar_event', id)
   return data as CalendarEvent
+}
+
+export async function updateEventFromApiInput(
+  actor: Profile,
+  id: unknown,
+  input: unknown,
+): Promise<CalendarEvent> {
+  assertCalendarWriteRate(actor.id)
+  return updateEvent(actor, validateEventId(id), validateUpdateEventInput(input))
 }
 
 export async function deleteEvent(actor: Profile, id: string): Promise<void> {
@@ -110,5 +155,10 @@ export async function deleteEvent(actor: Profile, id: string): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('calendar_events').delete().eq('id', id)
   if (error) throw new Error(`deleteEvent: ${error.message}`)
-  await writeAudit({ actor_id: actor.id, action: 'event.delete', entity_type: 'calendar_event', entity_id: id })
+  await auditPrivilegedAction(actor, 'event.delete', 'calendar_event', id)
+}
+
+export async function deleteEventFromApiInput(actor: Profile, id: unknown): Promise<void> {
+  assertCalendarWriteRate(actor.id)
+  await deleteEvent(actor, validateEventId(id))
 }

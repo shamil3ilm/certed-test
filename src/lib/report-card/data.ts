@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
 import { canMentor } from '@/lib/services/mentees'
 import { summarizeAttendance, type AttendanceStatus, type AttendanceSummary } from '@/lib/services/attendance'
@@ -22,11 +23,12 @@ export type ReportCardData = {
 
 /**
  * Who may pull a student's report card: an admin, the student themselves, or a
- * teacher with an active mentorship over them (canMentor). Teachers-of-class see
+ * tutor with an active mentorship over them (canMentor). Tutors-of-class see
  * the same data live in the class UI; the PDF is the pastoral/parent artefact.
  */
 export async function canViewReportCard(viewer: Profile, studentId: string): Promise<boolean> {
-  if (viewer.role === 'admin') return true
+  const { isAdmin } = await loadPersonaFlags(viewer.id)
+  if (isAdmin) return true
   if (viewer.id === studentId) return true
   return canMentor(viewer, studentId)
 }

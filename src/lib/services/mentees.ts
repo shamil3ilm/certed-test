@@ -2,6 +2,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
 import { getProfileById } from '@/lib/services/users'
 import { canMentor } from '@/lib/permission'
+import { isAdminTier } from '@/lib/capabilities'
+import { listMentorships, studentIdsOfTutor } from '@/lib/services/mentorships'
+import { getProfileNamesByIds } from '@/lib/services/users'
 
 export { canMentor }
 
@@ -32,6 +35,31 @@ export type MenteeOverview = {
   classes: { id: string; name: string }[]
   submissions: MenteeSubmission[]
   overdue: MenteeOverdue[]
+}
+
+export type MenteeListItem = { id: string; name: string }
+export type MenteeListView = {
+  isAdmin: boolean
+  title: string
+  description: string
+  items: MenteeListItem[]
+}
+
+/** Builds the mentee list for admin/mentor list pages so the page only renders. */
+export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
+  const isAdmin = isAdminTier(me)
+  const ids = isAdmin
+    ? [...new Set((await listMentorships()).map((link) => link.student_id))]
+    : await studentIdsOfTutor(me.id)
+  const names = await getProfileNamesByIds(ids)
+  return {
+    isAdmin,
+    title: isAdmin ? 'Mentees' : 'My mentees',
+    description: isAdmin
+      ? 'Students currently linked through mentor assignments across the academy.'
+      : 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
+    items: ids.map((id) => ({ id, name: names.get(id) ?? id })),
+  }
 }
 
 /**

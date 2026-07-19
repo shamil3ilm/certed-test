@@ -1,11 +1,11 @@
 import 'server-only'
 import { lineAmount, computeTotals } from '@/lib/money'
-import { getOrgSettings } from '@/lib/services/finance/orgSettings'
-import { allocateNumber } from '@/lib/services/finance/documentCounters'
+import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { getProfileById } from '@/lib/services/users'
-import { insertDoc, type FinanceKind, type FinanceLine } from '@/lib/services/finance/financeDocs'
+import { issueDocRecord, type FinanceKind, type FinanceLine } from '@/lib/services/finance/finance-docs'
 import { writeAudit } from '@/lib/repos/audit'
-import type { IssueDocInput } from '@/lib/validation/finance'
+import { ValidationError } from '@/lib/errors'
+import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
 
 /**
  * Issuance only records the document (validate → totals → allocate number →
@@ -19,7 +19,7 @@ export async function issueDoc(
   actorId: string,
 ): Promise<{ id: string; number: string }> {
   const party = await getProfileById(input.party_id)
-  const expectedRole = kind === 'receipt' ? 'student' : 'teacher'
+  const expectedRole = kind === 'receipt' ? 'student' : 'tutor'
   if (!party || party.role !== expectedRole) throw new Error(`${expectedRole} not found`)
 
   const lines: FinanceLine[] = input.lines.map((l) => ({
@@ -30,14 +30,11 @@ export async function issueDoc(
   }))
   const { subtotal, total } = computeTotals(input.lines, input.discount ?? 0, input.currency)
   const org = await getOrgSettings()
-  const year = new Date(input.issue_date).getFullYear()
   const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix
-  const number = await allocateNumber(kind, prefix, year)
 
-  const doc = await insertDoc(
+  const doc = await issueDocRecord(
     kind,
     {
-      number,
       party_id: party.id,
       party_name: party.full_name ?? party.email,
       class_level: kind === 'receipt' ? party.class_level : null,
@@ -48,10 +45,27 @@ export async function issueDoc(
       discount: input.discount ?? null,
       total,
       created_by: actorId,
+      prefix,
+      lines,
     },
-    lines,
   )
 
   await writeAudit({ actor_id: actorId, action: `${kind}.issue`, entity_type: kind, entity_id: doc.id })
-  return { id: doc.id, number }
+  return { id: doc.id, number: doc.number }
+}
+
+export function validateIssueDocInput(input: unknown): IssueDocInput {
+  const parsed = issueDocSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError('invalid input')
+  }
+  return parsed.data
+}
+
+export async function issueDocFromApiInput(
+  kind: FinanceKind,
+  input: unknown,
+  actorId: string,
+): Promise<{ id: string; number: string }> {
+  return issueDoc(kind, validateIssueDocInput(input), actorId)
 }

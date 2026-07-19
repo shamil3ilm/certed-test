@@ -48,7 +48,7 @@ function esc(s: string): string {
 }
 
 function buildHtml(
-  partyLabel: 'STUDENT' | 'TEACHER',
+  partyLabel: 'STUDENT' | 'TUTOR',
   showClass: boolean,
   doc: FinanceDoc,
   org: OrgInfo,
@@ -149,5 +149,5 @@ export function buildReceiptHtml(doc: FinanceDoc, org: OrgInfo, assets: BrandAss
 }
 
 export function buildPayslipHtml(doc: FinanceDoc, org: OrgInfo, assets: BrandAssets): string {
-  return buildHtml('TEACHER', false, doc, org, assets)
+  return buildHtml('TUTOR', false, doc, org, assets)
 }

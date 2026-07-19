@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { persist } from './store'
 
 type Row = Record<string, unknown>
-type Result<T = unknown> = { data: T; error: { message: string } | null }
+type Result<T = unknown> = { data: T; error: { message: string } | null; count?: number | null }
 type Op = 'select' | 'insert' | 'update' | 'delete' | 'upsert'
 
 /**
@@ -17,12 +17,14 @@ export class MockQueryBuilder implements PromiseLike<Result> {
   private filters: Array<(r: Row) => boolean> = []
   private orderBy: { col: string; asc: boolean } | null = null
   private limitN: number | null = null
-  private rangeTo: number | null = null
+  private rangeFrom: number | null = null
   private op: Op = 'select'
   private payload: Row | Row[] | null = null
   private onConflict: string | null = null
   private returning = false
   private want: 'single' | 'maybe' | null = null
+  private wantCount = false
+  private headOnly = false
 
   constructor(private rows: Row[], private tableName: string) {}
 
@@ -40,13 +42,42 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     this.filters.push((r) => String(r[col] ?? '').toLowerCase().includes(needle))
     return this
   }
+  /** Minimal stand-in for PostgREST's `.or('col.op.val,col2.op2.val2')` — only
+   *  the operators callers actually use (ilike/eq/is), matched against ANY
+   *  clause. Real cross-column OR search (e.g. name-or-email) has nowhere
+   *  else to go: two separate single-column queries can't be merged into one
+   *  correctly-paginated result. */
+  or(filterString: string) {
+    const clauses = filterString.split(',').map((clause) => {
+      const [col, op, ...rest] = clause.split('.')
+      const value = rest.join('.')
+      if (op === 'ilike') {
+        const needle = value.replace(/%/g, '').toLowerCase()
+        return (r: Row) => String(r[col] ?? '').toLowerCase().includes(needle)
+      }
+      if (op === 'is') {
+        return (r: Row) => (value === 'null' ? r[col] == null : String(r[col]) === value)
+      }
+      if (op === 'eq') {
+        return (r: Row) => String(r[col]) === value
+      }
+      throw new Error(`MockQueryBuilder.or(): unsupported operator "${op}" in clause "${clause}"`)
+    })
+    this.filters.push((r) => clauses.some((matches) => matches(r)))
+    return this
+  }
 
   // ---- shaping -------------------------------------------------------------
   order(col: string, opts?: { ascending?: boolean }) { this.orderBy = { col, asc: opts?.ascending !== false }; return this }
   limit(n: number) { this.limitN = n; return this }
-  range(from: number, to: number) { this.rangeTo = to + 1; this.limitN = to - from + 1; return this }
+  range(from: number, to: number) { this.rangeFrom = from; this.limitN = to - from + 1; return this }
 
-  select(_cols = '*') { if (this.op !== 'select') this.returning = true; return this }
+  select(_cols = '*', opts?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }) {
+    if (this.op !== 'select') this.returning = true
+    if (opts?.count) this.wantCount = true
+    if (opts?.head) this.headOnly = true
+    return this
+  }
 
   // ---- mutations -----------------------------------------------------------
   insert(payload: Row | Row[]) { this.op = 'insert'; this.payload = payload; return this }
@@ -76,15 +107,19 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     return out
   }
 
-  private shapeReturn(result: Row[]): Result {
-    if (this.want === 'single') return { data: (result[0] ?? null) as Row, error: null }
-    if (this.want === 'maybe') return { data: (result[0] ?? null) as Row, error: null }
-    return { data: result, error: null }
+  private shapeReturn(result: Row[], count?: number): Result {
+    const base = count !== undefined ? { count } : {}
+    if (this.want === 'single') return { ...base, data: (result[0] ?? null) as Row, error: null }
+    if (this.want === 'maybe') return { ...base, data: (result[0] ?? null) as Row, error: null }
+    return { ...base, data: result, error: null }
   }
 
   private async exec(): Promise<Result> {
     if (this.op === 'select') {
-      let out = this.match()
+      const matched = this.match()
+      const count = this.wantCount ? matched.length : undefined
+      if (this.headOnly) return { data: [], error: null, count: count ?? 0 }
+      let out = matched
       if (this.orderBy) {
         const { col, asc } = this.orderBy
         out = [...out].sort((a, b) => {
@@ -92,8 +127,12 @@ export class MockQueryBuilder implements PromiseLike<Result> {
           return (av < bv ? -1 : av > bv ? 1 : 0) * (asc ? 1 : -1)
         })
       }
-      if (this.limitN != null) out = out.slice(0, this.limitN)
-      return this.shapeReturn(out)
+      if (this.rangeFrom != null && this.limitN != null) {
+        out = out.slice(this.rangeFrom, this.rangeFrom + this.limitN)
+      } else if (this.limitN != null) {
+        out = out.slice(0, this.limitN)
+      }
+      return this.shapeReturn(out, count)
     }
 
     if (this.op === 'insert') {

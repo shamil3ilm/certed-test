@@ -14,6 +14,13 @@ export function todayInDisplayZone(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TZ }).format(new Date())
 }
 
+/** Day-of-week (0=Sun..6=Sat) for "today" in the institute display zone — matches
+ *  timetable_slots.day_of_week's convention. Derived from the calendar date
+ *  string (not a raw `new Date().getDay()`, which would use the server's zone). */
+export function todayDayOfWeekInDisplayZone(): number {
+  return new Date(`${todayInDisplayZone()}T00:00:00Z`).getUTCDay()
+}
+
 /**
  * True only for a real YYYY-MM-DD calendar date. `Date.parse` ROLLS OVER invalid
  * days (2026-04-31 → May 1, 2025-02-29 → Mar 1), which Postgres' `date` type then

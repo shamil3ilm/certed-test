@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { ValidationError, RateLimitError } from '@/lib/errors'
 import { getProfilesByIds } from '@/lib/services/users'
+import { addCommentSchema } from '@/lib/validation/comment'
+import { rateLimit } from '@/lib/security/rate-limit'
 
 export type CommentEntity = 'submission' | 'resource' | 'meet'
 
@@ -12,6 +15,26 @@ export type Comment = {
   created_at: string
   author_name?: string | null
   author_role?: string | null
+}
+
+export type CreateCommentActionInput = {
+  entity_type?: FormDataEntryValue | null
+  entity_id?: FormDataEntryValue | null
+  content?: FormDataEntryValue | null
+}
+
+export function validateCreateCommentInput(input: CreateCommentActionInput) {
+  const parsed = addCommentSchema.safeParse({
+    entity_type: input.entity_type,
+    entity_id: input.entity_id,
+    content: input.content,
+  })
+
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid comment data: ${parsed.error.message}`)
+  }
+
+  return parsed.data
 }
 
 /** Resolve author names + roles in a single admin lookup (shared by both list fns). */
@@ -72,4 +95,16 @@ export async function createComment(
     .single()
   if (error) throw new Error(`comments.create: ${error.message}`)
   return data as Comment
+}
+
+export async function createCommentFromActionInput(
+  authorId: string,
+  input: CreateCommentActionInput,
+): Promise<Comment> {
+  // Throttle per author so a comment thread can't be flooded (students can post here).
+  if (!rateLimit(`comment-create:${authorId}`, { limit: 20, windowMs: 60_000 }).ok) {
+    throw new RateLimitError('You are commenting too quickly. Please wait a moment.')
+  }
+  const parsed = validateCreateCommentInput(input)
+  return createComment(parsed.entity_type, parsed.entity_id, authorId, parsed.content)
 }

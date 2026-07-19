@@ -11,7 +11,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
   if (isMock()) {
     // Render the REAL template with a locally-installed Chrome/Edge if present;
     // otherwise fall back to a minimal placeholder PDF.
-    const { findLocalBrowser } = await import('@/lib/mock/localChrome')
+    const { findLocalBrowser } = await import('@/lib/mock/local-chrome')
     const executablePath = findLocalBrowser()
     if (executablePath) {
       const puppeteer = (await import('puppeteer-core')).default

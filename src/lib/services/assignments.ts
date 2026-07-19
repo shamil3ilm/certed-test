@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
-import { writeAudit } from '@/lib/repos/audit'
-import { PermissionError, NotFoundError } from '@/lib/errors'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+import { createAssignmentSchema } from '@/lib/validation/assignment'
+import { linkUrl } from '@/lib/validation/url'
+import { z } from 'zod'
 
 export type Assignment = {
   id: string
@@ -25,11 +28,12 @@ export type Assignment = {
  * the mock's string comparison is chronological too.
  */
 export async function listAssignments(
-  opts: { classId?: string; dueFrom?: string; dueTo?: string; activeOnly?: boolean } = {},
+  opts: { classId?: string; classIds?: string[]; dueFrom?: string; dueTo?: string; activeOnly?: boolean } = {},
 ): Promise<Assignment[]> {
   const supabase = await createClient()
   let query = supabase.from('assignments').select('*').order('due_date', { ascending: true })
   if (opts.classId) query = query.eq('class_id', opts.classId)
+  if (opts.classIds) query = query.in('class_id', opts.classIds)
   if (opts.activeOnly) query = query.eq('status', 'active')
   if (opts.dueFrom) query = query.gte('due_date', opts.dueFrom)
   if (opts.dueTo) query = query.lt('due_date', opts.dueTo)
@@ -52,6 +56,104 @@ export type CreateAssignmentInput = {
   attachment_drive_link?: string | null
   topic?: string | null
   max_marks?: number | null
+}
+
+export type CreateAssignmentApiInput = {
+  class_id?: unknown
+  title?: unknown
+  description?: unknown
+  due_date?: unknown
+  attachment_drive_link?: unknown
+  topic?: unknown
+  max_marks?: unknown
+}
+
+const assignmentIdSchema = z.string().uuid()
+const assignmentStatusSchema = z.enum(['active', 'archived'])
+const editAssignmentActionSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(5000),
+  due_date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'invalid datetime'),
+  attachment_drive_link: z.string().trim(),
+})
+
+export type ArchiveAssignmentActionInput = {
+  id?: FormDataEntryValue | null
+  status?: FormDataEntryValue | null
+}
+
+export type EditAssignmentActionInput = {
+  id?: FormDataEntryValue | null
+  title?: FormDataEntryValue | null
+  description?: FormDataEntryValue | null
+  due_date?: FormDataEntryValue | null
+  attachment_drive_link?: FormDataEntryValue | null
+}
+
+export function validateArchiveAssignmentInput(
+  input: ArchiveAssignmentActionInput,
+): { id: string; status: 'active' | 'archived' } {
+  const id = assignmentIdSchema.safeParse(String(input.id ?? ''))
+  const status = assignmentStatusSchema.safeParse(
+    String(input.status ?? 'archived') === 'active' ? 'active' : 'archived',
+  )
+  if (!id.success || !status.success) {
+    throw new ValidationError('Invalid assignment status update')
+  }
+  return { id: id.data, status: status.data }
+}
+
+export function validateCreateAssignmentInput(input: CreateAssignmentApiInput): CreateAssignmentInput {
+  const parsed = createAssignmentSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError('Invalid assignment data')
+  }
+  return {
+    class_id: parsed.data.class_id,
+    title: parsed.data.title,
+    description: parsed.data.description ?? null,
+    due_date: new Date(parsed.data.due_date).toISOString(),
+    attachment_drive_link: parsed.data.attachment_drive_link ?? null,
+    topic: parsed.data.topic ?? null,
+    max_marks: parsed.data.max_marks ?? null,
+  }
+}
+
+export function validateEditAssignmentInput(
+  input: EditAssignmentActionInput,
+): {
+  id: string
+  patch: {
+    title: string
+    description: string | null
+    due_date: string
+    attachment_drive_link: string | null
+  }
+} {
+  const parsed = editAssignmentActionSchema.safeParse({
+    id: String(input.id ?? ''),
+    title: String(input.title ?? ''),
+    description: String(input.description ?? ''),
+    due_date: String(input.due_date ?? ''),
+    attachment_drive_link: String(input.attachment_drive_link ?? ''),
+  })
+  if (!parsed.success) {
+    throw new ValidationError('Invalid assignment update data')
+  }
+  const brief = parsed.data.attachment_drive_link
+  if (brief && !linkUrl.safeParse(brief).success) {
+    throw new ValidationError('Invalid assignment attachment link')
+  }
+  return {
+    id: parsed.data.id,
+    patch: {
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      due_date: new Date(parsed.data.due_date).toISOString(),
+      attachment_drive_link: brief || null,
+    },
+  }
 }
 
 /**
@@ -82,8 +184,15 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
     .single()
   if (error) throw new Error(`assignments.create: ${error.message}`)
   const created = data as Assignment
-  await writeAudit({ actor_id: actor.id, action: 'assignment.create', entity_type: 'assignment', entity_id: created.id })
+  await auditPrivilegedAction(actor, 'assignment.create', 'assignment', created.id)
   return created
+}
+
+export async function createAssignmentFromApiInput(
+  actor: Profile,
+  input: CreateAssignmentApiInput,
+): Promise<Assignment> {
+  return createAssignment(actor, validateCreateAssignmentInput(input))
 }
 
 async function requireManageable(actor: Profile, id: string): Promise<Assignment> {
@@ -99,12 +208,15 @@ export async function archiveAssignment(actor: Profile, id: string, status: 'act
   const supabase = await createClient()
   const { error } = await supabase.from('assignments').update({ status }).eq('id', id)
   if (error) throw new Error(`assignments.setStatus: ${error.message}`)
-  await writeAudit({
-    actor_id: actor.id,
-    action: `assignment.${status === 'active' ? 'restore' : 'archive'}`,
-    entity_type: 'assignment',
-    entity_id: id,
-  })
+  await auditPrivilegedAction(actor, `assignment.${status === 'active' ? 'restore' : 'archive'}`, 'assignment', id)
+}
+
+export async function archiveAssignmentFromActionInput(
+  actor: Profile,
+  input: ArchiveAssignmentActionInput,
+): Promise<void> {
+  const parsed = validateArchiveAssignmentInput(input)
+  await archiveAssignment(actor, parsed.id, parsed.status)
 }
 
 export async function editAssignment(
@@ -121,5 +233,13 @@ export async function editAssignment(
   const supabase = await createClient()
   const { error } = await supabase.from('assignments').update(patch).eq('id', id)
   if (error) throw new Error(`assignments.update: ${error.message}`)
-  await writeAudit({ actor_id: actor.id, action: 'assignment.edit', entity_type: 'assignment', entity_id: id })
+  await auditPrivilegedAction(actor, 'assignment.edit', 'assignment', id)
+}
+
+export async function editAssignmentFromActionInput(
+  actor: Profile,
+  input: EditAssignmentActionInput,
+): Promise<void> {
+  const parsed = validateEditAssignmentInput(input)
+  await editAssignment(actor, parsed.id, parsed.patch)
 }

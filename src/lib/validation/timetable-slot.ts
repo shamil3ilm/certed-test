@@ -7,7 +7,7 @@ export const createSlotSchema = z
   .object({
     class_id: z.string().uuid(),
     subject: z.string().min(1).max(200),
-    teacher_id: z.string().uuid().optional(),
+    tutor_id: z.string().uuid().optional(),
     day_of_week: z.number().int().min(0).max(6),
     start_time: hhmm,
     end_time: hhmm,
@@ -21,7 +21,7 @@ export const createSlotSchema = z
 export const updateSlotSchema = z
   .object({
     subject: z.string().min(1).max(200),
-    teacher_id: z.string().uuid().nullable(),
+    tutor_id: z.string().uuid().nullable(),
     day_of_week: z.number().int().min(0).max(6),
     start_time: hhmm,
     end_time: hhmm,

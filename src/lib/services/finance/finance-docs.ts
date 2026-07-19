@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ValidationError } from '@/lib/errors'
+import { escapeIlike } from '@/lib/text/ilike'
+import { z } from 'zod'
 
 /**
  * One config-driven repo for the two finance documents. Receipts and pay slips
@@ -7,14 +10,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * shape lives in KIND and every function takes a `kind`. DB rows are normalized
  * to one domain type (`FinanceDoc`) so callers never touch the raw columns.
  *
- * Unlike every other file under services/, the mutations here (insertDoc,
- * voidDoc) do NOT embed their own permission check — that's an intentional,
- * narrower exception: this module predates the repos->services migration and
- * was already the reference implementation for it (validate -> totals ->
- * write -> audit lives in lib/finance/issue.ts and lib/finance/handlers.ts,
- * both of which gate with requireRoleApi(['admin']) first). If a new caller
- * is ever added, it must gate the same way — these functions do not enforce
- * it themselves.
+ * Unlike every other file under services/, the mutations here (voidDoc) do
+ * NOT embed their own permission check — that's an intentional, narrower
+ * exception: this module predates the repos->services migration and was
+ * already the reference implementation for it (validate -> totals -> write ->
+ * audit lives in lib/finance/issue.ts and lib/finance/handlers.ts, both of
+ * which gate with requireRoleApi(['admin']) first). New callers must gate the
+ * same way — these functions do not enforce it themselves.
  */
 
 const KIND = {
@@ -30,8 +32,8 @@ const KIND = {
   payslip: {
     table: 'payslips',
     lineTable: 'payslip_lines',
-    partyCol: 'teacher_id',
-    nameCol: 'teacher_name_snapshot',
+    partyCol: 'tutor_id',
+    nameCol: 'tutor_name_snapshot',
     labelCol: 'label',
     fkCol: 'payslip_id',
     hasClass: false,
@@ -39,8 +41,17 @@ const KIND = {
 } as const
 
 export type FinanceKind = keyof typeof KIND
+const financeDocIdSchema = z.string().uuid()
 
 export type FinanceLine = { label: string; hours: number; rate: number; amount: number }
+
+export function validateFinanceDocId(input: unknown): string {
+  const parsed = financeDocIdSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError('Invalid finance document id')
+  }
+  return parsed.data
+}
 
 /** Normalized finance document (receipt or pay slip) — the same shape for both. */
 export type FinanceDoc = {
@@ -73,6 +84,11 @@ export type NewFinanceDoc = {
   discount: number | null
   total: number
   created_by: string | null
+}
+
+export type IssueFinanceDocInput = Omit<NewFinanceDoc, 'number'> & {
+  prefix: string
+  lines: FinanceLine[]
 }
 
 function toDoc(kind: FinanceKind, row: Record<string, unknown>): FinanceDoc {
@@ -134,6 +150,36 @@ export async function listRecentDocs(kind: FinanceKind, limit = 100): Promise<Fi
   return ((data ?? []) as Record<string, unknown>[]).map((r) => toDoc(kind, r))
 }
 
+export type PaginatedFinanceDocs = { items: FinanceDoc[]; total: number }
+
+/** Real page-through + search/filter for the admin finance ledger — the page
+ *  previously fetched a flat newest-200 window with no way to reach anything
+ *  older or find a specific document. Search matches the document number or
+ *  the party's name-snapshot (student/tutor name at time of issue). */
+export async function listDocsPage(
+  kind: FinanceKind,
+  opts: { page: number; pageSize: number; search?: string; status?: 'active' | 'voided' },
+): Promise<PaginatedFinanceDocs> {
+  const k = KIND[kind]
+  const supabase = await createClient()
+  const from = (opts.page - 1) * opts.pageSize
+  const to = from + opts.pageSize - 1
+  let query = supabase.from(k.table).select('*', { count: 'exact' }).order('created_at', { ascending: false })
+  if (opts.status === 'active') query = query.eq('voided', false)
+  if (opts.status === 'voided') query = query.eq('voided', true)
+  const search = opts.search?.trim()
+  if (search) {
+    const needle = escapeIlike(search)
+    query = query.or(`number.ilike.%${needle}%,${k.nameCol}.ilike.%${needle}%`)
+  }
+  const { data, error, count } = await query.range(from, to)
+  if (error) throw new Error(`${kind}.listPage: ${error.message}`)
+  return {
+    items: ((data ?? []) as Record<string, unknown>[]).map((r) => toDoc(kind, r)),
+    total: count ?? 0,
+  }
+}
+
 export type FinanceTotal = { currency: string; live_total: number; live_count: number }
 
 /** Per-currency, non-voided totals computed in SQL — no rows shipped to the app. */
@@ -172,38 +218,26 @@ export async function getDocLines(kind: FinanceKind, id: string): Promise<Financ
   }))
 }
 
-/** Inserts the document + its lines (admin-only issuance, via service-role). */
-export async function insertDoc(
-  kind: FinanceKind,
-  doc: NewFinanceDoc,
-  lines: FinanceLine[],
-): Promise<FinanceDoc> {
-  const k = KIND[kind]
+/** Issues a finance document atomically inside the database, including number allocation and line insertion. */
+export async function issueDocRecord(kind: FinanceKind, doc: IssueFinanceDocInput): Promise<FinanceDoc> {
   const admin = createAdminClient()
-  const record: Record<string, unknown> = {
-    number: doc.number,
-    [k.partyCol]: doc.party_id,
-    [k.nameCol]: doc.party_name,
-    issue_date: doc.issue_date,
-    currency: doc.currency,
-    note: doc.note,
-    subtotal: doc.subtotal,
-    discount: doc.discount,
-    total: doc.total,
-    voided: false,
-    created_by: doc.created_by,
-  }
-  if (k.hasClass) record.class_snapshot = doc.class_level
-  const { data, error } = await admin.from(k.table).insert(record).select('*').single()
-  if (error) throw new Error(`${kind}.insert: ${error.message}`)
-  const created = toDoc(kind, data as Record<string, unknown>)
-  if (lines.length) {
-    const { error: le } = await admin.from(k.lineTable).insert(
-      lines.map((l) => ({ [k.fkCol]: created.id, [k.labelCol]: l.label, hours: l.hours, rate: l.rate, amount: l.amount })),
-    )
-    if (le) throw new Error(`${kind}_lines.insert: ${le.message}`)
-  }
-  return created
+  const fn = kind === 'receipt' ? 'issue_receipt_doc' : 'issue_payslip_doc'
+  const { data, error } = await admin.rpc(fn, {
+    p_party_id: doc.party_id,
+    p_party_name: doc.party_name,
+    p_class_level: doc.class_level,
+    p_issue_date: doc.issue_date,
+    p_currency: doc.currency,
+    p_note: doc.note,
+    p_subtotal: doc.subtotal,
+    p_discount: doc.discount,
+    p_total: doc.total,
+    p_created_by: doc.created_by,
+    p_prefix: doc.prefix,
+    p_lines: doc.lines,
+  })
+  if (error) throw new Error(`${kind}.issue: ${error.message}`)
+  return toDoc(kind, data as Record<string, unknown>)
 }
 
 /**

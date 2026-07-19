@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { escapeIlike } from '@/lib/text/ilike'
 
 export type AuditAction =
   | 'user.add'
@@ -17,17 +18,33 @@ export type AuditRow = {
   created_at: string
 }
 
-/** Recent audit entries, newest first, for the admin activity log. Service-role
- *  read (the page gates to admin; audit_read RLS is admin-only too). */
-export async function listAudit(limit = 250): Promise<AuditRow[]> {
+export type PaginatedAudit = { items: AuditRow[]; total: number }
+
+/**
+ * Paginated + filtered read of the activity log. Action is a free-text ilike
+ * match (e.g. "grade" matches "submission.grade"); actorIds narrows to specific
+ * actors, resolved by the caller (a name/email search against profiles) since
+ * audit_log only stores actor_id, not a name.
+ */
+export async function listAuditPage(opts: {
+  page: number
+  pageSize: number
+  action?: string
+  actorIds?: string[]
+}): Promise<PaginatedAudit> {
   const admin = createAdminClient()
-  const { data, error } = await admin
+  const from = (opts.page - 1) * opts.pageSize
+  const to = from + opts.pageSize - 1
+  let query = admin
     .from('audit_log')
-    .select('id, actor_id, action, entity_type, entity_id, created_at')
+    .select('id, actor_id, action, entity_type, entity_id, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw new Error(`audit.list: ${error.message}`)
-  return (data ?? []) as AuditRow[]
+  const action = opts.action?.trim()
+  if (action) query = query.ilike('action', `%${escapeIlike(action)}%`)
+  if (opts.actorIds) query = query.in('actor_id', opts.actorIds)
+  const { data, error, count } = await query.range(from, to)
+  if (error) throw new Error(`audit.listPage: ${error.message}`)
+  return { items: (data ?? []) as AuditRow[], total: count ?? 0 }
 }
 
 /** Records a sensitive action. Uses the service-role client (server-only). */

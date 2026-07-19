@@ -77,3 +77,13 @@ export function totalByCurrency(
   const g = [...m.entries()]
   return g.length ? g.map(([c, t]) => formatMoney(t, c)).join(' + ') : formatMoney(0, 'INR')
 }
+
+/** Renders already-aggregated per-currency totals into one display string, with a
+ *  zero fallback when there are none. Shared by the dashboard finance card and its
+ *  drill-down modal (was duplicated in both). */
+export function formatMoneyTotals(
+  totals: ReadonlyArray<{ currency: string; live_total: number }>,
+  fallback = 'INR',
+): string {
+  return totals.length ? totals.map((t) => formatMoney(t.live_total, t.currency)).join(' + ') : formatMoney(0, fallback)
+}

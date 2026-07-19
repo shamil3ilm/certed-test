@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-export const roleSchema = z.enum(['admin', 'sub_admin', 'teacher', 'student'])
+export const roleSchema = z.enum(['admin', 'sub_admin', 'tutor', 'student'])
 
 /** Roles a Sub Admin is allowed to create/assign (never the admin tier). */
-export const subAdminAssignableRoles = ['teacher', 'student'] as const
+export const subAdminAssignableRoles = ['tutor', 'student'] as const
 
 export const addUserSchema = z.object({
   email: z.string().email(),
@@ -13,9 +13,16 @@ export const addUserSchema = z.object({
 })
 export type AddUserInput = z.infer<typeof addUserSchema>
 
+/**
+ * Editing a user updates profile details only — never their role. Personas are
+ * fixed identities (a student is not converted into staff, nor staff into a
+ * student), so role reassignment is deliberately excluded from the everyday
+ * Users hub. If reassignment is ever required it must be a separate, audited
+ * admin-only migration that also reconciles class memberships, mentorships,
+ * scoped personas, and finance expectations.
+ */
 export const editUserSchema = z.object({
   full_name: z.string().max(120).nullable().optional(),
-  role: roleSchema.optional(),
   class_level: z.string().max(20).nullable().optional(),
 })
 export type EditUserInput = z.infer<typeof editUserSchema>
