@@ -28,7 +28,7 @@ export function StatModalCard({
   empty?: string
   /**
    * Fetch the modal's contents on first open instead of eagerly on page load
-   * — for lists that can grow with the whole academy (all students, all
+   * - for lists that can grow with the whole academy (all students, all
    * tutors, all classes). When provided, `items`/`sections` are ignored;
    * when omitted, `items`/`sections` are read directly from props every
    * render (so they stay in sync with a server re-render/revalidation,
@@ -90,8 +90,8 @@ export function StatModalCard({
           </>
         }
       >
-        {showLoading && <p className="py-6 text-center text-sm text-slate-400">Loading…</p>}
-        {showError && <p className="py-6 text-center text-sm text-red-500">Couldn&apos;t load this — try again.</p>}
+        {showLoading && <p className="py-6 text-center text-sm text-slate-400">Loading...</p>}
+        {showError && <p className="py-6 text-center text-sm text-red-500">Couldn&apos;t load this - try again.</p>}
         {!isPending &&
           groups.map((g, gi) => (
             <div key={gi} className="mt-4 first:mt-0">

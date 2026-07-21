@@ -13,7 +13,7 @@ import { UploadForm } from '../../../resources/UploadForm'
 import { CommentThread } from '../../../CommentThread'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { SubmitButton } from '../../../form'
-import { Card, EmptyState, Badge } from '../../../ui'
+import { Card, EmptyState, Badge, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../../ui'
 import { LocalTime } from '../../../LocalTime'
 
 export default async function ClassworkPage({
@@ -29,7 +29,7 @@ export default async function ClassworkPage({
   return (
     <div className="space-y-10">
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Assignments</h2>
+        <SectionLabel>Assignments</SectionLabel>
         {data.canManage && <AssignmentForm classes={data.classList} />}
 
         <ul className="space-y-3">
@@ -191,27 +191,20 @@ export default async function ClassworkPage({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Materials</h2>
+        <SectionLabel>Materials</SectionLabel>
         {data.canManage && <UploadForm classes={data.classList} />}
 
-        <form className="flex flex-wrap items-end gap-2">
-          <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-            Search materials
+        <FilterBar clearHref="?" showClear={Boolean(data.materialsQuery)} applyLabel="Search">
+          <FilterField label="Search materials" className="min-w-0 flex-1 sm:max-w-xs">
             <input
               type="search"
               name="matQ"
               defaultValue={data.materialsQuery ?? ''}
               placeholder="Title..."
-              className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className={cx(FILTER_CONTROL, 'w-full')}
             />
-          </label>
-          <button className="btn btn-sm btn-soft">Search</button>
-          {data.materialsQuery && (
-            <a href="?" className="text-xs font-medium text-slate-400 hover:text-primary">
-              Clear
-            </a>
-          )}
-        </form>
+          </FilterField>
+        </FilterBar>
 
         <ul className="space-y-4">
           {data.resourceViews.map(({ resource, comments }) => (

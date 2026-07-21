@@ -1,12 +1,13 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { createCommentFromActionInput } from '@/lib/services/comments'
 
-/** Post a comment on any commentable entity. RLS enforces the actual access rule. */
+/** Post a comment on any commentable entity. viewClasses = class participants
+ *  (admin/tutor/student); RLS enforces the actual per-entity access rule. */
 export async function addCommentAction(formData: FormData): Promise<ActionStatusResult> {
-  const me = await requireRole(['admin', 'tutor', 'student'])
+  const me = await requireCapability('viewClasses')
   try {
     await createCommentFromActionInput(me.id, {
       entity_type: formData.get('entity_type'),

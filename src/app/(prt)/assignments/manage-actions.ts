@@ -1,6 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { archiveAssignmentFromActionInput, editAssignmentFromActionInput } from '@/lib/services/assignments'
 import { gradeSubmissionFromActionInput } from '@/lib/services/submissions'
@@ -10,7 +10,7 @@ import { archiveResourceFromActionInput, restoreResourceFromActionInput } from '
 // and action-input parsing lives with the owning domain service.
 
 export async function archiveAssignmentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   await archiveAssignmentFromActionInput(me, {
     id: formData.get('id'),
     status: formData.get('status'),
@@ -20,7 +20,7 @@ export async function archiveAssignmentAction(formData: FormData) {
 
 /** `due_date` arrives already converted to an ISO instant by the client. */
 export async function editAssignmentAction(formData: FormData): Promise<ActionStatusResult> {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   try {
     await editAssignmentFromActionInput(me, {
       id: formData.get('id'),
@@ -44,7 +44,7 @@ export async function editAssignmentAction(formData: FormData): Promise<ActionSt
 export async function gradeSubmissionAction(
   formData: FormData,
 ): Promise<ActionStatusResult> {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('viewGrading') // grading matches the grading/assignment-detail pages
   try {
     const { assignmentId } = await gradeSubmissionFromActionInput(me, {
       submission_id: formData.get('submission_id'),
@@ -61,13 +61,13 @@ export async function gradeSubmissionAction(
 
 /** Soft-remove a material (kept on record via status='archived'). */
 export async function deleteResourceAction(formData: FormData) {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   await archiveResourceFromActionInput(me, { id: formData.get('id') })
   revalidatePath('/classroom', 'layout')
 }
 
 export async function restoreResourceAction(formData: FormData) {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   await restoreResourceFromActionInput(me, { id: formData.get('id') })
   revalidatePath('/classroom', 'layout')
 }

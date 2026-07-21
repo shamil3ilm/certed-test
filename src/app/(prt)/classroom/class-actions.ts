@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireRole, requireCapability } from '@/lib/auth/require-role'
 import {
   createClassFromActionInput,
   archiveClassFromActionInput,
@@ -13,7 +13,16 @@ import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/servi
 
 const refresh = () => revalidatePath('/classroom', 'layout')
 
-/** Create a class (admin-only — admins own the class lifecycle; tutors run day-to-day). */
+// DELIBERATE role guard, not capability drift: the class *lifecycle* below is an
+// admin-tier structural rule, and each underlying service already enforces
+// requireAdminPersona + audit. Capability overrides reach only the entry guards
+// and nav (not the service layer), so gating these on a capability would let an
+// override pass the action while the service still denied it. Keep them role-based
+// until service-layer capability resolution exists (then a `manageClasses`
+// capability could make class administration override-grantable). Day-to-day
+// enrolment (bottom) is capability-based because its service is not admin-only.
+
+/** Create a class (admin-only - admins own the class lifecycle; tutors run day-to-day). */
 export async function createClassAction(formData: FormData) {
   const me = await requireRole(['admin'])
   const course = await createClassFromActionInput(me, { name: formData.get('name') })
@@ -21,10 +30,10 @@ export async function createClassAction(formData: FormData) {
 }
 
 // Whole-class management (rename, archive/restore, co-tutor add/remove) is
-// ADMIN-ONLY — a single tutor shouldn't be able to rename/hide a shared class or
+// ADMIN-ONLY - a single tutor shouldn't be able to rename/hide a shared class or
 // change its teaching staff. Day-to-day student enrolment (below) stays with tutors.
 // Permission check + audit for every mutation below now happen inside the
-// relevant service — not swallowed to a no-op here.
+// relevant service - not swallowed to a no-op here.
 
 export async function renameClassAction(formData: FormData) {
   const me = await requireRole(['admin'])
@@ -66,7 +75,7 @@ export async function removeTutorAction(formData: FormData) {
 }
 
 export async function enrolStudentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   await enrolStudentFromActionInput(me, {
     class_id: formData.get('class_id'),
     student_id: formData.get('student_id'),
@@ -75,7 +84,7 @@ export async function enrolStudentAction(formData: FormData) {
 }
 
 export async function removeStudentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   await removeStudentFromActionInput(me, {
     class_id: formData.get('class_id'),
     student_id: formData.get('student_id'),

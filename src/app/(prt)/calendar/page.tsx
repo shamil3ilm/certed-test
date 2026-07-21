@@ -5,7 +5,7 @@ import { TimetableManager } from './TimetableManager'
 import { PageHeader } from '../ui'
 
 export default async function CalendarPage() {
-  // viewCalendar (admin/tutor/student) — matches the nav. The prior active-only
+  // viewCalendar (admin/tutor/student) - matches the nav. The prior active-only
   // check let a sub_admin (no viewCalendar) reach this page by direct URL.
   const me = await requireCapability('viewCalendar')
 

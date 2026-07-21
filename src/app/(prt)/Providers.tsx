@@ -51,7 +51,7 @@ export function PortalProviders({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ toast, confirm }}>
       {children}
 
-      {/* Toasts — announced to assistive tech (the only success/error signal for the forms) */}
+      {/* Toasts - announced to assistive tech (the only success/error signal for the forms) */}
       <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
         {toasts.map((t) => (
           <div
@@ -64,13 +64,13 @@ export function PortalProviders({ children }: { children: ReactNode }) {
                   : 'border-slate-200 bg-white text-slate-700'
             }`}
           >
-            <span aria-hidden="true">{t.type === 'success' ? '✓' : t.type === 'error' ? '⚠' : 'ℹ'}</span>
+            <span aria-hidden="true">{t.type === 'success' ? '2713' : t.type === 'error' ? '26a0' : '2139'}</span>
             {t.msg}
           </div>
         ))}
       </div>
 
-      {/* Confirm / warning dialog — reuses the one shared Modal shell */}
+      {/* Confirm / warning dialog - reuses the one shared Modal shell */}
       <Modal open={!!confirmState} onClose={() => close(false)} size="sm" title={confirmState?.title}>
         {confirmState?.message && <p className="text-sm text-slate-500">{confirmState.message}</p>}
         <div className="mt-5 flex justify-end gap-2">

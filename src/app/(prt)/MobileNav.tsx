@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { cx } from './ui'
+import { NavIcon } from './NavIcon'
 
 type NavItem = { href: string; label: string }
 
@@ -27,7 +29,7 @@ export function MobileNav({ links }: { links: NavItem[] }) {
             <div className="flex items-center justify-between">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/cert-ed-academia-online-tuition-logo.webp" alt="Cert-Ed Academia" className="h-8 w-auto object-contain" />
-              <button onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">✕</button>
+              <button onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">&times;</button>
             </div>
             <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
               {links.map((l) => {
@@ -38,12 +40,14 @@ export function MobileNav({ links }: { links: NavItem[] }) {
                     href={l.href}
                     onClick={() => setOpen(false)}
                     aria-current={active ? 'page' : undefined}
-                    className={
+                    className={cx(
+                      'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition',
                       active
-                        ? 'rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary'
-                        : 'rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-primary/5 hover:text-primary'
-                    }
+                        ? 'bg-gradient-to-r from-primary/15 to-secondary/10 font-semibold text-primary ring-1 ring-primary/10'
+                        : 'font-medium text-slate-600 hover:bg-primary/5 hover:text-primary',
+                    )}
                   >
+                    <NavIcon href={l.href} />
                     {l.label}
                   </Link>
                 )

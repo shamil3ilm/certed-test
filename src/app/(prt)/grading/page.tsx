@@ -1,7 +1,6 @@
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
-import { PageHeader, Card, Avatar, EmptyState, Badge } from '../ui'
+import { PageHeader, Avatar, EmptyState, Badge, ListRow, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '../ui'
 import { LocalTime } from '../LocalTime'
 
 export default async function GradingQueuePage({
@@ -16,25 +15,19 @@ export default async function GradingQueuePage({
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <PageHeader title="Grading" description={`${data.totalUngraded} submission(s) awaiting a mark`} />
 
-      <form className="flex flex-wrap items-end gap-2">
-        <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-          Search
+      <FilterBar clearHref="/grading" showClear={Boolean(searchParams?.q || data.classFilter)}>
+        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
           <input
             type="search"
             name="q"
             defaultValue={searchParams?.q ?? ''}
             placeholder="Student or assignment..."
-            className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className={cx(FILTER_CONTROL, 'w-full')}
           />
-        </label>
+        </FilterField>
         {data.classOptions.length > 1 && (
-          <label className="text-xs font-medium text-slate-500">
-            Class
-            <select
-              name="classId"
-              defaultValue={data.classFilter ?? ''}
-              className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm"
-            >
+          <FilterField label="Class">
+            <select name="classId" defaultValue={data.classFilter ?? ''} className={FILTER_CONTROL}>
               <option value="">All classes</option>
               {data.classOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -42,15 +35,9 @@ export default async function GradingQueuePage({
                 </option>
               ))}
             </select>
-          </label>
+          </FilterField>
         )}
-        <button className="btn btn-sm btn-soft">Apply</button>
-        {(searchParams?.q || data.classFilter) && (
-          <a href="/grading" className="text-xs font-medium text-slate-400 hover:text-primary">
-            Clear
-          </a>
-        )}
-      </form>
+      </FilterBar>
 
       {data.totalUngraded === 0 ? (
         <div className="mt-6">
@@ -64,25 +51,18 @@ export default async function GradingQueuePage({
         <div className="mt-6 space-y-8">
           {data.sections.map((section) => (
             <section key={section.classId} className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-                {section.className} <span className="text-slate-300">- {section.items.length}</span>
-              </h2>
+              <SectionLabel count={section.items.length}>{section.className}</SectionLabel>
               <ul className="space-y-2">
                 {section.items.map((item) => (
-                  <Card as="li" key={item.id} interactive className="p-3">
-                    <Link href={`/assignments/${item.assignmentId}#sub-${item.id}`} className="flex items-center gap-3">
-                      <Avatar name={item.studentName} role="student" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-slate-800">
-                          {item.studentName} - {item.assignmentTitle}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          submitted <LocalTime iso={item.submittedAt} />
-                        </p>
-                      </div>
-                      {item.status === 'late' && <Badge tone="danger">late</Badge>}
-                    </Link>
-                  </Card>
+                  <li key={item.id}>
+                    <ListRow
+                      href={`/assignments/${item.assignmentId}#sub-${item.id}`}
+                      leading={<Avatar name={item.studentName} role="student" />}
+                      title={`${item.studentName} - ${item.assignmentTitle}`}
+                      subtitle={<>submitted <LocalTime iso={item.submittedAt} /></>}
+                      trailing={item.status === 'late' ? <Badge tone="danger">late</Badge> : undefined}
+                    />
+                  </li>
                 ))}
               </ul>
             </section>

@@ -1,6 +1,6 @@
 'use client'
 
-/** Portal error boundary — keeps a failed read/action inside the branded shell
+/** Portal error boundary - keeps a failed read/action inside the branded shell
  *  with a retry, instead of Next's bare error page. */
 export default function PortalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (

@@ -8,7 +8,7 @@ import {
 } from '@/lib/services/finance/admin-finance'
 import { IssueForm } from './IssueForm'
 import { VoidButton } from './VoidButton'
-import { PageHeader } from '../../ui'
+import { PageHeader, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../ui'
 
 function DocTable({
   title,
@@ -29,37 +29,33 @@ function DocTable({
         </a>
       </div>
 
-      <form className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-          Search
+      <FilterBar
+        className="mt-2"
+        clearHref={financeUrl(kind, { page: 1 }, other)}
+        showClear={Boolean(filters.q || filters.status)}
+      >
+        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
           <input
             type="search"
             name={kind === 'receipts' ? 'rq' : 'pq'}
             defaultValue={filters.q ?? ''}
             placeholder="Number or name..."
-            className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className={cx(FILTER_CONTROL, 'w-full')}
           />
-        </label>
-        <label className="text-xs font-medium text-slate-500">
-          Status
+        </FilterField>
+        <FilterField label="Status">
           <select
             name={kind === 'receipts' ? 'rstatus' : 'pstatus'}
             defaultValue={filters.status ?? ''}
-            className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className={FILTER_CONTROL}
           >
             <option value="">All</option>
             <option value="active">Active</option>
             <option value="voided">Voided</option>
           </select>
-        </label>
+        </FilterField>
         <SiblingFilterFields kind={kind} other={other} />
-        <button className="btn btn-sm btn-soft">Apply</button>
-        {(filters.q || filters.status) && (
-          <Link href={financeUrl(kind, { page: 1 }, other)} className="text-xs font-medium text-slate-400 hover:text-primary">
-            Clear
-          </Link>
-        )}
-      </form>
+      </FilterBar>
 
       <div className="mt-2 overflow-x-auto">
         <table className="data-table">

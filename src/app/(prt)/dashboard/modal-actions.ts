@@ -1,6 +1,5 @@
 'use server'
-import { requireActiveProfile } from '@/lib/auth/require-role'
-import { hasCapability, isAdminTier } from '@/lib/capabilities'
+import { requireCapability } from '@/lib/auth/require-role'
 import { listProfiles } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
@@ -10,40 +9,42 @@ import { formatMoney, formatMoneyTotals } from '@/lib/money'
 /**
  * On-demand content for the Admin/Sub Admin dashboard stat-card modals. These
  * lists can grow with the whole academy (every student, every tutor, every
- * class), so they're fetched only when the modal is actually opened —
- * StatModalCard's `load` prop — instead of on every dashboard page load.
- * Each action asserts the specific CAPABILITY itself; the dashboard page's own
- * `viewDashboard` gate only proves you can see a dashboard, not that you're
- * allowed to read academy-wide people/class/finance data.
+ * class), so they're fetched only when the modal is actually opened -
+ * StatModalCard's `load` prop - instead of on every dashboard page load.
+ *
+ * Each loader re-asserts its specific CAPABILITY via requireCapability, which
+ * decides against the actor's RESOLVED capabilities (persona baseline + admin
+ * overrides) - the same guard the pages and nav use, so an override is honoured
+ * here too. The dashboard page's own `viewDashboard` gate only proves you can
+ * see a dashboard, not that you may read academy-wide people/class/finance data;
+ * a caller lacking the capability is redirected rather than shown partial data.
  */
 
 export async function loadStudentsModal() {
-  const me = await requireActiveProfile()
-  if (!hasCapability(me, 'manageUsers')) throw new Error('forbidden')
+  await requireCapability('manageUsers')
   const profiles = await listProfiles()
   const students = profiles.filter((p) => p.role === 'student')
   return { items: students.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.class_level ?? p.email })) }
 }
 
 export async function loadTutorsModal() {
-  const me = await requireActiveProfile()
-  if (!hasCapability(me, 'manageUsers')) throw new Error('forbidden')
+  await requireCapability('manageUsers')
   const profiles = await listProfiles()
   const tutors = profiles.filter((p) => p.role === 'tutor')
   return { items: tutors.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email })) }
 }
 
 export async function loadPendingModal() {
-  const me = await requireActiveProfile()
-  if (!hasCapability(me, 'manageUsers')) throw new Error('forbidden')
+  await requireCapability('manageUsers')
   const profiles = await listProfiles()
   const pending = profiles.filter((p) => p.status === 'pending')
   return { items: pending.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email })) }
 }
 
 export async function loadActiveClassesModal() {
-  const me = await requireActiveProfile()
-  if (!isAdminTier(me)) throw new Error('forbidden')
+  // manageAdminTier is the admin-tier marker (a hard rule, never override-granted),
+  // preserving this modal's admin-only reach exactly as the prior isAdminTier check.
+  await requireCapability('manageAdminTier')
   const [classes, enrollCounts] = await Promise.all([listClasses(), countEnrollmentsPerClass()])
   const active = classes.filter((c) => c.status === 'active')
   return {
@@ -56,8 +57,7 @@ export async function loadActiveClassesModal() {
 }
 
 export async function loadFinanceModal() {
-  const me = await requireActiveProfile()
-  if (!hasCapability(me, 'viewFinance')) throw new Error('forbidden')
+  await requireCapability('viewFinance')
   const [receiptTotals, payslipTotals, recentReceipts, recentPayslips] = await Promise.all([
     financeTotals('receipt'),
     financeTotals('payslip'),
@@ -69,12 +69,12 @@ export async function loadFinanceModal() {
   return {
     sections: [
       {
-        heading: 'Revenue · receipts',
+        heading: 'Revenue - receipts',
         total: formatMoneyTotals(receiptTotals),
         items: liveReceipts.map((r) => ({ primary: r.number, secondary: formatMoney(Number(r.total), r.currency) })),
       },
       {
-        heading: 'Payouts · pay slips',
+        heading: 'Payouts - pay slips',
         total: formatMoneyTotals(payslipTotals),
         items: livePayslips.map((p) => ({ primary: p.number, secondary: formatMoney(Number(p.total), p.currency) })),
       },

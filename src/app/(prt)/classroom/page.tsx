@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { hasCapability, isAdminTier } from '@/lib/capabilities'
 import { listMyClasses, type ClassSummary } from '@/lib/services/classes'
-import { PageHeader, EmptyState, CARD, classBanner, cx } from '../ui'
+import { PageHeader, EmptyState, RowChevron, CARD, classBanner, cx } from '../ui'
 import { Field, Input, SubmitButton } from '../form'
 import { createClassAction } from './class-actions'
 
@@ -48,7 +48,7 @@ function ClassCard({ c }: { c: ClassSummary }) {
           </svg>
           {c.tutorCount} tutor{c.tutorCount !== 1 ? 's' : ''}
         </span>
-        <span className="ml-auto font-semibold text-primary opacity-0 transition group-hover:opacity-100">Open -&gt;</span>
+        <RowChevron className="ml-auto" />
       </div>
     </Link>
   )

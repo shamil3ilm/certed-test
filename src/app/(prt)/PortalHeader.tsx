@@ -12,7 +12,7 @@ export async function PortalHeader() {
   if (actor.accessState !== 'active' || !actor.profile) return null
 
   const profile = actor.profile
-  const links = navFor(actor.personas)
+  const links = navFor(actor.capabilities.allowed)
   const label = personaLabel(actor.personas)
 
   return (

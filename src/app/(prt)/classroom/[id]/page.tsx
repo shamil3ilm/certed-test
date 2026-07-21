@@ -11,7 +11,7 @@ import {
 import { MeetForm } from '../../meetings/MeetForm'
 import { MeetList } from '../../meetings/MeetList'
 import { restoreMeetLinkAction } from '../../meetings/actions'
-import { Card, EmptyState, Badge } from '../../ui'
+import { Card, EmptyState, Badge, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../ui'
 import { Field, Input, Select, Textarea, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 
@@ -28,26 +28,19 @@ export default async function ClassStreamPage({
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Stream</h2>
+        <SectionLabel>Stream</SectionLabel>
 
-        <form className="flex flex-wrap items-end gap-2">
-          <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-            Search posts
+        <FilterBar clearHref="?" showClear={Boolean(data.streamQ)} applyLabel="Search">
+          <FilterField label="Search posts" className="min-w-0 flex-1 sm:max-w-xs">
             <input
               type="search"
               name="streamQ"
               defaultValue={data.streamQ ?? ''}
               placeholder="Title or message..."
-              className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className={cx(FILTER_CONTROL, 'w-full')}
             />
-          </label>
-          <button className="btn btn-sm btn-soft">Search</button>
-          {data.streamQ && (
-            <a href="?" className="text-xs font-medium text-slate-400 hover:text-primary">
-              Clear
-            </a>
-          )}
-        </form>
+          </FilterField>
+        </FilterBar>
 
         {data.canManage && (
           <form
@@ -168,7 +161,7 @@ export default async function ClassStreamPage({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Class meet</h2>
+        <SectionLabel>Class meet</SectionLabel>
         {data.canManage && <MeetForm classes={data.classList} canGlobal={data.isAdmin} />}
         <MeetList
           meetLinks={data.meetLinks}

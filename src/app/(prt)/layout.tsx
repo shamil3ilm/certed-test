@@ -4,10 +4,10 @@ import { PortalProviders } from "./Providers";
 import { IdleLogout } from "./IdleLogout";
 
 export const metadata: Metadata = {
-  title: "Cert-Ed Academia — App",
+  title: "Cert-Ed Academia - App",
 };
 
-// Portal pages are auth-dependent — never statically cache/prerender them
+// Portal pages are auth-dependent - never statically cache/prerender them
 // (otherwise build-time redirects get baked in without a Location header).
 export const dynamic = "force-dynamic";
 
@@ -26,11 +26,11 @@ export default function AppLayout({
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs leading-relaxed text-slate-400 sm:flex-row">
             <div className="text-center sm:text-left">
               <p className="font-semibold text-slate-500">Cert-Ed Academia</p>
-              <p className="mt-0.5">© 2026 Cert-Ed Academia · v1.0.0</p>
+              <p className="mt-0.5">&copy; 2026 Cert-Ed Academia - v1.0.0</p>
             </div>
             <div className="text-center sm:text-right">
               <p>Come, let&apos;s learn together!</p>
-              <p className="mt-0.5">hello@certedacademia.com · +91 98765 43210</p>
+              <p className="mt-0.5">hello@certedacademia.com - +91 98765 43210</p>
             </div>
           </div>
         </footer>

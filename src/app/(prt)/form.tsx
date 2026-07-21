@@ -10,7 +10,7 @@ import type {
 import { cx } from './ui'
 
 /**
- * Shared form primitives — the single home for input/select/textarea styling
+ * Shared form primitives - the single home for input/select/textarea styling
  * and the submit button, instead of re-typing the class strings in every form
  * (they had drifted into two inconsistent styles across ~8 files).
  */
@@ -43,7 +43,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return <input {...props} className={cx(FIELD, className)} />
 }
 
-/** Password field with a show/hide toggle. Don't pass `type` — it's managed here. */
+/** Password field with a show/hide toggle. Don't pass `type` - it's managed here. */
 export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const [show, setShow] = useState(false)
   return (
@@ -99,7 +99,7 @@ export function SubmitButton({
   const { pending } = useFormStatus()
   return (
     <button type="submit" disabled={pending} className={cx('btn', className || 'btn-primary')}>
-      {pending ? (pendingLabel ?? 'Working…') : children}
+      {pending ? (pendingLabel ?? 'Working...') : children}
     </button>
   )
 }

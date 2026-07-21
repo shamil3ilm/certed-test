@@ -2,8 +2,8 @@
 import type { ReactNode } from 'react'
 
 /**
- * Shared modal shell — one overlay/panel/close implementation for every dialog
- * in the portal (stat cards, calendar event details, …). The parent owns the
+ * Shared modal shell - one overlay/panel/close implementation for every dialog
+ * in the portal (stat cards, calendar event details, ...). The parent owns the
  * `open` boolean; this renders nothing when closed.
  */
 export function Modal({
@@ -40,7 +40,7 @@ export function Modal({
               className="-m-2 grid h-9 w-9 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               aria-label="Close"
             >
-              ✕
+              &times;
             </button>
           </div>
         )}

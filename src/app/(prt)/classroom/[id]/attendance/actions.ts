@@ -1,6 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { actionFail, actionOk, toActionError, type ActionResult } from '@/lib/api/action-error'
 import { clearAttendanceSession, markAttendance, type MarkAttendanceInput } from '@/lib/services/attendance'
 
@@ -12,7 +12,7 @@ import { clearAttendanceSession, markAttendance, type MarkAttendanceInput } from
 export async function markAttendanceAction(
   formData: FormData,
 ): Promise<ActionResult<{ saved: number }>> {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
   if (!classId || !date) return actionFail('Missing class or date.')
@@ -37,7 +37,7 @@ export async function markAttendanceAction(
  *  page revalidates and re-renders the now-unmarked roster. Permission + audit
  *  happen inside the service. */
 export async function clearAttendanceAction(formData: FormData): Promise<void> {
-  const me = await requireRole(['admin', 'tutor'])
+  const me = await requireCapability('manageClassContent')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
   if (!classId || !date) return

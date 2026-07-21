@@ -9,7 +9,7 @@ Two apps share this repo, split by host:
 
 - **Allowlist-only** access — Google sign-in via Supabase; admins pre-create profiles by email, bound to the Google identity on first login. No self-registration.
 - **Class-centric** — Stream / Classwork / People live inside each class.
-- **Roles**: admin, teacher, student — plus a pastoral **mentor** (a teacher given oversight of specific students).
+- **Roles**: admin, tutor, student — plus a pastoral **mentor** (a tutor given oversight of specific students).
 - **Files are Google Drive links** by default — users paste an "anyone with the link" URL. An **optional** one-click Drive Picker can upload to the student's own Drive (see the setup guide).
 - **Features**: classes (admin-owned lifecycle), assignments + Drive-link submissions (on-time/late), resources, announcements & meet links (per-class **and** academy-wide), finance (receipts / pay slips, on-demand PDF), calendar + recurring timetable, per-role dashboards, mentorships, reminders.
 
@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 
-Open the app host and sign in at `/login` with a demo account — `admin@mock.test`, `teacher@mock.test`, `mentor@mock.test`, or `student@mock.test` (password `cert-ed`). Delete `.mock-db.json` to reseed.
+Open the app host and sign in at `/login` with a demo account — `admin@mock.test`, `tutor@mock.test`, `mentor@mock.test`, or `student@mock.test` (password `cert-ed`). Delete `.mock-db.json` to reseed.
 
 ## Going live
 

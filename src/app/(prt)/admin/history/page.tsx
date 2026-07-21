@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { historyUrl, loadHistoryPageData } from '@/lib/services/page-data/history'
-import { PageHeader, EmptyState } from '../../ui'
+import { PageHeader, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function HistoryPage({
@@ -19,34 +19,26 @@ export default async function HistoryPage({
         description="Sensitive actions across the academy - user changes, grading, finance and more - newest first. Read-only."
       />
 
-      <form className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-          Action
+      <FilterBar className="mt-2" clearHref="/admin/history" showClear={Boolean(filters.action || filters.actor)}>
+        <FilterField label="Action" className="min-w-0 flex-1 sm:max-w-xs">
           <input
             type="search"
             name="action"
             defaultValue={filters.action ?? ''}
             placeholder="e.g. grade, revoke, void..."
-            className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className={cx(FILTER_CONTROL, 'w-full')}
           />
-        </label>
-        <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-          Actor
+        </FilterField>
+        <FilterField label="Actor" className="min-w-0 flex-1 sm:max-w-xs">
           <input
             type="search"
             name="actor"
             defaultValue={filters.actor ?? ''}
             placeholder="Name or email..."
-            className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className={cx(FILTER_CONTROL, 'w-full')}
           />
-        </label>
-        <button className="btn btn-sm btn-soft">Apply</button>
-        {(filters.action || filters.actor) && (
-          <Link href="/admin/history" className="text-xs font-medium text-slate-400 hover:text-primary">
-            Clear
-          </Link>
-        )}
-      </form>
+        </FilterField>
+      </FilterBar>
 
       {rows.length === 0 ? (
         <EmptyState>No activity recorded yet.</EmptyState>

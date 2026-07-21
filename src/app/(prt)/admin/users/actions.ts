@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { ERROR_CODES, type ErrorCode } from '@/lib/api/error-codes'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { GENERIC_ERROR_MESSAGE } from '@/lib/api/messages'
 import {
   addUserFromActionInput,
@@ -28,7 +28,7 @@ function mapAddUserError(error: unknown): AddUserState {
 }
 
 export async function addUserAction(_prev: AddUserState, formData: FormData): Promise<AddUserState> {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireCapability('manageUsers')
   try {
     const { profile, code, mentorId } = await addUserFromActionInput(me, {
       email: formData.get('email'),
@@ -38,7 +38,7 @@ export async function addUserAction(_prev: AddUserState, formData: FormData): Pr
       mentor_id: formData.get('mentor_id'),
     })
     if (mentorId) {
-      await assignMentor(me, { tutorId: mentorId, studentId: profile.id })
+      await assignMentor(me, { mentorId, studentId: profile.id })
     }
     revalidatePath('/admin/users')
     return { ok: true, code, email: profile.email }
@@ -49,23 +49,23 @@ export async function addUserAction(_prev: AddUserState, formData: FormData): Pr
 
 // Permission checks, the sub_admin tier rules, the self/last-admin guards,
 // and audit all happen inside services/users.ts and services/mentorships.ts
-// now — thrown errors propagate to the portal error boundary, not swallowed.
+// now - thrown errors propagate to the portal error boundary, not swallowed.
 
 export async function revokeUserAction(formData: FormData) {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireCapability('manageUsers')
   await revokeUserFromActionInput(me, { id: formData.get('id') })
   revalidatePath('/admin/users')
 }
 
 export async function restoreUserAction(formData: FormData) {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireCapability('manageUsers')
   await restoreUserFromActionInput(me, { id: formData.get('id') })
   revalidatePath('/admin/users')
 }
 
 export async function editUserAction(formData: FormData) {
-  const me = await requireRole(['admin', 'sub_admin'])
-  // Role is intentionally not read here — personas are fixed identities and the
+  const me = await requireCapability('manageUsers')
+  // Role is intentionally not read here - personas are fixed identities and the
   // Users hub does not reassign roles (add/revoke/restore are the lifecycle ops).
   await editUserFromActionInput(me, {
     id: formData.get('id'),
@@ -77,16 +77,16 @@ export async function editUserAction(formData: FormData) {
 
 // Mentor assignment lives inside Users; user managers (admin + sub_admin) handle it.
 export async function assignMentorAction(formData: FormData) {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireCapability('manageUsers')
   await assignMentorFromActionInput(me, {
-    tutor_id: formData.get('tutor_id'),
+    mentor_id: formData.get('mentor_id'),
     student_id: formData.get('student_id'),
   })
   revalidatePath('/admin/users')
 }
 
 export async function removeMentorAction(formData: FormData) {
-  const me = await requireRole(['admin', 'sub_admin'])
+  const me = await requireCapability('manageUsers')
   await removeMentorFromActionInput(me, { id: formData.get('id') })
   revalidatePath('/admin/users')
 }

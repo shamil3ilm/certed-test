@@ -19,7 +19,7 @@ export default async function ClassLayout({
         href="/classroom"
         className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
       >
-        ← All classes
+        &larr; All classes
       </Link>
 
       <div className={`overflow-hidden rounded-2xl bg-gradient-to-br ${classBanner(course.id)} px-5 py-6 sm:px-7 sm:py-8`}>

@@ -5,9 +5,13 @@ import { requireRole } from '@/lib/auth/require-role'
 import { recordSubmissionFromActionInput } from '@/lib/services/submissions'
 
 /**
- * Submit work as a Google Drive link — pasted, or picked via the Drive Picker
+ * Submit work as a Google Drive link - pasted, or picked via the Drive Picker
  * (which uploads to the student's own Drive and returns its share URL).
  * RLS enforces enrolled + own; the status is computed server-side vs the due date.
+ *
+ * DELIBERATE role guard, not capability drift: submitting is inherently a student
+ * self-service action (there is no "submit on behalf of" capability to model), and
+ * RLS (enrolled + own) is the real trust boundary. Keep it role-based.
  */
 export async function submitLinkAction(formData: FormData): Promise<ActionStatusResult> {
   const me = await requireRole(['student'])

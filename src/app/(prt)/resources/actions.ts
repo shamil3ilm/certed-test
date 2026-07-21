@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { createLinkResourceFromActionInput } from '@/lib/services/resources'
 
 export async function createLinkResourceAction(formData: FormData): Promise<ActionStatusResult> {
-  const me = await requireRole(['tutor', 'admin'])
+  const me = await requireCapability('manageClassContent')
   try {
     await createLinkResourceFromActionInput(me, {
       classId: formData.get('classId'),

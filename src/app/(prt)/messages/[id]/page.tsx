@@ -29,7 +29,7 @@ export default async function ThreadPage({
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      {/* Only mark read from the latest window — jumping to older messages must
+      {/* Only mark read from the latest window - jumping to older messages must
           not silently clear the unread flag on newer ones. */}
       {data.isLatestWindow && <MarkRead conversationId={params.id} />}
       <Link

@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
-import { requireRole } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { createMeetLinkFromActionInput, deleteMeetLink, restoreMeetLink } from '@/lib/services/meet-links'
 
 export async function createMeetLinkAction(formData: FormData): Promise<ActionStatusResult> {
-  const me = await requireRole(['tutor', 'admin'])
+  const me = await requireCapability('manageClassContent')
   try {
     await createMeetLinkFromActionInput(me, {
       classId: formData.get('classId'),
@@ -22,7 +22,7 @@ export async function createMeetLinkAction(formData: FormData): Promise<ActionSt
 }
 
 export async function deleteMeetLinkAction(id: string): Promise<ActionStatusResult> {
-  const me = await requireRole(['tutor', 'admin'])
+  const me = await requireCapability('manageClassContent')
   try {
     await deleteMeetLink(me, id)
     revalidatePath('/classroom', 'layout')
@@ -33,7 +33,7 @@ export async function deleteMeetLinkAction(id: string): Promise<ActionStatusResu
 }
 
 export async function restoreMeetLinkAction(id: string): Promise<void> {
-  const me = await requireRole(['tutor', 'admin'])
+  const me = await requireCapability('manageClassContent')
   await restoreMeetLink(me, id)
   revalidatePath('/classroom', 'layout')
 }

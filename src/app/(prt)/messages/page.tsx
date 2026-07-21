@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { listInbox } from '@/lib/services/messaging'
 import { listMessageableContacts } from '@/lib/messaging/recipient-policy'
 import { NewMessageForm } from './NewMessageForm'
-import { PageHeader, Card, EmptyState, Badge, cx, CARD } from '../ui'
+import { PageHeader, Card, EmptyState, Badge, ListRow } from '../ui'
 import { LocalTime } from '../LocalTime'
 
 export default async function MessagesPage() {
@@ -29,23 +28,23 @@ export default async function MessagesPage() {
         <ul className="space-y-2">
           {inbox.map((c) => (
             <li key={c.id}>
-              <Link
+              <ListRow
                 href={`/messages/${c.id}`}
-                className={cx(CARD, 'flex items-center gap-3 p-4 transition hover:-translate-y-0.5 hover:shadow-md')}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-2 truncate text-sm font-medium text-slate-900">
+                title={
+                  <span className="inline-flex items-center gap-2">
                     {c.title}
                     {c.hasUnread && <Badge tone="primary">New</Badge>}
-                  </p>
-                  <p className="truncate text-xs text-slate-400">{c.lastMessage ?? 'No messages yet.'}</p>
-                </div>
-                {c.lastAt && (
-                  <span className="shrink-0 text-xs text-slate-400">
-                    <LocalTime iso={c.lastAt} />
                   </span>
-                )}
-              </Link>
+                }
+                subtitle={c.lastMessage ?? 'No messages yet.'}
+                trailing={
+                  c.lastAt ? (
+                    <span className="shrink-0 text-xs text-slate-400">
+                      <LocalTime iso={c.lastAt} />
+                    </span>
+                  ) : undefined
+                }
+              />
             </li>
           ))}
         </ul>

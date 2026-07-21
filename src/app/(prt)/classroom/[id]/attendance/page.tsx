@@ -5,7 +5,7 @@ import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/serv
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { clearAttendanceAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
-import { Card, EmptyState, Badge } from '../../../ui'
+import { Card, EmptyState, Badge, SectionLabel } from '../../../ui'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
@@ -25,7 +25,7 @@ export default async function AttendancePage({
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">My attendance</h2>
+          <SectionLabel>My attendance</SectionLabel>
           <a
             href={`/api/report-card/${me.id}/pdf`}
             target="_blank"
@@ -88,7 +88,7 @@ export default async function AttendancePage({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Mark attendance</h2>
+      <SectionLabel>Mark attendance</SectionLabel>
 
       <form className="flex flex-wrap items-end gap-2">
         <label className="text-xs font-medium text-slate-500">
@@ -126,7 +126,7 @@ export default async function AttendancePage({
       )}
 
       <div className="pt-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Recent sessions</h2>
+        <SectionLabel>Recent sessions</SectionLabel>
         {data.sessions.length === 0 ? (
           <p className="mt-2 text-sm text-slate-400">No attendance marked yet.</p>
         ) : (

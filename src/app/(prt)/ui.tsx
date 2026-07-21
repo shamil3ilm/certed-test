@@ -1,4 +1,5 @@
 import type { ElementType, ReactNode } from 'react'
+import Link from 'next/link'
 
 /* ----------------------------------------------------------------------------
  * Design tokens & helpers -- the single source for the repeated visual patterns
@@ -219,6 +220,158 @@ export function Panel({
       {title && <h2 className="mb-3 text-sm font-semibold text-slate-700">{title}</h2>}
       {children}
     </section>
+  )
+}
+
+/** The standard responsive grid for stat tiles - 2 across on mobile, `cols` on
+ *  desktop. Replaces the hand-written grid classes repeated on the dashboard,
+ *  Users hub, and finance pages so stat blocks share one rhythm. */
+export function StatGrid({
+  cols = 4,
+  className = '',
+  children,
+}: {
+  cols?: 3 | 4
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <section className={cx('grid grid-cols-2 gap-3 sm:gap-4', cols === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4', className)}>
+      {children}
+    </section>
+  )
+}
+
+/** A standard list row: leading media (avatar/icon), title + subtitle, and an
+ *  optional trailing slot. Pass `href` to make the whole row a lift-on-hover
+ *  link (the common "open this record" pattern); omit it for a static row.
+ *  Replaces the avatar + text + chevron block copy-pasted across list pages. */
+export function ListRow({
+  href,
+  leading,
+  title,
+  subtitle,
+  trailing,
+  className = '',
+}: {
+  href?: string
+  leading?: ReactNode
+  title: ReactNode
+  subtitle?: ReactNode
+  trailing?: ReactNode
+  className?: string
+}) {
+  // A clickable row with no explicit trailing gets a subtle hover chevron - the
+  // shared "open this" affordance, so pages no longer hand-write "View ->" text.
+  const end = trailing ?? (href ? <RowChevron /> : null)
+  const body = (
+    <>
+      {leading}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-slate-900">{title}</p>
+        {subtitle != null && <p className="truncate text-xs text-slate-400">{subtitle}</p>}
+      </div>
+      {end}
+    </>
+  )
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={cx(CARD, 'group flex items-center gap-3 p-3 transition hover:-translate-y-0.5 hover:shadow-md', className)}
+      >
+        {body}
+      </Link>
+    )
+  }
+  return <div className={cx(CARD, 'flex items-center gap-3 p-3', className)}>{body}</div>
+}
+
+/** The "go to this record" chevron shown on a clickable ListRow / card, sliding
+ *  and colouring on the row's group-hover. */
+export function RowChevron({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={cx('h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-primary', className)}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Standard control styling for a FilterBar input/select. Add `w-full` for a
+ *  flexible search box. */
+export const FILTER_CONTROL = 'mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm'
+
+/** A labeled control inside a FilterBar. `className` sizes the field (e.g.
+ *  `min-w-0 flex-1 sm:max-w-xs` for a search box). */
+export function FilterField({
+  label,
+  className = '',
+  children,
+}: {
+  label: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <label className={cx('text-xs font-medium text-slate-500', className)}>
+      {label}
+      {children}
+    </label>
+  )
+}
+
+/** A GET filter/search bar: a row of fields + Apply, with a Clear link shown when
+ *  a filter is active. Replaces the hand-written search forms on the Users hub,
+ *  grading queue, and activity log so they share one shape. */
+export function FilterBar({
+  clearHref,
+  showClear = false,
+  applyLabel = 'Apply',
+  className = '',
+  children,
+}: {
+  clearHref?: string
+  showClear?: boolean
+  applyLabel?: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <form className={cx('flex flex-wrap items-end gap-2', className)}>
+      {children}
+      <button className="btn btn-sm btn-soft">{applyLabel}</button>
+      {showClear && clearHref && (
+        <a href={clearHref} className="text-xs font-medium text-slate-400 hover:text-primary">
+          Clear
+        </a>
+      )}
+    </form>
+  )
+}
+
+/** An uppercase subsection label with an optional trailing count - the small
+ *  heading used above class rosters, the grading queue, and classwork sections. */
+export function SectionLabel({
+  count,
+  className = '',
+  children,
+}: {
+  count?: number
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <h2 className={cx('text-sm font-semibold uppercase tracking-wide text-slate-400', className)}>
+      {children}
+      {count != null && <span className="text-slate-300"> - {count}</span>}
+    </h2>
   )
 }
 

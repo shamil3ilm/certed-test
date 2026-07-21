@@ -1,17 +1,15 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
 import type { Profile } from '@/lib/auth/profile'
 import {
   type AdminDashboardViewData,
   type DashboardMentee,
-  loadDashboardMentees,
   loadDashboardViewData,
   type SubAdminDashboardViewData,
 } from '@/lib/services/page-data/dashboard'
 import { type CalendarEvent } from '@/lib/services/calendar-events'
-import { Panel, MiniBars, Card, Avatar, CARD, cx, personaLabel } from '../ui'
+import { Panel, MiniBars, Card, Avatar, ListRow, StatGrid, personaLabel } from '../ui'
 import { StatModalCard } from '../StatModalCard'
 import { ReminderPanel } from './ReminderPanel'
 import {
@@ -28,8 +26,9 @@ import {
   LatestGradeWidget,
   LatestAnnouncementWidget,
   PendingAttendanceWidget,
-  MeetingLinksWidget,
   RecentUploadsWidget,
+  SubmissionsToReviewWidget,
+  DueWorkWidget,
 } from './widgets'
 
 export default async function Dashboard() {
@@ -38,7 +37,7 @@ export default async function Dashboard() {
   // future) that legitimately holds viewDashboard.
   const me = await requireCapability('viewDashboard')
   const actor = await getActorContext() // request-cached; already loaded by the header
-  const [data, mentees] = await Promise.all([loadDashboardViewData(me), loadDashboardMentees(me)])
+  const data = await loadDashboardViewData(me)
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
@@ -51,16 +50,26 @@ export default async function Dashboard() {
 
       {data.kind === 'admin' && <AdminDashboard data={data} />}
       {data.kind === 'sub_admin' && <SubAdminDashboard data={data} />}
+      {data.kind === 'mentor' && <MentorDashboard me={me} mentees={data.mentees} teaches={data.teaches} />}
       {data.kind === 'tutor' && <TutorDashboard me={me} />}
       {data.kind === 'student' && <StudentDashboard me={me} />}
-
-      {mentees.length > 0 && <MenteesPanel mentees={mentees} />}
     </main>
   )
 }
 
-/** Shown to anyone who personally mentors students, regardless of their view-kind
- *  — surfaces a mentor's actual work even when their teaching dashboard is empty. */
+/** The mentor view. Leads with the mentees (the pastoral work); the teaching
+ *  widgets follow only when this mentor also teaches (a tutor who mentors). A
+ *  dedicated mentor account teaches nothing, so it sees the mentees alone. */
+function MentorDashboard({ me, mentees, teaches }: { me: Profile; mentees: DashboardMentee[]; teaches: boolean }) {
+  return (
+    <>
+      <MenteesPanel mentees={mentees} />
+      {teaches && <TutorDashboard me={me} />}
+    </>
+  )
+}
+
+/** The "Your mentees" panel - the actor's mentees, each linking to their overview. */
 function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   return (
     <section className="mt-6">
@@ -71,16 +80,11 @@ function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
         <ul className="grid gap-2 sm:grid-cols-2">
           {mentees.map((mentee) => (
             <li key={mentee.id}>
-              <Link
+              <ListRow
                 href={`/students/${mentee.id}`}
-                className={cx(CARD, 'group flex items-center gap-3 p-3 transition hover:-translate-y-0.5 hover:shadow-md')}
-              >
-                <Avatar name={mentee.name} role="student" />
-                <span className="text-sm font-medium text-slate-800">{mentee.name}</span>
-                <span className="ml-auto text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">
-                  View -&gt;
-                </span>
-              </Link>
+                leading={<Avatar name={mentee.name} role="student" />}
+                title={mentee.name}
+              />
             </li>
           ))}
         </ul>
@@ -92,7 +96,7 @@ function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
 function SubAdminDashboard({ data }: { data: SubAdminDashboardViewData }) {
   return (
     <>
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <StatGrid cols={3} className="mt-6">
         <StatModalCard
           label="Students"
           value={data.students}
@@ -115,7 +119,7 @@ function SubAdminDashboard({ data }: { data: SubAdminDashboardViewData }) {
           load={loadPendingModal}
           empty="Nobody waiting for access."
         />
-      </section>
+      </StatGrid>
       <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 p-5">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-800">User management</h2>
@@ -134,7 +138,7 @@ function SubAdminDashboard({ data }: { data: SubAdminDashboardViewData }) {
 function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
   return (
     <>
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StatGrid cols={4} className="mt-6">
         <StatModalCard label="Students" value={data.peopleCounts.students} title="Students" load={loadStudentsModal} />
         <StatModalCard label="Tutors" value={data.peopleCounts.tutors} title="Tutors" load={loadTutorsModal} />
         <StatModalCard
@@ -152,7 +156,7 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
           load={loadFinanceModal}
           empty="None yet."
         />
-      </section>
+      </StatGrid>
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Students per class">
           <MiniBars data={data.perClass} />
@@ -166,6 +170,8 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
   )
 }
 
+/** Tutor home leads with the work to do: today's classes, attendance to mark,
+ *  submissions to review, then the latest class updates. */
 function TutorDashboard({ me }: { me: Profile }) {
   return (
     <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -176,7 +182,7 @@ function TutorDashboard({ me }: { me: Profile }) {
         <PendingAttendanceWidget me={me} />
       </Suspense>
       <Suspense fallback={<WidgetSkeleton />}>
-        <MeetingLinksWidget me={me} />
+        <SubmissionsToReviewWidget me={me} />
       </Suspense>
       <Suspense fallback={<WidgetSkeleton />}>
         <RecentUploadsWidget me={me} />
@@ -185,17 +191,19 @@ function TutorDashboard({ me }: { me: Profile }) {
   )
 }
 
+/** Student home leads with what's owed: due work, then latest grade, attendance,
+ *  and the latest class update. */
 function StudentDashboard({ me }: { me: Profile }) {
   return (
     <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Suspense fallback={<WidgetSkeleton />}>
-        <TodaysClassesWidget me={me} title="Today's class" />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <AttendanceRateWidget studentId={me.id} />
+        <DueWorkWidget me={me} />
       </Suspense>
       <Suspense fallback={<WidgetSkeleton />}>
         <LatestGradeWidget studentId={me.id} />
+      </Suspense>
+      <Suspense fallback={<WidgetSkeleton />}>
+        <AttendanceRateWidget studentId={me.id} />
       </Suspense>
       <Suspense fallback={<WidgetSkeleton />}>
         <LatestAnnouncementWidget me={me} />

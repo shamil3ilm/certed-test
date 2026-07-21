@@ -3,13 +3,13 @@ import { useFormState } from 'react-dom'
 import { addUserAction, type AddUserState } from './actions'
 import { Field, Input, Select, SubmitButton } from '../../form'
 
-type Tutor = { id: string; name: string }
+type MentorCandidate = { id: string; name: string }
 
 const initial: AddUserState = {}
 
 /** Add-user form (client) - surfaces the one-time setup code inline on success,
  *  so the code is never put in a URL. Role options are scoped to the caller. */
-export function AddUserForm({ roles, tutors }: { roles: string[]; tutors: Tutor[] }) {
+export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; mentorCandidates: MentorCandidate[] }) {
   const [state, formAction] = useFormState(addUserAction, initial)
   return (
     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -35,7 +35,7 @@ export function AddUserForm({ roles, tutors }: { roles: string[]; tutors: Tutor[
         <Field label={<>Mentor <span className="text-slate-400">(students)</span></>} className="w-full sm:w-40">
           <Select name="mentor_id" defaultValue="">
             <option value="">None</option>
-            {tutors.map((t) => (
+            {mentorCandidates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>

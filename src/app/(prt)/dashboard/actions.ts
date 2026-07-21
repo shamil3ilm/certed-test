@@ -1,14 +1,16 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
-import { requireActiveProfile } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { createReminderFromActionInput, deleteReminder, markReminderSent } from '@/lib/services/reminders'
 
-// Reminders are personal self-service (own-scoped by RLS), so these guard on an
-// active session rather than a fixed role list — anyone who can reach the
-// dashboard manages their own reminders, mentors included.
+// Reminders are a dashboard feature (personal + own-scoped by RLS), so these
+// guard on viewDashboard - the same capability that gates the dashboard page and
+// its nav entry. Every base persona holds it (mentors included); gating on the
+// capability rather than mere active-session keeps a future persona without
+// dashboard access from mutating reminders by hitting the action directly.
 export async function createReminderAction(formData: FormData): Promise<ActionStatusResult> {
-  const me = await requireActiveProfile()
+  const me = await requireCapability('viewDashboard')
   try {
     await createReminderFromActionInput(me.id, {
       title: formData.get('title'),
@@ -23,7 +25,7 @@ export async function createReminderAction(formData: FormData): Promise<ActionSt
 }
 
 export async function deleteReminderAction(formData: FormData): Promise<ActionStatusResult> {
-  await requireActiveProfile()
+  await requireCapability('viewDashboard')
   const id = String(formData.get('id') ?? '').trim()
   if (!id) return actionDone()
   try {
@@ -36,7 +38,7 @@ export async function deleteReminderAction(formData: FormData): Promise<ActionSt
 }
 
 export async function markReminderSentAction(formData: FormData): Promise<ActionStatusResult> {
-  await requireActiveProfile()
+  await requireCapability('viewDashboard')
   const id = String(formData.get('id') ?? '').trim()
   if (!id) return actionDone()
   try {

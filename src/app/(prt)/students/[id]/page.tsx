@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { Avatar, Badge, Card, EmptyState, PageHeader } from '../../ui'
+import { Avatar, Badge, Card, EmptyState, PageHeader, SectionLabel } from '../../ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function MenteePage({ params }: { params: { id: string } }) {
@@ -51,7 +51,7 @@ export default async function MenteePage({ params }: { params: { id: string } })
       </div>
 
       <section className="mb-6">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Classes</h2>
+        <SectionLabel className="mb-2">Classes</SectionLabel>
         {classes.length === 0 ? (
           <EmptyState>Not enrolled in any classes yet.</EmptyState>
         ) : (
@@ -90,7 +90,7 @@ export default async function MenteePage({ params }: { params: { id: string } })
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Recent submissions</h2>
+        <SectionLabel className="mb-2">Recent submissions</SectionLabel>
         {submissions.length === 0 ? (
           <EmptyState>No submissions yet.</EmptyState>
         ) : (

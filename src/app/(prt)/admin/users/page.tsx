@@ -17,7 +17,7 @@ import {
   removeMentorAction,
 } from './actions'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { PageHeader, StatCard, Card, Avatar, EmptyState, cx, roleLabel } from '../../ui'
+import { PageHeader, StatCard, StatGrid, Card, Avatar, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx, roleLabel } from '../../ui'
 import { SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { AddUserForm } from './AddUserForm'
@@ -68,21 +68,19 @@ function Pagination({
 
 function SearchFilterBar({ tab, q, status }: { tab: UsersTab; q?: string; status?: string }) {
   return (
-    <form className="mt-4 flex flex-wrap items-end gap-2">
+    <FilterBar className="mt-4" clearHref={usersUrl({ tab })} showClear={Boolean(q || status)}>
       <input type="hidden" name="tab" value={tab} />
-      <label className="min-w-0 flex-1 text-xs font-medium text-slate-500 sm:max-w-xs">
-        Search
+      <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
         <input
           type="search"
           name="q"
           defaultValue={q ?? ''}
           placeholder="Name or email..."
-          className="mt-1 block w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          className={cx(FILTER_CONTROL, 'w-full')}
         />
-      </label>
-      <label className="text-xs font-medium text-slate-500">
-        Status
-        <select name="status" defaultValue={status ?? ''} className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm">
+      </FilterField>
+      <FilterField label="Status">
+        <select name="status" defaultValue={status ?? ''} className={FILTER_CONTROL}>
           <option value="">All</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
@@ -90,14 +88,8 @@ function SearchFilterBar({ tab, q, status }: { tab: UsersTab; q?: string; status
             </option>
           ))}
         </select>
-      </label>
-      <button className="btn btn-sm btn-soft">Apply</button>
-      {(q || status) && (
-        <Link href={usersUrl({ tab })} className="text-xs font-medium text-slate-400 hover:text-primary">
-          Clear
-        </Link>
-      )}
-    </form>
+      </FilterField>
+    </FilterBar>
   )
 }
 
@@ -141,7 +133,7 @@ function UserRow({
                 Name
                 <input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1 block rounded border px-2 py-1 text-sm" />
               </label>
-              {/* Role is a fixed identity — set at account creation, never edited here. */}
+              {/* Role is a fixed identity - set at account creation, never edited here. */}
               <span className="text-xs text-slate-400">
                 Role: <span className="font-medium text-slate-600">{roleLabel(p.role)}</span>
               </span>
@@ -206,7 +198,7 @@ export default async function AdminUsersPage({
         description="Everyone in the academy - students, tutors, mentors and admins - in one place. Allowlist by email; accounts bind on first login."
       />
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatGrid cols={4}>
         <StatCard label="Students" value={data.stats.students} />
         <StatCard label="Tutors" value={data.stats.tutors} />
         <StatCard
@@ -216,9 +208,9 @@ export default async function AdminUsersPage({
           sub={`${Math.max(0, data.stats.students - data.assignedStudents)} without`}
         />
         <StatCard label="Admins" value={data.stats.adminTier} />
-      </section>
+      </StatGrid>
 
-      <AddUserForm roles={data.roleOptions} tutors={data.activeTutors} />
+      <AddUserForm roles={data.roleOptions} mentorCandidates={data.mentorCandidates} />
 
       <nav className="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200">
         {USER_TABS.map((t) => (
@@ -268,7 +260,7 @@ export default async function AdminUsersPage({
               {data.tabProfiles.map((s) => {
                 const links = data.mentorsByStudent.get(s.id) ?? []
                 const subtitle = links.length
-                  ? `mentor: ${links.map((l) => data.mentorNames.get(l.tutor_id) ?? '-').join(', ')}`
+                  ? `mentor: ${links.map((l) => data.mentorNames.get(l.mentor_id) ?? '-').join(', ')}`
                   : 'no mentor'
                 return (
                   <UserRow
@@ -337,7 +329,7 @@ export default async function AdminUsersPage({
         {data.filters.tab === 'mentors' && (
           <div className="space-y-3">
             <p className="text-sm text-slate-500">
-              A mentor is a tutor who looks after a student like a class tutor, across all subjects - separate from who teaches their classes.
+              A mentor looks after a student across all subjects - like a class tutor, but separate from who teaches their classes. A mentor may be a dedicated mentor account or a tutor who also mentors.
             </p>
             {data.tabProfiles.map((s) => {
               const links = data.mentorsByStudent.get(s.id) ?? []
@@ -356,11 +348,11 @@ export default async function AdminUsersPage({
                     </div>
                     <form action={assignMentorAction} className="flex min-w-0 items-center gap-2">
                       <input type="hidden" name="student_id" value={s.id} />
-                      <select name="tutor_id" required defaultValue="" className="min-w-0 max-w-full text-sm">
+                      <select name="mentor_id" required defaultValue="" className="min-w-0 max-w-full text-sm">
                         <option value="" disabled>
                           Add mentor...
                         </option>
-                        {data.activeTutors.map((t) => (
+                        {data.mentorCandidates.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}
                           </option>
@@ -379,7 +371,7 @@ export default async function AdminUsersPage({
                         key={l.id}
                         className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 py-1 pl-3 pr-1.5 text-xs font-medium text-primary ring-1 ring-primary/15"
                       >
-                        {data.mentorNames.get(l.tutor_id) ?? '-'}
+                        {data.mentorNames.get(l.mentor_id) ?? '-'}
                         <form action={removeMentorAction} className="inline-flex">
                           <input type="hidden" name="id" value={l.id} />
                           <ConfirmSubmit

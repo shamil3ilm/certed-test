@@ -33,7 +33,7 @@ export function DevLoginForm({ error }: { error?: boolean }) {
             type={showPassword ? 'text' : 'password'}
             required
             autoComplete="current-password"
-            placeholder="••••••••"
+            placeholder="password"
             className="block w-full rounded-xl border border-slate-200 bg-slate-50 pl-3.5 pr-10 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
           />
           <button

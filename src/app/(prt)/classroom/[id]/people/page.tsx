@@ -1,7 +1,7 @@
 import { requireClassAccess } from '../../access'
 import type { ClassMember } from '@/lib/services/classes'
 import { loadClassPeopleViewData } from '@/lib/services/page-data/class-people'
-import { Avatar, Card, EmptyState, cx, CARD } from '../../../ui'
+import { Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '../../../ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
@@ -31,27 +31,29 @@ function MemberRow({
 }) {
   const meta = [showEmail ? m.email : null, subtitle].filter(Boolean).join(' - ')
   return (
-    <Card as="li" className="flex items-center gap-3 p-4">
-      <Avatar name={m.name} role={m.role} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-800">{m.name}</p>
-        {meta && <p className="truncate text-xs text-slate-400">{meta}</p>}
-      </div>
-      {removeAction && classId && removeName && (
-        <form action={removeAction}>
-          <input type="hidden" name="class_id" value={classId} />
-          <input type="hidden" name={removeName} value={m.id} />
-          <ConfirmSubmit
-            className="btn btn-sm btn-danger"
-            title="Remove from class?"
-            message="They lose access now, but the link is kept on record - re-add any time."
-            confirmLabel="Remove"
-          >
-            Remove
-          </ConfirmSubmit>
-        </form>
-      )}
-    </Card>
+    <li>
+      <ListRow
+        leading={<Avatar name={m.name} role={m.role} />}
+        title={m.name}
+        subtitle={meta || undefined}
+        trailing={
+          removeAction && classId && removeName ? (
+            <form action={removeAction}>
+              <input type="hidden" name="class_id" value={classId} />
+              <input type="hidden" name={removeName} value={m.id} />
+              <ConfirmSubmit
+                className="btn btn-sm btn-danger"
+                title="Remove from class?"
+                message="They lose access now, but the link is kept on record - re-add any time."
+                confirmLabel="Remove"
+              >
+                Remove
+              </ConfirmSubmit>
+            </form>
+          ) : undefined
+        }
+      />
+    </li>
   )
 }
 
@@ -81,7 +83,7 @@ export default async function ClassPeoplePage({ params }: { params: { id: string
 
       {data.isAdmin && (
         <Card className="space-y-3 p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Class settings</h2>
+          <SectionLabel>Class settings</SectionLabel>
           <div className="flex flex-wrap items-end gap-2">
             <form action={renameClassAction} className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
               <input type="hidden" name="id" value={course.id} />
@@ -117,9 +119,7 @@ export default async function ClassPeoplePage({ params }: { params: { id: string
       )}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Tutors <span className="text-slate-300">- {data.tutors.length}</span>
-        </h2>
+        <SectionLabel count={data.tutors.length}>Tutors</SectionLabel>
         {data.isAdmin && data.addableTutors.length > 0 && (
           <form action={addTutorAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
             <input type="hidden" name="class_id" value={course.id} />
@@ -156,9 +156,7 @@ export default async function ClassPeoplePage({ params }: { params: { id: string
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Students <span className="text-slate-300">- {data.students.length}</span>
-        </h2>
+        <SectionLabel count={data.students.length}>Students</SectionLabel>
         {data.canManage && data.addableStudents.length > 0 && (
           <form action={enrolStudentAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
             <input type="hidden" name="class_id" value={course.id} />
