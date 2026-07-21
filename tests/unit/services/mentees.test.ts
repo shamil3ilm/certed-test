@@ -3,7 +3,7 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canMentor: vi.fn() }))
 vi.mock('@/lib/capabilities', () => ({ isAdminTier: vi.fn() }))
-vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), studentIdsOfTutor: vi.fn() }))
+vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/services/users', async () => {
   const actual = await vi.importActual<typeof import('@/lib/services/users')>('@/lib/services/users')
@@ -12,7 +12,7 @@ vi.mock('@/lib/services/users', async () => {
 
 import { canMentor } from '@/lib/permission'
 import { isAdminTier } from '@/lib/capabilities'
-import { listMentorships, studentIdsOfTutor } from '@/lib/services/mentorships'
+import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileById } from '@/lib/services/users'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -81,7 +81,7 @@ describe('getMenteeListView', () => {
 
   it('builds the mentor-specific mentee list from the caller student ids', async () => {
     vi.mocked(isAdminTier).mockReturnValueOnce(false as any)
-    vi.mocked(studentIdsOfTutor).mockResolvedValueOnce(['stud-1'] as any)
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['stud-1'] as any)
     vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['stud-1', 'Stu Dent']]) as any)
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({

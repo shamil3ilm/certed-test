@@ -58,10 +58,19 @@ test('page -- tutor is blocked from admin areas', async ({ page }) => {
   await assertAdminBlocked(page, 'tutor@mock.test')
 })
 
-test('page -- mentor cannot open a mentee class (404)', async ({ page }) => {
+test('page -- a dedicated mentor (no viewClasses) is redirected from a class page', async ({ page }) => {
+  // A mentor is an independent role that teaches nothing, so it lacks viewClasses:
+  // the class-page guard redirects to the dashboard (capability gate), rather than
+  // reaching the per-class 404 a non-teaching *tutor* would have hit.
   await loginAs(page, 'mentor@mock.test')
-  await page.goto(`/classroom/${SEED.math}`)
-  await expect(page.getByText('404')).toBeVisible()
+  await page.goto(`/classroom/${SEED.math}`, { waitUntil: 'domcontentloaded', timeout: 45000 })
+  await expect(page, 'mentor lacks viewClasses -> class page redirects to dashboard').toHaveURL(/\/dashboard/)
+})
+
+test('page -- a mentor can open their mentees list (viewMentees success path)', async ({ page }) => {
+  await loginAs(page, 'mentor@mock.test')
+  await page.goto('/students', { waitUntil: 'domcontentloaded', timeout: 45000 })
+  await expect(page, 'mentor holds viewMentees, so /students loads (no redirect)').toHaveURL(/\/students/)
 })
 
 // ---------- API role gate ----------

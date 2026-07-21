@@ -13,7 +13,7 @@ vi.mock('@/lib/services/enrollments', () => ({ countEnrollmentsPerClass: vi.fn()
 vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotals: vi.fn() }))
 vi.mock('@/lib/services/reminders', () => ({ listMyPastReminders: vi.fn(), listMyReminders: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ countPeople: vi.fn(), getProfileNamesByIds: vi.fn() }))
-vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfTutor: vi.fn() }))
+vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
 
 import { hasCapability } from '@/lib/capabilities'
 import { listEvents } from '@/lib/services/calendar-events'
@@ -22,7 +22,7 @@ import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
 import { financeTotals } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders } from '@/lib/services/reminders'
 import { countPeople, getProfileNamesByIds } from '@/lib/services/users'
-import { studentIdsOfTutor } from '@/lib/services/mentorships'
+import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { loadDashboardViewData, loadDashboardMentees } from '@/lib/services/page-data/dashboard'
 
 beforeEach(() => vi.resetAllMocks())
@@ -76,14 +76,46 @@ describe('loadDashboardViewData', () => {
     expect(listEvents).not.toHaveBeenCalled()
   })
 
-  it('returns the tutor view kind without loading admin aggregates', async () => {
+  it('returns the tutor view kind for a tutor with no mentees, without admin aggregates', async () => {
     vi.mocked(hasCapability)
       .mockReturnValueOnce(false as any)
       .mockReturnValueOnce(false as any)
-      .mockReturnValueOnce(true as any)
+      .mockReturnValueOnce(true as any) // viewPayslips -> tutor base
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce([]) // no mentees -> stays 'tutor'
 
     await expect(loadDashboardViewData({ id: 'tutor-1' } as any)).resolves.toEqual({ kind: 'tutor' })
     expect(countPeople).not.toHaveBeenCalled()
+  })
+
+  it('refines a tutor WITH mentees to the mentor view kind (mentees + teaching)', async () => {
+    vi.mocked(hasCapability)
+      .mockReturnValueOnce(false as any)
+      .mockReturnValueOnce(false as any)
+      .mockReturnValueOnce(true as any) // viewPayslips -> tutor base
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1'])
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara']]))
+
+    await expect(loadDashboardViewData({ id: 'mentor-1' } as any)).resolves.toEqual({
+      kind: 'mentor',
+      mentees: [{ id: 's-1', name: 'Sara' }],
+      teaches: true, // a tutor who mentors keeps the teaching widgets
+    })
+  })
+
+  it('resolves a DEDICATED mentor account to the mentor view without teaching widgets', async () => {
+    vi.mocked(hasCapability)
+      .mockReturnValueOnce(false as any) // viewFinance
+      .mockReturnValueOnce(false as any) // manageUsers
+      .mockReturnValueOnce(false as any) // viewPayslips (not a tutor)
+      .mockReturnValueOnce(true as any) // viewMentees -> dedicated mentor
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1', 's-2'])
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara'], ['s-2', 'Sam']]))
+
+    await expect(loadDashboardViewData({ id: 'maya-mentor' } as any)).resolves.toEqual({
+      kind: 'mentor',
+      mentees: [{ id: 's-1', name: 'Sara' }, { id: 's-2', name: 'Sam' }],
+      teaches: false, // a dedicated mentor teaches nothing
+    })
   })
 
   it('falls back to the student view kind', async () => {
@@ -91,6 +123,7 @@ describe('loadDashboardViewData', () => {
       .mockReturnValueOnce(false as any)
       .mockReturnValueOnce(false as any)
       .mockReturnValueOnce(false as any)
+      .mockReturnValueOnce(false as any) // not a mentor either
 
     await expect(loadDashboardViewData({ id: 'student-1' } as any)).resolves.toEqual({ kind: 'student' })
   })
@@ -98,13 +131,13 @@ describe('loadDashboardViewData', () => {
 
 describe('loadDashboardMentees', () => {
   it('returns empty and skips the name lookup when the actor mentors nobody', async () => {
-    vi.mocked(studentIdsOfTutor).mockResolvedValueOnce([])
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce([])
     await expect(loadDashboardMentees({ id: 'tutor-1' } as any)).resolves.toEqual([])
     expect(getProfileNamesByIds).not.toHaveBeenCalled()
   })
 
   it('resolves the actor own mentees to id + name, preserving order', async () => {
-    vi.mocked(studentIdsOfTutor).mockResolvedValueOnce(['s-1', 's-2'])
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1', 's-2'])
     vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara'], ['s-2', 'Sam']]))
     await expect(loadDashboardMentees({ id: 'mentor-1' } as any)).resolves.toEqual([
       { id: 's-1', name: 'Sara' },

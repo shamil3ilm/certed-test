@@ -3,12 +3,12 @@ import { queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
-vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfTutor: vi.fn() }))
+vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { studentIdsOfTutor } from '@/lib/services/mentorships'
+import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { canMessage, listMessageableContacts } from '@/lib/messaging/recipient-policy'
 
@@ -22,7 +22,7 @@ function tableClient(byTable: Record<string, unknown[]>) {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.mocked(studentIdsOfTutor).mockResolvedValue([])
+  vi.mocked(studentIdsOfMentor).mockResolvedValue([])
 })
 
 describe('recipientPolicy', () => {
@@ -61,7 +61,7 @@ describe('recipientPolicy', () => {
 
   it('tutor may message students in classes they teach and their mentees, not a stranger', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isTutor: true }))
-    vi.mocked(studentIdsOfTutor).mockResolvedValue(['mentee-1'])
+    vi.mocked(studentIdsOfMentor).mockResolvedValue(['mentee-1'])
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
         class_tutors: [{ class_id: 'c-1' }],
@@ -100,7 +100,7 @@ describe('recipientPolicy', () => {
 
   it('listMessageableContacts name-resolves and sorts the eligible set', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true }))
-    vi.mocked(studentIdsOfTutor).mockResolvedValue(['s-2', 's-1'])
+    vi.mocked(studentIdsOfMentor).mockResolvedValue(['s-2', 's-1'])
     vi.mocked(createAdminClient).mockReturnValue(tableClient({}) as any)
     vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['s-1', 'Zara'], ['s-2', 'Amir']]))
     expect(await listMessageableContacts({ id: 'mentor-1' } as any)).toEqual([

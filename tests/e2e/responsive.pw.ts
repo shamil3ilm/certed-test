@@ -14,11 +14,16 @@ const PAGES: Record<string, string[]> = {
     '/admin/users', '/admin/finance', '/settings', `/assignments/${SEED.asgMath}`,
   ],
   tutor: [
+    // A PLAIN tutor (mentors nobody) has no viewMentees, so /students is NOT a
+    // tutor route — it belongs to the mentor sweep below. Keeping it here would
+    // just redirect to /dashboard and misrepresent the tutor production path.
     '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
     `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/calendar',
-    '/students', '/payslips', '/settings', `/assignments/${SEED.asgMath}`,
+    '/payslips', '/settings', `/assignments/${SEED.asgMath}`,
   ],
-  mentor: ['/dashboard', '/classroom', '/students', `/students/${SEED.sara}`, '/calendar', '/payslips', '/settings'],
+  // A DEDICATED mentor (role mentor, teaches nothing) holds only viewDashboard,
+  // viewMessages and viewMentees — no classes/calendar/payslips (those would redirect).
+  mentor: ['/dashboard', '/messages', '/students', `/students/${SEED.sara}`, '/settings'],
   student: [
     '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
     `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/receipts',

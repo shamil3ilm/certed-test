@@ -14,13 +14,21 @@ function getPersonasForRole(role: string) {
 }
 
 vi.mock('@/lib/session/actor-context', () => ({
-  getActorContext: vi.fn(async () => ({
-    userId: 'auth-1',
-    profile,
-    personas: getPersonasForRole(profile.role),
-    accessState: profile.status === 'active' ? 'active' : profile.status === 'disabled' ? 'disabled' : 'pending',
-  })),
+  getActorContext: vi.fn(async () => {
+    const personas = getPersonasForRole(profile.role)
+    return {
+      userId: 'auth-1',
+      profile,
+      personas,
+      // The POST guard is now requireCapabilityApi('manageClassContent'), so the
+      // actor must carry its resolved capabilities like the real context does.
+      capabilities: resolveCapabilities({ personas, overrides: [] }),
+      accessState: profile.status === 'active' ? 'active' : profile.status === 'disabled' ? 'disabled' : 'pending',
+    }
+  }),
 }))
+
+import { resolveCapabilities } from '@/lib/capabilities'
 
 const createAssignmentFromApiInput: any = vi.fn(async () => ({ id: 'a-1' }))
 vi.mock('@/lib/services/assignments', () => ({
