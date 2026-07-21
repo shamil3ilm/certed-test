@@ -4,19 +4,19 @@
  *
  * A file's Drive *sharing* setting isn't visible from the URL, so this can only
  * flag the shapes that are usually a mistake (a folder link, or a non-Google
- * link) — it never blocks submission, it just prompts a second look.
+ * link) - it never blocks submission, it just prompts a second look.
  */
 export type DriveLinkCheck = 'ok' | 'folder' | 'not-drive'
 
 export function checkDriveLink(raw: string): DriveLinkCheck {
   const value = raw.trim()
-  if (!value) return 'ok' // nothing typed yet — stay quiet
+  if (!value) return 'ok' // nothing typed yet - stay quiet
 
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    return 'ok' // malformed — <input type="url"> and the server schema handle that
+    return 'ok' // malformed - <input type="url"> and the server schema handle that
   }
 
   const host = url.hostname.replace(/^www\./, '').toLowerCase()

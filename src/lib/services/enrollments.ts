@@ -25,9 +25,9 @@ export async function listEnrollments(classId?: string): Promise<Enrollment[]> {
 
 /**
  * Active-enrollment count per class, for the "students per class" dashboard
- * chart. Selects only `class_id` (not full rows — cheaper than `listEnrollments`)
+ * chart. Selects only `class_id` (not full rows - cheaper than `listEnrollments`)
  * and aggregates in one O(n) pass, instead of the dashboard's old pattern of
- * pulling every enrollment and re-filtering it once per class (O(classes ×
+ * pulling every enrollment and re-filtering it once per class (O(classes x
  * enrollments)).
  */
 export async function countEnrollmentsPerClass(): Promise<Map<string, number>> {
@@ -62,7 +62,7 @@ export function validateEnrollmentParams(input: EnrollmentActionInput): Enrollme
 
 /**
  * The UI only offers valid options, but a crafted POST could pair an
- * arbitrary profile id — verify it's really an active student before
+ * arbitrary profile id - verify it's really an active student before
  * enrolling them.
  */
 export async function enrolStudent(actor: Profile, params: EnrollmentParams): Promise<void> {
@@ -86,7 +86,7 @@ export async function enrolStudentFromActionInput(actor: Profile, input: Enrollm
   await enrolStudent(actor, validateEnrollmentParams(input))
 }
 
-/** Soft-remove (scoped by class + student) — keeps the row for later re-enrol. */
+/** Soft-remove (scoped by class + student) - keeps the row for later re-enrol. */
 export async function removeStudent(actor: Profile, params: EnrollmentParams): Promise<void> {
   if (!(await canManageClass(actor, params.classId))) {
     throw new PermissionError('Not authorized for this class.')

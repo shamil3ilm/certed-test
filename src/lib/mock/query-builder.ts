@@ -42,7 +42,7 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     this.filters.push((r) => String(r[col] ?? '').toLowerCase().includes(needle))
     return this
   }
-  /** Minimal stand-in for PostgREST's `.or('col.op.val,col2.op2.val2')` — only
+  /** Minimal stand-in for PostgREST's `.or('col.op.val,col2.op2.val2')` - only
    *  the operators callers actually use (ilike/eq/is), matched against ANY
    *  clause. Real cross-column OR search (e.g. name-or-email) has nowhere
    *  else to go: two separate single-column queries can't be merged into one

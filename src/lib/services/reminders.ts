@@ -45,7 +45,7 @@ export async function listMyReminders(userId: string): Promise<Reminder[]> {
   return (data ?? []) as Reminder[]
 }
 
-/** Reminders the user has marked done, most recently done first — previously
+/** Reminders the user has marked done, most recently done first - previously
  *  had no view at all (is_sent flips to true with nothing anywhere to read
  *  it back). */
 export async function listMyPastReminders(userId: string, limit = 20): Promise<Reminder[]> {
@@ -63,7 +63,7 @@ export async function listMyPastReminders(userId: string, limit = 20): Promise<R
 
 /**
  * Create a reminder for the current user. Own-scoped / RLS-only (reminders_all
- * requires `is_self_active(user_id)`) — no separate permission check to
+ * requires `is_self_active(user_id)`) - no separate permission check to
  * centralize here.
  */
 export async function createReminder(
@@ -99,7 +99,7 @@ export async function deleteReminder(id: string): Promise<void> {
   if (error) throw new Error(`reminders.delete: ${error.message}`)
 }
 
-/** Marks a reminder done — the only thing that ever sets is_sent, since
+/** Marks a reminder done - the only thing that ever sets is_sent, since
  *  nothing in the app currently auto-fires reminders. RLS-scoped like delete. */
 export async function markReminderSent(id: string): Promise<void> {
   const supabase = await createClient()

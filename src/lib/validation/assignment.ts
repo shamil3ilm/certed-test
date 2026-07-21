@@ -10,7 +10,7 @@ export const createAssignmentSchema = z.object({
   due_date: isoDate, // absolute ISO instant (client converts its local input to UTC)
   attachment_drive_link: linkUrl.optional(),
   topic: z.string().max(60).optional(),
-  // Capped at the DB column precision numeric(6,2) → max 9999.99, so an oversized
+  // Capped at the DB column precision numeric(6,2) -> max 9999.99, so an oversized
   // value is rejected with a clear message instead of a Postgres overflow.
   max_marks: z.number().nonnegative().max(9999.99).optional(),
 })

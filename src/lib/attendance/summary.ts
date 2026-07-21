@@ -4,7 +4,7 @@ export type AttendanceSummary = { present: number; late: number; absent: number;
 
 /**
  * Counts + an attendance rate. Late still counts as attended (they showed up),
- * so the rate is (present + late) / total. Pure — shared by the student view,
+ * so the rate is (present + late) / total. Pure - shared by the student view,
  * the report card, and its unit tests.
  */
 export function summarizeAttendance(rows: ReadonlyArray<{ status: AttendanceStatus }>): AttendanceSummary {

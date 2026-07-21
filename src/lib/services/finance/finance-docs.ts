@@ -6,17 +6,17 @@ import { z } from 'zod'
 
 /**
  * One config-driven repo for the two finance documents. Receipts and pay slips
- * are structurally identical — they differ only in table/column names — so the
+ * are structurally identical - they differ only in table/column names - so the
  * shape lives in KIND and every function takes a `kind`. DB rows are normalized
  * to one domain type (`FinanceDoc`) so callers never touch the raw columns.
  *
  * Unlike every other file under services/, the mutations here (voidDoc) do
- * NOT embed their own permission check — that's an intentional, narrower
+ * NOT embed their own permission check - that's an intentional, narrower
  * exception: this module predates the repos->services migration and was
  * already the reference implementation for it (validate -> totals -> write ->
  * audit lives in lib/finance/issue.ts and lib/finance/handlers.ts, both of
  * which gate with requireRoleApi(['admin']) first). New callers must gate the
- * same way — these functions do not enforce it themselves.
+ * same way - these functions do not enforce it themselves.
  */
 
 const KIND = {
@@ -53,7 +53,7 @@ export function validateFinanceDocId(input: unknown): string {
   return parsed.data
 }
 
-/** Normalized finance document (receipt or pay slip) — the same shape for both. */
+/** Normalized finance document (receipt or pay slip) - the same shape for both. */
 export type FinanceDoc = {
   id: string
   number: string
@@ -125,7 +125,7 @@ export async function listMyDocs(kind: FinanceKind, partyId: string): Promise<Fi
 }
 
 /** Every document (admin session; RLS lets admin read all), newest first.
- *  Unbounded — use only for the explicit CSV export, not for page/dashboard reads. */
+ *  Unbounded - use only for the explicit CSV export, not for page/dashboard reads. */
 export async function listAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
   const k = KIND[kind]
   const supabase = await createClient()
@@ -137,7 +137,7 @@ export async function listAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
   return ((data ?? []) as Record<string, unknown>[]).map((r) => toDoc(kind, r))
 }
 
-/** The most recent documents, newest first — bounded, for ledger/preview views. */
+/** The most recent documents, newest first - bounded, for ledger/preview views. */
 export async function listRecentDocs(kind: FinanceKind, limit = 100): Promise<FinanceDoc[]> {
   const k = KIND[kind]
   const supabase = await createClient()
@@ -152,7 +152,7 @@ export async function listRecentDocs(kind: FinanceKind, limit = 100): Promise<Fi
 
 export type PaginatedFinanceDocs = { items: FinanceDoc[]; total: number }
 
-/** Real page-through + search/filter for the admin finance ledger — the page
+/** Real page-through + search/filter for the admin finance ledger - the page
  *  previously fetched a flat newest-200 window with no way to reach anything
  *  older or find a specific document. Search matches the document number or
  *  the party's name-snapshot (student/tutor name at time of issue). */
@@ -182,7 +182,7 @@ export async function listDocsPage(
 
 export type FinanceTotal = { currency: string; live_total: number; live_count: number }
 
-/** Per-currency, non-voided totals computed in SQL — no rows shipped to the app. */
+/** Per-currency, non-voided totals computed in SQL - no rows shipped to the app. */
 export async function financeTotals(kind: FinanceKind): Promise<FinanceTotal[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('finance_totals', { p_kind: kind })

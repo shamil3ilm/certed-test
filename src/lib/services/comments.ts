@@ -48,7 +48,7 @@ async function withAuthors(rows: Comment[]): Promise<Comment[]> {
 }
 
 /**
- * Comments for many entities of one type, keyed by entity id — one query and one
+ * Comments for many entities of one type, keyed by entity id - one query and one
  * author lookup for the whole set (avoids the per-item N+1 the old per-entity
  * loaders caused when a page rendered a list of resources/meets/submissions).
  */
@@ -76,7 +76,7 @@ export async function listCommentsForEntities(
 }
 
 /**
- * Insert a comment. Own-scoped / RLS-only — no canManage* gate exists here
+ * Insert a comment. Own-scoped / RLS-only - no canManage* gate exists here
  * because comment access is derived from the parent entity (submission /
  * resource / meet), which RLS already checks; there is no separate
  * "commenting" permission to centralize.

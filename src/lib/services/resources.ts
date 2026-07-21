@@ -43,7 +43,7 @@ export async function listResourcesPage(
   return { items: (data ?? []) as Resource[], total: count ?? 0 }
 }
 
-/** Newest resources across a tutor's classes — the dashboard's "recent
+/** Newest resources across a tutor's classes - the dashboard's "recent
  *  uploads" widget. SQL-side `.in()` + `.limit()`, not a full-table fetch. */
 export async function listRecentResourcesForClasses(classIds: string[], limit = 5): Promise<Resource[]> {
   if (classIds.length === 0) return []
@@ -115,7 +115,7 @@ export function validateResourceIdInput(input: ResourceIdActionInput): string {
 
 /**
  * Creates an active link-based resource (no Drive file upload needed).
- * Enforces canManageClass and writes the audit entry — a caller cannot reach
+ * Enforces canManageClass and writes the audit entry - a caller cannot reach
  * the insert without going through this check.
  */
 export async function createLinkResource(actor: Profile, input: CreateLinkResourceInput): Promise<Resource> {
@@ -164,7 +164,7 @@ export async function archiveResourceFromActionInput(actor: Profile, input: Reso
   await archiveResource(actor, validateResourceIdInput(input))
 }
 
-/** Undoes archiveResource — the "kept on record" promise in the archive
+/** Undoes archiveResource - the "kept on record" promise in the archive
  *  confirmation dialog previously had no matching UI action. */
 export async function restoreResource(actor: Profile, id: string): Promise<void> {
   await requireManageableResource(actor, id, getResource)

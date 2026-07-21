@@ -12,7 +12,7 @@ export type AssignmentDetailPageData = {
   submissions: Awaited<ReturnType<typeof listSubmissionsForAssignment>>
   names: Awaited<ReturnType<typeof getProfileNamesByIds>>
   commentsBySub: Awaited<ReturnType<typeof listCommentsForEntities>>
-  /** Prior (replaced) versions per student_id, newest first — so a tutor can see
+  /** Prior (replaced) versions per student_id, newest first - so a tutor can see
    *  and recover a submission a student later superseded. */
   historyByStudent: Map<string, Submission[]>
 }

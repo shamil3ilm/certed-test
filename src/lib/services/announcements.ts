@@ -20,9 +20,9 @@ export type Announcement = {
 
 /**
  * The single newest announcement across a set of classes (plus academy-wide
- * posts) — the dashboard's "latest announcement" widget. Two bounded,
+ * posts) - the dashboard's "latest announcement" widget. Two bounded,
  * index-friendly queries (this class + global) rather than scanning the
- * whole table — `.or()` is avoided since the mock query builder doesn't
+ * whole table - `.or()` is avoided since the mock query builder doesn't
  * support it.
  */
 export async function getLatestAnnouncementForClasses(classIds: string[]): Promise<Announcement | null> {
@@ -52,7 +52,7 @@ export async function getLatestAnnouncementForClasses(classIds: string[]): Promi
 export type PaginatedAnnouncements = { items: Announcement[]; total: number }
 
 /**
- * Real page-through for the class Stream — a flat top-100 cap would mean
+ * Real page-through for the class Stream - a flat top-100 cap would mean
  * anything older just silently stops being reachable. Two bounded queries
  * (class + global, no `.or()`), scoped to `page * pageSize` rows from each
  * source so paging works correctly regardless of how the two sources
@@ -114,7 +114,7 @@ async function updateAnnouncementRow(
 }
 
 /** Loads the announcement and checks the caller may manage its scope (its own
- *  class, or academy-wide if admin) — throws instead of returning a boolean
+ *  class, or academy-wide if admin) - throws instead of returning a boolean
  *  so every caller gets the same NotFoundError/PermissionError distinction. */
 async function requireManageable(actor: Profile, id: string): Promise<Announcement> {
   const a = await getAnnouncement(id)

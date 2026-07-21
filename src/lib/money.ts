@@ -1,5 +1,5 @@
 // The currencies the app can issue in (the finance form's dropdown + the server
-// validator both read this — one source of truth so they can't drift and let an
+// validator both read this - one source of truth so they can't drift and let an
 // un-renderable currency string reach Intl.NumberFormat).
 export const SUPPORTED_CURRENCIES = ['INR', 'AED', 'SAR', 'QAR', 'OMR', 'KWD', 'BHD', 'USD'] as const
 export type Currency = (typeof SUPPORTED_CURRENCIES)[number]
@@ -33,8 +33,8 @@ export function computeTotals(
 ): { subtotal: number; total: number } {
   const decimals = currencyDecimals(currency)
   // Sum the ALREADY-ROUNDED line amounts (not the raw products) so the printed
-  // line amounts add up exactly to the printed subtotal — Σ round(line) rather
-  // than round(Σ line), which otherwise disagree by a minor unit or two.
+  // line amounts add up exactly to the printed subtotal - sum round(line) rather
+  // than round(sum line), which otherwise disagree by a minor unit or two.
   const subtotal = roundTo(
     lines.reduce((sum, l) => sum + roundTo(l.hours * l.rate, decimals), 0),
     decimals,
@@ -45,11 +45,11 @@ export function computeTotals(
 
 /**
  * Formats an amount for display/PDF, correct for the given currency:
- *  - INR keeps Indian lakh/crore grouping (₹1,00,000); everything else uses
+ *  - INR keeps Indian lakh/crore grouping (Rs1,00,000); everything else uses
  *    standard thousands grouping ($100,000) instead of forcing en-IN on it.
  *  - Fraction digits follow the currency's minor unit, so KWD/BHD/OMR show fils
- *    (1.234) and JPY shows none — and every amount on one document shows the SAME
- *    number of decimals (₹1,200.00, not a mix of ₹1,200 and ₹333.33).
+ *    (1.234) and JPY shows none - and every amount on one document shows the SAME
+ *    number of decimals (Rs1,200.00, not a mix of Rs1,200 and Rs333.33).
  *  - An unknown currency would make Intl throw; fall back to a plain number so a
  *    bad row degrades to "1,234.00 XXX" instead of a 502.
  */
@@ -68,7 +68,7 @@ export function formatMoney(amount: number, currency: string): string {
   }
 }
 
-/** Sums non-void finance docs per currency into one display string (e.g. "₹1,200 + $50"). */
+/** Sums non-void finance docs per currency into one display string (e.g. "Rs1,200 + $50"). */
 export function totalByCurrency(
   rows: { total: number; currency: string; voided: boolean }[],
 ): string {

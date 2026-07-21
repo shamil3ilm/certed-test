@@ -24,7 +24,7 @@ export type Assignment = {
 /**
  * Assignments, optionally scoped. Passing a due-date window keeps the calendar
  * from loading every assignment ever created (bounds grow-over-time). Date bounds
- * are compared as timestamps in Postgres; the app stores due_date as UTC (…Z), so
+ * are compared as timestamps in Postgres; the app stores due_date as UTC (...Z), so
  * the mock's string comparison is chronological too.
  */
 export async function listAssignments(
@@ -157,7 +157,7 @@ export function validateEditAssignmentInput(
 }
 
 /**
- * Explicit canManageClass gate — the route this replaces relied on RLS alone
+ * Explicit canManageClass gate - the route this replaces relied on RLS alone
  * for insert authorization; every other write path in the app double-checks
  * app-side too, so this closes that inconsistency (a hardening change, not
  * just a mechanical move).

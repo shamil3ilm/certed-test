@@ -145,7 +145,7 @@ export async function updateSlotFromApiInput(actor: Profile, id: unknown, input:
   return updateSlot(actor, validateSlotId(id), validateUpdateSlotInput(input))
 }
 
-// Deactivate = soft-delete (spec §8: content soft-deleted; the slot stops expanding).
+// Deactivate = soft-delete (spec section 8: content soft-deleted; the slot stops expanding).
 export async function deactivateSlot(actor: Profile, id: string): Promise<TimetableSlot> {
   const existing = await getSlot(id)
   if (!existing) throw new NotFoundError('Timetable slot not found')

@@ -164,7 +164,7 @@ export async function markRead(actor: Profile, conversationId: string): Promise<
 
 /** The caller's inbox: their conversations, newest activity first, each with a
  *  title (the other person or group name), a last-message preview, and an unread
- *  flag. Bounded — reads only the last message per conversation, never the full
+ *  flag. Bounded - reads only the last message per conversation, never the full
  *  history. Unread is last-message-based: true when the most recent message is
  *  from someone else and newer than the caller's read watermark. */
 export async function listInbox(actor: Profile): Promise<InboxItem[]> {
@@ -197,7 +197,7 @@ export async function listInbox(actor: Profile): Promise<InboxItem[]> {
     othersByConv.set(p.conversation_id, list)
   }
 
-  // Last message per conversation only — a bounded, per-conversation read instead
+  // Last message per conversation only - a bounded, per-conversation read instead
   // of scanning every message the caller can see.
   type LastMsg = { sender_id: string | null; body: string; created_at: string }
   const lastByConv = new Map<string, LastMsg>()

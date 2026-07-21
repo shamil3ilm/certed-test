@@ -11,7 +11,9 @@ export const maxDuration = 60
 export async function GET(_req: Request, ctx: { params: { studentId: string } }) {
   let me
   try {
-    me = await requireRoleApi(['admin', 'tutor', 'student'])
+    // Mentor included: canViewReportCard (in renderReportCardPdf) allows a mentor
+    // over this student via canMentor - the route must not block them before that.
+    me = await requireRoleApi(['admin', 'tutor', 'mentor', 'student'])
   } catch {
     return forbiddenText()
   }

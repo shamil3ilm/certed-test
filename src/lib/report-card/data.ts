@@ -47,7 +47,7 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
   type AssignmentRow = { id: string; title: string; topic: string | null; class_id: string; max_marks: number | null }
 
   // Submissions + attendance + current enrolments, in parallel. Throw on any query
-  // error — a transient DB failure must NOT silently produce a blank report card
+  // error - a transient DB failure must NOT silently produce a blank report card
   // that could be handed to a parent as fact.
   const [subsRes, attRes, enrRes] = await Promise.all([
     admin.from('submissions').select('assignment_id, score').eq('student_id', studentId).eq('is_active', true),
@@ -61,8 +61,8 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
   const { data: att } = attRes
   const { data: enr } = enrRes
 
-  // Resolve the assignments the student actually has marks on by their OWN ids —
-  // NOT by current enrolment — so a mark earned in a class the student has since
+  // Resolve the assignments the student actually has marks on by their OWN ids -
+  // NOT by current enrolment - so a mark earned in a class the student has since
   // left still shows its real class/topic/max instead of a blank "Class / Assignment".
   const subAssignmentIds = [...new Set(((subs ?? []) as { assignment_id: string }[]).map((s) => s.assignment_id))]
   const assignmentsRes = subAssignmentIds.length
@@ -92,7 +92,7 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
         className: a ? classLabel.get(a.class_id) ?? 'Class' : 'Class',
         topic: a?.topic ?? null,
         title: a?.title ?? 'Assignment',
-        // PostgREST returns numeric columns as strings ("18.00") — coerce so the
+        // PostgREST returns numeric columns as strings ("18.00") - coerce so the
         // types are honest and the arithmetic below is exact.
         score: Number(s.score),
         maxMarks: a?.max_marks != null ? Number(a.max_marks) : null,
@@ -106,7 +106,7 @@ export async function getReportCardData(viewer: Profile, studentId: string): Pro
   const pctItems = marks.filter((m) => m.maxMarks != null && (m.maxMarks as number) > 0)
   const average = pctItems.length
     ? {
-        // Clamp at 100 defensively — a stored score above its max_marks (legacy
+        // Clamp at 100 defensively - a stored score above its max_marks (legacy
         // rows) must not produce a >100% average.
         percent: Math.min(
           100,

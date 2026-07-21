@@ -8,8 +8,8 @@ import { ValidationError } from '@/lib/errors'
 import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
 
 /**
- * Issuance only records the document (validate → totals → allocate number →
- * insert → audit). The PDF is generated on demand when downloaded (see
+ * Issuance only records the document (validate -> totals -> allocate number ->
+ * insert -> audit). The PDF is generated on demand when downloaded (see
  * lib/finance/render.ts), so nothing is stored. Receipts snapshot the student's
  * class; pay slips have no class.
  */

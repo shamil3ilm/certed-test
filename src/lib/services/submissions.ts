@@ -38,7 +38,7 @@ export async function listSubmissionsForAssignment(assignmentId: string): Promis
   return (data ?? []) as Submission[]
 }
 
-/** Superseded (replaced) submissions for an assignment, newest first — the
+/** Superseded (replaced) submissions for an assignment, newest first - the
  *  version history kept when a student resubmits. `is_active=false` rows are
  *  never shown in the normal lists, so without this a replaced file is stored
  *  but recoverable by nobody. RLS scopes reads the same as the active list. */
@@ -54,7 +54,7 @@ export async function listSupersededSubmissions(assignmentId: string): Promise<S
   return (data ?? []) as Submission[]
 }
 
-/** Active, not-yet-graded submissions across a set of assignments — the tutor's
+/** Active, not-yet-graded submissions across a set of assignments - the tutor's
  *  "to review" queue. RLS still scopes reads to a tutor of those classes. */
 export async function listUngradedSubmissions(assignmentIds: string[]): Promise<Submission[]> {
   if (assignmentIds.length === 0) return []
@@ -81,7 +81,7 @@ export async function listMyActiveSubmissions(studentId: string): Promise<Submis
   return (data ?? []) as Submission[]
 }
 
-/** A student's own superseded (replaced) submissions, newest first — so they can
+/** A student's own superseded (replaced) submissions, newest first - so they can
  *  see the earlier versions a resubmission replaced. */
 export async function listMySupersededSubmissions(studentId: string): Promise<Submission[]> {
   const supabase = await createClient()
@@ -97,7 +97,7 @@ export async function listMySupersededSubmissions(studentId: string): Promise<Su
 
 /** The student's most recently graded submission, for the dashboard's "latest
  *  grade" widget. Sorts client-side over their own (naturally small) active
- *  submission set rather than `.not('score', 'is', null)` — the mock query
+ *  submission set rather than `.not('score', 'is', null)` - the mock query
  *  builder doesn't support `.not()`, same reasoning as the `.or()` avoidance
  *  in announcements.ts. */
 export async function getLatestGrade(studentId: string): Promise<Submission | null> {
@@ -120,7 +120,7 @@ export async function getSubmission(id: string): Promise<Submission | null> {
 }
 
 /** The student's current active submission for an assignment, or null. Used to
- *  block a resubmission that would wipe an already-earned mark — so it THROWS on a
+ *  block a resubmission that would wipe an already-earned mark - so it THROWS on a
  *  read error (fail closed) rather than returning null and letting the resubmit through. */
 export async function getActiveSubmission(assignmentId: string, studentId: string): Promise<Submission | null> {
   const supabase = await createClient()
@@ -181,7 +181,7 @@ function mapReplaceSubmissionError(message: string): Error {
 
 /**
  * Records a submission, superseding any prior active one (kept as history).
- * RLS (enrolled + own) is the enforcement here, not canManageClass — this is
+ * RLS (enrolled + own) is the enforcement here, not canManageClass - this is
  * a student submitting their own work, unchanged from the original client.
  */
 export async function recordSubmission(actor: Profile, input: RecordSubmissionInput): Promise<Submission> {
@@ -244,7 +244,7 @@ export function validateGradeSubmissionInput(input: GradeSubmissionActionInput):
  * Records a tutor's mark + feedback on a submission. Runs via the service
  * role because tutor-grading isn't in the submissions RLS (which only lets
  * an admin or the student themselves write). Authorizes against the
- * submission's OWN assignment/class — NEVER a client-supplied assignment id,
+ * submission's OWN assignment/class - NEVER a client-supplied assignment id,
  * which could name a class the caller manages while the write targets a
  * submission in a class they don't. A null score clears a previously-entered
  * mark.
@@ -254,9 +254,9 @@ export async function gradeSubmission(actor: Profile, input: GradeSubmissionInpu
   if (!submission) throw new NotFoundError('Not allowed to grade this submission.')
   // Guard the resubmit race: if the student replaced this submission after the
   // tutor opened the grading UI, this row is now inactive and the report card
-  // reads only the active one — so a mark saved here would silently vanish.
+  // reads only the active one - so a mark saved here would silently vanish.
   if (!submission.is_active) {
-    throw new ValidationError('This submission was replaced by a newer one — reload to grade the latest.')
+    throw new ValidationError('This submission was replaced by a newer one - reload to grade the latest.')
   }
   const assignment = await getAssignment(submission.assignment_id)
   if (!assignment || !(await canManageClass(actor, assignment.class_id))) {

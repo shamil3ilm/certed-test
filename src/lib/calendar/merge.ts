@@ -1,7 +1,7 @@
 import type { SlotOccurrence } from '@/lib/time/expand-slots'
 import type { CalendarEventKind } from '@/lib/services/calendar-events'
 
-// A wall-clock "YYYY-MM-DD" + "HH:mm" in `anchorTz` → absolute UTC instant.
+// A wall-clock "YYYY-MM-DD" + "HH:mm" in `anchorTz` -> absolute UTC instant.
 // Reuses the same DST-correct primitive as expandSlots, kept local to avoid a circular import.
 function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): string {
   const [y, mo, d] = dateYmd.split('-').map(Number)
@@ -48,7 +48,7 @@ export type MergeInput = {
   anchorTz: string
 }
 
-// Wall-clock calendar date ("YYYY-MM-DD") of an absolute instant in `tz` — the
+// Wall-clock calendar date ("YYYY-MM-DD") of an absolute instant in `tz` - the
 // inverse of zonedDateTimeToIso, used to match a slot occurrence to a same-day
 // cancellation/reschedule event.
 function wallClockDate(iso: string, tz: string): string {
@@ -79,7 +79,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     items.push({
       id: `slot-${occ.slotId}-${occ.startIso}`,
       source: 'slot',
-      title: meta ? `${meta.subject}${meta.location ? ` · ${meta.location}` : ''}` : 'Class',
+      title: meta ? `${meta.subject}${meta.location ? ` - ${meta.location}` : ''}` : 'Class',
       start: occ.startIso,
       end: occ.endIso,
       allDay: false,

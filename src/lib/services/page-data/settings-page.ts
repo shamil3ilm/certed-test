@@ -19,7 +19,7 @@ export type SettingsPageData = {
   roleLabel: string
 }
 
-/** Highest-privilege label from persona flags — persona-native, not profiles.role. */
+/** Highest-privilege label from persona flags - persona-native, not profiles.role. */
 function labelFromFlags(flags: { isAdmin: boolean; isSubAdmin: boolean; isTutor: boolean; isMentor: boolean }): string {
   if (flags.isAdmin) return 'Super Admin'
   if (flags.isSubAdmin) return 'Sub Admin'

@@ -22,7 +22,7 @@ export type SlotOccurrence = {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// Parse "HH:mm[:ss]" → { h, m }.
+// Parse "HH:mm[:ss]" -> { h, m }.
 function parseHm(t: string): { h: number; m: number } {
   const [h, m] = t.split(':')
   return { h: Number(h), m: Number(m) }
@@ -75,7 +75,7 @@ export function expandSlots(
   const occ: SlotOccurrence[] = []
   const seen = new Set<string>()
   // Iterate calendar days IN THE ANCHOR ZONE. We sample one instant per 24h hop and read its
-  // zoned Y/M/D + weekday — but UTC-midnight maps to the previous local day for west-of-UTC
+  // zoned Y/M/D + weekday - but UTC-midnight maps to the previous local day for west-of-UTC
   // zones, so we pad the scan by a day on each side and keep only occurrences whose absolute
   // instant lands within [startMs, endMs). Dedupe by (slot, instant) guards DST-boundary days.
   for (let cursor = startMs - DAY_MS; cursor < endMs + DAY_MS; cursor += DAY_MS) {

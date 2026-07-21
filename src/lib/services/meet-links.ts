@@ -30,7 +30,7 @@ export async function listMeetLinks(classId?: string, includeInactive = false): 
 }
 
 /**
- * Newest active meet links across a set of classes, plus academy-wide ones —
+ * Newest active meet links across a set of classes, plus academy-wide ones -
  * the dashboard's "meeting links" widget. Named for what the data actually is
  * (recently posted links, sorted by `created_at`): meet_links has no
  * scheduled-time column, so there's no way to derive a genuine "upcoming"
@@ -141,7 +141,7 @@ export async function createMeetLinkFromActionInput(
 /**
  * Soft-remove: deactivate the link (kept on record) rather than deleting it.
  * Enforces canManageScope on the link's own class and writes the audit entry
- * (also a new behavior addition — see createMeetLink).
+ * (also a new behavior addition - see createMeetLink).
  */
 export async function deleteMeetLink(actor: Profile, id: string): Promise<void> {
   const link = await getMeetLink(id)
@@ -155,7 +155,7 @@ export async function deleteMeetLink(actor: Profile, id: string): Promise<void> 
   await auditPrivilegedAction(actor, 'meet.delete', 'meet_link', id)
 }
 
-/** Undoes deleteMeetLink — the "kept on record" promise in the removal
+/** Undoes deleteMeetLink - the "kept on record" promise in the removal
  *  confirmation dialog previously had no matching UI action. */
 export async function restoreMeetLink(actor: Profile, id: string): Promise<void> {
   const link = await getMeetLink(id)

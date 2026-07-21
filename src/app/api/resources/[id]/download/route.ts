@@ -11,7 +11,10 @@ import { rateLimit } from '@/lib/security/rate-limit'
 export async function GET(_req: Request, ctx: { params: { id: string } }) {
   let me
   try {
-    me = await requireRoleApi(['admin', 'tutor', 'student'])
+    // Mentor included at the coarse gate; getResource stays RLS-scoped, so a
+    // mentor only resolves a resource their policy actually grants (e.g. when they
+    // also tutor the class) and gets a clean 404 otherwise.
+    me = await requireRoleApi(['admin', 'tutor', 'mentor', 'student'])
   } catch {
     return forbiddenText()
   }

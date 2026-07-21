@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * A safe external link: a well-formed http(s) URL. Rejects dangerous schemes
- * (javascript:, data:, vbscript:, …) that `z.string().url()` otherwise accepts —
+ * (javascript:, data:, vbscript:, ...) that `z.string().url()` otherwise accepts -
  * these values are stored and later rendered as `<a href>` and clicked by other
  * users (a student's link is opened by a tutor/admin), so an unrestricted
  * scheme is a stored-XSS / phishing vector.

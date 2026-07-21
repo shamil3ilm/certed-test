@@ -4,7 +4,7 @@ import { isMock } from '@/lib/mock/env'
 import { createMockAdminClient } from '@/lib/mock/client'
 
 /**
- * Service-role client. Bypasses RLS — use ONLY in server code for admin
+ * Service-role client. Bypasses RLS - use ONLY in server code for admin
  * operations (adding users, revoking access, finance issuance). Never import
  * this into a client component.
  */

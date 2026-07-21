@@ -27,7 +27,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
     }
     const { placeholderPdf } = await import('@/lib/mock/storage')
     const title = /<title>(.*?)<\/title>/i.exec(html)?.[1] ?? 'Cert-Ed Academia document'
-    return placeholderPdf(`${title} (mock render — no local Chrome found)`)
+    return placeholderPdf(`${title} (mock render - no local Chrome found)`)
   }
   const chromium = (await import('@sparticuz/chromium')).default
   const puppeteer = (await import('puppeteer-core')).default

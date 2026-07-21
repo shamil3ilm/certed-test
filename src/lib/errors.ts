@@ -3,7 +3,7 @@
  * null/undefined. Callers (Server Actions / Route Handlers) map these to a
  * response via `apiError`/`toActionError` (src/lib/api/*). Coexists with the
  * existing coded auth errors ('no-access' | 'revoked' | 'forbidden') thrown
- * by requireRole/requireRoleApi — this does not replace those.
+ * by requireRole/requireRoleApi - this does not replace those.
  */
 export class ServiceError extends Error {
   status: number

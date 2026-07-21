@@ -45,9 +45,9 @@ export function validateClassTutorParams(input: ClassTutorActionInput): ClassTut
 }
 
 /**
- * Admin-only — changing a class's teaching staff is a whole-class management
+ * Admin-only - changing a class's teaching staff is a whole-class management
  * action (see classes.ts). The UI only offers valid options, but a crafted
- * POST could pair an arbitrary profile id — verify it's really an active
+ * POST could pair an arbitrary profile id - verify it's really an active
  * tutor before granting class_tutors membership (which itself grants
  * full tutor-level RLS access to the class).
  */
@@ -70,7 +70,7 @@ export async function addTutorFromActionInput(actor: Profile, input: ClassTutorA
   await addTutor(actor, validateClassTutorParams(input))
 }
 
-/** Soft-remove (scoped by class + tutor) — keeps the row for later re-assign. */
+/** Soft-remove (scoped by class + tutor) - keeps the row for later re-assign. */
 export async function removeTutor(actor: Profile, params: ClassTutorParams): Promise<void> {
   await requireAdminPersona(actor)
   const admin = createAdminClient()

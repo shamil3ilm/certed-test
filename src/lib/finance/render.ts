@@ -7,7 +7,7 @@ import { getDoc, getDocLines, type FinanceKind } from '@/lib/services/finance/fi
 
 /**
  * Finance PDFs are generated on demand (printed when downloaded) and never
- * stored — the DB record + line items are the source of truth, so the document
+ * stored - the DB record + line items are the source of truth, so the document
  * is always reproducible and there's nothing to keep in sync.
  */
 
@@ -33,7 +33,7 @@ function fmtDate(iso: string): string {
 /**
  * Render a finance document to PDF bytes. Returns null if the caller isn't the
  * owner or an admin. The ownership check is explicit (in code) so access never
- * depends on RLS alone — a bare `/api/{kind}s/[id]/pdf` request for someone
+ * depends on RLS alone - a bare `/api/{kind}s/[id]/pdf` request for someone
  * else's receipt/pay slip returns 404, matching the assignment-review pattern.
  */
 export async function renderDocPdf(

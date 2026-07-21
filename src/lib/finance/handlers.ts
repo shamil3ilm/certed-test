@@ -10,7 +10,7 @@ import {
   textFail,
   tooManyRequests,
 } from '@/lib/api/response'
-import { requireRoleApi } from '@/lib/auth/require-role'
+import { requireCapabilityApi, requireRoleApi } from '@/lib/auth/require-role'
 import { ValidationError } from '@/lib/errors'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
 import { renderDocPdf } from '@/lib/finance/render'
@@ -37,7 +37,13 @@ function csv(s: string): string {
   return /[",\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded
 }
 
-/** POST /api/{kind}s - issue a document (admin only). */
+// STRUCTURAL admin-only exception (deliberate, not override-grantable): issuing
+// and voiding financial documents creates/reverses money records. viewFinance is
+// a READ capability - it never confers finance WRITE - so these stay persona-locked
+// to admin via requireRoleApi, mirroring the class-lifecycle rule in classroom/
+// class-actions.ts. The read paths (export/pdf) are capability/role gated below.
+
+/** POST /api/{kind}s - issue a document (STRUCTURAL admin-only; see note above). */
 export function issueHandler(kind: FinanceKind) {
   return async function POST(req: Request) {
     let me
@@ -59,7 +65,7 @@ export function issueHandler(kind: FinanceKind) {
   }
 }
 
-/** POST /api/{kind}s/[id]/void - void a document (admin only). */
+/** POST /api/{kind}s/[id]/void - void a document (STRUCTURAL admin-only; see note above). */
 export function voidHandler(kind: FinanceKind) {
   return async function POST(_req: Request, ctx: { params: { id: string } }) {
     let me
@@ -83,12 +89,15 @@ export function voidHandler(kind: FinanceKind) {
   }
 }
 
-/** GET /api/{kind}s/[id]/pdf - render on demand; RLS-scoped inside renderDocPdf. */
+/** GET /api/{kind}s/[id]/pdf - render on demand; ownership enforced inside
+ *  renderDocPdf (admin, or the doc's own party). Mentor is allowed at the gate
+ *  because a mentor is staff who may hold their own payslip; renderDocPdf's
+ *  party_id === viewer.id check still restricts them to their own document. */
 export function pdfHandler(kind: FinanceKind) {
   return async function GET(_req: Request, ctx: { params: { id: string } }) {
     let me
     try {
-      me = await requireRoleApi(['admin', 'tutor', 'student'])
+      me = await requireRoleApi(['admin', 'tutor', 'mentor', 'student'])
     } catch {
       return forbiddenText()
     }
@@ -114,12 +123,14 @@ export function pdfHandler(kind: FinanceKind) {
   }
 }
 
-/** GET /api/{kind}s/export - CSV of all documents (admin only). */
+/** GET /api/{kind}s/export - CSV of all documents. Override-aware READ: viewFinance
+ *  (admin by default) gates this and the /admin/finance page alike, so an override
+ *  that opens the page also opens its export - no UI/API divergence. */
 export function exportHandler(kind: FinanceKind) {
   return async function GET() {
     let me
     try {
-      me = await requireRoleApi(['admin'])
+      me = await requireCapabilityApi('viewFinance')
     } catch {
       return forbiddenText()
     }

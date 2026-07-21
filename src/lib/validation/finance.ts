@@ -3,15 +3,15 @@ import { SUPPORTED_CURRENCIES } from '@/lib/money'
 
 const lineSchema = z.object({
   subject: z.string().min(1).max(120),
-  // Bounds kept well inside numeric(16,3): 1000h × 1,000,000/h = 1e9 per line,
-  // × 50 lines = 5e10, far under the column's ~1e13 ceiling.
+  // Bounds kept well inside numeric(16,3): 1000h x 1,000,000/h = 1e9 per line,
+  // x 50 lines = 5e10, far under the column's ~1e13 ceiling.
   hours: z.number().positive().max(1000),
   rate: z.number().nonnegative().max(1_000_000),
 })
 
 const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'invalid date')
 
-/** Issue payload for either finance kind — the party is a profile id regardless of role. */
+/** Issue payload for either finance kind - the party is a profile id regardless of role. */
 export const issueDocSchema = z
   .object({
     party_id: z.string().uuid(),

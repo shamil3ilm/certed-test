@@ -8,7 +8,7 @@ import { htmlToPdf } from '@/lib/pdf/render-pdf'
 /**
  * Report card to PDF bytes. Returns null when the viewer isn't allowed to see
  * this student (getReportCardData gates), so the route can 404. Generated on
- * demand and never stored — the marks + attendance rows are the source of truth.
+ * demand and never stored - the marks + attendance rows are the source of truth.
  */
 export async function renderReportCardPdf(
   viewer: Profile,

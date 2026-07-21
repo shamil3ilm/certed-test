@@ -13,7 +13,7 @@ export async function createClient() {
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (toSet) => {
-          // Called from a Server Component → the cookie store is read-only.
+          // Called from a Server Component -> the cookie store is read-only.
           // Middleware (updateSession) refreshes the session cookie instead.
           try {
             toSet.forEach(({ name, value, options }) =>

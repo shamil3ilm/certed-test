@@ -58,7 +58,7 @@ export async function listAttendanceForStudentPage(
   return { items: (data ?? []) as AttendanceRow[], total: count ?? 0 }
 }
 
-/** SQL-side present/late/absent/rate for a student — head-only counts (zero
+/** SQL-side present/late/absent/rate for a student - head-only counts (zero
  *  row transfer), so the summary card doesn't require fetching every row
  *  just to compute a percentage (the dashboard widget previously did). */
 export async function summarizeAttendanceForStudent(studentId: string, classId?: string): Promise<AttendanceSummary> {
@@ -90,7 +90,7 @@ export type SessionSummary = AttendanceSummary & { session_date: string }
 
 /**
  * Every session date a class has attendance for, newest first, each with its
- * present/late/absent breakdown — the tutor/admin "attendance history"
+ * present/late/absent breakdown - the tutor/admin "attendance history"
  * view (the single-date `?date=` picker on the attendance page has no way to
  * browse past dates otherwise). Bounded to the last 2000 marks (~years of
  * daily sessions) before grouping, then to `limit` distinct dates.
@@ -125,7 +125,7 @@ export type AttendanceMark = {
 }
 
 /**
- * Upserts a whole class's marks for a session date in ONE call — atomic (a
+ * Upserts a whole class's marks for a session date in ONE call - atomic (a
  * partial failure rolls back rather than leaving half the roster saved) and
  * one round-trip. Runs via the service role (matches the enrolments
  * pattern, works in mock mode); RLS still restricts any direct write to a
@@ -146,7 +146,7 @@ export type MarkAttendanceInput = { student_id: string; status: string }
 
 /**
  * Marks a whole class for one session date in a single atomic write. Gated
- * by canManageClass (a tutor of THIS class or an admin) and — critically —
+ * by canManageClass (a tutor of THIS class or an admin) and - critically -
  * each student_id must be on this class's roster, so a forged
  * status:<foreignId> can't create a cross-class attendance row (which would
  * pollute that student's report card).
@@ -172,7 +172,7 @@ export async function markAttendance(
     })
     if (parsed.success) rows.push({ ...parsed.data, marked_by: actor.id })
   }
-  if (rows.length === 0) throw new ValidationError('Nothing to save — check the date and roster.')
+  if (rows.length === 0) throw new ValidationError('Nothing to save - check the date and roster.')
 
   await markAttendanceMany(rows)
   await auditPrivilegedAction(actor, 'attendance.mark', 'class', params.classId)
@@ -180,7 +180,7 @@ export async function markAttendance(
 }
 
 /**
- * Clears (deletes) every mark for a class on one session date — the correction
+ * Clears (deletes) every mark for a class on one session date - the correction
  * path for a session recorded in error or on the wrong date. Marking only ever
  * upserts present/late/absent, so without this a mistaken session could be
  * re-marked but never removed. Gated by canManageClass and audited.

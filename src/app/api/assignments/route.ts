@@ -1,12 +1,16 @@
 import { ok, invalidInput, authFail, apiError } from '@/lib/api/response'
-import { requireRoleApi } from '@/lib/auth/require-role'
+import { requireCapabilityApi } from '@/lib/auth/require-role'
 import { ValidationError } from '@/lib/errors'
 import { createAssignmentFromApiInput } from '@/lib/services/assignments'
 
 export async function POST(req: Request) {
   let me
   try {
-    me = await requireRoleApi(['admin', 'tutor'])
+    // Override-aware: manageClassContent (admin + tutor by default) can be granted
+    // to another persona via an override; the per-class canManageClass check inside
+    // the service still applies, so this only widens who may reach it, not what they
+    // may write. Agrees with the /classroom content actions.
+    me = await requireCapabilityApi('manageClassContent')
   } catch (e) {
     return authFail(e)
   }

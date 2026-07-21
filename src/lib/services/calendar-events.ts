@@ -80,7 +80,7 @@ export async function getEvent(id: string): Promise<CalendarEvent | null> {
 
 /**
  * Global events (class_id null) are admin-only; tutors may only create
- * course events they teach — canWriteClass covers exactly this rule.
+ * course events they teach - canWriteClass covers exactly this rule.
  */
 export async function createEvent(actor: Profile, input: CreateEventInput): Promise<CalendarEvent> {
   if (!(await canWriteClass(actor, input.class_id ?? null))) {
@@ -115,7 +115,7 @@ export async function createEventFromApiInput(actor: Profile, input: unknown): P
 
 /**
  * Defense-in-depth: if the caller is MOVING the event, re-authorize the
- * DESTINATION class too — not just the class it currently belongs to. RLS
+ * DESTINATION class too - not just the class it currently belongs to. RLS
  * also blocks this, but don't let a tutor reassign an event to a class
  * they don't teach (or to a global/null event) if the RLS policy is ever
  * loosened.

@@ -1,5 +1,5 @@
 /**
- * Minimal PDF fallback for MOCK MODE — used by renderPdf when a headless Chrome
+ * Minimal PDF fallback for MOCK MODE - used by renderPdf when a headless Chrome
  * isn't available, so finance documents still produce a valid (if plain) PDF.
  */
 

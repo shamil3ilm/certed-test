@@ -52,10 +52,10 @@ export async function getDriveAccessToken(loginHint?: string): Promise<string> {
       client_id: cfg.clientId,
       scope: DRIVE_SCOPE,
       login_hint: loginHint,
-      // In-flow OAuth errors (e.g. consent denied) arrive here…
+      // In-flow OAuth errors (e.g. consent denied) arrive here...
       callback: (resp: any) =>
         resp.error ? reject(new Error(resp.error)) : resolve(resp.access_token),
-      // …while popup-level failures (closed / blocked) arrive here — without this,
+      // ...while popup-level failures (closed / blocked) arrive here - without this,
       // closing the Google popup would leave the promise (and the button) hung.
       error_callback: (err: any) =>
         reject(new Error(err?.type ?? 'Google sign-in was cancelled')),
@@ -80,18 +80,18 @@ export async function showDrivePicker(accessToken: string): Promise<PickedFile |
       .setOAuthToken(accessToken)
       .setDeveloperKey(cfg.apiKey)
       .addView(new g.picker.DocsUploadView())
-      // Only the student's OWN files — never auto-publish a file merely shared to them.
+      // Only the student's OWN files - never auto-publish a file merely shared to them.
       .addView(new g.picker.DocsView().setIncludeFolders(false).setOwnedByMe(true))
       .setCallback((data: any) => {
         const action = data[g.picker.Response.ACTION]
         if (action === g.picker.Action.PICKED) {
           const file = parsePickerDoc(data[g.picker.Response.DOCUMENTS]?.[0] ?? null)
           if (file) resolve(file)
-          else reject(new Error('Could not read the selected file — please try again'))
+          else reject(new Error('Could not read the selected file - please try again'))
         } else if (action === g.picker.Action.CANCEL) {
           resolve(null)
         } else if (action === g.picker.Action.ERROR) {
-          reject(new Error('Google Drive had a problem — please try again'))
+          reject(new Error('Google Drive had a problem - please try again'))
         }
         // Non-terminal actions (e.g. LOADED) are ignored until a terminal one arrives.
       })

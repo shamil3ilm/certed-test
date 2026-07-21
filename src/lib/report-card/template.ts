@@ -10,11 +10,11 @@ function esc(s: string): string {
 export type ReportOrgInfo = { instituteName: string; email: string | null; phone: string | null }
 
 /** A self-contained A4 report card: header, student block, marks table, and an
- *  attendance summary. Inline CSS only — headless Chromium prints it as-is. */
+ *  attendance summary. Inline CSS only - headless Chromium prints it as-is. */
 export function buildReportCardHtml(data: ReportCardData, org: ReportOrgInfo, generatedOn: string): string {
   const { student, marks, average, attendance } = data
   const name = esc(student.full_name ?? student.email)
-  const contact = [org.email, org.phone].filter(Boolean).map((s) => esc(String(s))).join(' · ')
+  const contact = [org.email, org.phone].filter(Boolean).map((s) => esc(String(s))).join(' - ')
 
   const marksRows = marks.length
     ? marks
@@ -22,7 +22,7 @@ export function buildReportCardHtml(data: ReportCardData, org: ReportOrgInfo, ge
           (m) => `
         <tr>
           <td>${esc(m.className)}</td>
-          <td>${m.topic ? esc(m.topic) : '<span class="muted">—</span>'}</td>
+          <td>${m.topic ? esc(m.topic) : '<span class="muted">-</span>'}</td>
           <td>${esc(m.title)}</td>
           <td class="num">${m.score}${m.maxMarks != null ? ` <span class="muted">/ ${m.maxMarks}</span>` : ''}</td>
         </tr>`,
@@ -34,7 +34,7 @@ export function buildReportCardHtml(data: ReportCardData, org: ReportOrgInfo, ge
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Report card — ${name}</title>
+<title>Report card - ${name}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 0; padding: 32px 36px; font-size: 12px; }
@@ -90,7 +90,7 @@ export function buildReportCardHtml(data: ReportCardData, org: ReportOrgInfo, ge
 
   <h2>Attendance</h2>
   <div class="cards">
-    <div class="card"><div class="big">${attendance.rate}%</div><div class="cap">Attendance${attendance.total ? ` · ${attendance.total} sessions` : ''}</div></div>
+    <div class="card"><div class="big">${attendance.rate}%</div><div class="cap">Attendance${attendance.total ? ` - ${attendance.total} sessions` : ''}</div></div>
     <div class="card"><div class="big pres">${attendance.present}</div><div class="cap">Present</div></div>
     <div class="card"><div class="big late">${attendance.late}</div><div class="cap">Late</div></div>
     <div class="card"><div class="big abs">${attendance.absent}</div><div class="cap">Absent</div></div>

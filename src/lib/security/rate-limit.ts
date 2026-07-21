@@ -3,7 +3,7 @@
  *
  * The counter store is in-process. On serverless (Vercel spins up multiple
  * instances under load) each instance keeps its own counters, so this defends
- * against casual bursts / abuse from a single client — NOT a large distributed
+ * against casual bursts / abuse from a single client - NOT a large distributed
  * attack. For hard, distributed limits, swap `buckets` for Vercel KV / Upstash
  * Redis behind this same `rateLimit()` signature; callers don't change.
  */
