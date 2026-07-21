@@ -3,14 +3,14 @@ import type { Profile } from '@/lib/auth/profile'
 import { getProfileById } from '@/lib/services/users'
 import { canMentor } from '@/lib/permission'
 import { isAdminTier } from '@/lib/capabilities'
-import { listMentorships, studentIdsOfTutor } from '@/lib/services/mentorships'
+import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
 
 export { canMentor }
 
 /**
  * Mentee (pastoral) views for a mentor. A mentor may not teach the mentee's
- * classes, so RLS would hide the data — these helpers use the service-role
+ * classes, so RLS would hide the data - these helpers use the service-role
  * client but ALWAYS gate on a verified, active mentorship first (or admin).
  */
 
@@ -50,7 +50,7 @@ export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
   const isAdmin = isAdminTier(me)
   const ids = isAdmin
     ? [...new Set((await listMentorships()).map((link) => link.student_id))]
-    : await studentIdsOfTutor(me.id)
+    : await studentIdsOfMentor(me.id)
   const names = await getProfileNamesByIds(ids)
   return {
     isAdmin,

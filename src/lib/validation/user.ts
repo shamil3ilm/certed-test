@@ -1,8 +1,9 @@
 import { z } from 'zod'
 
-export const roleSchema = z.enum(['admin', 'sub_admin', 'tutor', 'student'])
+export const roleSchema = z.enum(['admin', 'sub_admin', 'tutor', 'mentor', 'student'])
 
-/** Roles a Sub Admin is allowed to create/assign (never the admin tier). */
+/** Roles a Sub Admin is allowed to create/assign - tutor/student only. Mentor
+ *  accounts (like the admin tier) are created and managed by a full admin. */
 export const subAdminAssignableRoles = ['tutor', 'student'] as const
 
 export const addUserSchema = z.object({
@@ -14,7 +15,7 @@ export const addUserSchema = z.object({
 export type AddUserInput = z.infer<typeof addUserSchema>
 
 /**
- * Editing a user updates profile details only — never their role. Personas are
+ * Editing a user updates profile details only - never their role. Personas are
  * fixed identities (a student is not converted into staff, nor staff into a
  * student), so role reassignment is deliberately excluded from the everyday
  * Users hub. If reassignment is ever required it must be a separate, audited
@@ -35,13 +36,13 @@ export const registerSchema = z.object({
 })
 export type RegisterInput = z.infer<typeof registerSchema>
 
-/** Self-service profile edit (settings page): name only — class/grade is admin-controlled. */
+/** Self-service profile edit (settings page): name only - class/grade is admin-controlled. */
 export const updateProfileSchema = z.object({
   full_name: z.string().trim().max(120).optional(),
 })
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
 
-/** Self-service password change — same bounds as registerSchema's password. */
+/** Self-service password change - same bounds as registerSchema's password. */
 export const changePasswordSchema = z
   .object({
     password: z.string().min(8).max(200),

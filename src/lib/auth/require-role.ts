@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getActorContext } from '@/lib/session/actor-context'
-import { hasCapability, type Capability } from '@/lib/capabilities'
+import { type Capability } from '@/lib/capabilities'
 import { redirectForAccessState } from './guards'
 import type { Profile } from './profile'
 
@@ -32,7 +32,7 @@ export async function requireRole(allowed: Profile['role'][]): Promise<Profile> 
 
 /**
  * Session guard for pages available to ANY signed-in, active user regardless of
- * persona — self-service like managing your own profile/password. Enforces active
+ * persona - self-service like managing your own profile/password. Enforces active
  * status only (no persona/capability gate), so it can never wrongly exclude a
  * current or future persona. Prefer this over enumerating every role for
  * "anyone logged in" pages.
@@ -44,16 +44,21 @@ export async function requireActiveProfile(): Promise<Profile> {
 }
 
 /**
- * Capability-based page guard — the persona-first counterpart to requireRole.
+ * Capability-based page guard - the persona-first counterpart to requireRole.
  * Use this where access is defined by a capability rather than a fixed role set,
  * so the page guard agrees with the capability-driven nav (nav.ts) and services.
- * Notably `/students` is `viewMentees`, which admin, tutor AND mentor hold — a
- * role list can't express "mentor" (it's a persona, not a profiles.role value).
+ * Notably `/students` is `viewMentees`, which admin and mentor hold outright,
+ * while a tutor holds it ONLY when also assigned the (student-scoped) mentor
+ * persona -- a plain tutor has no mentee access, and a fixed role list can't
+ * express that persona nuance.
+ *
+ * Decides against the actor's RESOLVED capabilities (persona baseline + admin
+ * overrides), so an explicit allow/deny is honoured here exactly as in the nav.
  */
 export async function requireCapability(capability: Capability): Promise<Profile> {
   const actor = await getActorContext()
   if (!actor.profile || actor.accessState !== 'active') redirectForAccessState(actor)
-  if (!hasCapability(actor.personas, capability)) redirect('/dashboard')
+  if (!actor.capabilities.allowed.has(capability)) redirect('/dashboard')
   return actor.profile
 }
 
@@ -69,5 +74,23 @@ export async function requireRoleApi(allowed: Profile['role'][]): Promise<Profil
   if (actor.accessState === 'disabled') throw new Error('revoked')
   if (actor.accessState !== 'active') throw new Error('no-access')
   if (!hasAllowedPersona(allowed, actor.personas)) throw new Error('forbidden')
+  return actor.profile
+}
+
+/**
+ * Capability-based API/Route-Handler guard - the throwing counterpart to
+ * requireCapability, and the API analogue of requireRoleApi. Decides against the
+ * actor's RESOLVED capabilities (persona baseline + admin overrides), so an API
+ * route agrees with the page guard and nav: an override-granted capability that
+ * opens the UI entry point also opens the matching API endpoint (no divergence).
+ * Use for override-sensitive endpoints; keep requireRoleApi for structural
+ * admin-only rules that are deliberately NOT override-grantable.
+ */
+export async function requireCapabilityApi(capability: Capability): Promise<Profile> {
+  const actor = await getActorContext()
+  if (!actor.profile) throw new Error('no-access')
+  if (actor.accessState === 'disabled') throw new Error('revoked')
+  if (actor.accessState !== 'active') throw new Error('no-access')
+  if (!actor.capabilities.allowed.has(capability)) throw new Error('forbidden')
   return actor.profile
 }

@@ -9,23 +9,24 @@ import { z } from 'zod'
 
 export type Mentorship = {
   id: string
-  tutor_id: string
+  mentor_id: string
   student_id: string
   created_at: string
 }
 
 /**
- * Create a mentor-scoped persona for the tutor-student relationship.
- * This allows the mentor to access the student outside of class context.
+ * Create a student-scoped mentor persona for the mentor-student relationship,
+ * so the mentor can access the student outside of any class context. The mentor
+ * may be a dedicated mentor account or a tutor who also mentors.
  */
-async function assignMentorPersona(tutorId: string, studentId: string): Promise<void> {
+async function assignMentorPersona(mentorId: string, studentId: string): Promise<void> {
   const admin = createAdminClient()
   // Use 3-column conflict per DB constraint: (profile_id, persona_name, scope_id)
   const { error } = await admin
     .from('persona_assignments')
     .upsert(
       {
-        profile_id: tutorId,
+        profile_id: mentorId,
         persona_name: 'mentor',
         scope_type: 'student',
         scope_id: studentId,
@@ -40,12 +41,12 @@ async function assignMentorPersona(tutorId: string, studentId: string): Promise<
 /**
  * Remove a mentor-scoped persona when the mentorship ends.
  */
-async function removeMentorPersona(tutorId: string, studentId: string): Promise<void> {
+async function removeMentorPersona(mentorId: string, studentId: string): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin
     .from('persona_assignments')
     .delete()
-    .eq('profile_id', tutorId)
+    .eq('profile_id', mentorId)
     .eq('persona_name', 'mentor')
     .eq('scope_type', 'student')
     .eq('scope_id', studentId)
@@ -53,7 +54,7 @@ async function removeMentorPersona(tutorId: string, studentId: string): Promise<
   if (error) throw new Error(`removeMentorPersona: ${error.message}`)
 }
 
-/** RLS-scoped list of active links (admin: all, tutor: own, student: own). */
+/** RLS-scoped list of active links (admin: all, mentor: own, student: own). */
 export async function listMentorships(): Promise<Mentorship[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('mentorships').select('*').eq('active', true)
@@ -71,27 +72,27 @@ export async function listMentorshipsForUsersHub(): Promise<Mentorship[]> {
   return (data ?? []) as Mentorship[]
 }
 
-/** Active student ids assigned to a tutor. */
-export async function studentIdsOfTutor(tutorId: string): Promise<string[]> {
+/** Active student ids a mentor supervises. */
+export async function studentIdsOfMentor(mentorId: string): Promise<string[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('mentorships')
     .select('student_id')
-    .eq('tutor_id', tutorId)
+    .eq('mentor_id', mentorId)
     .eq('active', true)
   if (error) throw new Error(`mentorships.studentsOf: ${error.message}`)
   return (data ?? []).map((r) => (r as { student_id: string }).student_id)
 }
 
-export type MentorshipParams = { tutorId: string; studentId: string }
+export type MentorshipParams = { mentorId: string; studentId: string }
 const mentorshipIdSchema = z.string().uuid()
 const mentorshipParamsSchema = z.object({
-  tutorId: z.string().uuid(),
+  mentorId: z.string().uuid(),
   studentId: z.string().uuid(),
 })
 
 export type AssignMentorActionInput = {
-  tutor_id?: FormDataEntryValue | null
+  mentor_id?: FormDataEntryValue | null
   student_id?: FormDataEntryValue | null
 }
 
@@ -101,7 +102,7 @@ export type RemoveMentorActionInput = {
 
 export function validateAssignMentorInput(input: AssignMentorActionInput): MentorshipParams {
   const parsed = mentorshipParamsSchema.safeParse({
-    tutorId: String(input.tutor_id ?? ''),
+    mentorId: String(input.mentor_id ?? ''),
     studentId: String(input.student_id ?? ''),
   })
   if (!parsed.success) {
@@ -119,19 +120,21 @@ export function validateRemoveMentorInput(input: RemoveMentorActionInput): strin
 }
 
 /**
- * Mentor assignment is managed by admin/sub_admin from the Users hub — not
+ * Mentor assignment is managed by admin/sub_admin from the Users hub - not
  * gated by canManageClass (mentorship is pastoral, independent of which
- * class/subject the tutor teaches). The UI only offers valid options, but
- * a crafted POST could pair arbitrary ids — verify the mentor is really a
- * tutor and the mentee really a student.
+ * class/subject anyone teaches). The UI only offers valid options, but a
+ * crafted POST could pair arbitrary ids - verify the mentor really is a mentor
+ * (or a tutor who also mentors) and the mentee really is a student.
  */
 export async function assignMentor(actor: Profile, params: MentorshipParams): Promise<void> {
   await requireAdminOrSubAdminPersona(actor)
-  const [tutor, student] = await Promise.all([
-    getProfileById(params.tutorId),
+  const [mentor, student] = await Promise.all([
+    getProfileById(params.mentorId),
     getProfileById(params.studentId),
   ])
-  if (!tutor || tutor.role !== 'tutor') throw new ValidationError('tutor_id must be a tutor')
+  if (!mentor || (mentor.role !== 'mentor' && mentor.role !== 'tutor')) {
+    throw new ValidationError('mentor_id must be a mentor or tutor')
+  }
   if (!student || student.role !== 'student') throw new ValidationError('student_id must be a student')
 
   const admin = createAdminClient()
@@ -139,12 +142,12 @@ export async function assignMentor(actor: Profile, params: MentorshipParams): Pr
   const { error } = await admin
     .from('mentorships')
     .upsert(
-      { tutor_id: params.tutorId, student_id: params.studentId, active: true },
-      { onConflict: 'tutor_id,student_id' },
+      { mentor_id: params.mentorId, student_id: params.studentId, active: true },
+      { onConflict: 'mentor_id,student_id' },
     )
   if (error) throw new Error(`mentorships.assign: ${error.message}`)
   // Sync mentor-scoped persona
-  await assignMentorPersona(params.tutorId, params.studentId)
+  await assignMentorPersona(params.mentorId, params.studentId)
   await auditPrivilegedAction(actor, 'mentorship.assign', 'mentorship', params.studentId)
 }
 
@@ -159,10 +162,10 @@ export async function assignMentorFromActionInput(
 export async function removeMentor(actor: Profile, id: string): Promise<void> {
   await requireAdminOrSubAdminPersona(actor)
   const admin = createAdminClient()
-  // Fetch the mentorship to get tutor_id and student_id for persona cleanup
+  // Fetch the mentorship to get mentor_id and student_id for persona cleanup
   const { data: mentorship, error: fetchError } = await admin
     .from('mentorships')
-    .select('tutor_id, student_id')
+    .select('mentor_id, student_id')
     .eq('id', id)
     .single()
   if (fetchError) throw new Error(`mentorships.fetch: ${fetchError.message}`)
@@ -172,7 +175,7 @@ export async function removeMentor(actor: Profile, id: string): Promise<void> {
 
   // Remove mentor-scoped persona
   if (mentorship) {
-    await removeMentorPersona(mentorship.tutor_id, mentorship.student_id)
+    await removeMentorPersona(mentorship.mentor_id, mentorship.student_id)
   }
 
   await auditPrivilegedAction(actor, 'mentorship.remove', 'mentorship', id)

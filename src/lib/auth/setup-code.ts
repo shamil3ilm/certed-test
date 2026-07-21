@@ -19,7 +19,7 @@ export function generateSetupCode(): string {
   return out
 }
 
-/** SHA-256 hex of the normalized code — what we store. */
+/** SHA-256 hex of the normalized code - what we store. */
 export function hashSetupCode(code: string): string {
   return createHash('sha256').update(code.trim().toUpperCase()).digest('hex')
 }

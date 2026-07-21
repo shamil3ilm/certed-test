@@ -21,7 +21,7 @@ export interface PersonaAssignment {
  * When the requested profile is the current actor, reuse the personas already
  * loaded by getActorContext (RLS guarantees a user reads all of their own
  * active persona rows), avoiding a second persona_assignments query per request.
- * For any other profile — or if the actor context is unavailable — fall back to
+ * For any other profile - or if the actor context is unavailable - fall back to
  * a direct admin-client load.
  */
 export const loadActivePersonas = cache(async (profileId: string): Promise<PersonaAssignment[]> => {
@@ -31,7 +31,7 @@ export const loadActivePersonas = cache(async (profileId: string): Promise<Perso
       return actor.personas as unknown as PersonaAssignment[]
     }
   } catch {
-    // Actor context unavailable (e.g. non-request context) — load directly below.
+    // Actor context unavailable (e.g. non-request context) - load directly below.
   }
 
   const admin = createAdminClient()
@@ -87,6 +87,12 @@ export async function loadPersonaFlags(profileId: string) {
 /**
  * Require admin persona for an operation. Throws PermissionError if not admin.
  * Extracted common pattern used across multiple services (classes.ts, classTutors.ts).
+ *
+ * This is the enforcement point for STRUCTURAL admin-only rules that are
+ * deliberately NOT capability/override-grantable - class lifecycle (classroom/
+ * class-actions.ts), finance issuance/voiding (finance/handlers.ts), and
+ * capability-override management itself. Capability-gated writes use
+ * requireCapability/requireCapabilityApi instead.
  */
 export async function requireAdminPersona(actor: Profile): Promise<void> {
   const personas = await loadActivePersonas(actor.id)

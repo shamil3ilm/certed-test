@@ -5,7 +5,7 @@ import {
   countUsersHubStats,
   displayName,
   getProfilesByIds,
-  listActiveByRole,
+  listActiveMentorCandidates,
   listProfilesByRole,
   type ProfileLite,
 } from '@/lib/services/users'
@@ -19,8 +19,11 @@ export type UsersTab = 'students' | 'tutors' | 'mentors' | 'admins'
 
 export const USER_TABS: { key: UsersTab; label: string }[] = [
   { key: 'students', label: 'Students' },
-  { key: 'tutors', label: 'Tutors' },
-  { key: 'mentors', label: 'Mentors' },
+  // The 'tutors' tab lists academic staff accounts - tutors and (independent)
+  // mentors. The 'mentors' tab is the student<->mentor assignment view, not an
+  // account list.
+  { key: 'tutors', label: 'Tutors & mentors' },
+  { key: 'mentors', label: 'Mentor assignments' },
   { key: 'admins', label: 'Admins' },
 ]
 
@@ -35,7 +38,7 @@ export type UsersPageFilters = {
 
 export type UsersHubMentorLink = {
   id: string
-  tutor_id: string
+  mentor_id: string
   student_id: string
 }
 
@@ -44,7 +47,7 @@ export type AdminUsersPageData = {
   roleOptions: string[]
   filters: UsersPageFilters
   stats: Awaited<ReturnType<typeof countUsersHubStats>>
-  activeTutors: { id: string; name: string }[]
+  mentorCandidates: { id: string; name: string }[]
   tabProfiles: Profile[]
   tabTotal: number
   assignedStudents: number
@@ -92,8 +95,9 @@ function parseFilters(searchParams: {
   }
 }
 
-function roleForTab(tab: UsersTab): 'student' | 'tutor' | ReadonlyArray<'admin' | 'sub_admin'> {
-  return tab === 'tutors' ? 'tutor' : tab === 'admins' ? ['admin', 'sub_admin'] : 'student'
+function roleForTab(tab: UsersTab): Profile['role'] | ReadonlyArray<Profile['role']> {
+  // 'tutors' lists academic staff accounts: tutors AND independent mentors.
+  return tab === 'tutors' ? ['tutor', 'mentor'] : tab === 'admins' ? ['admin', 'sub_admin'] : 'student'
 }
 
 function groupMentorsByStudent(links: UsersHubMentorLink[]): Map<string, UsersHubMentorLink[]> {
@@ -119,11 +123,13 @@ export async function loadAdminUsersPageData(
 ): Promise<AdminUsersPageData> {
   const filters = parseFilters(searchParams)
   const isSuper = isAdminTier(me)
-  const roleOptions = isSuper ? ['student', 'tutor', 'sub_admin', 'admin'] : ['student', 'tutor']
+  // Only a full admin creates mentor and admin-tier accounts; a sub_admin is
+  // limited to students and tutors.
+  const roleOptions = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor']
 
-  const [stats, activeTutors, links, { items: tabProfiles, total: tabTotal }] = await Promise.all([
+  const [stats, mentorCandidates, links, { items: tabProfiles, total: tabTotal }] = await Promise.all([
     countUsersHubStats(),
-    listActiveByRole('tutor'),
+    listActiveMentorCandidates(),
     listMentorshipsForUsersHub(),
     listProfilesByRole(roleForTab(filters.tab), {
       page: filters.page,
@@ -135,7 +141,7 @@ export async function loadAdminUsersPageData(
     }),
   ])
 
-  const mentorProfiles = await getProfilesByIds([...new Set(links.map((l) => l.tutor_id))])
+  const mentorProfiles = await getProfilesByIds([...new Set(links.map((l) => l.mentor_id))])
   const mentorNames = new Map([...mentorProfiles].map(([id, p]: [string, ProfileLite]) => [id, displayName(p)]))
   const mentorsByStudent = groupMentorsByStudent(links as UsersHubMentorLink[])
 
@@ -144,7 +150,7 @@ export async function loadAdminUsersPageData(
     roleOptions,
     filters,
     stats,
-    activeTutors,
+    mentorCandidates,
     tabProfiles,
     tabTotal,
     assignedStudents: new Set(links.map((l) => l.student_id)).size,

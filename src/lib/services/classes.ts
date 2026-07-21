@@ -63,7 +63,7 @@ export async function listClasses(): Promise<ClassRow[]> {
   return (data ?? []) as ClassRow[]
 }
 
-/** Count of active classes — SQL-side, transfers zero rows. RLS-scoped: an
+/** Count of active classes - SQL-side, transfers zero rows. RLS-scoped: an
  *  admin sees the whole-academy count (what the dashboard stat card needs). */
 export async function countActiveClasses(): Promise<number> {
   const supabase = await createClient()
@@ -86,7 +86,7 @@ export const getClass = cache(async (id: string): Promise<ClassRow | null> => {
 // Use requireAdminPersona from personas.ts instead of local implementation
 
 /**
- * Whole-class management (create, rename, archive/restore) is ADMIN-ONLY — a
+ * Whole-class management (create, rename, archive/restore) is ADMIN-ONLY - a
  * single tutor shouldn't be able to rename/hide a shared class or change its
  * teaching staff. Day-to-day student enrolment lives in enrollments.ts.
  */
@@ -153,7 +153,7 @@ export async function restoreClassFromActionInput(actor: Profile, input: ClassId
  * Class-centric aggregation layer (Google Classroom-style).
  *
  * A "class" is a `classes` row. Membership is derived from the existing
- * `class_tutors` and `enrollments` tables — there is no new core schema.
+ * `class_tutors` and `enrollments` tables - there is no new core schema.
  * These helpers use the service-role client but ALWAYS scope by the caller's
  * own membership first, so they never widen what a user can see.
  */
@@ -169,7 +169,7 @@ export type ClassMembers = { tutors: ClassMember[]; students: ClassMember[] }
 /** ClassRow ids the caller belongs to (admin sees all).
  *  Tutor and student membership are derived from explicit personas and unioned,
  *  so a user who holds both personas sees both sets, and a user who holds
- *  neither (e.g. a future guardian/finance persona) sees none — membership is
+ *  neither (e.g. a future guardian/finance persona) sees none - membership is
  *  never inferred from the absence of another persona. */
 export async function myClassIds(profile: Profile): Promise<string[]> {
   const { isAdmin, isTutor, isStudent } = await loadPersonaFlags(profile.id)
@@ -257,9 +257,9 @@ export async function getClassMembers(classId: string): Promise<ClassMembers> {
 export type MentorContact = { name: string; email: string }
 
 /**
- * Mentor contacts (name + email) keyed by student id. A mentor is a tutor
- * assigned to look after a student pastorally (like a class tutor),
- * independent of which subjects they teach — see the `mentorships` table.
+ * Mentor contacts (name + email) keyed by student id. A mentor looks after a
+ * student pastorally across all subjects (may or may not also be a tutor),
+ * independent of who teaches their classes - see the `mentorships` table.
  */
 export async function mentorsByStudent(studentIds: string[]): Promise<Map<string, MentorContact[]>> {
   const out = new Map<string, MentorContact[]>()
@@ -267,18 +267,18 @@ export async function mentorsByStudent(studentIds: string[]): Promise<Map<string
   const admin = createAdminClient()
   const { data: ms } = await admin
     .from('mentorships')
-    .select('student_id, tutor_id')
+    .select('student_id, mentor_id')
     .in('student_id', studentIds)
     .eq('active', true)
-  const rows = (ms ?? []) as { student_id: string; tutor_id: string }[]
-  const tutorIds = [...new Set(rows.map((r) => r.tutor_id))]
-  if (tutorIds.length === 0) return out
-  const profiles = await getProfilesByIds(tutorIds)
+  const rows = (ms ?? []) as { student_id: string; mentor_id: string }[]
+  const mentorIds = [...new Set(rows.map((r) => r.mentor_id))]
+  if (mentorIds.length === 0) return out
+  const profiles = await getProfilesByIds(mentorIds)
   const byId = new Map(
     [...profiles].map(([id, p]) => [id, { name: p.full_name ?? p.email, email: p.email } as MentorContact]),
   )
   rows.forEach((r) => {
-    const contact = byId.get(r.tutor_id)
+    const contact = byId.get(r.mentor_id)
     if (!contact) return
     const arr = out.get(r.student_id) ?? []
     arr.push(contact)

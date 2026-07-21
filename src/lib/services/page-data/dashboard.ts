@@ -8,26 +8,36 @@ import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
 import { financeTotals } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders, type Reminder } from '@/lib/services/reminders'
 import { countPeople, getProfileNamesByIds } from '@/lib/services/users'
-import { studentIdsOfTutor } from '@/lib/services/mentorships'
+import { studentIdsOfMentor } from '@/lib/services/mentorships'
 
 export type DashboardMentee = { id: string; name: string }
 
 /**
  * The actor's OWN mentees (students they personally mentor), for the dashboard
  * "Your mentees" section. Data-driven, not tied to a view-kind: empty for anyone
- * with no mentorships, populated for tutors/mentors who have them — so a mentor
+ * with no mentorships, populated for tutors/mentors who have them - so a mentor
  * who teaches no classes still sees their actual work on the dashboard.
  */
 export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee[]> {
-  const ids = await studentIdsOfTutor(me.id)
+  const ids = await studentIdsOfMentor(me.id)
   if (ids.length === 0) return []
   const names = await getProfileNamesByIds(ids)
   return ids.map((id) => ({ id, name: names.get(id) ?? id }))
 }
 
+/**
+ * The dashboard's `mentor` view serves two actors: a DEDICATED mentor account
+ * (role `mentor`, teaches nothing) and a tutor who ALSO mentors students. Both
+ * lead with their mentees; `teaches` decides whether the teaching widgets follow
+ * (true for the tutor-who-mentors, false for the dedicated mentor). A plain tutor
+ * with no mentees stays `tutor`; admin/sub_admin/student never take this view.
+ */
+export type MentorDashboardViewData = { kind: 'mentor'; mentees: DashboardMentee[]; teaches: boolean }
+
 export type DashboardViewData =
   | AdminDashboardViewData
   | SubAdminDashboardViewData
+  | MentorDashboardViewData
   | { kind: 'tutor' }
   | { kind: 'student' }
 
@@ -50,10 +60,12 @@ export type SubAdminDashboardViewData = {
   pending: number
 }
 
-function roleKind(me: Profile): DashboardViewData['kind'] {
+function roleKind(me: Profile): 'admin' | 'sub_admin' | 'tutor' | 'mentor' | 'student' {
   if (hasCapability(me, 'viewFinance')) return 'admin'
   if (hasCapability(me, 'manageUsers')) return 'sub_admin'
   if (hasCapability(me, 'viewPayslips')) return 'tutor'
+  // A dedicated mentor account holds viewMentees but not the teaching caps above.
+  if (hasCapability(me, 'viewMentees')) return 'mentor'
   return 'student'
 }
 
@@ -101,8 +113,17 @@ export async function loadDashboardViewData(me: Profile): Promise<DashboardViewD
       return loadAdminDashboardViewData(me)
     case 'sub_admin':
       return loadSubAdminDashboardViewData()
-    case 'tutor':
-      return { kind: 'tutor' }
+    case 'tutor': {
+      // A tutor who mentors students resolves to the mentor view (mentees-led),
+      // keeping the teaching widgets; a tutor with none stays a plain tutor.
+      const mentees = await loadDashboardMentees(me)
+      return mentees.length > 0 ? { kind: 'mentor', mentees, teaches: true } : { kind: 'tutor' }
+    }
+    case 'mentor': {
+      // A dedicated mentor account: mentees-led, no teaching widgets.
+      const mentees = await loadDashboardMentees(me)
+      return { kind: 'mentor', mentees, teaches: false }
+    }
     default:
       return { kind: 'student' }
   }

@@ -1,6 +1,6 @@
 /**
  * Seed data for MOCK MODE. Plain rows keyed by table name, matching the columns
- * defined in migrations 0001–0006. IDs for classes/profiles are valid v4 UUIDs
+ * defined in migrations 0001-0006. IDs for classes/profiles are valid v4 UUIDs
  * so they pass the Zod schemas if you copy them into a management form.
  */
 export type MockDb = Record<string, Record<string, unknown>[]>
@@ -11,8 +11,8 @@ export const IDS = {
   tutor: 'a0000000-0000-4000-8000-000000000002',
   student: 'a0000000-0000-4000-8000-000000000003',
   student2: 'a0000000-0000-4000-8000-000000000004',
-  // Mentor is a SEPARATE person from the class tutor: pastoral scope only,
-  // teaches none of the mentee's classes (so mentee class links are non-entry).
+  // Maya is a DEDICATED mentor account (role `mentor`, not a tutor): pastoral
+  // scope only, teaches no classes - the independent-mentor case in the flesh.
   mentor: 'a0000000-0000-4000-8000-000000000005',
   subAdmin: 'a0000000-0000-4000-8000-000000000006',
   math: 'c0000000-0000-4000-8000-000000000001',
@@ -46,14 +46,14 @@ export function buildSeed(): MockDb {
     profiles: [
       { id: IDS.admin, auth_user_id: 'u-admin', email: 'admin@mock.test', full_name: 'Asha Admin', role: 'admin', status: 'active', class_level: null, created_at: NOW },
       { id: IDS.tutor, auth_user_id: 'u-tutor', email: 'tutor@mock.test', full_name: 'Tarun Tutor', role: 'tutor', status: 'active', class_level: null, created_at: NOW },
-      { id: IDS.mentor, auth_user_id: 'u-mentor', email: 'mentor@mock.test', full_name: 'Maya Mentor', role: 'tutor', status: 'active', class_level: null, created_at: NOW },
+      { id: IDS.mentor, auth_user_id: 'u-mentor', email: 'mentor@mock.test', full_name: 'Maya Mentor', role: 'mentor', status: 'active', class_level: null, created_at: NOW },
       { id: IDS.subAdmin, auth_user_id: 'u-subadmin', email: 'subadmin@mock.test', full_name: 'Sunil Sub-Admin', role: 'sub_admin', status: 'active', class_level: null, created_at: NOW },
       { id: IDS.student, auth_user_id: 'u-student', email: 'student@mock.test', full_name: 'Sara Student', role: 'student', status: 'active', class_level: 'Grade 10', created_at: NOW },
       { id: IDS.student2, auth_user_id: 'u-student2', email: 'student2@mock.test', full_name: 'Sam Student', role: 'student', status: 'active', class_level: 'Grade 9', created_at: NOW },
     ],
     classes: [
-      { id: IDS.math, name: 'Mathematics — Grade 10', status: 'active', created_at: NOW },
-      { id: IDS.science, name: 'Science — Grade 10', status: 'active', created_at: NOW },
+      { id: IDS.math, name: 'Mathematics - Grade 10', status: 'active', created_at: NOW },
+      { id: IDS.science, name: 'Science - Grade 10', status: 'active', created_at: NOW },
     ],
     enrollments: [
       { id: 'e0000000-0000-4000-8000-000000000001', student_id: IDS.student, class_id: IDS.math, active: true, created_at: NOW },
@@ -65,20 +65,20 @@ export function buildSeed(): MockDb {
       { id: 't0000000-0000-4000-8000-000000000002', tutor_id: IDS.tutor, class_id: IDS.science, active: true, created_at: NOW },
     ],
     mentorships: [
-      // Maya (mentor) mentors both students; Tarun (tutor) mentors nobody.
-      { id: 'me000000-0000-4000-8000-000000000001', tutor_id: IDS.mentor, student_id: IDS.student, active: true, created_at: NOW },
-      { id: 'me000000-0000-4000-8000-000000000002', tutor_id: IDS.mentor, student_id: IDS.student2, active: true, created_at: NOW },
+      // Maya (dedicated mentor) mentors both students; Tarun (tutor) mentors nobody.
+      { id: 'me000000-0000-4000-8000-000000000001', mentor_id: IDS.mentor, student_id: IDS.student, active: true, created_at: NOW },
+      { id: 'me000000-0000-4000-8000-000000000002', mentor_id: IDS.mentor, student_id: IDS.student2, active: true, created_at: NOW },
     ],
     announcements: [
       { id: 'an000000-0000-4000-8000-000000000001', class_id: null, title: 'Welcome to the new term', message: 'Classes resume Monday. Check your timetable.', author_id: IDS.admin, status: 'active', created_at: NOW },
       { id: 'an000000-0000-4000-8000-000000000002', class_id: IDS.math, title: 'Algebra revision', message: 'Bring your worksheets to the next Maths class.', author_id: IDS.tutor, status: 'active', created_at: NOW },
     ],
     resources: [
-      { id: 'r0000000-0000-4000-8000-000000000001', class_id: IDS.math, title: 'Quadratic equations — notes (PDF)', drive_link: 'https://drive.google.com/file/d/mock-res-1/view', uploaded_by: IDS.tutor, status: 'active', created_at: NOW },
+      { id: 'r0000000-0000-4000-8000-000000000001', class_id: IDS.math, title: 'Quadratic equations - notes (PDF)', drive_link: 'https://drive.google.com/file/d/mock-res-1/view', uploaded_by: IDS.tutor, status: 'active', created_at: NOW },
       { id: 'r0000000-0000-4000-8000-000000000002', class_id: IDS.science, title: 'Periodic table reference', drive_link: 'https://drive.google.com/file/d/mock-res-2/view', uploaded_by: IDS.tutor, status: 'active', created_at: NOW },
     ],
     assignments: [
-      { id: 'a5000000-0000-4000-8000-000000000001', class_id: IDS.math, title: 'Problem set 3', description: 'Questions 1–10 from chapter 4.', due_date: '2026-07-10T18:30:00.000Z', attachment_drive_link: null, created_by: IDS.tutor, status: 'active', created_at: NOW },
+      { id: 'a5000000-0000-4000-8000-000000000001', class_id: IDS.math, title: 'Problem set 3', description: 'Questions 1-10 from chapter 4.', due_date: '2026-07-10T18:30:00.000Z', attachment_drive_link: null, created_by: IDS.tutor, status: 'active', created_at: NOW },
       { id: 'a5000000-0000-4000-8000-000000000002', class_id: IDS.science, title: 'Lab report: acids & bases', description: 'Submit your write-up as a PDF.', due_date: '2026-06-30T18:30:00.000Z', attachment_drive_link: null, created_by: IDS.tutor, status: 'active', created_at: NOW },
     ],
     submissions: [
@@ -88,13 +88,13 @@ export function buildSeed(): MockDb {
       { id: 'rc000000-0000-4000-8000-000000000001', number: 'CEA-R-2026-0001', student_id: IDS.student, student_name_snapshot: 'Sara Student', class_snapshot: 'Grade 10', issue_date: '2026-06-01', currency: 'INR', note: null, subtotal: 5000, discount: null, total: 5000, voided: false, created_by: IDS.admin, created_at: NOW },
     ],
     receipt_lines: [
-      { id: 'rl000000-0000-4000-8000-000000000001', receipt_id: 'rc000000-0000-4000-8000-000000000001', subject: 'Maths tuition — June', hours: 20, rate: 250, amount: 5000 },
+      { id: 'rl000000-0000-4000-8000-000000000001', receipt_id: 'rc000000-0000-4000-8000-000000000001', subject: 'Maths tuition - June', hours: 20, rate: 250, amount: 5000 },
     ],
     payslips: [
       { id: 'ps000000-0000-4000-8000-000000000001', number: 'CEA-P-2026-0001', tutor_id: IDS.tutor, tutor_name_snapshot: 'Tarun Tutor', issue_date: '2026-06-01', currency: 'INR', note: null, subtotal: 8000, discount: null, total: 8000, voided: false, created_by: IDS.admin, created_at: NOW },
     ],
     payslip_lines: [
-      { id: 'pl000000-0000-4000-8000-000000000001', payslip_id: 'ps000000-0000-4000-8000-000000000001', label: 'Teaching — June', hours: 40, rate: 200, amount: 8000 },
+      { id: 'pl000000-0000-4000-8000-000000000001', payslip_id: 'ps000000-0000-4000-8000-000000000001', label: 'Teaching - June', hours: 40, rate: 200, amount: 8000 },
     ],
     document_counters: [
       { doc_type: 'receipt', year: 2026, last_number: 1 },

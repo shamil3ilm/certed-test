@@ -2,7 +2,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { studentIdsOfTutor } from '@/lib/services/mentorships'
+import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
 
 export type Contact = { id: string; name: string }
@@ -10,7 +10,7 @@ export type Contact = { id: string; name: string }
 /**
  * The set of profile ids `actor` may START a conversation with, by persona.
  * This is the single place messaging eligibility lives, so a NEW persona plugs
- * in by adding a branch here — never a schema change.
+ * in by adding a branch here - never a schema change.
  *
  *   admin     -> anyone (any active profile)
  *   sub_admin -> the users they manage (tutors + students)
@@ -59,7 +59,7 @@ async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
 
   // tutor + mentor authority both include the actor's mentees.
   if (flags.isTutor || flags.isMentor) {
-    for (const id of await studentIdsOfTutor(actor.id)) ids.add(id)
+    for (const id of await studentIdsOfMentor(actor.id)) ids.add(id)
   }
 
   if (flags.isStudent) {

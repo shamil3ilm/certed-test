@@ -23,6 +23,10 @@ function roleToPersona(role: Profile['role']): string {
     admin: 'admin',
     sub_admin: 'sub_admin',
     tutor: 'tutor',
+    // A mentor account gets the GLOBAL mentor persona (baseline oversight caps) so
+    // it has access before any mentee is assigned; specific mentees add their own
+    // student-scoped mentor persona via mentorships.
+    mentor: 'mentor',
     student: 'student',
   }
   return mapping[role]
@@ -67,7 +71,7 @@ async function syncPersonaForRole(profileId: string, role: Profile['role']): Pro
   if (error) throw new Error(`syncPersonaForRole: ${error.message}`)
 
   // NOTE: this syncs the GLOBAL persona to a profile's role. Role is set only at
-  // account creation (addUser) — it is not editable, so this never runs against
+  // account creation (addUser) - it is not editable, so this never runs against
   // an existing user changing identity. If a role-reassignment migration is ever
   // added, it MUST also reconcile student-scoped `mentor` personas and the
   // `mentorships` rows (a former tutor must not retain mentor access), which
@@ -130,14 +134,14 @@ export async function listProfiles(): Promise<Profile[]> {
 export type PaginatedProfiles = { items: Profile[]; total: number }
 
 /**
- * One role-tier's profiles, one page at a time — for the Users hub, which
+ * One role-tier's profiles, one page at a time - for the Users hub, which
  * used to fetch every profile in the academy (`listProfiles()`) just to
  * filter it down to whichever tab was open. `count: 'exact'` alongside
  * `.range()` gets the true total (for page-count UI) in the same round trip
  * as the page of rows, not a separate query.
  */
 export async function listProfilesByRole(
-  role: 'student' | 'tutor' | ReadonlyArray<'admin' | 'sub_admin'>,
+  role: Profile['role'] | ReadonlyArray<Profile['role']>,
   opts: { page: number; pageSize: number; search?: string; status?: 'active' | 'pending' | 'disabled'; sortBy?: 'name' | 'email' | 'created_at'; sortOrder?: 'asc' | 'desc' },
 ): Promise<PaginatedProfiles> {
   const admin = createAdminClient()
@@ -165,10 +169,10 @@ export async function listProfilesByRole(
 export type PeopleCounts = { students: number; tutors: number; pending: number }
 
 /**
- * Cheap counts for dashboard stat cards — `count: 'exact', head: true` runs a
+ * Cheap counts for dashboard stat cards - `count: 'exact', head: true` runs a
  * `SELECT count(*)` in Postgres and transfers zero rows, instead of pulling
  * every profile just to measure `.length` (what the dashboard used to do via
- * `listProfiles()`). Service-role: same reasoning as `listProfiles` — a
+ * `listProfiles()`). Service-role: same reasoning as `listProfiles` - a
  * sub_admin needs these too, and RLS `is_active_admin()` would otherwise hide
  * the counts from them.
  */
@@ -209,7 +213,7 @@ export const displayName = (p: { full_name: string | null; email: string }): str
   p.full_name ?? p.email
 
 /**
- * Profiles for the given ids, keyed by id, via the service-role client — the one
+ * Profiles for the given ids, keyed by id, via the service-role client - the one
  * place that resolves users the caller may not otherwise read under RLS (e.g. a
  * tutor seeing the names of students who submitted). Callers gate access first.
  */
@@ -257,6 +261,22 @@ export async function listActiveByRole(
   }))
 }
 
+/** Active people who can be assigned as a student's mentor: tutors (who may also
+ *  mentor) and dedicated mentors. Service-role: callers gate (admin/sub_admin). */
+export async function listActiveMentorCandidates(): Promise<{ id: string; name: string }[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('role', ['tutor', 'mentor'])
+    .eq('status', 'active')
+    .order('full_name')
+  return ((data ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => ({
+    id: p.id,
+    name: p.full_name ?? p.email,
+  }))
+}
+
 /** Finds an existing allowlisted profile by normalized email (exact, lower-cased). */
 export async function getProfileByEmail(email: string): Promise<Profile | null> {
   const admin = createAdminClient()
@@ -277,7 +297,7 @@ export type RegistrationTarget = {
 }
 
 /** Fields needed to validate a self-registration, by normalized email. Service-role.
- *  Registration is unauthenticated bootstrap (rate-limited, uniform errors) —
+ *  Registration is unauthenticated bootstrap (rate-limited, uniform errors) -
  *  it keeps its own shape rather than taking an actor. */
 export async function getRegistrationTarget(email: string): Promise<RegistrationTarget | null> {
   const admin = createAdminClient()
@@ -371,14 +391,15 @@ export async function changeOwnPassword(
   await auditPrivilegedAction(actor, 'profile.password', 'profile', actor.id)
 }
 
-// Admin/sub_admin user management: Admin-tier roles a Sub Admin can neither create nor manage.
-const ADMIN_TIER = new Set(['admin', 'sub_admin'])
+// User management: the roles a Sub Admin may create/manage. Everything else -
+// the admin tier AND mentor accounts - is a full-admin responsibility.
+const SUB_ADMIN_MANAGEABLE = new Set(['tutor', 'student'])
 
 /** A Sub Admin may only act on tutor/student accounts; a Super Admin on anyone. */
 async function canManageTarget(actor: Profile, targetRole: string): Promise<boolean> {
   const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
   if (isAdmin) return true
-  return isSubAdmin && !ADMIN_TIER.has(targetRole)
+  return isSubAdmin && SUB_ADMIN_MANAGEABLE.has(targetRole)
 }
 
 /** True if this profile is the only remaining active Super Admin (must not be removed/demoted). */
@@ -457,16 +478,16 @@ export function validateUserIdInput(input: UserIdActionInput): string {
 
 /** Allowlist a user by email. Stamps a hashed one-time setup code so they can
  *  self-register a password. Mentor assignment (for a new student) is a
- *  separate call — see services/mentorships.ts's assignMentor — kept apart
+ *  separate call - see services/mentorships.ts's assignMentor - kept apart
  *  so each service function does exactly one thing. */
 export async function addUser(actor: Profile, input: AddUserInput): Promise<AddUserResult> {
-  // A Sub Admin can only create tutor/student accounts — never the admin tier.
+  // A Sub Admin can only create tutor/student accounts - never the admin tier.
   if (!(await canManageTarget(actor, input.role))) {
     throw new PermissionError('You can only add tutors and students.')
   }
   // Don't silently overwrite / reactivate an existing account behind the admin's back.
   const existing = await getProfileByEmail(input.email)
-  if (existing) throw new ValidationError('A user with that email already exists — edit them in the list instead.')
+  if (existing) throw new ValidationError('A user with that email already exists - edit them in the list instead.')
 
   const code = generateSetupCode()
   const admin = createAdminClient()
@@ -550,7 +571,7 @@ export async function restoreUserFromActionInput(actor: Profile, input: UserIdAc
 
 /**
  * Update a user's profile details (name, class). Role is intentionally NOT
- * editable — personas are fixed identities, so there is no role/persona
+ * editable - personas are fixed identities, so there is no role/persona
  * reassignment here and thus no downstream cleanup of memberships, mentorships,
  * or finance to worry about. Add/revoke/restore remain the status operations.
  */
