@@ -252,8 +252,8 @@ All 13 capabilities, their purposes, and which personas have them:
 
 ## Questions & Answers
 
-**Q: What if a user already has tutor AND mentor roles?**  
-A: The migration handles this. A tutor gets both `tutor` (global) and `mentor` (student-scoped) personas. Capabilities are aggregated from both.
+**Q: Is a mentor always a tutor?**  
+A: No — as of migration 0021, `mentor` is an INDEPENDENT `profiles.role` (a mentor may or may not also be a tutor). A dedicated mentor account holds the global `mentor` persona (pastoral oversight caps only) plus one student-scoped `mentor` persona per mentee, and teaches nothing. A tutor who also mentors holds the global `tutor` persona AND those student-scoped `mentor` personas, so they teach and mentor. Mentee-access RLS is relationship-based (`mentors_student` joins the `mentorships` row, never the role), so both work identically. Capabilities aggregate across all held personas.
 
 **Q: Can we rollback from Phase 1 to Phase 0?**  
 A: Yes, profiles.role is preserved. Code reads both until Phase 2 cleanup. If needed, revert code to read profiles.role only.

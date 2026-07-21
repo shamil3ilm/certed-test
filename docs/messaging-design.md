@@ -73,10 +73,10 @@ relationships RLS can't cheaply express. Personas, not `profiles.role`, drive it
 | Actor persona | May message |
 |---|---|
 | admin | anyone |
-| sub_admin | users they can manage (teachers + students; never the admin tier) |
+| sub_admin | users they can manage (tutors + students; never the admin tier) |
 | tutor | students in classes they teach + their assigned mentees |
 | mentor | their assigned mentees |
-| student | their tutors (teachers of their classes) + their mentors + admins/sub_admins (support) |
+| student | their class tutors + their mentors + admins/sub_admins (support) |
 | guardian / finance_operator / assistant / executive (future) | add a policy branch — **no schema change** |
 
 The policy is a pure function over already-loaded relationships (class

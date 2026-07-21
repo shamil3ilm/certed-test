@@ -36,11 +36,11 @@ setting a `mock_uid` cookie — no password, no OAuth.
 | Role    | Name          | Email               | Sees                                            |
 |---------|---------------|---------------------|-------------------------------------------------|
 | Admin   | Asha Admin    | admin@mock.test     | Everything: users, courses, finance, calendar   |
-| Teacher | Tarun Teacher | teacher@mock.test   | Their 2 courses, announcements, assignments, **pay slips**, calendar mgmt |
+| Tutor | Tarun Tutor | tutor@mock.test   | Their 2 courses, announcements, assignments, **pay slips**, calendar mgmt |
 | Student | Sara Student  | student@mock.test   | Enrolled courses, assignments, **receipts**, calendar |
 
 Switch roles any time: go to **`/api/dev/logout`** (clears the cookie) then pick
-another role, or just hit `/api/dev/login?role=teacher` directly.
+another role, or just hit `/api/dev/login?role=tutor` directly.
 
 ---
 
@@ -69,11 +69,11 @@ CRON_SECRET=mock-cron
 
 | Area            | Works in mock mode                                                             |
 |-----------------|--------------------------------------------------------------------------------|
-| **Auth**        | Dev login as admin / teacher / student; role‑based dashboards & redirects      |
+| **Auth**        | Dev login as admin / tutor / student; role‑based dashboards & redirects      |
 | **Admin**       | List users & courses; data shows seeded rows                                   |
-| **Announcements** | Create (admin/teacher) → appears in the list                                 |
+| **Announcements** | Create (admin/tutor) → appears in the list                                 |
 | **Resources**   | List; **upload a file** (bytes saved to `.mock-storage/`) → **download** it back |
-| **Assignments** | List + detail; **student submits a file** → teacher sees the submission        |
+| **Assignments** | List + detail; **student submits a file** → tutor sees the submission        |
 | **Finance**     | **Issue** a fee receipt / pay slip → number auto‑increments, **PDF** generated, **download** it; **void**; **CSV export** |
 | **Calendar**    | Month⇄week view in your device timezone; **create weekly slots & events**; due dates overlay |
 

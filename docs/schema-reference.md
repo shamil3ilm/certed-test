@@ -1,7 +1,7 @@
 # Schema Reference
 
 **Purpose:** Document the active schema (tables, columns, RLS helpers) as built by
-migrations `0001`–`0017` and the canonical `supabase/rebuild/0000_full_rebuild.sql`.
+migrations `0001`–`0021` and the canonical `supabase/rebuild/0000_full_rebuild.sql`.
 **Status:** Authoritative — source of truth for schema-aware work.
 
 See [rls-policy-inventory.md](./rls-policy-inventory.md) for the expected end-state
@@ -15,7 +15,8 @@ RLS policies and [persona-model.md](./persona-model.md) for the persona design.
 - `profiles` (id, auth_user_id, email, full_name, role, status, class_level, created_at)
   - Columns: NO access_state
   - Status enum: active | pending | disabled
-  - Role enum: admin | teacher | student
+  - Role enum: admin | sub_admin | tutor | mentor | student
+    (mentor is an independent identity — a mentor may or may not also be a tutor)
 
 - `org_settings` (id, institute_name, contact_email, contact_phone, bank_account, bank_ifsc, bank_branch, terms_text, signatory_name, signatory_title, signature_mode, signature_text, default_currency, timezone, receipt_prefix, payslip_prefix)
 
@@ -29,15 +30,17 @@ RLS policies and [persona-model.md](./persona-model.md) for the persona design.
   - Columns: student_id, class_id, active (NOT disabled/pending)
   - Unique constraint: (student_id, class_id)
 
-- `class_teachers` (id, teacher_id, class_id, active, created_at)
+- `class_tutors` (id, tutor_id, class_id, active, created_at)
   - Soft-deletable via active boolean
-  - Columns: teacher_id, class_id, active
-  - Unique constraint: (teacher_id, class_id)
+  - Columns: tutor_id, class_id, active
+  - Unique constraint: (tutor_id, class_id)
 
-- `mentorships` (id, teacher_id, student_id, active, created_at)
+- `mentorships` (id, mentor_id, student_id, active, created_at)
   - Soft-deletable via active boolean
-  - Columns: teacher_id, student_id, active (NOT class_id, mentor_id)
-  - Unique constraint: (teacher_id, student_id)
+  - `mentor_id` is the supervising party (renamed from tutor_id in 0021 — a mentor
+    may be a dedicated mentor account or a tutor who also mentors)
+  - Columns: mentor_id, student_id, active (NOT class_id)
+  - Unique constraint: (mentor_id, student_id)
 
 ### Content
 - `assignments` (id, class_id, title, description, due_date, attachment_drive_link, created_by, status, created_at)
@@ -61,7 +64,7 @@ RLS policies and [persona-model.md](./persona-model.md) for the persona design.
 
 - `receipt_lines` (id, receipt_id, subject, hours, rate, amount)
 
-- `payslips` (id, number, teacher_id, teacher_name_snapshot, issue_date, currency, note, subtotal, discount, total, voided, created_by, created_at)
+- `payslips` (id, number, tutor_id, tutor_name_snapshot, issue_date, currency, note, subtotal, discount, total, voided, created_by, created_at)
 
 - `payslip_lines` (id, payslip_id, subject, hours, rate, amount)
 
@@ -76,6 +79,14 @@ RLS policies and [persona-model.md](./persona-model.md) for the persona design.
 - `setup_codes` (code, created_at) - [version table for feature flags, not schema]
 
 - `topics` - [ALTER to assignments/resources in 0008]
+
+### Messaging (0018)
+- `conversations` (id, kind, title, created_by, last_message_at, created_at)
+  - `kind` enum: direct | group; `title` is null for direct (auto-titled from participants)
+- `conversation_participants` (id, conversation_id, profile_id, last_read_at, joined_at)
+  - Unique constraint: (conversation_id, profile_id); unread = messages newer than `last_read_at`
+- `messages` (id, conversation_id, sender_id, body, created_at)
+  - `sender_id` nullable (set null on sender delete); cascades on conversation delete
 
 ---
 
@@ -96,7 +107,7 @@ RLS policies and [persona-model.md](./persona-model.md) for the persona design.
   - Checks: enrollment exists AND profile.status='active' AND enrollment.active=true
 
 - `teaches_class(p_class_id uuid)` -> boolean
-  - Checks: class_teachers link exists AND profile.status='active' AND class_teachers.active=true
+  - Checks: class_tutors link exists AND profile.status='active' AND class_tutors.active=true
 
 - `mentors_student(p_student_id uuid)` -> boolean
   - Checks: mentorship link exists AND profile.status='active' AND mentorship.active=true
