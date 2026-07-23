@@ -11,10 +11,7 @@ export async function POST(request: Request) {
   }
 
   const form = await request.formData()
-  const result = await loginMockPasswordUser(
-    String(form.get('email') ?? ''),
-    String(form.get('password') ?? ''),
-  )
+  const result = await loginMockPasswordUser(String(form.get('email') ?? ''), String(form.get('password') ?? ''))
   if (!result.ok) {
     return NextResponse.redirect(new URL('/login?error=1', request.url), 303)
   }

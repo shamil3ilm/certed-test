@@ -1,5 +1,5 @@
 import { forbiddenText, notFoundText, tooManyRequestsText } from '@/lib/api/response'
-import { requireRoleApi } from '@/lib/auth/require-role'
+import { requireCapabilityApi } from '@/lib/auth/require-role'
 import { getResource } from '@/lib/services/resources'
 import { rateLimit } from '@/lib/security/rate-limit'
 
@@ -11,10 +11,11 @@ import { rateLimit } from '@/lib/security/rate-limit'
 export async function GET(_req: Request, ctx: { params: { id: string } }) {
   let me
   try {
-    // Mentor included at the coarse gate; getResource stays RLS-scoped, so a
-    // mentor only resolves a resource their policy actually grants (e.g. when they
-    // also tutor the class) and gets a clean 404 otherwise.
-    me = await requireRoleApi(['admin', 'tutor', 'mentor', 'student'])
+    // Override-aware gate: class materials belong to the class workspace, so the
+    // same resolved `viewClasses` capability that opens the workspace must also
+    // govern direct file downloads. The RLS-scoped read below then narrows access
+    // to the specific class relationship.
+    me = await requireCapabilityApi('viewClasses')
   } catch {
     return forbiddenText()
   }

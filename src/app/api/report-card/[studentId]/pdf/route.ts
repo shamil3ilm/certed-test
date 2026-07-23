@@ -1,5 +1,5 @@
 import { forbiddenText, notFoundText, textFail, tooManyRequestsText } from '@/lib/api/response'
-import { requireRoleApi } from '@/lib/auth/require-role'
+import { getActorContext } from '@/lib/session/actor-context'
 import { renderReportCardPdf } from '@/lib/report-card/render'
 import { rateLimit } from '@/lib/security/rate-limit'
 
@@ -9,14 +9,9 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function GET(_req: Request, ctx: { params: { studentId: string } }) {
-  let me
-  try {
-    // Mentor included: canViewReportCard (in renderReportCardPdf) allows a mentor
-    // over this student via canMentor - the route must not block them before that.
-    me = await requireRoleApi(['admin', 'tutor', 'mentor', 'student'])
-  } catch {
-    return forbiddenText()
-  }
+  const actor = await getActorContext()
+  const me = actor.profile
+  if (!me || actor.accessState !== 'active') return forbiddenText()
   // Each render spins up headless Chromium - throttle per user to deter casual
   // bursts (per-instance; not a hard distributed cap).
   const rl = rateLimit(`report-card:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
@@ -24,7 +19,7 @@ export async function GET(_req: Request, ctx: { params: { studentId: string } })
 
   let out
   try {
-    out = await renderReportCardPdf(me, ctx.params.studentId)
+    out = await renderReportCardPdf(actor, ctx.params.studentId)
   } catch {
     // A headless-Chromium failure (cold start / OOM / timeout) or a DB read error -
     // return a clean message rather than a bare 500.
