@@ -41,9 +41,7 @@ export async function editAssignmentAction(formData: FormData): Promise<ActionSt
  * grading-race guard, max-marks validation, and audit all happen inside the
  * service. An empty mark clears a previous score.
  */
-export async function gradeSubmissionAction(
-  formData: FormData,
-): Promise<ActionStatusResult> {
+export async function gradeSubmissionAction(formData: FormData): Promise<ActionStatusResult> {
   const me = await requireCapability('viewGrading') // grading matches the grading/assignment-detail pages
   try {
     const { assignmentId } = await gradeSubmissionFromActionInput(me, {

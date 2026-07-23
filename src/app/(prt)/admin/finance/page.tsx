@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
+import { isAdminTier } from '@/lib/capabilities'
 import {
   financeUrl,
   loadAdminFinancePageData,
@@ -8,7 +9,7 @@ import {
 } from '@/lib/services/finance/admin-finance'
 import { IssueForm } from './IssueForm'
 import { VoidButton } from './VoidButton'
-import { PageHeader, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../ui'
+import { PageHeader, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
 
 function DocTable({
   title,
@@ -19,7 +20,8 @@ function DocTable({
   page,
   total,
   totalPages,
-}: FinanceLedgerView) {
+  canManage,
+}: FinanceLedgerView & { canManage: boolean }) {
   return (
     <div id={kind} className="mt-5 scroll-mt-24">
       <div className="flex items-center justify-between">
@@ -77,10 +79,15 @@ function DocTable({
                 <td>{row.totalLabel}</td>
                 <td className="py-1">
                   <div className="flex items-center justify-end gap-2">
-                    <a href={`/api/${kind}/${row.id}/pdf`} target="_blank" rel="noopener" className="btn btn-sm btn-soft">
+                    <a
+                      href={`/api/${kind}/${row.id}/pdf`}
+                      target="_blank"
+                      rel="noopener"
+                      className="btn btn-sm btn-soft"
+                    >
                       PDF
                     </a>
-                    {!row.voided && <VoidButton endpoint={`/api/${kind}/${row.id}/void`} />}
+                    {canManage && !row.voided && <VoidButton endpoint={`/api/${kind}/${row.id}/void`} />}
                   </div>
                 </td>
               </tr>
@@ -134,26 +141,39 @@ export default async function FinancePage({
 }: {
   searchParams: { rPage?: string; rq?: string; rstatus?: string; pPage?: string; pq?: string; pstatus?: string }
 }) {
-  await requireCapability('viewFinance')
+  const me = await requireCapability('viewFinance')
+  // Issuing and voiding are STRUCTURAL admin-only (the APIs use requireRoleApi
+  // (['admin'])); viewFinance is override-grantable, so a sub_admin/tutor granted
+  // it may reach this page. Gate the write controls on isAdminTier - identity-only
+  // and hard-rule-backed, so an override can never surface a control the API 403s.
+  const canManage = isAdminTier(me)
   const data = await loadAdminFinancePageData(searchParams)
 
   return (
     <main className="mx-auto max-w-4xl space-y-10 p-4 sm:p-6 lg:p-8">
       <section>
         <PageHeader title="Finance" />
-        <h2 className="mt-4 font-medium">Issue fee receipt</h2>
-        <div className="mt-2">
-          <IssueForm partyLabel="Student" parties={data.students} endpoint="/api/receipts" />
-        </div>
-        <DocTable {...data.receipts} />
+        {canManage && (
+          <>
+            <h2 className="mt-4 font-medium">Issue fee receipt</h2>
+            <div className="mt-2">
+              <IssueForm partyLabel="Student" parties={data.students} endpoint="/api/receipts" />
+            </div>
+          </>
+        )}
+        <DocTable {...data.receipts} canManage={canManage} />
       </section>
 
       <section>
-        <h2 className="font-medium">Issue pay slip</h2>
-        <div className="mt-2">
-          <IssueForm partyLabel="Tutor" parties={data.tutors} endpoint="/api/payslips" />
-        </div>
-        <DocTable {...data.payslips} />
+        {canManage && (
+          <>
+            <h2 className="font-medium">Issue pay slip</h2>
+            <div className="mt-2">
+              <IssueForm partyLabel="Payee (tutor or mentor)" parties={data.tutors} endpoint="/api/payslips" />
+            </div>
+          </>
+        )}
+        <DocTable {...data.payslips} canManage={canManage} />
       </section>
     </main>
   )

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { Avatar, Badge, Card, EmptyState, PageHeader, SectionLabel } from '../../ui'
+import { Avatar, Badge, Card, EmptyState, PageHeader, SectionLabel } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function MenteePage({ params }: { params: { id: string } }) {
@@ -96,7 +96,10 @@ export default async function MenteePage({ params }: { params: { id: string } })
         ) : (
           <Card className="divide-y divide-slate-100 p-0">
             {submissions.map((submission) => (
-              <div key={`${submission.assignmentId}-${submission.submittedAt}`} className="flex items-center justify-between gap-3 p-3 text-sm">
+              <div
+                key={`${submission.assignmentId}-${submission.submittedAt}`}
+                className="flex items-center justify-between gap-3 p-3 text-sm"
+              >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-slate-800">{submission.assignmentTitle}</p>
                   <p className="text-xs text-slate-400">
@@ -104,11 +107,22 @@ export default async function MenteePage({ params }: { params: { id: string } })
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className={submission.status === 'late' ? 'text-xs font-semibold text-red-600' : 'text-xs font-semibold text-emerald-700'}>
+                  <span
+                    className={
+                      submission.status === 'late'
+                        ? 'text-xs font-semibold text-red-600'
+                        : 'text-xs font-semibold text-emerald-700'
+                    }
+                  >
                     {submission.status === 'late' ? 'Late' : 'On time'}
                   </span>
                   {submission.driveLink && (
-                    <a href={submission.driveLink} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline">
+                    <a
+                      href={submission.driveLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
                       Open {'->'}
                     </a>
                   )}

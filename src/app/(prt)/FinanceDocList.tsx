@@ -2,7 +2,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import type { Capability } from '@/lib/capabilities'
 import { listMyDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
-import { PageHeader, StatCard, ListRow, Badge, EmptyState } from './ui'
+import { PageHeader, StatCard, ListRow, Badge, EmptyState } from '@/lib/ui'
 
 /**
  * Self-service list of a user's own finance documents (receipts for students,

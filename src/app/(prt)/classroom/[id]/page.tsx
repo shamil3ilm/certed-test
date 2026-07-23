@@ -11,7 +11,7 @@ import {
 import { MeetForm } from '../../meetings/MeetForm'
 import { MeetList } from '../../meetings/MeetList'
 import { restoreMeetLinkAction } from '../../meetings/actions'
-import { Card, EmptyState, Badge, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../ui'
+import { Card, EmptyState, Badge, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
 import { Field, Input, Select, Textarea, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 

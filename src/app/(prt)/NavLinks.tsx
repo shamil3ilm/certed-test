@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cx } from './ui'
+import { cx } from '@/lib/ui'
 import { NavIcon } from './NavIcon'
 import type { NavItem } from './nav'
 
@@ -13,8 +13,7 @@ export function NavLinks({ links }: { links: NavItem[] }) {
       {links.map((l, i) => {
         const active = pathname === l.href || pathname.startsWith(l.href + '/')
         // Set the admin cluster apart from the everyday tabs with a hairline divider.
-        const startsAdminGroup =
-          i > 0 && l.href.startsWith('/admin/') && !links[i - 1].href.startsWith('/admin/')
+        const startsAdminGroup = i > 0 && l.href.startsWith('/admin/') && !links[i - 1].href.startsWith('/admin/')
         return (
           <div key={l.href} className="flex items-center">
             {startsAdminGroup && <span className="mx-1.5 h-5 w-px bg-gray-200" aria-hidden="true" />}

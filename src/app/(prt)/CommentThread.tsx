@@ -6,7 +6,7 @@ import { LocalTime } from './LocalTime'
 import { addCommentAction } from './comment-actions'
 import { useUI } from './Providers'
 import { assertActionOk } from './action-client'
-import { roleLabel, roleTone } from './ui'
+import { roleLabel, roleTone } from '@/lib/ui'
 
 export function CommentThread({
   entityType,
@@ -79,7 +79,12 @@ export function CommentThread({
         className="flex items-center gap-1.5 rounded text-xs font-semibold text-slate-500 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         aria-expanded={open}
       >
-        <svg aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+        <svg
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
           <path d="M6 4l4 4-4 4V4z" />
         </svg>
         {comments.length === 0 ? 'Add a comment' : `${comments.length} comment${comments.length !== 1 ? 's' : ''}`}
@@ -92,14 +97,19 @@ export function CommentThread({
             const tone = roleTone(comment.author_role)
             return (
               <div key={comment.id} className={`flex gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] font-bold ${tone.avatar}`}>
+                <span
+                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] font-bold ${tone.avatar}`}
+                >
                   {(comment.author_name ?? '?').slice(0, 1).toUpperCase()}
                 </span>
                 <div className={`flex max-w-[80%] flex-col gap-0.5 ${isMine ? 'items-end' : 'items-start'}`}>
                   <span className="text-[10px] text-slate-400">
-                    {isMine ? 'You' : comment.author_name ?? 'Unknown'} - {roleLabel(comment.author_role)} - <LocalTime iso={comment.created_at} />
+                    {isMine ? 'You' : (comment.author_name ?? 'Unknown')} - {roleLabel(comment.author_role)} -{' '}
+                    <LocalTime iso={comment.created_at} />
                   </span>
-                  <div className={`whitespace-pre-wrap rounded-2xl border px-3 py-2 text-sm leading-relaxed ${tone.bubble}`}>
+                  <div
+                    className={`whitespace-pre-wrap rounded-2xl border px-3 py-2 text-sm leading-relaxed ${tone.bubble}`}
+                  >
                     {comment.content}
                   </div>
                 </div>

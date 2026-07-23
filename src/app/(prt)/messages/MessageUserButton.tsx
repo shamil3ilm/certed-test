@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { assertActionOk } from '../action-client'
 import { startConversationAction } from './actions'
 import { useUI } from '../Providers'
-import { cx } from '../ui'
+import { cx } from '@/lib/ui'
 
 /** A quick "Message <person>" button (people lists, profile pages). Opens/reuses
  *  a 1:1 thread and navigates to it; a failure toasts instead of doing nothing. */

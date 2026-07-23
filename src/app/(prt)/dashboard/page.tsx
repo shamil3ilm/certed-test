@@ -9,7 +9,7 @@ import {
   type SubAdminDashboardViewData,
 } from '@/lib/services/page-data/dashboard'
 import { type CalendarEvent } from '@/lib/services/calendar-events'
-import { Panel, MiniBars, Card, Avatar, ListRow, StatGrid, personaLabel } from '../ui'
+import { Panel, MiniBars, Card, Avatar, ListRow, StatGrid, personaLabel } from '@/lib/ui'
 import { StatModalCard } from '../StatModalCard'
 import { ReminderPanel } from './ReminderPanel'
 import {
@@ -29,6 +29,7 @@ import {
   RecentUploadsWidget,
   SubmissionsToReviewWidget,
   DueWorkWidget,
+  RemindersWidget,
 } from './widgets'
 
 export default async function Dashboard() {
@@ -49,7 +50,9 @@ export default async function Dashboard() {
       </div>
 
       {data.kind === 'admin' && <AdminDashboard data={data} />}
-      {data.kind === 'sub_admin' && <SubAdminDashboard data={data} />}
+      {data.kind === 'sub_admin' && (
+        <SubAdminDashboard data={data} canManageMentorships={actor.capabilities.allowed.has('manageMentorships')} />
+      )}
       {data.kind === 'mentor' && <MentorDashboard me={me} mentees={data.mentees} teaches={data.teaches} />}
       {data.kind === 'tutor' && <TutorDashboard me={me} />}
       {data.kind === 'student' && <StudentDashboard me={me} />}
@@ -64,7 +67,16 @@ function MentorDashboard({ me, mentees, teaches }: { me: Profile; mentees: Dashb
   return (
     <>
       <MenteesPanel mentees={mentees} />
-      {teaches && <TutorDashboard me={me} />}
+      {teaches ? (
+        <TutorDashboard me={me} />
+      ) : (
+        // A dedicated mentor (no teaching widgets) still gets personal reminders.
+        <section className="mt-6">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <RemindersWidget me={me} />
+          </Suspense>
+        </section>
+      )}
     </>
   )
 }
@@ -93,7 +105,13 @@ function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   )
 }
 
-function SubAdminDashboard({ data }: { data: SubAdminDashboardViewData }) {
+function SubAdminDashboard({
+  data,
+  canManageMentorships,
+}: {
+  data: SubAdminDashboardViewData
+  canManageMentorships: boolean
+}) {
   return (
     <>
       <StatGrid cols={3} className="mt-6">
@@ -105,9 +123,9 @@ function SubAdminDashboard({ data }: { data: SubAdminDashboardViewData }) {
           empty="No students yet."
         />
         <StatModalCard
-          label="Tutors"
+          label="Tutors & mentors"
           value={data.tutors}
-          title="Tutors"
+          title="Tutors & mentors"
           load={loadTutorsModal}
           empty="No tutors yet."
         />
@@ -124,7 +142,9 @@ function SubAdminDashboard({ data }: { data: SubAdminDashboardViewData }) {
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-800">User management</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Add, edit or revoke students and tutors, and assign mentors.
+            {canManageMentorships
+              ? 'Add, edit or revoke students and tutors, and assign mentors.'
+              : 'Add, edit or revoke students and tutors.'}
           </p>
         </div>
         <a href="/admin/users" className="btn btn-primary shrink-0">
@@ -140,7 +160,12 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
     <>
       <StatGrid cols={4} className="mt-6">
         <StatModalCard label="Students" value={data.peopleCounts.students} title="Students" load={loadStudentsModal} />
-        <StatModalCard label="Tutors" value={data.peopleCounts.tutors} title="Tutors" load={loadTutorsModal} />
+        <StatModalCard
+          label="Tutors & mentors"
+          value={data.peopleCounts.tutors}
+          title="Tutors & mentors"
+          load={loadTutorsModal}
+        />
         <StatModalCard
           label="Active classes"
           value={data.activeClassCount}
@@ -174,20 +199,27 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
  *  submissions to review, then the latest class updates. */
 function TutorDashboard({ me }: { me: Profile }) {
   return (
-    <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Suspense fallback={<WidgetSkeleton />}>
-        <TodaysClassesWidget me={me} title="Today's classes" />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <PendingAttendanceWidget me={me} />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <SubmissionsToReviewWidget me={me} />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <RecentUploadsWidget me={me} />
-      </Suspense>
-    </section>
+    <>
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <TodaysClassesWidget me={me} title="Today's classes" />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <PendingAttendanceWidget me={me} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <SubmissionsToReviewWidget me={me} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <RecentUploadsWidget me={me} />
+        </Suspense>
+      </section>
+      <section className="mt-6">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <RemindersWidget me={me} />
+        </Suspense>
+      </section>
+    </>
   )
 }
 
@@ -195,33 +227,45 @@ function TutorDashboard({ me }: { me: Profile }) {
  *  and the latest class update. */
 function StudentDashboard({ me }: { me: Profile }) {
   return (
-    <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Suspense fallback={<WidgetSkeleton />}>
-        <DueWorkWidget me={me} />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <LatestGradeWidget studentId={me.id} />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <AttendanceRateWidget studentId={me.id} />
-      </Suspense>
-      <Suspense fallback={<WidgetSkeleton />}>
-        <LatestAnnouncementWidget me={me} />
-      </Suspense>
-    </section>
+    <>
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <DueWorkWidget me={me} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <LatestGradeWidget studentId={me.id} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <AttendanceRateWidget studentId={me.id} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <LatestAnnouncementWidget me={me} />
+        </Suspense>
+      </section>
+      <section className="mt-6">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <RemindersWidget me={me} />
+        </Suspense>
+      </section>
+    </>
   )
 }
 
 function Upcoming({ events }: { events: CalendarEvent[] }) {
   if (events.length === 0) return <p className="text-sm text-slate-400">Nothing scheduled.</p>
   return (
-    <ul className="space-y-2 text-sm">
+    <ul className="space-y-1 text-sm">
       {events.map((e) => (
-        <li key={e.id} className="flex items-center justify-between gap-3">
-          <span className="text-slate-700">{e.title}</span>
-          <span className="shrink-0 text-xs text-slate-400">
-            {e.event_date} - {e.kind}
-          </span>
+        <li key={e.id}>
+          <a
+            href="/calendar"
+            className="flex items-center justify-between gap-3 rounded-md py-1 text-slate-700 transition hover:text-primary"
+          >
+            <span className="min-w-0 truncate">{e.title}</span>
+            <span className="shrink-0 text-xs text-slate-400">
+              {e.event_date} - {e.kind}
+            </span>
+          </a>
         </li>
       ))}
     </ul>

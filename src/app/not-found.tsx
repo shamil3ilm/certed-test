@@ -14,7 +14,9 @@ export default function RootNotFound() {
         <p className="mt-1 text-sm text-slate-500">
           This page doesn&apos;t exist, or you don&apos;t have access to it.
         </p>
-        <Link href="/" className="btn btn-primary mt-5">Back to Cert-Ed</Link>
+        <Link href="/" className="btn btn-primary mt-5">
+          Back to Cert-Ed
+        </Link>
       </main>
     </div>
   )

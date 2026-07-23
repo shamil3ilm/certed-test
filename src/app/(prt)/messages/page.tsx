@@ -2,7 +2,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { listInbox } from '@/lib/services/messaging'
 import { listMessageableContacts } from '@/lib/messaging/recipient-policy'
 import { NewMessageForm } from './NewMessageForm'
-import { PageHeader, Card, EmptyState, Badge, ListRow } from '../ui'
+import { PageHeader, Card, EmptyState, Badge, ListRow } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 
 export default async function MessagesPage() {
@@ -11,7 +11,10 @@ export default async function MessagesPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Messages" description="Your conversations. Start a new one with anyone you're allowed to contact." />
+      <PageHeader
+        title="Messages"
+        description="Your conversations. Start a new one with anyone you're allowed to contact."
+      />
 
       <Card className="mb-5 p-4">
         <h2 className="mb-2 text-sm font-semibold text-slate-700">New message</h2>

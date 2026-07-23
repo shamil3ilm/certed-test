@@ -41,6 +41,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
       <label className="block text-xs font-medium text-slate-500">
         To <span className="text-slate-400">(pick one for a direct message, or several for a group)</span>
         <select
+          name="recipient_ids"
           multiple
           required
           size={Math.min(Math.max(contacts.length, 3), 6)}

@@ -1,6 +1,6 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import { getMenteeListView } from '@/lib/services/mentees'
-import { PageHeader, Avatar, EmptyState, ListRow } from '../ui'
+import { PageHeader, Avatar, EmptyState, ListRow } from '@/lib/ui'
 
 export default async function StudentsPage() {
   // viewMentees - held by admin, by a dedicated mentor account, and by a tutor

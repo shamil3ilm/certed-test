@@ -75,20 +75,37 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
         </Field>
       )}
       <Field label="Title">
-        <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Chapter 4 worksheet" required />
+        <Input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="e.g. Chapter 4 worksheet"
+          required
+        />
       </Field>
       <Field label="Description (optional)">
         <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} />
       </Field>
       <Field label="Brief / attachment (optional)" hint="Paste a Google Drive link to the question paper or brief.">
-        <Input type="url" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="https://drive.google.com/..." />
+        <Input
+          type="url"
+          value={brief}
+          onChange={(event) => setBrief(event.target.value)}
+          placeholder="https://drive.google.com/..."
+        />
       </Field>
       <div className="flex flex-wrap gap-3">
         <Field label="Topic (optional)" className="min-w-[10rem] flex-1" hint="e.g. Algebra - groups classwork">
           <Input value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Unit / chapter" />
         </Field>
         <Field label="Max marks (optional)" className="w-32">
-          <Input type="number" min="0" step="0.5" value={maxMarks} onChange={(event) => setMaxMarks(event.target.value)} placeholder="e.g. 20" />
+          <Input
+            type="number"
+            min="0"
+            step="0.5"
+            value={maxMarks}
+            onChange={(event) => setMaxMarks(event.target.value)}
+            placeholder="e.g. 20"
+          />
         </Field>
       </div>
       <Field label="Due">

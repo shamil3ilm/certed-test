@@ -10,17 +10,25 @@ const KEY = 'cea:last-active'
 export function IdleLogout() {
   useEffect(() => {
     const mark = () => {
-      try { localStorage.setItem(KEY, String(Date.now())) } catch {}
+      try {
+        localStorage.setItem(KEY, String(Date.now()))
+      } catch {}
     }
     const check = () => {
       let last: number
-      try { last = Number(localStorage.getItem(KEY)) || Date.now() } catch { return }
+      try {
+        last = Number(localStorage.getItem(KEY)) || Date.now()
+      } catch {
+        return
+      }
       if (Date.now() - last > IDLE_MS) window.location.href = '/api/logout'
     }
     mark()
     const activity = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll']
     activity.forEach((e) => window.addEventListener(e, mark, { passive: true }))
-    const onVisible = () => { if (!document.hidden) check() }
+    const onVisible = () => {
+      if (!document.hidden) check()
+    }
     document.addEventListener('visibilitychange', onVisible)
     const iv = setInterval(check, 60 * 1000)
     return () => {

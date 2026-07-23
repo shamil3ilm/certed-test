@@ -1,8 +1,17 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireCapability } from '@/lib/auth/require-role'
-import { actionOk, actionDone, actionFail, toActionError, type ActionResult, type ActionStatusResult } from '@/lib/api/action-error'
-import { createConversation, sendMessage, markRead } from '@/lib/services/messaging'
+import {
+  actionOk,
+  actionDone,
+  actionFail,
+  toActionError,
+  type ActionResult,
+  type ActionStatusResult,
+} from '@/lib/api/action-error'
+import { redirect } from 'next/navigation'
+import { createConversation, sendMessage, markRead, leaveConversation } from '@/lib/services/messaging'
+import { ServiceError } from '@/lib/errors'
 
 /** Post a message to an existing conversation, then refresh the thread. Returns
  *  a result so the composer can surface a failure (toast) instead of the send
@@ -40,6 +49,17 @@ export async function startConversationAction(formData: FormData): Promise<Actio
   }
 }
 
+/** The caller leaves a conversation, then lands back on the inbox. */
+export async function leaveConversationAction(formData: FormData): Promise<void> {
+  const me = await requireCapability('viewMessages')
+  const conversationId = String(formData.get('conversation_id') ?? '')
+  if (conversationId) {
+    await leaveConversation(me, conversationId)
+    revalidatePath('/messages')
+  }
+  redirect('/messages')
+}
+
 /** Marks the current conversation read for the caller (called on thread open). */
 export async function markReadAction(conversationId: string): Promise<void> {
   const me = await requireCapability('viewMessages')
@@ -47,7 +67,9 @@ export async function markReadAction(conversationId: string): Promise<void> {
   try {
     await markRead(me, conversationId)
     revalidatePath('/messages')
-  } catch {
-    // Best-effort: not a participant (or a transient failure) -> leave read state as-is.
+  } catch (e) {
+    // Swallow only an expected denial (e.g. not a participant); let a genuine
+    // DB/service error surface rather than silently leaving read state stale.
+    if (!(e instanceof ServiceError)) throw e
   }
 }

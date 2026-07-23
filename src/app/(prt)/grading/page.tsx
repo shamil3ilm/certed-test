@@ -1,13 +1,20 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
-import { PageHeader, Avatar, EmptyState, Badge, ListRow, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '../ui'
+import {
+  PageHeader,
+  Avatar,
+  EmptyState,
+  Badge,
+  ListRow,
+  SectionLabel,
+  FilterBar,
+  FilterField,
+  FILTER_CONTROL,
+  cx,
+} from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 
-export default async function GradingQueuePage({
-  searchParams,
-}: {
-  searchParams?: { q?: string; classId?: string }
-}) {
+export default async function GradingQueuePage({ searchParams }: { searchParams?: { q?: string; classId?: string } }) {
   const me = await requireCapability('viewGrading')
   const data = await loadGradingQueuePageData(me, searchParams)
 
@@ -59,7 +66,11 @@ export default async function GradingQueuePage({
                       href={`/assignments/${item.assignmentId}#sub-${item.id}`}
                       leading={<Avatar name={item.studentName} role="student" />}
                       title={`${item.studentName} - ${item.assignmentTitle}`}
-                      subtitle={<>submitted <LocalTime iso={item.submittedAt} /></>}
+                      subtitle={
+                        <>
+                          submitted <LocalTime iso={item.submittedAt} />
+                        </>
+                      }
                       trailing={item.status === 'late' ? <Badge tone="danger">late</Badge> : undefined}
                     />
                   </li>

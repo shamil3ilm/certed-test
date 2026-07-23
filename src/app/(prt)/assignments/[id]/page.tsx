@@ -4,7 +4,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { CommentThread } from '../../CommentThread'
 import { LocalTime } from '../../LocalTime'
-import { Avatar, Card, EmptyState, PageHeader } from '../../ui'
+import { Avatar, Card, EmptyState, PageHeader } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 
 export default async function AssignmentDetail({ params }: { params: { id: string } }) {
@@ -45,7 +45,11 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
                   <p className="text-xs text-slate-400">
                     Submitted <LocalTime iso={submission.submitted_at} />
                     {' - '}
-                    <span className={submission.status === 'late' ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'}>
+                    <span
+                      className={
+                        submission.status === 'late' ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'
+                      }
+                    >
                       {submission.status}
                     </span>
                   </p>

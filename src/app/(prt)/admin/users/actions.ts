@@ -4,12 +4,19 @@ import { ERROR_CODES, type ErrorCode } from '@/lib/api/error-codes'
 import { requireCapability } from '@/lib/auth/require-role'
 import { GENERIC_ERROR_MESSAGE } from '@/lib/api/messages'
 import {
-  addUserFromActionInput,
+  addUser,
+  validateAddUserInput,
+  deleteUnregisteredProfile,
   revokeUserFromActionInput,
   restoreUserFromActionInput,
   editUserFromActionInput,
 } from '@/lib/services/users'
-import { assignMentor, assignMentorFromActionInput, removeMentorFromActionInput } from '@/lib/services/mentorships'
+import {
+  assignMentor,
+  assertAssignableMentor,
+  assignMentorFromActionInput,
+  removeMentorFromActionInput,
+} from '@/lib/services/mentorships'
 import { PermissionError, ServiceError, ValidationError } from '@/lib/errors'
 
 export type AddUserState = {
@@ -30,15 +37,29 @@ function mapAddUserError(error: unknown): AddUserState {
 export async function addUserAction(_prev: AddUserState, formData: FormData): Promise<AddUserState> {
   const me = await requireCapability('manageUsers')
   try {
-    const { profile, code, mentorId } = await addUserFromActionInput(me, {
+    const { user, mentorId } = validateAddUserInput({
       email: formData.get('email'),
       full_name: formData.get('full_name'),
       role: formData.get('role'),
       class_level: formData.get('class_level'),
       mentor_id: formData.get('mentor_id'),
     })
+    // Pre-flight the mentor BEFORE creating the account: if the dropdown went
+    // stale (mentor revoked / role changed since page-load), fail here so no
+    // profile is created and its one-time setup code isn't burned.
+    if (mentorId) await assertAssignableMentor(mentorId)
+
+    const { profile, code } = await addUser(me, user)
+
     if (mentorId) {
-      await assignMentor(me, { mentorId, studentId: profile.id })
+      try {
+        await assignMentor(me, { mentorId, studentId: profile.id })
+      } catch (e) {
+        // The assign still failed after creation (rare, post-preflight) - roll the
+        // new account back so add-user is atomic: re-adding won't collide on email.
+        await deleteUnregisteredProfile(profile.id)
+        throw e
+      }
     }
     revalidatePath('/admin/users')
     return { ok: true, code, email: profile.email }
@@ -77,7 +98,7 @@ export async function editUserAction(formData: FormData) {
 
 // Mentor assignment lives inside Users; user managers (admin + sub_admin) handle it.
 export async function assignMentorAction(formData: FormData) {
-  const me = await requireCapability('manageUsers')
+  const me = await requireCapability('manageMentorships')
   await assignMentorFromActionInput(me, {
     mentor_id: formData.get('mentor_id'),
     student_id: formData.get('student_id'),
@@ -86,7 +107,7 @@ export async function assignMentorAction(formData: FormData) {
 }
 
 export async function removeMentorAction(formData: FormData) {
-  const me = await requireCapability('manageUsers')
+  const me = await requireCapability('manageMentorships')
   await removeMentorFromActionInput(me, { id: formData.get('id') })
   revalidatePath('/admin/users')
 }

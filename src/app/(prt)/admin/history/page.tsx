@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { historyUrl, loadHistoryPageData } from '@/lib/services/page-data/history'
-import { PageHeader, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../ui'
+import { PageHeader, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function HistoryPage({
@@ -68,7 +68,9 @@ export default async function HistoryPage({
                   </td>
                   <td className="whitespace-nowrap text-slate-500">
                     {row.entity_type}
-                    {row.entityShortId && <span className="ml-1.5 font-mono text-xs text-slate-400">{row.entityShortId}</span>}
+                    {row.entityShortId && (
+                      <span className="ml-1.5 font-mono text-xs text-slate-400">{row.entityShortId}</span>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Reminder } from '@/lib/services/reminders'
 import { formatDate, formatDateTime, DISPLAY_TZ } from '@/lib/time/format'
+import { useHydratedFlag } from '@/lib/ui/client-env'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
 import { createReminderAction, deleteReminderAction, markReminderSentAction } from './actions'
@@ -30,8 +31,7 @@ export function ReminderPanel({
   const [pastReminders, setPastReminders] = useState(initialPastReminders)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
-  const [deviceLocal, setDeviceLocal] = useState(false)
-  useEffect(() => setDeviceLocal(true), [])
+  const deviceLocal = useHydratedFlag()
   const { toast } = useUI()
   const router = useRouter()
 
@@ -111,7 +111,9 @@ export function ReminderPanel({
         <h2 className="text-sm font-semibold text-slate-700">
           Reminders
           {reminders.length > 0 && (
-            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{reminders.length}</span>
+            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+              {reminders.length}
+            </span>
           )}
         </h2>
         <button
@@ -143,10 +145,18 @@ export function ReminderPanel({
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
           />
           <div className="flex gap-2">
-            <button type="submit" disabled={isPending} className="flex-1 rounded-lg bg-primary py-1.5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={isPending}
+              className="flex-1 rounded-lg bg-primary py-1.5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+            >
               Save
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-500 transition hover:bg-slate-50">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-500 transition hover:bg-slate-50"
+            >
               Cancel
             </button>
           </div>
@@ -169,8 +179,13 @@ export function ReminderPanel({
                 <span className={`mt-0.5 text-sm ${overdue ? 'text-red-500' : 'text-primary'}`}>Clock</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{reminder.title}</p>
-                  {reminder.description && <p className="mt-0.5 truncate text-xs text-slate-500">{reminder.description}</p>}
-                  <p suppressHydrationWarning className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-400'}`}>
+                  {reminder.description && (
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{reminder.description}</p>
+                  )}
+                  <p
+                    suppressHydrationWarning
+                    className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-400'}`}
+                  >
                     {label}
                   </p>
                 </div>
@@ -205,7 +220,10 @@ export function ReminderPanel({
           </summary>
           <ul className="mt-2 space-y-1.5">
             {pastReminders.map((reminder) => (
-              <li key={reminder.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              <li
+                key={reminder.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+              >
                 <span className="truncate text-slate-500">{reminder.title}</span>
                 <span suppressHydrationWarning className="shrink-0 text-xs text-slate-400">
                   {formatDate(reminder.remind_at, deviceLocal ? undefined : DISPLAY_TZ)}

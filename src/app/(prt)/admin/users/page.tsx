@@ -1,187 +1,13 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
-import {
-  loadAdminUsersPageData,
-  STATUS_OPTIONS,
-  USER_TABS,
-  USERS_PAGE_SIZE,
-  usersUrl,
-  type UsersTab,
-} from '@/lib/services/page-data/admin-users'
-import type { Profile } from '@/lib/auth/profile'
-import {
-  revokeUserAction,
-  restoreUserAction,
-  editUserAction,
-  assignMentorAction,
-  removeMentorAction,
-} from './actions'
-import { MessageUserButton } from '../../messages/MessageUserButton'
-import { PageHeader, StatCard, StatGrid, Card, Avatar, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx, roleLabel } from '../../ui'
-import { SubmitButton } from '../../form'
-import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { getActorContext } from '@/lib/session/actor-context'
+import { loadAdminUsersPageData, USER_TABS } from '@/lib/services/page-data/admin-users'
+import { PageHeader, StatCard, StatGrid, EmptyState, cx } from '@/lib/ui'
 import { AddUserForm } from './AddUserForm'
-
-function StatusChip({ status }: { status: string }) {
-  return <span className={status === 'active' ? 'text-emerald-600' : 'text-red-600'}>{status}</span>
-}
-
-function Pagination({
-  tab,
-  page,
-  total,
-  q,
-  status,
-  sortBy,
-  sortOrder,
-}: {
-  tab: UsersTab
-  page: number
-  total: number
-  q?: string
-  status?: string
-  sortBy?: string
-  sortOrder?: string
-}) {
-  const totalPages = Math.max(1, Math.ceil(total / USERS_PAGE_SIZE))
-  if (totalPages <= 1) return null
-  return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-      <span>
-        Page {page} of {totalPages} - {total} total
-      </span>
-      <div className="flex gap-2">
-        {page > 1 && (
-          <Link href={usersUrl({ tab, page: page - 1, q, status, sortBy, sortOrder })} className="btn btn-sm btn-soft">
-            Previous
-          </Link>
-        )}
-        {page < totalPages && (
-          <Link href={usersUrl({ tab, page: page + 1, q, status, sortBy, sortOrder })} className="btn btn-sm btn-soft">
-            Next
-          </Link>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function SearchFilterBar({ tab, q, status }: { tab: UsersTab; q?: string; status?: string }) {
-  return (
-    <FilterBar className="mt-4" clearHref={usersUrl({ tab })} showClear={Boolean(q || status)}>
-      <input type="hidden" name="tab" value={tab} />
-      <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q ?? ''}
-          placeholder="Name or email..."
-          className={cx(FILTER_CONTROL, 'w-full')}
-        />
-      </FilterField>
-      <FilterField label="Status">
-        <select name="status" defaultValue={status ?? ''} className={FILTER_CONTROL}>
-          <option value="">All</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </FilterField>
-    </FilterBar>
-  )
-}
-
-function UserRow({
-  p,
-  self = false,
-  manageable,
-  mentorSubtitle,
-}: {
-  p: Profile
-  self?: boolean
-  manageable: boolean
-  mentorSubtitle?: string
-}) {
-  const isStudent = p.role === 'student'
-  return (
-    <Card as="li" className="p-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={p.full_name ?? p.email} role={p.role} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">
-              {p.full_name ?? p.email}
-              {self && (
-                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                  You
-                </span>
-              )}
-            </p>
-            <p className="truncate text-xs text-slate-400">
-              {p.email} - {roleLabel(p.role)} - status: <StatusChip status={p.status} />
-              {mentorSubtitle ? ` - ${mentorSubtitle}` : ''}
-            </p>
-          </div>
-        </div>
-        {manageable ? (
-          <>
-            <form action={editUserAction} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="id" value={p.id} />
-              <label className="text-xs">
-                Name
-                <input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1 block rounded border px-2 py-1 text-sm" />
-              </label>
-              {/* Role is a fixed identity - set at account creation, never edited here. */}
-              <span className="text-xs text-slate-400">
-                Role: <span className="font-medium text-slate-600">{roleLabel(p.role)}</span>
-              </span>
-              {isStudent && (
-                <label className="text-xs">
-                  Class
-                  <input name="class_level" defaultValue={p.class_level ?? ''} className="mt-1 block w-20 rounded border px-2 py-1 text-sm" />
-                </label>
-              )}
-              <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving...">
-                Save
-              </SubmitButton>
-            </form>
-            <div className="ml-auto flex items-center gap-2">
-              {!self && p.status === 'active' && (
-                <MessageUserButton recipientId={p.id} className="btn-sm btn-ghost" />
-              )}
-              {self ? (
-                <span className="text-xs italic text-slate-400">Your own account</span>
-              ) : p.status === 'disabled' ? (
-                <form action={restoreUserAction}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
-                    Restore
-                  </SubmitButton>
-                </form>
-              ) : (
-                <form action={revokeUserAction}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <ConfirmSubmit
-                    className="btn btn-sm btn-danger"
-                    title="Revoke access?"
-                    message="They are signed out and blocked on their next request."
-                    confirmLabel="Revoke"
-                  >
-                    Revoke
-                  </ConfirmSubmit>
-                </form>
-              )}
-            </div>
-          </>
-        ) : (
-          <span className="ml-auto text-xs italic text-slate-400">Managed by a Super Admin</span>
-        )}
-      </div>
-    </Card>
-  )
-}
+import { UserRow } from './UserRow'
+import { UsersFilterBar } from './UsersFilterBar'
+import { UsersPagination } from './UsersPagination'
+import { MentorshipsPanel } from './MentorshipsPanel'
 
 export default async function AdminUsersPage({
   searchParams,
@@ -189,6 +15,15 @@ export default async function AdminUsersPage({
   searchParams: { tab?: string; page?: string; q?: string; status?: string; sortBy?: string; sortOrder?: string }
 }) {
   const me = await requireCapability('viewUsers')
+  // The page is viewUsers; the row controls (edit/revoke/restore/assign-mentor)
+  // all POST to manageUsers-gated actions. Gate them on the resolved manageUsers
+  // capability so a viewUsers-only grantee (via override) sees a read-only list
+  // instead of controls that would redirect on submit.
+  const { capabilities } = await getActorContext()
+  const canManage = capabilities.allowed.has('manageUsers')
+  // Assigning a mentor grants access to a student's data, so it is its own
+  // capability (admin by default) rather than part of general user management.
+  const canManageMentorships = capabilities.allowed.has('manageMentorships')
   const data = await loadAdminUsersPageData(me, searchParams)
 
   return (
@@ -200,7 +35,7 @@ export default async function AdminUsersPage({
 
       <StatGrid cols={4}>
         <StatCard label="Students" value={data.stats.students} />
-        <StatCard label="Tutors" value={data.stats.tutors} />
+        <StatCard label="Tutors & mentors" value={data.stats.tutors} />
         <StatCard
           label="With a mentor"
           value={data.assignedStudents}
@@ -210,7 +45,9 @@ export default async function AdminUsersPage({
         <StatCard label="Admins" value={data.stats.adminTier} />
       </StatGrid>
 
-      <AddUserForm roles={data.roleOptions} mentorCandidates={data.mentorCandidates} />
+      {canManage && (
+        <AddUserForm roles={data.roleOptions} mentorCandidates={canManageMentorships ? data.mentorCandidates : []} />
+      )}
 
       <nav className="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200">
         {USER_TABS.map((t) => (
@@ -229,7 +66,7 @@ export default async function AdminUsersPage({
         ))}
       </nav>
 
-      <SearchFilterBar tab={data.filters.tab} q={data.filters.q} status={data.filters.status} />
+      <UsersFilterBar tab={data.filters.tab} q={data.filters.q} status={data.filters.status} />
 
       <form className="mt-2 flex flex-wrap items-end gap-2">
         <input type="hidden" name="tab" value={data.filters.tab} />
@@ -237,7 +74,11 @@ export default async function AdminUsersPage({
         <input type="hidden" name="status" value={data.filters.status ?? ''} />
         <label className="text-xs font-medium text-slate-500">
           Sort by
-          <select name="sortBy" defaultValue={data.filters.sortBy ?? 'created_at'} className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm">
+          <select
+            name="sortBy"
+            defaultValue={data.filters.sortBy ?? 'created_at'}
+            className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm"
+          >
             <option value="created_at">Date added</option>
             <option value="name">Name</option>
             <option value="email">Email</option>
@@ -245,7 +86,11 @@ export default async function AdminUsersPage({
         </label>
         <label className="text-xs font-medium text-slate-500">
           Order
-          <select name="sortOrder" defaultValue={data.filters.sortOrder ?? 'desc'} className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm">
+          <select
+            name="sortOrder"
+            defaultValue={data.filters.sortOrder ?? 'desc'}
+            className="mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm"
+          >
             <option value="desc">Newest first</option>
             <option value="asc">Oldest first</option>
           </select>
@@ -267,14 +112,15 @@ export default async function AdminUsersPage({
                     key={s.id}
                     p={s}
                     self={s.id === me.id}
-                    manageable
+                    manageable={canManage}
+                    canEditPermissions={data.isSuper}
                     mentorSubtitle={subtitle}
                   />
                 )
               })}
               {data.tabProfiles.length === 0 && <EmptyState as="li">No students yet.</EmptyState>}
             </ul>
-            <Pagination
+            <UsersPagination
               tab={data.filters.tab}
               page={data.filters.page}
               total={data.tabTotal}
@@ -290,11 +136,17 @@ export default async function AdminUsersPage({
           <>
             <ul className="space-y-2">
               {data.tabProfiles.map((t) => (
-                <UserRow key={t.id} p={t} self={t.id === me.id} manageable />
+                <UserRow
+                  key={t.id}
+                  p={t}
+                  self={t.id === me.id}
+                  manageable={canManage}
+                  canEditPermissions={data.isSuper}
+                />
               ))}
               {data.tabProfiles.length === 0 && <EmptyState as="li">No tutors yet.</EmptyState>}
             </ul>
-            <Pagination
+            <UsersPagination
               tab={data.filters.tab}
               page={data.filters.page}
               total={data.tabTotal}
@@ -310,11 +162,17 @@ export default async function AdminUsersPage({
           <>
             <ul className="space-y-2">
               {data.tabProfiles.map((a) => (
-                <UserRow key={a.id} p={a} self={a.id === me.id} manageable={data.isSuper} />
+                <UserRow
+                  key={a.id}
+                  p={a}
+                  self={a.id === me.id}
+                  manageable={canManage && data.isSuper}
+                  canEditPermissions={data.isSuper}
+                />
               ))}
               {data.tabProfiles.length === 0 && <EmptyState as="li">No admins yet.</EmptyState>}
             </ul>
-            <Pagination
+            <UsersPagination
               tab={data.filters.tab}
               page={data.filters.page}
               total={data.tabTotal}
@@ -327,80 +185,7 @@ export default async function AdminUsersPage({
         )}
 
         {data.filters.tab === 'mentors' && (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-500">
-              A mentor looks after a student across all subjects - like a class tutor, but separate from who teaches their classes. A mentor may be a dedicated mentor account or a tutor who also mentors.
-            </p>
-            {data.tabProfiles.map((s) => {
-              const links = data.mentorsByStudent.get(s.id) ?? []
-              return (
-                <Card key={s.id} className="p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Avatar name={s.full_name ?? s.email} role="student" />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-slate-900">{s.full_name ?? s.email}</p>
-                        <p className="truncate text-xs text-slate-400">
-                          {s.email}
-                          {s.class_level ? ` - ${s.class_level}` : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <form action={assignMentorAction} className="flex min-w-0 items-center gap-2">
-                      <input type="hidden" name="student_id" value={s.id} />
-                      <select name="mentor_id" required defaultValue="" className="min-w-0 max-w-full text-sm">
-                        <option value="" disabled>
-                          Add mentor...
-                        </option>
-                        {data.mentorCandidates.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
-                      <SubmitButton className="btn-sm btn-soft" pendingLabel="Adding...">
-                        Add
-                      </SubmitButton>
-                    </form>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Mentors</span>
-                    {links.map((l) => (
-                      <span
-                        key={l.id}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 py-1 pl-3 pr-1.5 text-xs font-medium text-primary ring-1 ring-primary/15"
-                      >
-                        {data.mentorNames.get(l.mentor_id) ?? '-'}
-                        <form action={removeMentorAction} className="inline-flex">
-                          <input type="hidden" name="id" value={l.id} />
-                          <ConfirmSubmit
-                            className="grid h-6 w-6 -my-1 place-items-center rounded-full text-red-500 hover:bg-red-50 hover:text-red-700"
-                            title="Remove mentor?"
-                            message="The tutor will lose access to this student."
-                            confirmLabel="Remove"
-                          >
-                            x
-                          </ConfirmSubmit>
-                        </form>
-                      </span>
-                    ))}
-                    {links.length === 0 && <span className="text-xs italic text-slate-400">No mentor assigned yet</span>}
-                  </div>
-                </Card>
-              )
-            })}
-            {data.tabProfiles.length === 0 && <EmptyState>No students to mentor yet.</EmptyState>}
-            <Pagination
-              tab={data.filters.tab}
-              page={data.filters.page}
-              total={data.tabTotal}
-              q={data.filters.q}
-              status={data.filters.status}
-              sortBy={data.filters.sortBy}
-              sortOrder={data.filters.sortOrder}
-            />
-          </div>
+          <MentorshipsPanel data={data} canManageMentorships={canManageMentorships} />
         )}
       </div>
     </main>

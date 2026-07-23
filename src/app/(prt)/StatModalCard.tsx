@@ -74,7 +74,13 @@ export function StatModalCard({
           <span className="text-xs text-slate-400">{sub ?? ' '}</span>
           <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
             View details
-            <svg className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              className="h-3.5 w-3.5 transition group-hover:translate-x-0.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>

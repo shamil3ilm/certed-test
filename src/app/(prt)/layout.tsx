@@ -1,21 +1,17 @@
-import type { Metadata } from "next";
-import { PortalHeader } from "./PortalHeader";
-import { PortalProviders } from "./Providers";
-import { IdleLogout } from "./IdleLogout";
+import type { Metadata } from 'next'
+import { PortalHeader } from './PortalHeader'
+import { PortalProviders } from './Providers'
+import { IdleLogout } from './IdleLogout'
 
 export const metadata: Metadata = {
-  title: "Cert-Ed Academia - App",
-};
+  title: 'Cert-Ed Academia - App',
+}
 
 // Portal pages are auth-dependent - never statically cache/prerender them
 // (otherwise build-time redirects get baked in without a Location header).
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
 
-export default function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="prt-scope flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <PortalProviders>
@@ -36,5 +32,5 @@ export default function AppLayout({
         </footer>
       </PortalProviders>
     </div>
-  );
+  )
 }

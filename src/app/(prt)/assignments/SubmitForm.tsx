@@ -88,19 +88,24 @@ export function SubmitForm({ assignmentId, studentEmail }: { assignmentId: strin
       </div>
       {linkCheck === 'folder' && (
         <p className="text-xs text-amber-600">
-          That looks like a Drive <span className="font-medium">folder</span> link - share the specific file so your tutor sees just your work.
+          That looks like a Drive <span className="font-medium">folder</span> link - share the specific file so your
+          tutor sees just your work.
         </p>
       )}
       {linkCheck === 'not-drive' && (
         <p className="text-xs text-amber-600">
-          That does not look like a Google Drive link. You can still submit it - just make sure it opens for your tutor, not only for you.
+          That does not look like a Google Drive link. You can still submit it - just make sure it opens for your tutor,
+          not only for you.
         </p>
       )}
       <p className="text-xs text-slate-400">
-        Tip: in Drive, set sharing to <span className="font-medium text-slate-500">"Anyone with the link"</span>. To be sure, open your link in a private/incognito window - if it opens there, your tutor can see it.
+        Tip: in Drive, set sharing to{' '}
+        <span className="font-medium text-slate-500">&quot;Anyone with the link&quot;</span>. To be sure, open your link
+        in a private/incognito window - if it opens there, your tutor can see it.
       </p>
       <p className="text-xs text-slate-400">
-        Naming your file <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps it easy to find and stops a re-upload from overwriting an earlier version.
+        Naming your file <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps it easy to find and
+        stops a re-upload from overwriting an earlier version.
       </p>
     </form>
   )
@@ -127,7 +132,8 @@ export function SubmitForm({ assignmentId, studentEmail }: { assignmentId: strin
       )}
 
       <p className="text-xs text-slate-400">
-        The academy <span className="font-medium text-slate-500">links</span> to your file - it does not keep a copy. Leave it in your Drive until the term ends.
+        The academy <span className="font-medium text-slate-500">links</span> to your file - it does not keep a copy.
+        Leave it in your Drive until the term ends.
       </p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

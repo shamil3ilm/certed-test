@@ -92,16 +92,20 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
         />
         {linkCheck === 'folder' && (
           <p className="text-xs text-amber-600">
-            That looks like a Drive <span className="font-medium">folder</span> link - link the specific file so students open just this resource.
+            That looks like a Drive <span className="font-medium">folder</span> link - link the specific file so
+            students open just this resource.
           </p>
         )}
         {linkCheck === 'not-drive' && (
           <p className="text-xs text-amber-600">
-            That is not a Drive link - fine for Google Docs, YouTube, or a website. Just make sure it opens for students who are not signed in as you.
+            That is not a Drive link - fine for Google Docs, YouTube, or a website. Just make sure it opens for students
+            who are not signed in as you.
           </p>
         )}
         <p className="text-xs text-slate-400">
-          Set the file sharing to <span className="font-medium text-slate-500">"Anyone with the link"</span> so students can open it - test it in a private/incognito window. Naming it <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps your Drive tidy.
+          Set the file sharing to <span className="font-medium text-slate-500">&quot;Anyone with the link&quot;</span>{' '}
+          so students can open it - test it in a private/incognito window. Naming it{' '}
+          <span className="font-medium text-slate-500">YYYY-MM-DD-topic</span> keeps your Drive tidy.
         </p>
       </div>
 

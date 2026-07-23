@@ -45,14 +45,22 @@ export function PortalProviders({ children }: { children: ReactNode }) {
   }
 
   const confirmBtn =
-    confirmState?.variant === 'warning' ? 'btn-warning' : confirmState?.variant === 'primary' ? 'btn-primary' : 'btn-danger'
+    confirmState?.variant === 'warning'
+      ? 'btn-warning'
+      : confirmState?.variant === 'primary'
+        ? 'btn-primary'
+        : 'btn-danger'
 
   return (
     <Ctx.Provider value={{ toast, confirm }}>
       {children}
 
       {/* Toasts - announced to assistive tech (the only success/error signal for the forms) */}
-      <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}

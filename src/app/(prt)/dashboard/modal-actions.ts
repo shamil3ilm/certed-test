@@ -21,21 +21,30 @@ import { formatMoney, formatMoneyTotals } from '@/lib/money'
  */
 
 export async function loadStudentsModal() {
-  await requireCapability('manageUsers')
+  // Read-only stat-card listing: gate on viewUsers, not manageUsers, so a
+  // viewUsers-only grantee (via override) can load the tile it's shown.
+  await requireCapability('viewUsers')
   const profiles = await listProfiles()
   const students = profiles.filter((p) => p.role === 'student')
   return { items: students.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.class_level ?? p.email })) }
 }
 
 export async function loadTutorsModal() {
-  await requireCapability('manageUsers')
+  await requireCapability('viewUsers')
   const profiles = await listProfiles()
-  const tutors = profiles.filter((p) => p.role === 'tutor')
-  return { items: tutors.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email })) }
+  // Mentor is a first-class staff role - listing only role='tutor' hid dedicated
+  // mentors from the admin's staff modal while the stat card counted them.
+  const staff = profiles.filter((p) => p.role === 'tutor' || p.role === 'mentor')
+  return {
+    items: staff.map((p) => ({
+      primary: p.full_name ?? p.email,
+      secondary: p.role === 'mentor' ? `Mentor - ${p.email}` : p.email,
+    })),
+  }
 }
 
 export async function loadPendingModal() {
-  await requireCapability('manageUsers')
+  await requireCapability('viewUsers')
   const profiles = await listProfiles()
   const pending = profiles.filter((p) => p.status === 'pending')
   return { items: pending.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email })) }

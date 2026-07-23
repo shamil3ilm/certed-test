@@ -5,7 +5,9 @@ import { loadThread } from '@/lib/services/messaging'
 import { PermissionError, NotFoundError } from '@/lib/errors'
 import { MarkRead } from '../MarkRead'
 import { MessageComposer } from './MessageComposer'
-import { EmptyState, PageHeader } from '../../ui'
+import { leaveConversationAction } from '../actions'
+import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { EmptyState, PageHeader } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function ThreadPage({
@@ -38,10 +40,23 @@ export default async function ThreadPage({
       >
         Back to messages
       </Link>
-      <PageHeader
-        title={data.title}
-        description={data.conversation.kind === 'group' ? `${data.participants.length} participants` : undefined}
-      />
+      <div className="flex items-start justify-between gap-3">
+        <PageHeader
+          title={data.title}
+          description={data.conversation.kind === 'group' ? `${data.participants.length} participants` : undefined}
+        />
+        <form action={leaveConversationAction} className="shrink-0 pt-1">
+          <input type="hidden" name="conversation_id" value={params.id} />
+          <ConfirmSubmit
+            className="btn btn-sm btn-ghost text-red-600"
+            title="Leave conversation?"
+            message="It disappears from your inbox and you can no longer read or reply. Others keep the thread."
+            confirmLabel="Leave"
+          >
+            Leave
+          </ConfirmSubmit>
+        </form>
+      </div>
 
       <div className="mt-4 space-y-2">
         {data.hasEarlier && data.earlierCursor && (
@@ -68,7 +83,7 @@ export default async function ThreadPage({
               >
                 {!mine && (
                   <p className="mb-0.5 text-xs font-semibold text-slate-500">
-                    {m.sender_id ? nameById.get(m.sender_id) ?? 'Unknown' : 'Unknown'}
+                    {m.sender_id ? (nameById.get(m.sender_id) ?? 'Unknown') : 'Unknown'}
                   </p>
                 )}
                 <p className="whitespace-pre-wrap break-words">{m.body}</p>

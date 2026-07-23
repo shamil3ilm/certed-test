@@ -11,9 +11,7 @@ import { canAccessClass } from '@/lib/permission'
  * the capability; per-class membership is `canAccessClass`. Returns the caller
  * profile and the class.
  */
-export async function requireClassAccess(
-  classId: string,
-): Promise<{ me: Profile; course: ClassRow }> {
+export async function requireClassAccess(classId: string): Promise<{ me: Profile; course: ClassRow }> {
   const me = await requireCapability('viewClasses')
   const course = await getClass(classId)
   if (!course) notFound()

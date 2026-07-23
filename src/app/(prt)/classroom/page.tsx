@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
-import { hasCapability, isAdminTier } from '@/lib/capabilities'
 import { listMyClasses, type ClassSummary } from '@/lib/services/classes'
-import { PageHeader, EmptyState, RowChevron, CARD, classBanner, cx } from '../ui'
+import { PageHeader, EmptyState, RowChevron, CARD, classBanner, cx } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../form'
 import { createClassAction } from './class-actions'
 
@@ -14,7 +13,9 @@ function NewClass() {
         <Field label="Class name">
           <Input name="name" required placeholder="e.g. Grade 10 Mathematics" />
         </Field>
-        <SubmitButton className="btn-sm btn-primary" pendingLabel="Creating...">Create class</SubmitButton>
+        <SubmitButton className="btn-sm btn-primary" pendingLabel="Creating...">
+          Create class
+        </SubmitButton>
       </form>
     </details>
   )
@@ -44,7 +45,11 @@ function ClassCard({ c }: { c: ClassSummary }) {
         </span>
         <span className="inline-flex items-center gap-1.5">
           <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5"
+            />
           </svg>
           {c.tutorCount} tutor{c.tutorCount !== 1 ? 's' : ''}
         </span>
@@ -57,9 +62,12 @@ function ClassCard({ c }: { c: ClassSummary }) {
 export default async function ClassroomPage() {
   const me = await requireCapability('viewClasses')
   const classes = await listMyClasses(me)
-  const isAdmin = isAdminTier(me)
-  const isStudent = hasCapability(me, 'viewReceipts')
-  const isTutor = hasCapability(me, 'viewPayslips') && !isAdmin
+  // The list itself is membership-driven (listMyClasses). These flags only pick
+  // the heading copy + the admin-only "New class" control, which are tied to the
+  // actor's fixed identity, not a resolved capability, so read profiles.role.
+  const isAdmin = me.role === 'admin'
+  const isStudent = me.role === 'student'
+  const isTutor = me.role === 'tutor'
 
   const subtitle = isStudent
     ? 'The classes you are enrolled in.'

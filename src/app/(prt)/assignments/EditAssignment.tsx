@@ -21,6 +21,8 @@ export function EditAssignment({
     description: string | null
     due_date: string
     attachment_drive_link: string | null
+    topic: string | null
+    max_marks: number | null
   }
 }) {
   const [open, setOpen] = useState(false)
@@ -28,6 +30,8 @@ export function EditAssignment({
   const [description, setDescription] = useState(assignment.description ?? '')
   const [due, setDue] = useState(toLocalInput(assignment.due_date))
   const [brief, setBrief] = useState(assignment.attachment_drive_link ?? '')
+  const [topic, setTopic] = useState(assignment.topic ?? '')
+  const [maxMarks, setMaxMarks] = useState(assignment.max_marks != null ? String(assignment.max_marks) : '')
   const [isPending, startTransition] = useTransition()
   const { toast } = useUI()
 
@@ -41,6 +45,8 @@ export function EditAssignment({
     formData.set('description', description)
     formData.set('due_date', new Date(due).toISOString())
     formData.set('attachment_drive_link', brief.trim())
+    formData.set('topic', topic.trim())
+    formData.set('max_marks', maxMarks.trim())
 
     startTransition(async () => {
       try {
@@ -70,6 +76,20 @@ export function EditAssignment({
       </Field>
       <Field label="Due">
         <Input type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} required />
+      </Field>
+      <Field label="Topic (optional)">
+        <Input value={topic} onChange={(event) => setTopic(event.target.value)} maxLength={60} />
+      </Field>
+      <Field label="Max marks (optional)">
+        <Input
+          type="number"
+          min={0}
+          max={9999.99}
+          step="0.01"
+          value={maxMarks}
+          onChange={(event) => setMaxMarks(event.target.value)}
+          placeholder="e.g. 20"
+        />
       </Field>
       <Field label="Brief link (optional)">
         <Input

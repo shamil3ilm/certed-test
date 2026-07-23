@@ -1,7 +1,7 @@
 import { requireClassAccess } from '../../access'
 import type { ClassMember } from '@/lib/services/classes'
 import { loadClassPeopleViewData } from '@/lib/services/page-data/class-people'
-import { Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '../../../ui'
+import { Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
@@ -65,7 +65,7 @@ export default async function ClassPeoplePage({ params }: { params: { id: string
     <div className="space-y-8">
       {!data.canManage && data.myMentors.length > 0 && (
         <Card className="flex items-center gap-3 p-4">
-          <Avatar name={data.myMentors[0].name} role="tutor" />
+          <Avatar name={data.myMentors[0].name} role="mentor" />
           <p className="text-sm text-slate-600">
             Your mentor:{' '}
             {data.myMentors.map((m, i) => (

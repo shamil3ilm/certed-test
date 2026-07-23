@@ -32,16 +32,27 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
         <Field label="Class" className="w-full sm:w-28">
           <Input name="class_level" />
         </Field>
-        <Field label={<>Mentor <span className="text-slate-400">(students)</span></>} className="w-full sm:w-40">
-          <Select name="mentor_id" defaultValue="">
-            <option value="">None</option>
-            {mentorCandidates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {/* Hidden entirely when the viewer can't assign mentors - an empty picker
+            would just be a control that fails on submit. */}
+        {mentorCandidates.length > 0 && (
+          <Field
+            label={
+              <>
+                Mentor <span className="text-slate-400">(students)</span>
+              </>
+            }
+            className="w-full sm:w-40"
+          >
+            <Select name="mentor_id" defaultValue="">
+              <option value="">None</option>
+              {mentorCandidates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <SubmitButton pendingLabel="Adding...">Add user</SubmitButton>
       </form>
 
@@ -66,7 +77,8 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
         </div>
       )}
       <p className="mt-3 text-xs text-slate-400">
-        Use the exact email they'll sign in with. They can sign in with Google, or self-register a password with the setup code.
+        Use the exact email they&apos;ll sign in with. They can sign in with Google, or self-register a password with
+        the setup code.
       </p>
     </div>
   )

@@ -1,14 +1,10 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { isMock } from '@/lib/mock/env'
 import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
-import { PageHeader, Panel } from '../ui'
+import { PageHeader, Panel } from '@/lib/ui'
 import { changePasswordAction, updateProfileAction } from './actions'
 
-export default async function SettingsPage({
-  searchParams,
-}: {
-  searchParams: SettingsSearchParams
-}) {
+export default async function SettingsPage({ searchParams }: { searchParams: SettingsSearchParams }) {
   // Self-service page: any signed-in active user manages their own profile.
   const me = await requireActiveProfile()
   const data = await loadSettingsPageData(me, searchParams, isMock())
@@ -94,7 +90,9 @@ export default async function SettingsPage({
 
 function Banner({ children, ok }: { children: React.ReactNode; ok?: boolean }) {
   return (
-    <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+    <p
+      className={`mb-4 rounded-lg px-3 py-2 text-sm ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+    >
       {children}
     </p>
   )

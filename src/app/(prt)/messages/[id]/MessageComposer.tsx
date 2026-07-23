@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { assertActionOk } from '../../action-client'
 import { sendMessageAction } from '../actions'
 import { useUI } from '../../Providers'
-import { Card } from '../../ui'
+import { Card } from '@/lib/ui'
 
 /** The thread's send box. Unlike a bare server-action form, a failed send now
  *  toasts the reason and keeps the typed text so the user can retry. */

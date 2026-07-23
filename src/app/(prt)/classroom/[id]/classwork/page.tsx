@@ -3,6 +3,7 @@ import { requireClassAccess } from '../../access'
 import { classworkPageUrl, loadClassworkPageData } from '@/lib/services/page-data/classwork'
 import { AssignmentForm } from '../../../assignments/AssignmentForm'
 import { SubmitForm } from '../../../assignments/SubmitForm'
+import { WithdrawButton } from '../../../assignments/WithdrawButton'
 import { EditAssignment } from '../../../assignments/EditAssignment'
 import {
   archiveAssignmentAction,
@@ -13,7 +14,7 @@ import { UploadForm } from '../../../resources/UploadForm'
 import { CommentThread } from '../../../CommentThread'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { SubmitButton } from '../../../form'
-import { Card, EmptyState, Badge, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '../../../ui'
+import { Card, EmptyState, Badge, SectionLabel, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
 import { LocalTime } from '../../../LocalTime'
 
 export default async function ClassworkPage({
@@ -89,7 +90,9 @@ export default async function ClassworkPage({
                       name="status"
                       value={assignment.status === 'archived' ? 'active' : 'archived'}
                     />
-                    <button className={`btn btn-sm ${assignment.status === 'archived' ? 'btn-success' : 'btn-warning'}`}>
+                    <button
+                      className={`btn btn-sm ${assignment.status === 'archived' ? 'btn-success' : 'btn-warning'}`}
+                    >
                       {assignment.status === 'archived' ? 'Restore' : 'Archive'}
                     </button>
                   </form>
@@ -112,8 +115,13 @@ export default async function ClassworkPage({
                           {submission.status === 'late' ? 'Submitted late' : 'On time'}
                         </span>{' '}
                         (<LocalTime iso={submission.submitted_at} />)
-                        {submission.score == null && <> - resubmit below to replace.</>}
+                        {submission.score == null && <> - resubmit below to replace, or withdraw it.</>}
                       </p>
+                      {submission.score == null && (
+                        <div className="mt-1">
+                          <WithdrawButton submissionId={submission.id} />
+                        </div>
+                      )}
                       {submission.score != null && (
                         <p className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-800">
                           <span className="font-semibold">
@@ -121,7 +129,7 @@ export default async function ClassworkPage({
                             {assignment.max_marks != null ? ` / ${Number(assignment.max_marks)}` : ''}
                           </span>
                           {submission.feedback && (
-                            <span className="mt-0.5 block text-emerald-700">"{submission.feedback}"</span>
+                            <span className="mt-0.5 block text-emerald-700">&quot;{submission.feedback}&quot;</span>
                           )}
                         </p>
                       )}
@@ -270,12 +278,18 @@ export default async function ClassworkPage({
             </span>
             <div className="flex gap-2">
               {data.materialsPage > 1 && (
-                <Link href={classworkPageUrl(data.materialsPage - 1, data.materialsQuery)} className="btn btn-sm btn-soft">
+                <Link
+                  href={classworkPageUrl(data.materialsPage - 1, data.materialsQuery)}
+                  className="btn btn-sm btn-soft"
+                >
                   Previous
                 </Link>
               )}
               {data.materialsPage < data.materialsTotalPages && (
-                <Link href={classworkPageUrl(data.materialsPage + 1, data.materialsQuery)} className="btn btn-sm btn-soft">
+                <Link
+                  href={classworkPageUrl(data.materialsPage + 1, data.materialsQuery)}
+                  className="btn btn-sm btn-soft"
+                >
                   Next
                 </Link>
               )}

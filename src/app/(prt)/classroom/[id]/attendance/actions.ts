@@ -3,15 +3,14 @@ import { revalidatePath } from 'next/cache'
 import { requireCapability } from '@/lib/auth/require-role'
 import { actionFail, actionOk, toActionError, type ActionResult } from '@/lib/api/action-error'
 import { clearAttendanceSession, markAttendance, type MarkAttendanceInput } from '@/lib/services/attendance'
+import { ServiceError } from '@/lib/errors'
 
 /**
  * Marks a whole class for one session date in a single atomic write. Each
  * student's status arrives as a `status:<studentId>` field. Permission check,
  * roster-membership filtering, and audit all happen inside the service.
  */
-export async function markAttendanceAction(
-  formData: FormData,
-): Promise<ActionResult<{ saved: number }>> {
+export async function markAttendanceAction(formData: FormData): Promise<ActionResult<{ saved: number }>> {
   const me = await requireCapability('manageClassContent')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
@@ -45,7 +44,9 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
   try {
     await clearAttendanceSession(me, classId, date)
     revalidatePath(`/classroom/${classId}/attendance`)
-  } catch {
-    // Best-effort: a failed clear (e.g. lost permission) leaves the marks intact.
+  } catch (e) {
+    // Swallow only an expected authorization denial (leaves the marks intact); let
+    // a genuine DB/service error surface instead of hiding it as "nothing happened".
+    if (!(e instanceof ServiceError)) throw e
   }
 }

@@ -15,15 +15,7 @@ const OPTIONS: { value: AttendanceStatus; label: string; on: string }[] = [
   { value: 'absent', label: 'Absent', on: 'bg-red-700 text-white' },
 ]
 
-export function MarkAttendanceForm({
-  classId,
-  date,
-  students,
-}: {
-  classId: string
-  date: string
-  students: Row[]
-}) {
+export function MarkAttendanceForm({ classId, date, students }: { classId: string; date: string; students: Row[] }) {
   const router = useRouter()
   const { toast } = useUI()
   const [busy, setBusy] = useState(false)

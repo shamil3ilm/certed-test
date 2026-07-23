@@ -5,7 +5,7 @@ import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/serv
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { clearAttendanceAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
-import { Card, EmptyState, Badge, SectionLabel } from '../../../ui'
+import { Card, EmptyState, Badge, SectionLabel } from '@/lib/ui'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'

@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cx } from './ui'
+import { cx } from '@/lib/ui'
 import { NavIcon } from './NavIcon'
 
 type NavItem = { href: string; label: string }
@@ -28,8 +28,18 @@ export function MobileNav({ links }: { links: NavItem[] }) {
           <aside className="absolute left-0 top-0 flex h-dvh w-64 flex-col bg-white p-4 shadow-xl">
             <div className="flex items-center justify-between">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/cert-ed-academia-online-tuition-logo.webp" alt="Cert-Ed Academia" className="h-8 w-auto object-contain" />
-              <button onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">&times;</button>
+              <img
+                src="/cert-ed-academia-online-tuition-logo.webp"
+                alt="Cert-Ed Academia"
+                className="h-8 w-auto object-contain"
+              />
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="Close menu"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                &times;
+              </button>
             </div>
             <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
               {links.map((l) => {

@@ -10,7 +10,8 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import { requestJson } from '../api-client'
 import { Modal } from '../Modal'
 import { useUI } from '../Providers'
-import { LegendDot } from '../ui'
+import { useBrowserTimeZone, useMediaQuery } from '@/lib/ui/client-env'
+import { LegendDot } from '@/lib/ui'
 
 type Opt = { id: string; name: string }
 
@@ -27,7 +28,14 @@ type CalendarItem = {
 }
 
 type CalendarPayload = { items: CalendarItem[] }
-type EventDetail = { title: string; start: string | null; end: string | null; allDay: boolean; source: string; kind: string }
+type EventDetail = {
+  title: string
+  start: string | null
+  end: string | null
+  allDay: boolean
+  source: string
+  kind: string
+}
 type DayItem = { title: string; kind: string }
 
 const COLORS: Record<string, string> = {
@@ -52,21 +60,12 @@ export function CalendarView({
   classes?: Opt[]
   isAdmin?: boolean
 }) {
-  const [deviceTz, setDeviceTz] = useState<string | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
+  const deviceTz = useBrowserTimeZone()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const [error, setError] = useState<string | null>(null)
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [eventInfo, setEventInfo] = useState<EventDetail | null>(null)
   const calRef = useRef<FullCalendar | null>(null)
-
-  useEffect(() => {
-    setDeviceTz(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
-    const mediaQuery = window.matchMedia('(max-width: 640px)')
-    const applyViewport = () => setIsMobile(mediaQuery.matches)
-    applyViewport()
-    mediaQuery.addEventListener('change', applyViewport)
-    return () => mediaQuery.removeEventListener('change', applyViewport)
-  }, [])
 
   useEffect(() => {
     calRef.current?.getApi().changeView(isMobile ? 'listWeek' : 'dayGridMonth')
@@ -175,7 +174,7 @@ function ScheduleModal({
 }) {
   const { toast } = useUI()
   const [title, setTitle] = useState('')
-  const [classId, setClassId] = useState(isAdmin ? '' : classes[0]?.id ?? '')
+  const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
   const [kind, setKind] = useState<(typeof KINDS)[number]>('event')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
@@ -284,11 +283,21 @@ function ScheduleModal({
         </label>
         <label className="text-sm">
           Start (optional)
-          <input type="time" value={start} onChange={(event) => setStart(event.target.value)} className="mt-1 block w-full" />
+          <input
+            type="time"
+            value={start}
+            onChange={(event) => setStart(event.target.value)}
+            className="mt-1 block w-full"
+          />
         </label>
         <label className="text-sm">
           End (optional)
-          <input type="time" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-1 block w-full" />
+          <input
+            type="time"
+            value={end}
+            onChange={(event) => setEnd(event.target.value)}
+            className="mt-1 block w-full"
+          />
         </label>
         <div className="mt-1 flex gap-2 sm:col-span-2">
           <button type="submit" disabled={busy} className="btn btn-primary">
@@ -324,7 +333,10 @@ function EventDetailModal({ info, onClose }: { info: EventDetail; onClose: () =>
       size="sm"
       title={
         <span className="flex min-w-0 items-center gap-2">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORS[info.source] ?? '#94a3b8' }} />
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ background: COLORS[info.source] ?? '#94a3b8' }}
+          />
           <span className="truncate">{info.title}</span>
         </span>
       }
