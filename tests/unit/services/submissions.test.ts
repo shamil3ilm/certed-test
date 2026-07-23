@@ -4,13 +4,13 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import { getAssignment } from '@/lib/services/assignments'
 import {
   recordSubmission,
@@ -20,6 +20,7 @@ import {
   getLatestGrade,
   validateRecordSubmissionInput,
   validateGradeSubmissionInput,
+  withdrawSubmission,
 } from '@/lib/services/submissions'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
@@ -27,14 +28,33 @@ const student = { id: 'stud-1', email: 's@x.c', role: 'student', status: 'active
 const tutor = { id: 'teach-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 
 const activeAssignment = {
-  id: 'a-1', class_id: 'class-1', title: 'HW', description: null, due_date: '2099-01-01T00:00:00.000Z',
-  attachment_drive_link: null, topic: null, max_marks: 100, created_by: 'teach-1', status: 'active', created_at: 't',
+  id: 'a-1',
+  class_id: 'class-1',
+  title: 'HW',
+  description: null,
+  due_date: '2099-01-01T00:00:00.000Z',
+  attachment_drive_link: null,
+  topic: null,
+  max_marks: 100,
+  created_by: 'teach-1',
+  status: 'active',
+  created_at: 't',
 }
 
 const submissionRow = {
-  id: 'sub-1', assignment_id: 'a-1', student_id: 'stud-1', drive_link: 'https://x', file_name: null,
-  status: 'submitted', score: null, feedback: null, graded_at: null, graded_by: null,
-  submitted_at: 't', is_active: true, created_at: 't',
+  id: 'sub-1',
+  assignment_id: 'a-1',
+  student_id: 'stud-1',
+  drive_link: 'https://x',
+  file_name: null,
+  status: 'submitted',
+  score: null,
+  feedback: null,
+  graded_at: null,
+  graded_by: null,
+  submitted_at: 't',
+  is_active: true,
+  created_at: 't',
 }
 
 beforeEach(() => vi.resetAllMocks())
@@ -51,25 +71,18 @@ describe('recordSubmission', () => {
   it('blocks resubmission over an already-graded active submission', async () => {
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
     vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient(
-        { data: null, error: null },
-        { data: null, error: { message: 'submission_already_graded' } },
-      ) as any,
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'submission_already_graded' } }) as any,
     )
-    await expect(
-      recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' }),
-    ).rejects.toBeInstanceOf(ValidationError)
+    await expect(recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
   })
 
   it('replaces the active submission through the atomic RPC and returns the new row', async () => {
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
-    vi.mocked(createClient)
-      .mockResolvedValueOnce(
-        makeClient(
-          { data: null, error: null },
-          { data: submissionRow, error: null },
-        ) as any,
-      )
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: null, error: null }, { data: submissionRow, error: null }) as any,
+    )
     const created = await recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })
     expect(created.id).toBe('sub-1')
     expect(vi.mocked(createClient).mock.results).toHaveLength(1)
@@ -78,14 +91,11 @@ describe('recordSubmission', () => {
   it('maps RPC enrollment failures to PermissionError', async () => {
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
     vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient(
-        { data: null, error: null },
-        { data: null, error: { message: 'not_enrolled' } },
-      ) as any,
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'not_enrolled' } }) as any,
     )
-    await expect(
-      recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' }),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
   })
 })
 
@@ -115,13 +125,9 @@ describe('recordSubmission action-input helpers', () => {
 
   it('delegates validated action input into the submission record flow', async () => {
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
-    vi.mocked(createClient)
-      .mockResolvedValueOnce(
-        makeClient(
-          { data: null, error: null },
-          { data: submissionRow, error: null },
-        ) as any,
-      )
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: null, error: null }, { data: submissionRow, error: null }) as any,
+    )
     const created = await recordSubmissionFromActionInput(student, {
       assignment_id: '550e8400-e29b-41d4-a716-446655440000',
       url: 'https://example.com/work',
@@ -134,9 +140,9 @@ describe('recordSubmission action-input helpers', () => {
 describe('gradeSubmission', () => {
   it('throws NotFoundError for a missing submission', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(
-      gradeSubmission(tutor, { submissionId: 'missing', score: 10, feedback: null }),
-    ).rejects.toBeInstanceOf(NotFoundError)
+    await expect(gradeSubmission(tutor, { submissionId: 'missing', score: 10, feedback: null })).rejects.toBeInstanceOf(
+      NotFoundError,
+    )
     expect(getAssignment).not.toHaveBeenCalled()
   })
 
@@ -144,18 +150,18 @@ describe('gradeSubmission', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...submissionRow, is_active: false }, error: null }) as any,
     )
-    await expect(
-      gradeSubmission(tutor, { submissionId: 'sub-1', score: 10, feedback: null }),
-    ).rejects.toBeInstanceOf(ValidationError)
+    await expect(gradeSubmission(tutor, { submissionId: 'sub-1', score: 10, feedback: null })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
   })
 
-  it('rejects a tutor who does not manage the assignment\'s class, without writing/auditing', async () => {
+  it("rejects a tutor who does not manage the assignment's class, without writing/auditing", async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(
-      gradeSubmission(tutor, { submissionId: 'sub-1', score: 10, feedback: null }),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(gradeSubmission(tutor, { submissionId: 'sub-1', score: 10, feedback: null })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(createAdminClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -164,9 +170,9 @@ describe('gradeSubmission', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any) // max_marks: 100
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    await expect(
-      gradeSubmission(tutor, { submissionId: 'sub-1', score: 150, feedback: null }),
-    ).rejects.toBeInstanceOf(ValidationError)
+    await expect(gradeSubmission(tutor, { submissionId: 'sub-1', score: 150, feedback: null })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
@@ -178,7 +184,10 @@ describe('gradeSubmission', () => {
     const result = await gradeSubmission(tutor, { submissionId: 'sub-1', score: 90, feedback: 'Good' })
     expect(result).toEqual({ assignmentId: 'a-1' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'teach-1', action: 'submission.grade', entity_type: 'submission', entity_id: 'sub-1',
+      actor_id: 'teach-1',
+      action: 'submission.grade',
+      entity_type: 'submission',
+      entity_id: 'sub-1',
     })
   })
 })
@@ -239,5 +248,30 @@ describe('gradeSubmission action-input helpers', () => {
       feedback: ' Good ',
     })
     expect(result).toEqual({ assignmentId: 'a-1' })
+  })
+})
+
+describe('withdrawSubmission', () => {
+  const base = { id: 's-1', student_id: 'stud-1', assignment_id: 'a-1', is_active: true, score: null, graded_at: null }
+
+  it('withdraws the student’s own ungraded active submission', async () => {
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: base, error: null }) as any) // getSubmission
+      .mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update is_active=false
+    await expect(withdrawSubmission(student, 's-1')).resolves.toEqual({ assignmentId: 'a-1' })
+  })
+
+  it('refuses to withdraw graded work', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...base, score: 18, graded_at: '2026-01-01T00:00:00Z' }, error: null }) as any,
+    )
+    await expect(withdrawSubmission(student, 's-1')).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('refuses to withdraw someone else’s submission', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...base, student_id: 'other' }, error: null }) as any,
+    )
+    await expect(withdrawSubmission(student, 's-1')).rejects.toBeInstanceOf(NotFoundError)
   })
 })

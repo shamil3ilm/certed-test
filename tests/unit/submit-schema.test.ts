@@ -10,7 +10,11 @@ describe('submissionInputSchema', () => {
   })
 
   it('accepts an optional file name', () => {
-    const r = submissionInputSchema.safeParse({ assignment_id: uuid, url: 'https://x.test/a', file_name: '2026-07-10-ch4.pdf' })
+    const r = submissionInputSchema.safeParse({
+      assignment_id: uuid,
+      url: 'https://x.test/a',
+      file_name: '2026-07-10-ch4.pdf',
+    })
     expect(r.success).toBe(true)
   })
 

@@ -4,7 +4,7 @@ import { queryBuilder } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { listAuditPage } from '@/lib/repos/audit'
+import { listAuditPage } from '@/lib/data/audit'
 
 beforeEach(() => vi.resetAllMocks())
 

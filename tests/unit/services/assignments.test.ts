@@ -3,11 +3,11 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   createAssignment,
   createAssignmentFromApiInput,
@@ -24,8 +24,17 @@ import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const assignmentRow = {
-  id: 'a-1', class_id: 'class-1', title: 'HW', description: null, due_date: '2026-07-20T00:00:00.000Z',
-  attachment_drive_link: null, topic: null, max_marks: 100, created_by: 'tutor-1', status: 'active', created_at: 't',
+  id: 'a-1',
+  class_id: 'class-1',
+  title: 'HW',
+  description: null,
+  due_date: '2026-07-20T00:00:00.000Z',
+  attachment_drive_link: null,
+  topic: null,
+  max_marks: 100,
+  created_by: 'tutor-1',
+  status: 'active',
+  created_at: 't',
 }
 
 beforeEach(() => vi.resetAllMocks())
@@ -43,10 +52,18 @@ describe('createAssignment', () => {
   it('creates and audits assignment.create for a manager (explicit gate — RLS alone was the prior guard)', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
-    const created = await createAssignment(actor, { class_id: 'class-1', title: 'HW', description: null, due_date: 't' })
+    const created = await createAssignment(actor, {
+      class_id: 'class-1',
+      title: 'HW',
+      description: null,
+      due_date: 't',
+    })
     expect(created.id).toBe('a-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'assignment.create', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.create',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
   })
 
@@ -125,7 +142,10 @@ describe('archiveAssignment / editAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveAssignment(actor, 'a-1', 'archived')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'assignment.archive', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.archive',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
@@ -133,7 +153,10 @@ describe('archiveAssignment / editAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveAssignment(actor, 'a-1', 'active')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'assignment.restore', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.restore',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
   })
 
@@ -143,7 +166,10 @@ describe('archiveAssignment / editAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await editAssignment(actor, 'a-1', { title: 'New' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'assignment.edit', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.edit',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
   })
 })
@@ -187,6 +213,8 @@ describe('assignment action-input helpers', () => {
         description: 'Solve all',
         due_date: '2026-07-20T00:00:00.000Z',
         attachment_drive_link: 'https://example.com/brief',
+        topic: null,
+        max_marks: null,
       },
     })
   })
@@ -212,7 +240,10 @@ describe('assignment action-input helpers', () => {
       status: 'archived',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1', action: 'assignment.archive', entity_type: 'assignment', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'assignment.archive',
+      entity_type: 'assignment',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
@@ -226,7 +257,10 @@ describe('assignment action-input helpers', () => {
       attachment_drive_link: 'https://example.com/brief',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1', action: 'assignment.edit', entity_type: 'assignment', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'assignment.edit',
+      entity_type: 'assignment',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })

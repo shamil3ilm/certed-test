@@ -66,6 +66,8 @@ export function queryBuilder(result: QueryResult): StubQueryBuilder {
 export function makeClient(result: QueryResult, rpcResult?: RpcResult) {
   return {
     from: vi.fn(() => queryBuilder(result)),
-    rpc: vi.fn(async () => (rpcResult ?? { data: null, error: { message: 'mock rpc not configured' } }) satisfies RpcResult),
+    rpc: vi.fn(
+      async () => (rpcResult ?? { data: null, error: { message: 'mock rpc not configured' } }) satisfies RpcResult,
+    ),
   }
 }

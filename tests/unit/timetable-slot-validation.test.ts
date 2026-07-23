@@ -16,7 +16,7 @@ describe('createSlotSchema', () => {
     expect(createSlotSchema.safeParse(base).success).toBe(true)
   })
   it('accepts a slot without a tutor or location', () => {
-    const { tutor_id, mode_or_location, ...rest } = base
+    const { tutor_id: _tutorId, mode_or_location: _modeOrLocation, ...rest } = base
     expect(createSlotSchema.safeParse(rest).success).toBe(true)
   })
   it('rejects a non-uuid class_id', () => {

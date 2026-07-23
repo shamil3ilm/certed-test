@@ -10,11 +10,7 @@ beforeEach(() => vi.resetAllMocks())
 describe('loadLoginPageData', () => {
   it('returns the correct redirect for an active signed-in actor', async () => {
     await expect(
-      loadLoginPageData(
-        { profile: { id: 'user-1' }, accessState: 'active' },
-        {},
-        false,
-      ),
+      loadLoginPageData({ profile: { id: 'user-1' }, accessState: 'active' }, {}, false),
     ).resolves.toMatchObject({ redirectTo: '/dashboard' })
     expect(listProfiles).not.toHaveBeenCalled()
   })
@@ -30,11 +26,7 @@ describe('loadLoginPageData', () => {
     ] as any)
 
     await expect(
-      loadLoginPageData(
-        { profile: null, accessState: 'unauthenticated' },
-        { error: '1', registered: '1' },
-        true,
-      ),
+      loadLoginPageData({ profile: null, accessState: 'unauthenticated' }, { error: '1', registered: '1' }, true),
     ).resolves.toEqual({
       redirectTo: null,
       mockMode: true,
@@ -47,14 +39,14 @@ describe('loadLoginPageData', () => {
 
 describe('loadRegisterPageData', () => {
   it('redirects mock mode to login', () => {
-    expect(
-      loadRegisterPageData({ profile: null, accessState: 'unauthenticated' }, true),
-    ).toEqual({ redirectTo: '/login' })
+    expect(loadRegisterPageData({ profile: null, accessState: 'unauthenticated' }, true)).toEqual({
+      redirectTo: '/login',
+    })
   })
 
   it('redirects a disabled actor away from register', () => {
-    expect(
-      loadRegisterPageData({ profile: { id: 'user-1' }, accessState: 'disabled' }, false),
-    ).toEqual({ redirectTo: '/access-revoked' })
+    expect(loadRegisterPageData({ profile: { id: 'user-1' }, accessState: 'disabled' }, false)).toEqual({
+      redirectTo: '/access-revoked',
+    })
   })
 })

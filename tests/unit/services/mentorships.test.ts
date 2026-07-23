@@ -1,17 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission/personas', () => ({ loadActivePersonas: vi.fn(), hasPersona: vi.fn(), requireAdminOrSubAdminPersona: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({ loadActivePersonas: vi.fn(), hasPersona: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
+vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { loadActivePersonas, hasPersona, requireAdminOrSubAdminPersona } from '@/lib/permission/personas'
+import { loadActivePersonas, hasPersona } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   assignMentor,
+  assertAssignableMentor,
   assignMentorFromActionInput,
   removeMentor,
   removeMentorFromActionInput,
@@ -22,69 +25,111 @@ import { PermissionError, ValidationError } from '@/lib/errors'
 
 const admin = { id: 'admin-1', email: 'a@x.c', role: 'admin', status: 'active' } as any
 const student = { id: 'stud-1', email: 's@x.c', role: 'student', status: 'active' } as any
-const tutorProfile = { id: 'teach-1', role: 'tutor' }
-const mentorProfile = { id: 'ment-1', role: 'mentor' }
-const studentProfile = { id: 'stud-1', role: 'student' }
+const tutorProfile = { id: 'teach-1', role: 'tutor', status: 'active' }
+const mentorProfile = { id: 'ment-1', role: 'mentor', status: 'active' }
+const studentProfile = { id: 'stud-1', role: 'student', status: 'active' }
 
-beforeEach(() => vi.clearAllMocks())
+// resetAllMocks (not clearAllMocks) so a test's unconsumed mockResolvedValueOnce
+// queue can't leak into the next - assignMentor now short-circuits on the mentor
+// pre-flight, so a reject-path test may not consume every queued profile.
+beforeEach(() => vi.resetAllMocks())
 
-describe('assignMentor / removeMentor are admin/sub_admin-only', () => {
-  it('reject a tutor or student actor, without touching the DB', async () => {
-    vi.mocked(requireAdminOrSubAdminPersona).mockRejectedValueOnce(new PermissionError('Admin or sub-admin only.'))
-    await expect(assignMentor(student, { mentorId: 'teach-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(PermissionError)
+describe('assignMentor / removeMentor require the manageMentorships capability', () => {
+  it('reject an actor without manageMentorships, without touching the DB', async () => {
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(
+      new PermissionError('You are not allowed to manage mentors.'),
+    )
+    await expect(assignMentor(student, { mentorId: 'teach-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
 
-    vi.mocked(requireAdminOrSubAdminPersona).mockRejectedValueOnce(new PermissionError('Admin or sub-admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(
+      new PermissionError('You are not allowed to manage mentors.'),
+    )
     await expect(removeMentor(student, 'link-1')).rejects.toBeInstanceOf(PermissionError)
     expect(getProfileById).not.toHaveBeenCalled()
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
+  it('assertAssignableMentor rejects a disabled mentor (stale/revoked dropdown pick)', async () => {
+    vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'ment-1', role: 'mentor', status: 'disabled' } as any)
+    await expect(assertAssignableMentor('ment-1')).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('assertAssignableMentor rejects a role that is neither mentor nor tutor', async () => {
+    vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'stud-2', role: 'student', status: 'active' } as any)
+    await expect(assertAssignableMentor('stud-2')).rejects.toBeInstanceOf(ValidationError)
+  })
+
   it('assignMentor rejects when the mentor id is neither a mentor nor a tutor', async () => {
-    vi.mocked(requireAdminOrSubAdminPersona).mockResolvedValueOnce(undefined)
-    vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'stud-2', role: 'student' } as any).mockResolvedValueOnce(studentProfile as any)
-    await expect(assignMentor(admin, { mentorId: 'stud-2', studentId: 'stud-1' })).rejects.toBeInstanceOf(ValidationError)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce({ id: 'stud-2', role: 'student' } as any)
+      .mockResolvedValueOnce(studentProfile as any)
+    await expect(assignMentor(admin, { mentorId: 'stud-2', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
   it('assignMentor rejects when the mentee id is not actually a student', async () => {
-    vi.mocked(requireAdminOrSubAdminPersona).mockResolvedValueOnce(undefined)
-    vi.mocked(getProfileById).mockResolvedValueOnce(tutorProfile as any).mockResolvedValueOnce({ id: 'teach-2', role: 'tutor' } as any)
-    await expect(assignMentor(admin, { mentorId: 'teach-1', studentId: 'teach-2' })).rejects.toBeInstanceOf(ValidationError)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(tutorProfile as any)
+      .mockResolvedValueOnce({ id: 'teach-2', role: 'tutor' } as any)
+    await expect(assignMentor(admin, { mentorId: 'teach-1', studentId: 'teach-2' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
   it('assigns and audits mentorship.assign for a valid tutor + student pair', async () => {
-    vi.mocked(requireAdminOrSubAdminPersona).mockResolvedValueOnce(undefined)
-    vi.mocked(getProfileById).mockResolvedValueOnce(tutorProfile as any).mockResolvedValueOnce(studentProfile as any)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(tutorProfile as any)
+      .mockResolvedValueOnce(studentProfile as any)
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // assignMentorPersona
     await assignMentor(admin, { mentorId: 'teach-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'mentorship.assign', entity_type: 'mentorship', entity_id: 'stud-1',
+      actor_id: 'admin-1',
+      action: 'mentorship.assign',
+      entity_type: 'mentorship',
+      entity_id: 'stud-1',
     })
   })
 
   it('accepts a DEDICATED mentor (role mentor, not a tutor) as the mentor side', async () => {
-    vi.mocked(requireAdminOrSubAdminPersona).mockResolvedValueOnce(undefined)
-    vi.mocked(getProfileById).mockResolvedValueOnce(mentorProfile as any).mockResolvedValueOnce(studentProfile as any)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(mentorProfile as any)
+      .mockResolvedValueOnce(studentProfile as any)
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // assignMentorPersona
     await assignMentor(admin, { mentorId: 'ment-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'mentorship.assign', entity_type: 'mentorship', entity_id: 'stud-1',
+      actor_id: 'admin-1',
+      action: 'mentorship.assign',
+      entity_type: 'mentorship',
+      entity_id: 'stud-1',
     })
   })
 
   it('removes and audits mentorship.remove for an admin', async () => {
-    vi.mocked(requireAdminOrSubAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    // One client per data-layer operation, in call order.
     vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any) // select + update
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // removeMentorPersona
+      .mockReturnValueOnce(makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any) // selectMentorshipParties
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deleteScopedMentorPersona
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateMentorship
     await removeMentor(admin, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'mentorship.remove', entity_type: 'mentorship', entity_id: 'link-1',
+      actor_id: 'admin-1',
+      action: 'mentorship.remove',
+      entity_type: 'mentorship',
+      entity_id: 'link-1',
     })
   })
 })
@@ -111,9 +156,13 @@ describe('mentorship action-input helpers', () => {
   })
 
   it('delegates assign/remove mentor action input through the service boundary', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
-    vi.mocked(getProfileById).mockResolvedValueOnce(tutorProfile as any).mockResolvedValueOnce(studentProfile as any)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(tutorProfile as any)
+      .mockResolvedValueOnce(studentProfile as any)
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // assignMentorPersona
@@ -122,17 +171,26 @@ describe('mentorship action-input helpers', () => {
       student_id: '550e8400-e29b-41d4-a716-446655440001',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'mentorship.assign', entity_type: 'mentorship', entity_id: '550e8400-e29b-41d4-a716-446655440001',
+      actor_id: 'admin-1',
+      action: 'mentorship.assign',
+      entity_type: 'mentorship',
+      entity_id: '550e8400-e29b-41d4-a716-446655440001',
     })
 
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
     vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any) // select + update
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // removeMentorPersona
+      .mockReturnValueOnce(makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any) // selectMentorshipParties
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deleteScopedMentorPersona
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateMentorship
     await removeMentorFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440002' })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'mentorship.remove', entity_type: 'mentorship', entity_id: '550e8400-e29b-41d4-a716-446655440002',
+      actor_id: 'admin-1',
+      action: 'mentorship.remove',
+      entity_type: 'mentorship',
+      entity_id: '550e8400-e29b-41d4-a716-446655440002',
     })
   })
 })

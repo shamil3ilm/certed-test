@@ -84,18 +84,19 @@ test('STUDENT -- submit an assignment (Drive link)', async ({ page }) => {
 
   // Submit to the Science assignment (Sara enrolled, not yet submitted)
   await page.goto(`/classroom/${SEED.science}/classwork`)
-  await page.getByPlaceholder('Paste your Google Drive link…').first().fill('https://drive.google.com/file/e2e-sub')
+  await page.getByPlaceholder('Paste your Google Drive link...').first().fill('https://drive.google.com/file/e2e-sub')
   await submitAndReload(page, () => page.getByRole('button', { name: 'Submit link' }).first().click())
   await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
 })
 
-test('MENTOR -- sees only assigned mentees, teaches no classes', async ({ page }) => {
+test('MENTOR -- sees assigned mentees; a dedicated mentor has no class access', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
   await page.goto('/students')
   await expect(page.getByText('Sara Student').first()).toBeVisible()
   await expect(page.getByText('Sam Student').first()).toBeVisible()
+  // A dedicated mentor (role mentor) holds no viewClasses, so /classroom redirects.
   await page.goto('/classroom')
-  await expect(page.getByText('No classes assigned')).toBeVisible()
+  await expect(page).toHaveURL(/\/dashboard/)
 })
 
 test('SCOPING -- student is blocked from admin finance', async ({ page }) => {
@@ -104,22 +105,22 @@ test('SCOPING -- student is blocked from admin finance', async ({ page }) => {
   await expect(page.getByText('Issue fee receipt')).toHaveCount(0)
 })
 
-test('SCOPING -- mentor cannot enter a mentee class (404)', async ({ page }) => {
+test('SCOPING -- a dedicated mentor (no viewClasses) is redirected from a class page', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
   await page.goto(`/classroom/${SEED.math}`)
-  await expect(page.getByText('404')).toBeVisible()
+  await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByRole('link', { name: 'Classwork' })).toHaveCount(0)
 })
 
-// Ported from the retired phase1 suite: the actionable "Today" dashboard panels
-// render per persona (student "Due soon", tutor "To review").
-test('DASHBOARD -- student "Due soon" + tutor "To review" panels render', async ({ page }) => {
+// The actionable dashboard lead widgets render per persona: student "Due work",
+// tutor "Submissions to review".
+test('DASHBOARD -- student "Due work" + tutor "Submissions to review" panels render', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
   await page.goto('/dashboard')
-  await expect(page.getByRole('heading', { name: 'Due soon' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Due work' })).toBeVisible()
 
   await page.goto('/api/dev/logout')
   await loginAs(page, 'tutor@mock.test')
   await page.goto('/dashboard')
-  await expect(page.getByRole('heading', { name: 'To review' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Submissions to review' })).toBeVisible()
 })

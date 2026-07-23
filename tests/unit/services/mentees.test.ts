@@ -44,7 +44,12 @@ describe('getMenteeOverview', () => {
     vi.mocked(canMentor).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(student as any)
     // enrollments read → empty, so classes/assignments queries are skipped (classIds.length === 0)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    // One client per data-layer call. With no enrollments the classes and
+    // assignments reads short-circuit on the empty id list without opening one,
+    // so only the enrolment lookup and the submissions read remain.
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForStudent
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveSubmissionsForStudentAsService
     const result = await getMenteeOverview(tutor, 'stud-1')
     expect(result).toEqual({
       student,
@@ -63,10 +68,12 @@ describe('getMenteeListView', () => {
       { student_id: 'stud-2' },
       { student_id: 'stud-1' },
     ] as any)
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([
-      ['stud-1', 'Stu Dent'],
-      ['stud-2', 'Sam Student'],
-    ]) as any)
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+      new Map([
+        ['stud-1', 'Stu Dent'],
+        ['stud-2', 'Sam Student'],
+      ]) as any,
+    )
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
       isAdmin: true,

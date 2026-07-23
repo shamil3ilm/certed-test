@@ -22,14 +22,28 @@ describe('loadGradingQueuePageData', () => {
     ] as any)
     vi.mocked(listUngradedSubmissions).mockResolvedValueOnce([
       { id: 's1', assignment_id: 'a1', student_id: 'u1', submitted_at: '2026-07-15T10:00:00.000Z', status: 'late' },
-      { id: 's2', assignment_id: 'a1', student_id: 'u2', submitted_at: '2026-07-14T10:00:00.000Z', status: 'submitted' },
-      { id: 's3', assignment_id: 'a2', student_id: 'u3', submitted_at: '2026-07-13T10:00:00.000Z', status: 'submitted' },
+      {
+        id: 's2',
+        assignment_id: 'a1',
+        student_id: 'u2',
+        submitted_at: '2026-07-14T10:00:00.000Z',
+        status: 'submitted',
+      },
+      {
+        id: 's3',
+        assignment_id: 'a2',
+        student_id: 'u3',
+        submitted_at: '2026-07-13T10:00:00.000Z',
+        status: 'submitted',
+      },
     ] as any)
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([
-      ['u1', 'Sara Student'],
-      ['u2', 'Sam Student'],
-      ['u3', 'Ben Biology'],
-    ]) as any)
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+      new Map([
+        ['u1', 'Sara Student'],
+        ['u2', 'Sam Student'],
+        ['u3', 'Ben Biology'],
+      ]) as any,
+    )
     vi.mocked(getClass)
       .mockResolvedValueOnce({ id: 'class-1', name: 'Math' } as any)
       .mockResolvedValueOnce({ id: 'class-2', name: 'Science' } as any)

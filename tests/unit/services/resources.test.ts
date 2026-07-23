@@ -3,11 +3,11 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   createLinkResource,
   createLinkResourceFromActionInput,
@@ -22,7 +22,15 @@ import {
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
-const resourceRow = { id: 'res-1', class_id: 'class-1', title: 'Notes', drive_link: 'https://x', uploaded_by: 'tutor-1', status: 'active', created_at: 't' }
+const resourceRow = {
+  id: 'res-1',
+  class_id: 'class-1',
+  title: 'Notes',
+  drive_link: 'https://x',
+  uploaded_by: 'tutor-1',
+  status: 'active',
+  created_at: 't',
+}
 const classId = '550e8400-e29b-41d4-a716-446655440000'
 
 beforeEach(() => vi.resetAllMocks())

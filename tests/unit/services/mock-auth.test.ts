@@ -2,31 +2,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import { ERROR_CODES } from '@/lib/api/error-codes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loginMockPasswordUser } from '@/lib/services/mock-auth'
 
 beforeEach(() => vi.resetAllMocks())
 
-function adminForFirstLogin(profile: { id: string; auth_user_id: string | null; password: string | null }) {
-  const updateBuilder = {
-    update: vi.fn(() => updateBuilder),
-    eq: vi.fn(async () => ({ data: null, error: null })),
-  }
+/** The profile lookup and the first-login bind are separate data-layer calls,
+ *  so each opens its own client - one stubbed client per step. */
+function lookupClient(profile: { id: string; auth_user_id: string | null; password: string | null }) {
   const selectBuilder = {
     select: vi.fn(() => selectBuilder),
     eq: vi.fn(() => selectBuilder),
     maybeSingle: vi.fn(async () => ({ data: profile, error: null })),
   }
-  return {
-    from: vi
-      .fn()
-      .mockReturnValueOnce(selectBuilder)
-      .mockReturnValueOnce(updateBuilder),
+  return { from: vi.fn(() => selectBuilder) }
+}
+
+function bindClient() {
+  const updateBuilder = {
+    update: vi.fn(() => updateBuilder),
+    eq: vi.fn(async () => ({ data: null, error: null })),
   }
+  return { from: vi.fn(() => updateBuilder) }
 }
 
 describe('loginMockPasswordUser', () => {
@@ -77,8 +78,9 @@ describe('loginMockPasswordUser', () => {
   })
 
   it('binds an unclaimed profile on first successful login', async () => {
-    const admin = adminForFirstLogin({ id: 'profile-1', auth_user_id: null, password: null })
-    vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(lookupClient({ id: 'profile-1', auth_user_id: null, password: null }) as any)
+      .mockReturnValueOnce(bindClient() as any)
 
     await expect(loginMockPasswordUser('student@mock.test', 'cert-ed', 'cert-ed')).resolves.toEqual({
       ok: true,

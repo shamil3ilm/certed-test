@@ -9,25 +9,46 @@ const WIDTHS = [320, 375, 430, 768, 1280] // tiny phone -> phone -> large phone 
 
 const PAGES: Record<string, string[]> = {
   admin: [
-    '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
-    `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/calendar',
-    '/admin/users', '/admin/finance', '/settings', `/assignments/${SEED.asgMath}`,
+    '/dashboard',
+    '/classroom',
+    `/classroom/${SEED.math}`,
+    `/classroom/${SEED.math}/classwork`,
+    `/classroom/${SEED.math}/attendance`,
+    `/classroom/${SEED.math}/people`,
+    '/calendar',
+    '/admin/users',
+    '/admin/finance',
+    '/settings',
+    `/assignments/${SEED.asgMath}`,
   ],
   tutor: [
     // A PLAIN tutor (mentors nobody) has no viewMentees, so /students is NOT a
-    // tutor route — it belongs to the mentor sweep below. Keeping it here would
+    // tutor route - it belongs to the mentor sweep below. Keeping it here would
     // just redirect to /dashboard and misrepresent the tutor production path.
-    '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
-    `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/calendar',
-    '/payslips', '/settings', `/assignments/${SEED.asgMath}`,
+    '/dashboard',
+    '/classroom',
+    `/classroom/${SEED.math}`,
+    `/classroom/${SEED.math}/classwork`,
+    `/classroom/${SEED.math}/attendance`,
+    `/classroom/${SEED.math}/people`,
+    '/calendar',
+    '/payslips',
+    '/settings',
+    `/assignments/${SEED.asgMath}`,
   ],
   // A DEDICATED mentor (role mentor, teaches nothing) holds only viewDashboard,
-  // viewMessages and viewMentees — no classes/calendar/payslips (those would redirect).
+  // viewMessages and viewMentees - no classes/calendar/payslips (those would redirect).
   mentor: ['/dashboard', '/messages', '/students', `/students/${SEED.sara}`, '/settings'],
   student: [
-    '/dashboard', '/classroom', `/classroom/${SEED.math}`, `/classroom/${SEED.math}/classwork`,
-    `/classroom/${SEED.math}/attendance`, `/classroom/${SEED.math}/people`, '/receipts',
-    '/calendar', '/settings',
+    '/dashboard',
+    '/classroom',
+    `/classroom/${SEED.math}`,
+    `/classroom/${SEED.math}/classwork`,
+    `/classroom/${SEED.math}/attendance`,
+    `/classroom/${SEED.math}/people`,
+    '/receipts',
+    '/calendar',
+    '/settings',
   ],
 }
 

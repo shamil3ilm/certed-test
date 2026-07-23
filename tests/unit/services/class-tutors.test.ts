@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission/personas', () => ({ loadActivePersonas: vi.fn(), hasPersona: vi.fn(), requireAdminPersona: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({
+  requireAdminPersona: vi.fn(),
+}))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { loadActivePersonas, hasPersona, requireAdminPersona } from '@/lib/permission/personas'
+import { requireAdminPersona } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   addTutor,
   addTutorFromActionInput,
@@ -31,10 +33,14 @@ beforeEach(() => {
 describe('addTutor / removeTutor are admin-only', () => {
   it('reject a non-admin actor, without touching the DB', async () => {
     vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
-    await expect(addTutor(tutorActor, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(PermissionError)
+    await expect(addTutor(tutorActor, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
 
     vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
-    await expect(removeTutor(tutorActor, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(PermissionError)
+    await expect(removeTutor(tutorActor, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(getProfileById).not.toHaveBeenCalled()
     expect(createAdminClient).not.toHaveBeenCalled()
   })
@@ -47,10 +53,16 @@ describe('addTutor / removeTutor are admin-only', () => {
 
   it('addTutor assigns and audits class.assign_tutor for an admin + active tutor', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutor)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    // One client per data-layer call: the class-status read, then the upsert.
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
     await addTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'class.assign_tutor', entity_type: 'class_tutor', entity_id: 'class-1',
+      actor_id: 'admin-1',
+      action: 'class.assign_tutor',
+      entity_type: 'class_tutor',
+      entity_id: 'class-1',
     })
   })
 
@@ -58,7 +70,10 @@ describe('addTutor / removeTutor are admin-only', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await removeTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'class.unassign_tutor', entity_type: 'class_tutor', entity_id: 'class-1',
+      actor_id: 'admin-1',
+      action: 'class.unassign_tutor',
+      entity_type: 'class_tutor',
+      entity_id: 'class-1',
     })
   })
 })
@@ -82,13 +97,19 @@ describe('class-tutor action-input helpers', () => {
 
   it('delegates add/remove tutor after validation', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutor)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    // One client per data-layer call: the class-status read, then the upsert.
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
     await addTutorFromActionInput(admin, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       tutor_id: '550e8400-e29b-41d4-a716-446655440001',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'class.assign_tutor', entity_type: 'class_tutor', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'admin-1',
+      action: 'class.assign_tutor',
+      entity_type: 'class_tutor',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
@@ -97,7 +118,10 @@ describe('class-tutor action-input helpers', () => {
       tutor_id: '550e8400-e29b-41d4-a716-446655440001',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'class.unassign_tutor', entity_type: 'class_tutor', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'admin-1',
+      action: 'class.unassign_tutor',
+      entity_type: 'class_tutor',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })

@@ -21,7 +21,11 @@ import {
   listSessionSummariesForClass,
   summarizeAttendanceForStudent,
 } from '@/lib/services/attendance'
-import { loadClassAttendancePageData, attendanceRecordPageUrl, attendanceSessionDate } from '@/lib/services/page-data/class-attendance'
+import {
+  loadClassAttendancePageData,
+  attendanceRecordPageUrl,
+  attendanceSessionDate,
+} from '@/lib/services/page-data/class-attendance'
 import { getClassMembers } from '@/lib/services/classes'
 import { isCalendarDate, todayInDisplayZone } from '@/lib/time/format'
 
@@ -29,9 +33,23 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(loadPersonaFlags).mockImplementation(async (profileId: string) => {
     if (profileId === 'student-1') {
-      return { personas: [], isAdmin: false, isSubAdmin: false, isManager: false, isStudent: true, isMentor: false } as any
+      return {
+        personas: [],
+        isAdmin: false,
+        isSubAdmin: false,
+        isManager: false,
+        isStudent: true,
+        isMentor: false,
+      } as any
     }
-    return { personas: [], isAdmin: false, isSubAdmin: false, isManager: true, isStudent: false, isMentor: false } as any
+    return {
+      personas: [],
+      isAdmin: false,
+      isSubAdmin: false,
+      isManager: true,
+      isStudent: false,
+      isMentor: false,
+    } as any
   })
 })
 
@@ -54,7 +72,13 @@ describe('loadClassAttendancePageData', () => {
   it('loads the student attendance view model with paging', async () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'student', status: 'active' }] as any)
     vi.mocked(hasPersona).mockImplementation(() => false)
-    vi.mocked(summarizeAttendanceForStudent).mockResolvedValueOnce({ present: 5, late: 1, absent: 2, total: 8, rate: 75 } as any)
+    vi.mocked(summarizeAttendanceForStudent).mockResolvedValueOnce({
+      present: 5,
+      late: 1,
+      absent: 2,
+      total: 8,
+      rate: 75,
+    } as any)
     vi.mocked(listAttendanceForStudentPage).mockResolvedValueOnce({
       items: [{ id: 'a1', session_date: '2026-07-15', status: 'present' }],
       total: 21,
@@ -78,10 +102,15 @@ describe('loadClassAttendancePageData', () => {
     vi.mocked(isCalendarDate).mockReturnValueOnce(false as any)
     vi.mocked(todayInDisplayZone).mockReturnValueOnce('2026-07-16' as any)
     vi.mocked(getClassMembers).mockResolvedValueOnce({
-      students: [{ id: 's1', name: 'Sara Student' }, { id: 's2', name: 'Sam Student' }],
+      students: [
+        { id: 's1', name: 'Sara Student' },
+        { id: 's2', name: 'Sam Student' },
+      ],
     } as any)
     vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([{ student_id: 's1', status: 'late' }] as any)
-    vi.mocked(listSessionSummariesForClass).mockResolvedValueOnce([{ session_date: '2026-07-16', present: 0, late: 1, absent: 0, total: 1, rate: 100 }] as any)
+    vi.mocked(listSessionSummariesForClass).mockResolvedValueOnce([
+      { session_date: '2026-07-16', present: 0, late: 1, absent: 0, total: 1, rate: 100 },
+    ] as any)
 
     await expect(
       loadClassAttendancePageData({ id: 'tutor-1', role: 'tutor' } as any, 'class-1', { date: 'bad-date' }),

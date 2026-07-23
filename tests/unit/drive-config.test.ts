@@ -22,13 +22,13 @@ describe('driveConfig', () => {
 
   it('isPickerConfigured is false in mock mode even when set', () => {
     setAll()
-    vi.stubEnv('NEXT_PUBLIC_MOCK_MODE', '1')
+    vi.stubEnv('MOCK_MODE', '1')
     expect(isPickerConfigured()).toBe(false)
   })
 
   it('isPickerConfigured is true when configured and not mock', () => {
     setAll()
-    vi.stubEnv('NEXT_PUBLIC_MOCK_MODE', '0')
+    vi.stubEnv('MOCK_MODE', '0')
     expect(isPickerConfigured()).toBe(true)
   })
 })

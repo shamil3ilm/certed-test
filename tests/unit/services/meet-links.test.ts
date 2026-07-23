@@ -3,11 +3,11 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageScope: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageScope } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   createMeetLink,
   createMeetLinkFromActionInput,
@@ -20,8 +20,14 @@ import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const linkRow = {
-  id: 'link-1', class_id: 'class-1', title: 'Class call', url: 'https://meet.example/x',
-  description: null, active: true, created_by: 'tutor-1', created_at: 't',
+  id: 'link-1',
+  class_id: 'class-1',
+  title: 'Class call',
+  url: 'https://meet.example/x',
+  description: null,
+  active: true,
+  created_by: 'tutor-1',
+  created_at: 't',
 }
 
 beforeEach(() => vi.resetAllMocks())
@@ -29,9 +35,9 @@ beforeEach(() => vi.resetAllMocks())
 describe('createMeetLink', () => {
   it('rejects a caller who cannot manage the scope, without a DB write or audit', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(false)
-    await expect(
-      createMeetLink(actor, { class_id: 'class-1', title: 'x', url: 'https://y' }),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(createMeetLink(actor, { class_id: 'class-1', title: 'x', url: 'https://y' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(createClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -39,10 +45,17 @@ describe('createMeetLink', () => {
   it('creates and audits meet.create for a manager (previously unaudited)', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
-    const created = await createMeetLink(actor, { class_id: 'class-1', title: 'Class call', url: 'https://meet.example/x' })
+    const created = await createMeetLink(actor, {
+      class_id: 'class-1',
+      title: 'Class call',
+      url: 'https://meet.example/x',
+    })
     expect(created.id).toBe('link-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'meet.create', entity_type: 'meet_link', entity_id: 'link-1',
+      actor_id: 'tutor-1',
+      action: 'meet.create',
+      entity_type: 'meet_link',
+      entity_id: 'link-1',
     })
   })
 })
@@ -92,7 +105,10 @@ describe('createMeetLinkFromActionInput', () => {
 
     expect(created.class_id).toBeNull()
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'meet.create', entity_type: 'meet_link', entity_id: 'global-1',
+      actor_id: 'tutor-1',
+      action: 'meet.create',
+      entity_type: 'meet_link',
+      entity_id: 'global-1',
     })
   })
 })
@@ -118,7 +134,10 @@ describe('deleteMeetLink', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteMeetLink(actor, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'meet.delete', entity_type: 'meet_link', entity_id: 'link-1',
+      actor_id: 'tutor-1',
+      action: 'meet.delete',
+      entity_type: 'meet_link',
+      entity_id: 'link-1',
     })
   })
 })
@@ -144,7 +163,10 @@ describe('restoreMeetLink', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await restoreMeetLink(actor, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'meet.restore', entity_type: 'meet_link', entity_id: 'link-1',
+      actor_id: 'tutor-1',
+      action: 'meet.restore',
+      entity_type: 'meet_link',
+      entity_id: 'link-1',
     })
   })
 })

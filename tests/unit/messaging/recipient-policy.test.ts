@@ -13,7 +13,16 @@ import { getProfileNamesByIds } from '@/lib/services/users'
 import { canMessage, listMessageableContacts } from '@/lib/messaging/recipient-policy'
 
 const FLAGS = (o: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isMentor' | 'isStudent', boolean>>) =>
-  ({ personas: [], isAdmin: false, isSubAdmin: false, isTutor: false, isManager: false, isStudent: false, isMentor: false, ...o }) as any
+  ({
+    personas: [],
+    isAdmin: false,
+    isSubAdmin: false,
+    isTutor: false,
+    isManager: false,
+    isStudent: false,
+    isMentor: false,
+    ...o,
+  }) as any
 
 /** A client whose .from(table) resolves to that table's rows. */
 function tableClient(byTable: Record<string, unknown[]>) {
@@ -35,7 +44,7 @@ describe('recipientPolicy', () => {
     expect(await canMessage({ id: 'admin-1' } as any, 'admin-1')).toBe(false) // never self
   })
 
-  it('sub_admin may message tutors + students but not other admin-tier staff, robustly of role naming', async () => {
+  it('sub_admin may message everyone who is not admin-tier, including roles no list enumerates', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isSubAdmin: true }))
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
@@ -43,7 +52,7 @@ describe('recipientPolicy', () => {
           { id: 'sa-1', role: 'sub_admin' },
           { id: 'the-admin', role: 'admin' },
           { id: 'a-tutor', role: 'tutor' },
-          { id: 'legacy-teacher', role: 'teacher' }, // DB not yet migrated to 'tutor'
+          { id: 'a-mentor', role: 'mentor' },
           { id: 'a-student', role: 'student' },
         ],
       }) as any,
@@ -51,10 +60,11 @@ describe('recipientPolicy', () => {
     const actor = { id: 'sa-1' } as any
     expect(await canMessage(actor, 'a-tutor')).toBe(true)
     expect(await canMessage(actor, 'a-student')).toBe(true)
-    // The whole point: a tutor still stored under the legacy 'teacher' value is
-    // reachable, because eligibility excludes admins/sub_admins instead of
-    // positively matching the tutor role string.
-    expect(await canMessage(actor, 'legacy-teacher')).toBe(true)
+    // The whole point: eligibility EXCLUDES admin-tier rather than enumerating
+    // the roles it admits, so a role introduced later is reachable by default.
+    // A dedicated mentor is that case - a positive ['tutor','student'] filter
+    // would drop them silently, with nothing failing to reveal it.
+    expect(await canMessage(actor, 'a-mentor')).toBe(true)
     expect(await canMessage(actor, 'the-admin')).toBe(false)
     expect(await canMessage(actor, 'sa-1')).toBe(false) // never self
   })
@@ -80,8 +90,9 @@ describe('recipientPolicy', () => {
       tableClient({
         enrollments: [{ class_id: 'c-1' }],
         class_tutors: [{ tutor_id: 'my-tutor' }],
-        mentorships: [{ tutor_id: 'my-mentor' }],
-        profiles: [{ id: 'the-admin' }, { id: 'the-subadmin' }],
+        mentorships: [{ mentor_id: 'my-mentor' }],
+        // Serves both the staff lookup and the mentor active-status check.
+        profiles: [{ id: 'the-admin' }, { id: 'the-subadmin' }, { id: 'my-mentor' }],
       }) as any,
     )
     const actor = { id: 'stu-1' } as any
@@ -102,7 +113,12 @@ describe('recipientPolicy', () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true }))
     vi.mocked(studentIdsOfMentor).mockResolvedValue(['s-2', 's-1'])
     vi.mocked(createAdminClient).mockReturnValue(tableClient({}) as any)
-    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['s-1', 'Zara'], ['s-2', 'Amir']]))
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(
+      new Map([
+        ['s-1', 'Zara'],
+        ['s-2', 'Amir'],
+      ]),
+    )
     expect(await listMessageableContacts({ id: 'mentor-1' } as any)).toEqual([
       { id: 's-2', name: 'Amir' },
       { id: 's-1', name: 'Zara' },

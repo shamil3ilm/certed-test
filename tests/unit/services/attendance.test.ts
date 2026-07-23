@@ -5,13 +5,13 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
 import { getClassMembers } from '@/lib/services/classes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   markAttendance,
   clearAttendanceSession,
@@ -26,7 +26,10 @@ const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' }
 const classId = '11111111-1111-4111-8111-111111111111'
 const enrolledStudentId = '22222222-2222-4222-8222-222222222222'
 const foreignStudentId = '33333333-3333-4333-8333-333333333333'
-const roster = { tutors: [], students: [{ id: enrolledStudentId, rowId: 'e1', name: 'A', email: 'a@x.c', role: 'student' }] }
+const roster = {
+  tutors: [],
+  students: [{ id: enrolledStudentId, rowId: 'e1', name: 'A', email: 'a@x.c', role: 'student' }],
+}
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -34,7 +37,11 @@ describe('markAttendance', () => {
   it('rejects a non-manager without reading the roster or writing', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(false)
     await expect(
-      markAttendance(actor, { classId, sessionDate: '2026-07-15', marks: [{ student_id: enrolledStudentId, status: 'present' }] }),
+      markAttendance(actor, {
+        classId,
+        sessionDate: '2026-07-15',
+        marks: [{ student_id: enrolledStudentId, status: 'present' }],
+      }),
     ).rejects.toBeInstanceOf(PermissionError)
     expect(getClassMembers).not.toHaveBeenCalled()
     expect(createAdminClient).not.toHaveBeenCalled()
@@ -45,7 +52,11 @@ describe('markAttendance', () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getClassMembers).mockResolvedValueOnce(roster as any)
     await expect(
-      markAttendance(actor, { classId, sessionDate: '2026-07-15', marks: [{ student_id: foreignStudentId, status: 'present' }] }),
+      markAttendance(actor, {
+        classId,
+        sessionDate: '2026-07-15',
+        marks: [{ student_id: foreignStudentId, status: 'present' }],
+      }),
     ).rejects.toBeInstanceOf(ValidationError)
     expect(createAdminClient).not.toHaveBeenCalled()
   })
@@ -54,7 +65,11 @@ describe('markAttendance', () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getClassMembers).mockResolvedValueOnce(roster as any)
     await expect(
-      markAttendance(actor, { classId, sessionDate: '2026-07-15', marks: [{ student_id: enrolledStudentId, status: 'not-a-status' }] }),
+      markAttendance(actor, {
+        classId,
+        sessionDate: '2026-07-15',
+        marks: [{ student_id: enrolledStudentId, status: 'not-a-status' }],
+      }),
     ).rejects.toBeInstanceOf(ValidationError)
   })
 
@@ -65,11 +80,17 @@ describe('markAttendance', () => {
     const result = await markAttendance(actor, {
       classId,
       sessionDate: '2026-07-15',
-      marks: [{ student_id: enrolledStudentId, status: 'present' }, { student_id: foreignStudentId, status: 'absent' }],
+      marks: [
+        { student_id: enrolledStudentId, status: 'present' },
+        { student_id: foreignStudentId, status: 'absent' },
+      ],
     })
     expect(result).toEqual({ saved: 1 })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'attendance.mark', entity_type: 'class', entity_id: classId,
+      actor_id: 'tutor-1',
+      action: 'attendance.mark',
+      entity_type: 'class',
+      entity_id: classId,
     })
   })
 })
@@ -90,10 +111,15 @@ describe('clearAttendanceSession', () => {
 
   it('deletes the class+date marks and audits attendance.clear', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'm1' }, { id: 'm2' }], error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: [{ id: 'm1' }, { id: 'm2' }], error: null }) as any,
+    )
     await expect(clearAttendanceSession(actor, classId, '2026-07-15')).resolves.toEqual({ cleared: 2 })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'attendance.clear', entity_type: 'class', entity_id: classId,
+      actor_id: 'tutor-1',
+      action: 'attendance.clear',
+      entity_type: 'class',
+      entity_id: classId,
     })
   })
 })
@@ -101,9 +127,36 @@ describe('clearAttendanceSession', () => {
 describe('listSessionSummariesForClass', () => {
   it('groups marks by session_date and summarizes each, newest date first', async () => {
     const rows = [
-      { id: '1', class_id: classId, student_id: enrolledStudentId, session_date: '2026-07-01', status: 'present', marked_by: null, created_at: 't', updated_at: 't' },
-      { id: '2', class_id: classId, student_id: foreignStudentId, session_date: '2026-07-01', status: 'absent', marked_by: null, created_at: 't', updated_at: 't' },
-      { id: '3', class_id: classId, student_id: enrolledStudentId, session_date: '2026-07-08', status: 'late', marked_by: null, created_at: 't', updated_at: 't' },
+      {
+        id: '1',
+        class_id: classId,
+        student_id: enrolledStudentId,
+        session_date: '2026-07-01',
+        status: 'present',
+        marked_by: null,
+        created_at: 't',
+        updated_at: 't',
+      },
+      {
+        id: '2',
+        class_id: classId,
+        student_id: foreignStudentId,
+        session_date: '2026-07-01',
+        status: 'absent',
+        marked_by: null,
+        created_at: 't',
+        updated_at: 't',
+      },
+      {
+        id: '3',
+        class_id: classId,
+        student_id: enrolledStudentId,
+        session_date: '2026-07-08',
+        status: 'late',
+        marked_by: null,
+        created_at: 't',
+        updated_at: 't',
+      },
     ]
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: rows, error: null }) as any)
     const result = await listSessionSummariesForClass(classId)
@@ -115,8 +168,14 @@ describe('listSessionSummariesForClass', () => {
 
   it('caps the number of distinct dates returned at `limit`', async () => {
     const rows = ['2026-07-01', '2026-07-02', '2026-07-03'].map((d, i) => ({
-      id: String(i), class_id: classId, student_id: enrolledStudentId, session_date: d,
-      status: 'present', marked_by: null, created_at: 't', updated_at: 't',
+      id: String(i),
+      class_id: classId,
+      student_id: enrolledStudentId,
+      session_date: d,
+      status: 'present',
+      marked_by: null,
+      created_at: 't',
+      updated_at: 't',
     }))
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: rows, error: null }) as any)
     const result = await listSessionSummariesForClass(classId, 2)

@@ -17,7 +17,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(loadPersonaFlags).mockImplementation(async (profileId: string) => {
     if (profileId === 'student-1' || profileId === 's1') {
-      return { personas: [], isAdmin: false, isSubAdmin: false, isManager: false, isStudent: true, isMentor: false } as any
+      return {
+        personas: [],
+        isAdmin: false,
+        isSubAdmin: false,
+        isManager: false,
+        isStudent: true,
+        isMentor: false,
+      } as any
     }
     return { personas: [], isAdmin: true, isSubAdmin: false, isManager: true, isStudent: false, isMentor: false } as any
   })
@@ -26,17 +33,26 @@ beforeEach(() => {
 
 describe('loadClassPeopleViewData', () => {
   it('loads the admin roster, mentor subtitles, and addable lists', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'admin')
     vi.mocked(getClassMembers).mockResolvedValueOnce({
       tutors: [{ id: 't1', name: 'Maya Mentor', email: 'maya@test.com', role: 'tutor' }],
       students: [{ id: 's1', name: 'Sara Student', email: 'sara@test.com', role: 'student' }],
     } as any)
-    vi.mocked(mentorsByStudent)
-      .mockResolvedValueOnce(new Map([['s1', [{ name: 'Maya Mentor', email: 'maya@test.com' }]]]) as any)
+    vi.mocked(mentorsByStudent).mockResolvedValueOnce(
+      new Map([['s1', [{ name: 'Maya Mentor', email: 'maya@test.com' }]]]) as any,
+    )
     vi.mocked(listActiveByRole)
-      .mockResolvedValueOnce([{ id: 't1', name: 'Maya Mentor' }, { id: 't2', name: 'Tara Tutor' }] as any)
-      .mockResolvedValueOnce([{ id: 's1', name: 'Sara Student' }, { id: 's2', name: 'Sam Student' }] as any)
+      .mockResolvedValueOnce([
+        { id: 't1', name: 'Maya Mentor' },
+        { id: 't2', name: 'Tara Tutor' },
+      ] as any)
+      .mockResolvedValueOnce([
+        { id: 's1', name: 'Sara Student' },
+        { id: 's2', name: 'Sam Student' },
+      ] as any)
 
     const result = await loadClassPeopleViewData({ id: 'admin-1', role: 'admin' } as any, 'class-1')
 
@@ -49,7 +65,9 @@ describe('loadClassPeopleViewData', () => {
   })
 
   it('loads only the signed-in student mentor contacts for a student view', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'student', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'student', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'student')
     vi.mocked(getClassMembers).mockResolvedValueOnce({
       tutors: [{ id: 't1', name: 'Maya Mentor', email: 'maya@test.com', role: 'tutor' }],

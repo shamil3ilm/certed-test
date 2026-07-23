@@ -4,7 +4,10 @@ vi.mock('@/lib/permission', () => ({ canAccessClass: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ getClass: vi.fn() }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
-vi.mock('@/lib/services/submissions', () => ({ listSubmissionsForAssignment: vi.fn(), listSupersededSubmissions: vi.fn() }))
+vi.mock('@/lib/services/submissions', () => ({
+  listSubmissionsForAssignment: vi.fn(),
+  listSupersededSubmissions: vi.fn(),
+}))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 
 import { canAccessClass } from '@/lib/permission'
@@ -69,7 +72,10 @@ describe('loadAssignmentDetailPageData', () => {
     expect(result).toMatchObject({
       assignment: { id: 'a-1', class_id: 'class-1', title: 'Essay' },
       course: { id: 'class-1', name: 'Math' },
-      submissions: [{ id: 'sub-1', student_id: 'student-1' }, { id: 'sub-2', student_id: 'student-2' }],
+      submissions: [
+        { id: 'sub-1', student_id: 'student-1' },
+        { id: 'sub-2', student_id: 'student-2' },
+      ],
     })
     expect(result?.names.get('student-1')).toBe('Asha')
     expect(result?.commentsBySub.get('sub-2')).toEqual([{ id: 'c-2' }])

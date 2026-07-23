@@ -3,16 +3,29 @@ import { queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { issueDocRecord, listDocsPage, validateFinanceDocId } from '@/lib/services/finance/finance-docs'
-import { ValidationError } from '@/lib/errors'
+import { requireActorCapability } from '@/lib/services/authorization'
+import { issueDocRecord, listDocsPage, validateFinanceDocId, voidDoc } from '@/lib/services/finance/finance-docs'
+import { PermissionError, ValidationError } from '@/lib/errors'
 
 const receiptRow = {
-  id: 'r-1', number: 'CEA-R-2026-0001', student_id: 'stud-1', student_name_snapshot: 'Sara Student',
-  class_snapshot: 'Grade 10', issue_date: '2026-06-01', currency: 'INR', note: null,
-  subtotal: 5000, discount: null, total: 5000, voided: false, created_by: 'admin-1', created_at: 't',
+  id: 'r-1',
+  number: 'CEA-R-2026-0001',
+  student_id: 'stud-1',
+  student_name_snapshot: 'Sara Student',
+  class_snapshot: 'Grade 10',
+  issue_date: '2026-06-01',
+  currency: 'INR',
+  note: null,
+  subtotal: 5000,
+  discount: null,
+  total: 5000,
+  voided: false,
+  created_by: 'admin-1',
+  created_at: 't',
 }
 
 beforeEach(() => vi.resetAllMocks())
@@ -63,9 +76,7 @@ describe('listDocsPage', () => {
 
 describe('validateFinanceDocId', () => {
   it('accepts a UUID finance document id', () => {
-    expect(validateFinanceDocId('550e8400-e29b-41d4-a716-446655440000')).toBe(
-      '550e8400-e29b-41d4-a716-446655440000',
-    )
+    expect(validateFinanceDocId('550e8400-e29b-41d4-a716-446655440000')).toBe('550e8400-e29b-41d4-a716-446655440000')
   })
 
   it('rejects an invalid finance document id with a typed validation error', () => {
@@ -79,7 +90,7 @@ describe('issueDocRecord', () => {
       rpc: vi.fn(async () => ({ data: receiptRow, error: null })),
     }
     vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
-    const result = await issueDocRecord('receipt', {
+    const result = await issueDocRecord('admin-1', 'receipt', {
       prefix: 'CEA-R',
       party_id: 'stud-1',
       party_name: 'Sara Student',
@@ -110,7 +121,7 @@ describe('issueDocRecord', () => {
     }
     vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
     await expect(
-      issueDocRecord('payslip', {
+      issueDocRecord('admin-1', 'payslip', {
         prefix: 'CEA-P',
         party_id: 'teach-1',
         party_name: 'Tarun Tutor',
@@ -125,5 +136,45 @@ describe('issueDocRecord', () => {
         lines: [{ label: 'Coaching', hours: 4, rate: 500, amount: 2000 }],
       }),
     ).rejects.toThrow('payslip.issue: write failed')
+  })
+})
+
+describe('finance mutations enforce their own permission check', () => {
+  // Regression: issuing and voiding used to rely entirely on each caller gating
+  // first. They now refuse on their own, so a new caller that forgets is denied
+  // rather than silently writing to the financial record.
+  it('issueDocRecord refuses without the capability, and never reaches the RPC', async () => {
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(
+      issueDocRecord('not-an-admin', 'receipt', {
+        prefix: 'CEA-R',
+        party_id: 'stud-1',
+        party_name: 'Sara Student',
+        class_level: null,
+        issue_date: '2026-06-01',
+        currency: 'INR',
+        note: null,
+        subtotal: 100,
+        discount: null,
+        total: 100,
+        created_by: 'not-an-admin',
+        lines: [],
+      }),
+    ).rejects.toBeInstanceOf(PermissionError)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('voidDoc refuses without the capability, and never reaches the update', async () => {
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(voidDoc('not-an-admin', 'receipt', 'r-1')).rejects.toBeInstanceOf(PermissionError)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('voidDoc gates on the hard admin-tier capability, not a role string', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce({
+      from: vi.fn(() => queryBuilder({ data: [{ id: 'r-1' }], error: null })),
+    } as any)
+    await expect(voidDoc('admin-1', 'receipt', 'r-1')).resolves.toBe(true)
+    expect(requireActorCapability).toHaveBeenCalledWith('admin-1', 'manageAdminTier', expect.any(String))
   })
 })

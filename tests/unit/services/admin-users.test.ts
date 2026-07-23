@@ -13,14 +13,20 @@ vi.mock('@/lib/services/users', () => ({
 import { isAdminTier } from '@/lib/capabilities'
 import { loadAdminUsersPageData, usersUrl } from '@/lib/services/page-data/admin-users'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
-import { countUsersHubStats, getProfilesByIds, listActiveMentorCandidates, listProfilesByRole } from '@/lib/services/users'
+import {
+  countUsersHubStats,
+  getProfilesByIds,
+  listActiveMentorCandidates,
+  listProfilesByRole,
+} from '@/lib/services/users'
 
 beforeEach(() => vi.resetAllMocks())
 
 describe('usersUrl', () => {
   it('builds a users hub URL preserving tab filters', () => {
-    expect(usersUrl({ tab: 'students', page: 2, q: 'sara', status: 'active', sortBy: 'name', sortOrder: 'asc' }))
-      .toBe('/admin/users?tab=students&page=2&q=sara&status=active&sortBy=name&sortOrder=asc')
+    expect(usersUrl({ tab: 'students', page: 2, q: 'sara', status: 'active', sortBy: 'name', sortOrder: 'asc' })).toBe(
+      '/admin/users?tab=students&page=2&q=sara&status=active&sortBy=name&sortOrder=asc',
+    )
   })
 })
 
@@ -34,7 +40,16 @@ describe('loadAdminUsersPageData', () => {
       { id: 'm2', mentor_id: 't1', student_id: 's2' },
     ] as any)
     vi.mocked(listProfilesByRole).mockResolvedValueOnce({
-      items: [{ id: 's1', email: 's1@test.com', full_name: 'Sara Student', role: 'student', status: 'active', class_level: 'Grade 10' }],
+      items: [
+        {
+          id: 's1',
+          email: 's1@test.com',
+          full_name: 'Sara Student',
+          role: 'student',
+          status: 'active',
+          class_level: 'Grade 10',
+        },
+      ],
       total: 1,
     } as any)
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(
@@ -80,14 +95,17 @@ describe('loadAdminUsersPageData', () => {
     vi.mocked(listProfilesByRole).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(new Map() as any)
 
-    const result = await loadAdminUsersPageData({ id: 'sub-1', role: 'sub_admin' } as any, {
-      tab: 'bogus',
-      page: '0',
-      q: '   ',
-      status: 'bad',
-      sortBy: 'wrong',
-      sortOrder: 'bad',
-    } as any)
+    const result = await loadAdminUsersPageData(
+      { id: 'sub-1', role: 'sub_admin' } as any,
+      {
+        tab: 'bogus',
+        page: '0',
+        q: '   ',
+        status: 'bad',
+        sortBy: 'wrong',
+        sortOrder: 'bad',
+      } as any,
+    )
 
     expect(result.filters).toEqual({
       tab: 'students',

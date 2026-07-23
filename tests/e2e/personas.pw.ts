@@ -8,8 +8,17 @@ import { SEED, loginAs, submitAndReload } from './support'
 /** Comment threads are collapsed until they have comments -- open before typing. */
 async function ensureThreadOpen(scope: Locator) {
   const ta = scope.locator('textarea')
-  const visible = (await ta.count()) > 0 && (await ta.first().isVisible().catch(() => false))
-  if (!visible) await scope.getByRole('button', { name: /Add a comment/ }).first().click()
+  const visible =
+    (await ta.count()) > 0 &&
+    (await ta
+      .first()
+      .isVisible()
+      .catch(() => false))
+  if (!visible)
+    await scope
+      .getByRole('button', { name: /Add a comment/ })
+      .first()
+      .click()
 }
 
 test('TUTOR -- shares a meet link, a resource, and comments on the resource', async ({ page }) => {
@@ -74,7 +83,7 @@ test('TUTOR -- marks attendance and adds a reminder', async ({ page }) => {
 
   await page.goto('/dashboard')
   await page.getByRole('button', { name: '+ Add' }).click()
-  await page.getByPlaceholder('Reminder title…').fill('Prep Chapter 5')
+  await page.getByPlaceholder('Reminder title...').fill('Prep Chapter 5')
   await page.locator('input[name=remind_at]').fill('2026-12-10T09:00')
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByText('Prep Chapter 5')).toBeVisible()
@@ -97,12 +106,14 @@ test('SUB ADMIN -- lands on a real dashboard and can reach settings (no blank lo
   await expect(page).toHaveURL(/\/admin\/users/)
 })
 
-test('STUDENT -- full journey: timetable, submit homework, materials, grade, attendance, report card', async ({ page }) => {
+test('STUDENT -- full journey: timetable, submit homework, materials, grade, attendance, report card', async ({
+  page,
+}) => {
   await loginAs(page, 'student@mock.test')
 
-  // Dashboard "Due soon" + the timetable/calendar
+  // Dashboard "Due work" lead widget + the timetable/calendar
   await page.goto('/dashboard')
-  await expect(page.getByRole('heading', { name: 'Due soon' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Due work' })).toBeVisible()
 
   await page.goto('/calendar')
   await expect(page.getByRole('heading', { name: 'Calendar' })).toBeVisible()
@@ -111,7 +122,10 @@ test('STUDENT -- full journey: timetable, submit homework, materials, grade, att
 
   // Submit homework (Science)
   await page.goto(`/classroom/${SEED.science}/classwork`)
-  await page.getByPlaceholder('Paste your Google Drive link…').first().fill('https://drive.google.com/file/e2e-persona')
+  await page
+    .getByPlaceholder('Paste your Google Drive link...')
+    .first()
+    .fill('https://drive.google.com/file/e2e-persona')
   await submitAndReload(page, () => page.getByRole('button', { name: 'Submit link' }).first().click())
   await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
 

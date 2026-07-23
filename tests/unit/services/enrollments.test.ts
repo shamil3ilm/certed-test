@@ -5,13 +5,13 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
 import { getProfileById } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   enrolStudent,
   enrolStudentFromActionInput,
@@ -30,7 +30,9 @@ beforeEach(() => vi.resetAllMocks())
 describe('enrolStudent', () => {
   it('rejects a caller who cannot manage the class, without touching the DB', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(PermissionError)
+    await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(getProfileById).not.toHaveBeenCalled()
     expect(createAdminClient).not.toHaveBeenCalled()
   })
@@ -38,17 +40,25 @@ describe('enrolStudent', () => {
   it('rejects a target that is not an active student (crafted POST pairing an arbitrary id)', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'tutor-2', role: 'tutor', status: 'active' } as any)
-    await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'tutor-2' })).rejects.toBeInstanceOf(ValidationError)
+    await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'tutor-2' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
   it('enrolls and audits class.enroll for a manager + active student', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    // One client per data-layer call: the class-status read, then the upsert.
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertEnrollment
     await enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'class.enroll', entity_type: 'enrollment', entity_id: 'class-1',
+      actor_id: 'tutor-1',
+      action: 'class.enroll',
+      entity_type: 'enrollment',
+      entity_id: 'class-1',
     })
   })
 })
@@ -56,7 +66,9 @@ describe('enrolStudent', () => {
 describe('removeStudent', () => {
   it('rejects a caller who cannot manage the class', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(PermissionError)
+    await expect(removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
@@ -65,7 +77,10 @@ describe('removeStudent', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'class.unenroll', entity_type: 'enrollment', entity_id: 'class-1',
+      actor_id: 'tutor-1',
+      action: 'class.unenroll',
+      entity_type: 'enrollment',
+      entity_id: 'class-1',
     })
   })
 })
@@ -107,13 +122,19 @@ describe('enrollment action-input helpers', () => {
   it('delegates enrol/remove student after validation', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    // One client per data-layer call: the class-status read, then the upsert.
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertEnrollment
     await enrolStudentFromActionInput(tutor, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       student_id: '550e8400-e29b-41d4-a716-446655440001',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1', action: 'class.enroll', entity_type: 'enrollment', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'class.enroll',
+      entity_type: 'enrollment',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
@@ -123,7 +144,10 @@ describe('enrollment action-input helpers', () => {
       student_id: '550e8400-e29b-41d4-a716-446655440001',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1', action: 'class.unenroll', entity_type: 'enrollment', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'class.unenroll',
+      entity_type: 'enrollment',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })

@@ -3,7 +3,7 @@ import { type Page } from '@playwright/test'
 /**
  * Shared helpers + seed ids for the Playwright e2e suite (MOCK mode). Every
  * *.pw.ts file imports from here instead of redefining these, so the login flow,
- * the write-then-reload workaround, and the seed ids have a single source.
+ * the mock-environment refresh workaround, and the seed ids have a single source.
  */
 
 // Seeded fixture ids (see the mock seed). The union of what the suites need;
@@ -17,8 +17,8 @@ export const SEED = {
 
 /**
  * Click a server-action submit, wait for the POST to land, then reload. In this
- * mock/host setup the action's own RSC revalidation refetch fails, so the write
- * succeeds but the streamed view stays stale -- a fresh GET shows the result.
+ * mock/host setup the action's own RSC revalidation refetch does not refresh the
+ * streamed view reliably, so a fresh GET is the stable way to observe the new state.
  */
 export async function submitAndReload(page: Page, click: () => Promise<void>) {
   await Promise.all([

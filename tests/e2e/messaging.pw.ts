@@ -44,7 +44,7 @@ test('MESSAGING -- admin starts a group thread auto-titled from its participants
   await expect(page.getByRole('heading', { name: /Sam Student/ })).toBeVisible()
 })
 
-test('MESSAGING -- a non-participant gets a 404 on a thread they are not in', async ({ page }) => {
+test('MESSAGING -- a non-participant cannot read a thread they are not in', async ({ page }) => {
   // Admin opens a conversation with Sam Student; Sara Student is not a participant.
   await loginAs(page, 'admin@mock.test')
   await page.goto('/messages')
@@ -53,8 +53,16 @@ test('MESSAGING -- a non-participant gets a 404 on a thread they are not in', as
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
   const convId = page.url().split('/messages/')[1].split(/[/?#]/)[0]
 
-  // Re-login as the excluded student and try to open the thread directly.
+  // Re-login as the excluded student and try to open the thread directly. The
+  // service-layer participant check (assertParticipant) rejects her, so the page
+  // renders its Not Found state instead of the conversation - she never sees the
+  // thread's header or composer. (We assert the observable outcome, not resp
+  // .status(): notFound() here yields a 200 body rather than a 404 because the
+  // portal shell - the async PortalHeader - streams before the page's notFound()
+  // fires. That HTTP-status quirk is a Next.js streaming artifact; the access
+  // boundary itself is what matters and is what this asserts.)
   await loginAs(page, 'student@mock.test', { clearCookies: true })
-  const resp = await page.goto(`/messages/${convId}`)
-  expect(resp?.status()).toBe(404)
+  await page.goto(`/messages/${convId}`)
+  await expect(page.getByRole('heading', { name: 'Not found' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Back to messages' })).toHaveCount(0)
 })

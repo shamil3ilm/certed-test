@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission/personas', () => ({ loadActivePersonas: vi.fn(), hasPersona: vi.fn(), requireAdminPersona: vi.fn(), loadPersonaFlags: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({
+  loadActivePersonas: vi.fn(),
+  hasPersona: vi.fn(),
+  requireAdminPersona: vi.fn(),
+  loadPersonaFlags: vi.fn(),
+}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { loadActivePersonas, hasPersona, requireAdminPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   createClass,
   createClassFromActionInput,
@@ -59,7 +64,10 @@ describe('class lifecycle is admin-only', () => {
     const created = await createClass(admin, 'Math')
     expect(created.id).toBe('class-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'class.create', entity_type: 'class', entity_id: 'class-1',
+      actor_id: 'admin-1',
+      action: 'class.create',
+      entity_type: 'class',
+      entity_id: 'class-1',
     })
   })
 
@@ -68,14 +76,20 @@ describe('class lifecycle is admin-only', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveClass(admin, 'class-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'class.archive', entity_type: 'class', entity_id: 'class-1',
+      actor_id: 'admin-1',
+      action: 'class.archive',
+      entity_type: 'class',
+      entity_id: 'class-1',
     })
 
     vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await restoreClass(admin, 'class-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'class.restore', entity_type: 'class', entity_id: 'class-1',
+      actor_id: 'admin-1',
+      action: 'class.restore',
+      entity_type: 'class',
+      entity_id: 'class-1',
     })
   })
 })
@@ -85,7 +99,9 @@ describe('myClassIds derives membership from explicit personas', () => {
 
   it('a tutor gets the classes they teach', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: false, isTutor: true, isStudent: false } as any)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ class_id: 'c1' }, { class_id: 'c2' }], error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: [{ class_id: 'c1' }, { class_id: 'c2' }], error: null }) as any,
+    )
     expect(await myClassIds(tutor)).toEqual(['c1', 'c2'])
   })
 
@@ -97,16 +113,20 @@ describe('myClassIds derives membership from explicit personas', () => {
 
   it('a persona that is neither tutor nor student (e.g. guardian) gets no classes and never queries membership', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: false, isTutor: false, isStudent: false } as any)
-    const client = makeClient({ data: [{ class_id: 'leaked' }], error: null })
-    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     expect(await myClassIds(guardian)).toEqual([])
     // Regression: old code inferred tutor as !isStudent and would have queried class_tutors.
-    expect(client.from).not.toHaveBeenCalled()
+    // Membership reads are now lazy - a caller who holds neither persona doesn't
+    // just skip the query, it never opens a service-role client at all. That is
+    // stricter than the old `client.from` check, which had to hand over a client
+    // first (and whose unconsumed queue then leaked into the next test).
+    expect(createAdminClient).not.toHaveBeenCalled()
   })
 
   it('an admin sees every class', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: true, isTutor: false, isStudent: false } as any)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'c1' }, { id: 'c2' }], error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: [{ id: 'c1' }, { id: 'c2' }], error: null }) as any,
+    )
     expect(await myClassIds(admin)).toEqual(['c1', 'c2'])
   })
 })
@@ -141,7 +161,9 @@ describe('class action-input validation', () => {
 
 describe('class action-input delegation', () => {
   it('createClassFromActionInput delegates validated data into createClass', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: classRow, error: null }) as any)
     const created = await createClassFromActionInput(admin, { name: ' Math ' })
@@ -149,7 +171,9 @@ describe('class action-input delegation', () => {
   })
 
   it('rename/archive/restore action helpers delegate after validation', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await renameClassFromActionInput(admin, {
@@ -157,23 +181,36 @@ describe('class action-input delegation', () => {
       name: ' Physics ',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'class.rename', entity_type: 'class', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'admin-1',
+      action: 'class.rename',
+      entity_type: 'class',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveClassFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440000' })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'class.archive', entity_type: 'class', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'admin-1',
+      action: 'class.archive',
+      entity_type: 'class',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await restoreClassFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440000' })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'class.restore', entity_type: 'class', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'admin-1',
+      action: 'class.restore',
+      entity_type: 'class',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })

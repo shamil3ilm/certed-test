@@ -8,7 +8,10 @@ vi.mock('@/lib/permission/personas', () => ({
 vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
 vi.mock('@/lib/services/resources', () => ({ listResourcesPage: vi.fn() }))
-vi.mock('@/lib/services/submissions', () => ({ listMyActiveSubmissions: vi.fn(), listMySupersededSubmissions: vi.fn() }))
+vi.mock('@/lib/services/submissions', () => ({
+  listMyActiveSubmissions: vi.fn(),
+  listMySupersededSubmissions: vi.fn(),
+}))
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { listAssignments } from '@/lib/services/assignments'
@@ -21,9 +24,23 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(loadPersonaFlags).mockImplementation(async (profileId: string) => {
     if (profileId === 'student-1') {
-      return { personas: [], isAdmin: false, isSubAdmin: false, isManager: false, isStudent: true, isMentor: false } as any
+      return {
+        personas: [],
+        isAdmin: false,
+        isSubAdmin: false,
+        isManager: false,
+        isStudent: true,
+        isMentor: false,
+      } as any
     }
-    return { personas: [], isAdmin: false, isSubAdmin: false, isManager: true, isStudent: false, isMentor: false } as any
+    return {
+      personas: [],
+      isAdmin: false,
+      isSubAdmin: false,
+      isManager: true,
+      isStudent: false,
+      isMentor: false,
+    } as any
   })
 })
 
@@ -36,14 +53,18 @@ describe('classworkPageUrl', () => {
 
 describe('loadClassworkPageData', () => {
   it('loads the student classwork view with visible assignments and mapped comments', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'student', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'student', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'student')
     const resourcePageResponses = [
       { items: [{ id: 'r1', title: 'Notes', created_at: '2026-07-15T00:00:00.000Z' }], total: 11 },
       { items: [], total: 0 },
     ]
     let resourcePageCallCount = 0
-    vi.mocked(listResourcesPage).mockImplementation(() => Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any))
+    vi.mocked(listResourcesPage).mockImplementation(() =>
+      Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any),
+    )
     vi.mocked(listAssignments).mockResolvedValueOnce([
       { id: 'a1', class_id: 'class-1', title: 'Essay', status: 'active', due_date: '2026-07-17T00:00:00.000Z' },
       { id: 'a2', class_id: 'class-1', title: 'Old task', status: 'archived', due_date: '2026-07-10T00:00:00.000Z' },
@@ -77,14 +98,18 @@ describe('loadClassworkPageData', () => {
   })
 
   it('loads archived resources for a manager and skips student submission lookups', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'tutor', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'tutor', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
     const resourcePageResponses = [
       { items: [], total: 0 },
       { items: [{ id: 'r2', title: 'Archived Notes' }], total: 1 },
     ]
     let resourcePageCallCount = 0
-    vi.mocked(listResourcesPage).mockImplementation(() => Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any))
+    vi.mocked(listResourcesPage).mockImplementation(() =>
+      Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any),
+    )
     vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
     vi.mocked(listCommentsForEntities)
       .mockResolvedValueOnce(new Map() as any)

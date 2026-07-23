@@ -3,10 +3,12 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfilesByIds: vi.fn() }))
+vi.mock('@/lib/services/comment-auth', () => ({ assertCanComment: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
 import { createClient } from '@/lib/supabase/server'
 import { getProfilesByIds } from '@/lib/services/users'
+import { assertCanComment } from '@/lib/services/comment-auth'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
   createCommentFromActionInput,
@@ -15,17 +17,21 @@ import {
 } from '@/lib/services/comments'
 import { ValidationError, RateLimitError } from '@/lib/errors'
 
+const author = { id: 'user-1', role: 'student', status: 'active' } as any
+
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(rateLimit).mockReturnValue({ ok: true, remaining: 99, retryAfterSec: 0 })
+  vi.mocked(assertCanComment).mockResolvedValue(undefined)
 })
 
 describe('createCommentFromActionInput rate limiting', () => {
-  it('throttles a burst of comments with RateLimitError before any DB call', async () => {
+  it('throttles a burst of comments with RateLimitError before any DB or auth call', async () => {
     vi.mocked(rateLimit).mockReturnValueOnce({ ok: false, remaining: 0, retryAfterSec: 5 })
     await expect(
-      createCommentFromActionInput('user-1', { entity_type: 'resource', entity_id: 'r1', content: 'spam' }),
+      createCommentFromActionInput(author, { entity_type: 'resource', entity_id: 'r1', content: 'spam' }),
     ).rejects.toBeInstanceOf(RateLimitError)
+    expect(assertCanComment).not.toHaveBeenCalled()
     expect(createClient).not.toHaveBeenCalled()
   })
 })
@@ -71,12 +77,26 @@ describe('createCommentFromActionInput', () => {
         error: null,
       }) as any,
     )
-    const created = await createCommentFromActionInput('user-1', {
+    const created = await createCommentFromActionInput(author, {
       entity_type: 'resource',
       entity_id: '550e8400-e29b-41d4-a716-446655440000',
       content: ' Helpful note ',
     })
     expect(created.content).toBe('Helpful note')
+    expect(assertCanComment).toHaveBeenCalledWith(author, 'resource', '550e8400-e29b-41d4-a716-446655440000')
+  })
+
+  it('refuses to insert when the author cannot access the parent entity', async () => {
+    const { PermissionError } = await import('@/lib/errors')
+    vi.mocked(assertCanComment).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(
+      createCommentFromActionInput(author, {
+        entity_type: 'submission',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        content: 'sneaky',
+      }),
+    ).rejects.toBeInstanceOf(PermissionError)
+    expect(createClient).not.toHaveBeenCalled()
   })
 })
 

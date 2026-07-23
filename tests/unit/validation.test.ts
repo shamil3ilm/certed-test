@@ -17,9 +17,7 @@ describe('addUserSchema', () => {
 
 describe('createAnnouncementSchema', () => {
   it('accepts a global announcement (null course)', () => {
-    expect(
-      createAnnouncementSchema.safeParse({ class_id: null, title: 'Hi', message: 'Welcome' }).success,
-    ).toBe(true)
+    expect(createAnnouncementSchema.safeParse({ class_id: null, title: 'Hi', message: 'Welcome' }).success).toBe(true)
   })
   it('rejects an empty title', () => {
     expect(createAnnouncementSchema.safeParse({ title: '', message: 'x' }).success).toBe(false)

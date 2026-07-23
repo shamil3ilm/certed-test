@@ -4,11 +4,17 @@ import { formatInstant } from '@/lib/time/format'
 
 // A Monday 09:00–10:00 slot anchored to Asia/Kolkata (UTC+5:30, no DST).
 const istSlot: ExpandableSlot = {
-  id: 's-ist', day_of_week: 1, start_time: '09:00', end_time: '10:00',
+  id: 's-ist',
+  day_of_week: 1,
+  start_time: '09:00',
+  end_time: '10:00',
 }
 // A Monday 09:00–10:00 slot anchored to a DST zone (America/New_York: -05:00 winter, -04:00 summer).
 const nySlot: ExpandableSlot = {
-  id: 's-ny', day_of_week: 1, start_time: '09:00', end_time: '10:00',
+  id: 's-ny',
+  day_of_week: 1,
+  start_time: '09:00',
+  end_time: '10:00',
 }
 
 describe('expandSlots', () => {
@@ -62,7 +68,6 @@ describe('expandSlots', () => {
   })
 
   it('throws on an unparseable range bound', () => {
-    expect(() => expandSlots([istSlot], 'not-a-date', '2026-07-07T00:00:00Z', 'Asia/Kolkata'))
-      .toThrow('invalid range')
+    expect(() => expandSlots([istSlot], 'not-a-date', '2026-07-07T00:00:00Z', 'Asia/Kolkata')).toThrow('invalid range')
   })
 })

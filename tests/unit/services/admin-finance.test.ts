@@ -13,11 +13,7 @@ beforeEach(() => vi.resetAllMocks())
 describe('financeUrl', () => {
   it('carries the sibling ledger filters through the URL', () => {
     expect(
-      financeUrl(
-        'receipts',
-        { page: 2, q: 'A-1', status: 'active' },
-        { page: 3, q: 'Maya', status: 'voided' },
-      ),
+      financeUrl('receipts', { page: 2, q: 'A-1', status: 'active' }, { page: 3, q: 'Maya', status: 'voided' }),
     ).toBe('/admin/finance?rPage=2&rq=A-1&rstatus=active&pPage=3&pq=Maya&pstatus=voided#receipts')
   })
 })
@@ -62,9 +58,13 @@ describe('loadAdminFinancePageData', () => {
     })
     expect(result.students).toEqual([{ id: 's1', name: 'Sara Student' }])
     expect(result.tutors).toEqual([{ id: 't1', name: 'tutor@test.com' }])
-    expect(result.receipts.rows).toEqual([{ id: 'r1', number: 'R-001', name: 'Sara Student', totalLabel: 'INR:1200', voided: false }])
+    expect(result.receipts.rows).toEqual([
+      { id: 'r1', number: 'R-001', name: 'Sara Student', totalLabel: 'INR:1200', voided: false },
+    ])
     expect(result.receipts.totalPages).toBe(2)
-    expect(result.payslips.rows).toEqual([{ id: 'p1', number: 'P-010', name: 'tutor@test.com', totalLabel: 'INR:900', voided: true }])
+    expect(result.payslips.rows).toEqual([
+      { id: 'p1', number: 'P-010', name: 'tutor@test.com', totalLabel: 'INR:900', voided: true },
+    ])
     expect(result.payslips.totalPages).toBe(1)
   })
 
@@ -74,7 +74,14 @@ describe('loadAdminFinancePageData', () => {
       .mockResolvedValueOnce({ items: [], total: 0 } as any)
       .mockResolvedValueOnce({ items: [], total: 0 } as any)
 
-    await loadAdminFinancePageData({ rPage: '0', rq: '   ', rstatus: 'bad', pPage: 'x', pq: '', pstatus: 'oops' } as any)
+    await loadAdminFinancePageData({
+      rPage: '0',
+      rq: '   ',
+      rstatus: 'bad',
+      pPage: 'x',
+      pq: '',
+      pstatus: 'oops',
+    } as any)
 
     expect(listDocsPage).toHaveBeenNthCalledWith(1, 'receipt', {
       page: 1,

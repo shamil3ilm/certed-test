@@ -3,16 +3,42 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 // Default: no signed-in actor, so loadActivePersonas falls back to the admin query.
-vi.mock('@/lib/session/actor-context', () => ({ getActorContext: vi.fn(async () => ({ userId: null, profile: null, personas: [], accessState: 'unauthenticated' })) }))
+vi.mock('@/lib/session/actor-context', () => ({
+  getActorContext: vi.fn(async () => ({ userId: null, profile: null, personas: [], accessState: 'unauthenticated' })),
+}))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadActivePersonas, hasPersona, hasScopedPersona } from '@/lib/permission/personas'
 
-const adminPersona = { profile_id: 'profile-1', persona_name: 'admin', status: 'active', scope_type: 'global', scope_id: null } as any
-const tutorPersona = { profile_id: 'profile-1', persona_name: 'tutor', status: 'active', scope_type: 'global', scope_id: null } as any
-const mentorPersona = { profile_id: 'profile-1', persona_name: 'mentor', status: 'active', scope_type: 'student', scope_id: 'student-1' } as any
-const inactiveAdminPersona = { profile_id: 'profile-1', persona_name: 'admin', status: 'inactive', scope_type: 'global', scope_id: null } as any
+const adminPersona = {
+  profile_id: 'profile-1',
+  persona_name: 'admin',
+  status: 'active',
+  scope_type: 'global',
+  scope_id: null,
+} as any
+const tutorPersona = {
+  profile_id: 'profile-1',
+  persona_name: 'tutor',
+  status: 'active',
+  scope_type: 'global',
+  scope_id: null,
+} as any
+const mentorPersona = {
+  profile_id: 'profile-1',
+  persona_name: 'mentor',
+  status: 'active',
+  scope_type: 'student',
+  scope_id: 'student-1',
+} as any
+const _inactiveAdminPersona = {
+  profile_id: 'profile-1',
+  persona_name: 'admin',
+  status: 'inactive',
+  scope_type: 'global',
+  scope_id: null,
+} as any
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -34,17 +60,13 @@ describe('loadActivePersonas', () => {
   })
 
   it('returns empty array when profile has no active personas', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({ data: [], error: null }) as any,
-    )
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
     const personas = await loadActivePersonas('profile-1')
     expect(personas).toEqual([])
   })
 
   it('throws when database query fails', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({ data: null, error: { message: 'DB error' } }) as any,
-    )
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'DB error' } }) as any)
     await expect(loadActivePersonas('profile-1')).rejects.toThrow()
   })
 

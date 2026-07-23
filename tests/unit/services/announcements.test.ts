@@ -3,11 +3,11 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageScope: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageScope } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import {
   createAnnouncement,
   createAnnouncementFromActionInput,
@@ -24,8 +24,13 @@ import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const announcementRow = {
-  id: 'ann-1', class_id: 'class-1', title: 'Hi', message: 'msg',
-  author_id: 'tutor-1', status: 'active', created_at: 't',
+  id: 'ann-1',
+  class_id: 'class-1',
+  title: 'Hi',
+  message: 'msg',
+  author_id: 'tutor-1',
+  status: 'active',
+  created_at: 't',
 }
 
 beforeEach(() => vi.resetAllMocks())
@@ -33,9 +38,9 @@ beforeEach(() => vi.resetAllMocks())
 describe('createAnnouncement', () => {
   it('rejects a caller who cannot manage the scope, without a DB write or audit', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(false)
-    await expect(
-      createAnnouncement(actor, { class_id: 'class-1', title: 'x', message: 'y' }),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(createAnnouncement(actor, { class_id: 'class-1', title: 'x', message: 'y' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(createClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -46,15 +51,18 @@ describe('createAnnouncement', () => {
     const created = await createAnnouncement(actor, { class_id: 'class-1', title: 'Hi', message: 'msg' })
     expect(created.id).toBe('ann-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'announcement.create', entity_type: 'announcement', entity_id: 'ann-1',
+      actor_id: 'tutor-1',
+      action: 'announcement.create',
+      entity_type: 'announcement',
+      entity_id: 'ann-1',
     })
   })
 
   it('a global (null class_id) post is admin-only — a tutor is rejected', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(false)
-    await expect(
-      createAnnouncement(actor, { class_id: null, title: 'x', message: 'y' }),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(createAnnouncement(actor, { class_id: null, title: 'x', message: 'y' })).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(canManageScope).toHaveBeenCalledWith(actor, null)
   })
 })
@@ -88,7 +96,9 @@ describe('validateCreateAnnouncementInput', () => {
 describe('createAnnouncementFromActionInput', () => {
   it('creates from action payload after service-side normalization', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: { ...announcementRow, id: 'ann-2', class_id: null }, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...announcementRow, id: 'ann-2', class_id: null }, error: null }) as any,
+    )
     const created = await createAnnouncementFromActionInput(actor, {
       class_id: '',
       title: ' Welcome ',
@@ -153,7 +163,10 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveAnnouncement(actor, 'ann-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'announcement.archive', entity_type: 'announcement', entity_id: 'ann-1',
+      actor_id: 'tutor-1',
+      action: 'announcement.archive',
+      entity_type: 'announcement',
+      entity_id: 'ann-1',
     })
   })
 
@@ -163,7 +176,10 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await restoreAnnouncement(actor, 'ann-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'announcement.restore', entity_type: 'announcement', entity_id: 'ann-1',
+      actor_id: 'tutor-1',
+      action: 'announcement.restore',
+      entity_type: 'announcement',
+      entity_id: 'ann-1',
     })
   })
 
@@ -173,7 +189,10 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await editAnnouncement(actor, 'ann-1', { title: 'New', message: 'New msg' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'announcement.edit', entity_type: 'announcement', entity_id: 'ann-1',
+      actor_id: 'tutor-1',
+      action: 'announcement.edit',
+      entity_type: 'announcement',
+      entity_id: 'ann-1',
     })
   })
 
@@ -187,7 +206,10 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
       message: ' Refined ',
     })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'announcement.edit', entity_type: 'announcement', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'announcement.edit',
+      entity_type: 'announcement',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })
@@ -195,7 +217,13 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
 describe('getLatestAnnouncementForClasses', () => {
   it('returns the newest across class-scoped and global posts, ignoring archived ones', async () => {
     const older = { ...announcementRow, id: 'a', created_at: '2026-01-01T00:00:00.000Z' }
-    const newerArchived = { ...announcementRow, id: 'b', class_id: null, status: 'archived', created_at: '2026-03-01T00:00:00.000Z' }
+    const newerArchived = {
+      ...announcementRow,
+      id: 'b',
+      class_id: null,
+      status: 'archived',
+      created_at: '2026-03-01T00:00:00.000Z',
+    }
     const newerActive = { ...announcementRow, id: 'c', class_id: null, created_at: '2026-02-01T00:00:00.000Z' }
     // getLatestAnnouncementForClasses builds `global` before `forClasses`.
     const client = {

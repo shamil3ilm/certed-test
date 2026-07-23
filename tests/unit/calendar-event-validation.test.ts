@@ -16,9 +16,14 @@ describe('createEventSchema', () => {
     expect(createEventSchema.safeParse(base).success).toBe(true)
   })
   it('accepts a global all-day event (no course, no times)', () => {
-    expect(createEventSchema.safeParse({
-      title: 'Holiday', event_date: '2026-08-15', class_id: null, kind: 'holiday',
-    }).success).toBe(true)
+    expect(
+      createEventSchema.safeParse({
+        title: 'Holiday',
+        event_date: '2026-08-15',
+        class_id: null,
+        kind: 'holiday',
+      }).success,
+    ).toBe(true)
   })
   it('rejects an unknown kind', () => {
     expect(createEventSchema.safeParse({ ...base, kind: 'party' }).success).toBe(false)
@@ -27,7 +32,7 @@ describe('createEventSchema', () => {
     expect(createEventSchema.safeParse({ ...base, event_date: '15/07/2026' }).success).toBe(false)
   })
   it('rejects an end_time without a start_time', () => {
-    const { start_time, ...rest } = base
+    const { start_time: _startTime, ...rest } = base
     expect(createEventSchema.safeParse(rest).success).toBe(false)
   })
   it('rejects end_time not after start_time when both given', () => {

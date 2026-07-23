@@ -1,10 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
 import { SEED, loginAs as loginFresh } from './support'
 
-// Access-control / scoping boundaries per persona -- pages (redirect/404), API
+// Access-control and scoping boundaries per persona: page redirects/404s, API
 // role gates, and API class-scope gates (admin-any / tutor-own / global=admin).
-// NOTE: mock mode has NO RLS, so this verifies the in-code guards (defense in
-// depth). RLS is the production trust boundary and is asserted by policy review.
+// Mock mode bypasses database RLS, so this suite verifies the app-layer guards
+// that must still behave correctly before the database boundary is involved.
 
 // This suite re-logs-in as different roles within a single test, so always clear
 // the prior session first. The login flow itself lives in ./support.
@@ -104,10 +104,14 @@ test('api -- a global event is editable by admin only (tutor/student get 403)', 
   const id = (created.data as { id: string }).id
 
   await loginAs(page, 'tutor@mock.test')
-  expect((await apiCall(page, 'PATCH', `/api/events/${id}`, { title: 'hijack' })).status, 'tutor PATCH global').toBe(403)
+  expect((await apiCall(page, 'PATCH', `/api/events/${id}`, { title: 'hijack' })).status, 'tutor PATCH global').toBe(
+    403,
+  )
 
   await loginAs(page, 'student@mock.test')
-  expect((await apiCall(page, 'PATCH', `/api/events/${id}`, { title: 'hijack' })).status, 'student PATCH global').toBe(403)
+  expect((await apiCall(page, 'PATCH', `/api/events/${id}`, { title: 'hijack' })).status, 'student PATCH global').toBe(
+    403,
+  )
 
   await loginAs(page, 'admin@mock.test')
   expect((await apiCall(page, 'PATCH', `/api/events/${id}`, { title: 'Founders Day' })).status, 'admin PATCH').toBe(200)

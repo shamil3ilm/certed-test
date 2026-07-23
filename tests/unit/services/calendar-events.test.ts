@@ -3,12 +3,12 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
 import { canWriteClass } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
   createEvent,
@@ -25,9 +25,17 @@ import { PermissionError, NotFoundError, ValidationError, RateLimitError } from 
 
 const tutor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const eventRow = {
-  id: 'evt-1', title: 'Class', description: null, event_date: '2026-07-20',
-  start_time: null, end_time: null, class_id: 'class-1', kind: 'event',
-  slot_id: null, created_by: 'tutor-1', created_at: 't',
+  id: 'evt-1',
+  title: 'Class',
+  description: null,
+  event_date: '2026-07-20',
+  start_time: null,
+  end_time: null,
+  class_id: 'class-1',
+  kind: 'event',
+  slot_id: null,
+  created_by: 'tutor-1',
+  created_at: 't',
 }
 
 beforeEach(() => {
@@ -56,10 +64,18 @@ describe('createEvent', () => {
   it('creates and audits event.create', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    const created = await createEvent(tutor, { title: 'Class', event_date: '2026-07-20', class_id: 'class-1', kind: 'event' } as any)
+    const created = await createEvent(tutor, {
+      title: 'Class',
+      event_date: '2026-07-20',
+      class_id: 'class-1',
+      kind: 'event',
+    } as any)
     expect(created.id).toBe('evt-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'event.create', entity_type: 'calendar_event', entity_id: 'evt-1',
+      actor_id: 'tutor-1',
+      action: 'event.create',
+      entity_type: 'calendar_event',
+      entity_id: 'evt-1',
     })
   })
 })
@@ -71,7 +87,7 @@ describe('updateEvent', () => {
     expect(canWriteClass).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-manager of the event\'s own class, without writing/auditing', async () => {
+  it("rejects a non-manager of the event's own class, without writing/auditing", async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(updateEvent(tutor, 'evt-1', { title: 'New' } as any)).rejects.toBeInstanceOf(PermissionError)
@@ -83,9 +99,9 @@ describe('updateEvent', () => {
     vi.mocked(canWriteClass)
       .mockResolvedValueOnce(true) // source class: ok
       .mockResolvedValueOnce(false) // destination class: not ok
-    await expect(
-      updateEvent(tutor, 'evt-1', { class_id: 'other-class' } as any),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(updateEvent(tutor, 'evt-1', { class_id: 'other-class' } as any)).rejects.toBeInstanceOf(
+      PermissionError,
+    )
     expect(canWriteClass).toHaveBeenNthCalledWith(2, tutor, 'other-class')
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -93,10 +109,15 @@ describe('updateEvent', () => {
   it('audits event.move when class_id changes, event.update otherwise', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     vi.mocked(canWriteClass).mockResolvedValueOnce(true).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: { ...eventRow, class_id: 'other-class' }, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, class_id: 'other-class' }, error: null }) as any,
+    )
     await updateEvent(tutor, 'evt-1', { class_id: 'other-class' } as any)
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'event.move', entity_type: 'calendar_event', entity_id: 'evt-1',
+      actor_id: 'tutor-1',
+      action: 'event.move',
+      entity_type: 'calendar_event',
+      entity_id: 'evt-1',
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
@@ -104,7 +125,10 @@ describe('updateEvent', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     await updateEvent(tutor, 'evt-1', { title: 'New title' } as any)
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'event.update', entity_type: 'calendar_event', entity_id: 'evt-1',
+      actor_id: 'tutor-1',
+      action: 'event.update',
+      entity_type: 'calendar_event',
+      entity_id: 'evt-1',
     })
   })
 })
@@ -121,7 +145,10 @@ describe('deleteEvent', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteEvent(tutor, 'evt-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'tutor-1', action: 'event.delete', entity_type: 'calendar_event', entity_id: 'evt-1',
+      actor_id: 'tutor-1',
+      action: 'event.delete',
+      entity_type: 'calendar_event',
+      entity_id: 'evt-1',
     })
   })
 })
@@ -142,9 +169,7 @@ describe('calendar event API-input helpers', () => {
       kind: 'event',
     })
     expect(validateUpdateEventInput({ title: 'Updated' })).toEqual({ title: 'Updated' })
-    expect(validateEventId('550e8400-e29b-41d4-a716-446655440000')).toBe(
-      '550e8400-e29b-41d4-a716-446655440000',
-    )
+    expect(validateEventId('550e8400-e29b-41d4-a716-446655440000')).toBe('550e8400-e29b-41d4-a716-446655440000')
   })
 
   it('rejects invalid create payloads and event ids with typed validation errors', () => {
@@ -170,7 +195,10 @@ describe('calendar event API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     await updateEventFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000', { title: 'Updated' })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1', action: 'event.update', entity_type: 'calendar_event', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'event.update',
+      entity_type: 'calendar_event',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(
@@ -180,7 +208,10 @@ describe('calendar event API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteEventFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000')
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1', action: 'event.delete', entity_type: 'calendar_event', entity_id: '550e8400-e29b-41d4-a716-446655440000',
+      actor_id: 'tutor-1',
+      action: 'event.delete',
+      entity_type: 'calendar_event',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })

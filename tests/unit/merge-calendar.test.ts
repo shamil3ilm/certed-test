@@ -2,17 +2,29 @@ import { describe, it, expect } from 'vitest'
 import { mergeCalendar, type MergeInput } from '@/lib/calendar/merge'
 
 const input: MergeInput = {
-  slotOccurrences: [
-    { slotId: 's-1', startIso: '2026-07-06T03:30:00.000Z', endIso: '2026-07-06T04:30:00.000Z' },
-  ],
+  slotOccurrences: [{ slotId: 's-1', startIso: '2026-07-06T03:30:00.000Z', endIso: '2026-07-06T04:30:00.000Z' }],
   slotMeta: { 's-1': { subject: 'Maths', classId: 'c-1', location: 'Room 1' } },
   events: [
-    { id: 'e-1', title: 'Holiday', event_date: '2026-07-15', start_time: null, end_time: null, class_id: null, kind: 'holiday' },
-    { id: 'e-2', title: 'Extra class', event_date: '2026-07-10', start_time: '14:00', end_time: '15:00', class_id: 'c-1', kind: 'event' },
+    {
+      id: 'e-1',
+      title: 'Holiday',
+      event_date: '2026-07-15',
+      start_time: null,
+      end_time: null,
+      class_id: null,
+      kind: 'holiday',
+    },
+    {
+      id: 'e-2',
+      title: 'Extra class',
+      event_date: '2026-07-10',
+      start_time: '14:00',
+      end_time: '15:00',
+      class_id: 'c-1',
+      kind: 'event',
+    },
   ],
-  assignments: [
-    { id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', class_id: 'c-1' },
-  ],
+  assignments: [{ id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', class_id: 'c-1' }],
   anchorTz: 'Asia/Kolkata',
 }
 
@@ -65,7 +77,16 @@ describe('mergeCalendar', () => {
       ...input,
       events: [
         ...input.events,
-        { id: 'e-3', title: 'No class (holiday)', event_date: '2026-07-06', start_time: null, end_time: null, class_id: 'c-1', kind: 'cancellation', slot_id: 's-1' },
+        {
+          id: 'e-3',
+          title: 'No class (holiday)',
+          event_date: '2026-07-06',
+          start_time: null,
+          end_time: null,
+          class_id: 'c-1',
+          kind: 'cancellation',
+          slot_id: 's-1',
+        },
       ],
     }
     const items = mergeCalendar(withCancel)
@@ -76,7 +97,18 @@ describe('mergeCalendar', () => {
   it('a reschedule naming the slot suppresses the original occurrence too', () => {
     const withReschedule: MergeInput = {
       ...input,
-      events: [{ id: 'e-4', title: 'Moved to 2pm', event_date: '2026-07-06', start_time: '14:00', end_time: '15:00', class_id: 'c-1', kind: 'reschedule', slot_id: 's-1' }],
+      events: [
+        {
+          id: 'e-4',
+          title: 'Moved to 2pm',
+          event_date: '2026-07-06',
+          start_time: '14:00',
+          end_time: '15:00',
+          class_id: 'c-1',
+          kind: 'reschedule',
+          slot_id: 's-1',
+        },
+      ],
     }
     const items = mergeCalendar(withReschedule)
     expect(items.find((i) => i.source === 'slot')).toBeUndefined()
@@ -87,8 +119,26 @@ describe('mergeCalendar', () => {
     const other: MergeInput = {
       ...input,
       events: [
-        { id: 'e-5', title: 'Cancel other day', event_date: '2026-07-13', start_time: null, end_time: null, class_id: 'c-1', kind: 'cancellation', slot_id: 's-1' },
-        { id: 'e-6', title: 'Generic note', event_date: '2026-07-06', start_time: null, end_time: null, class_id: 'c-1', kind: 'cancellation', slot_id: null },
+        {
+          id: 'e-5',
+          title: 'Cancel other day',
+          event_date: '2026-07-13',
+          start_time: null,
+          end_time: null,
+          class_id: 'c-1',
+          kind: 'cancellation',
+          slot_id: 's-1',
+        },
+        {
+          id: 'e-6',
+          title: 'Generic note',
+          event_date: '2026-07-06',
+          start_time: null,
+          end_time: null,
+          class_id: 'c-1',
+          kind: 'cancellation',
+          slot_id: null,
+        },
       ],
     }
     expect(mergeCalendar(other).find((i) => i.source === 'slot')).toBeDefined() // not suppressed

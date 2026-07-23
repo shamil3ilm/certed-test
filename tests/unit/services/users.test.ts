@@ -4,8 +4,12 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/mock/env', () => ({ isMock: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
-vi.mock('@/lib/permission/personas', () => ({ loadActivePersonas: vi.fn(), hasPersona: vi.fn(), loadPersonaFlags: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({
+  loadActivePersonas: vi.fn(),
+  hasPersona: vi.fn(),
+  loadPersonaFlags: vi.fn(),
+}))
 vi.mock('@/lib/auth/setup-code', () => ({
   generateSetupCode: vi.fn(() => 'ABCD1234'),
   hashSetupCode: vi.fn(() => 'hashed'),
@@ -18,7 +22,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ERROR_CODES } from '@/lib/api/error-codes'
 import { setupCodeValid } from '@/lib/auth/setup-code'
 import { isMock } from '@/lib/mock/env'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import {
   addUser,
@@ -52,10 +56,14 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(loadActivePersonas).mockImplementation(async (profileId: string) => {
     if (profileId === 'admin-1' || profileId === 'admin-2') {
-      return [{ profile_id: profileId, persona_name: 'admin', status: 'active', scope_type: 'global', scope_id: null }] as any
+      return [
+        { profile_id: profileId, persona_name: 'admin', status: 'active', scope_type: 'global', scope_id: null },
+      ] as any
     }
     if (profileId === 'sub-1') {
-      return [{ profile_id: profileId, persona_name: 'sub_admin', status: 'active', scope_type: 'global', scope_id: null }] as any
+      return [
+        { profile_id: profileId, persona_name: 'sub_admin', status: 'active', scope_type: 'global', scope_id: null },
+      ] as any
     }
     return []
   })
@@ -75,31 +83,41 @@ beforeEach(() => {
   })
 })
 
+/** A client whose single `.from()` yields a head-count result - one per
+ *  data-layer countProfiles() call. */
+const countClient = (count: number | null) => ({
+  from: vi.fn(() => queryBuilder({ data: [], error: null, count })),
+})
+
 describe('addUser', () => {
   it('rejects a sub_admin trying to add an admin-tier account, without any DB call', async () => {
-    await expect(
-      addUser(subAdmin, { email: 'new@x.c', role: 'admin' } as any),
-    ).rejects.toBeInstanceOf(PermissionError)
+    await expect(addUser(subAdmin, { email: 'new@x.c', role: 'admin' } as any)).rejects.toBeInstanceOf(PermissionError)
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
   it('rejects adding a user whose email already exists', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any)
-    await expect(
-      addUser(superAdmin, { email: 'exists@x.c', role: 'tutor' } as any),
-    ).rejects.toBeInstanceOf(ValidationError)
+    await expect(addUser(superAdmin, { email: 'exists@x.c', role: 'tutor' } as any)).rejects.toBeInstanceOf(
+      ValidationError,
+    )
   })
 
   it('creates and audits user.add for a valid add', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail: no existing
-      .mockReturnValueOnce(makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'active' }, error: null }) as any) // profile upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole (deactivate + upsert)
+      .mockReturnValueOnce(
+        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'active' }, error: null }) as any,
+      ) // profile upsert
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: deactivate others
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: upsert global
     const { profile, code } = await addUser(superAdmin, { email: 'new@x.c', role: 'tutor' } as any)
     expect(profile.id).toBe('new-1')
     expect(code).toBe('ABCD1234')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'user.add', entity_type: 'profile', entity_id: 'new-1',
+      actor_id: 'admin-1',
+      action: 'user.add',
+      entity_type: 'profile',
+      entity_id: 'new-1',
     })
   })
 })
@@ -156,8 +174,14 @@ describe('user action-input helpers', () => {
   it('delegates add/revoke/restore/edit action input through the service boundary', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail
-      .mockReturnValueOnce(makeClient({ data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'active' }, error: null }) as any) // profile upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole
+      .mockReturnValueOnce(
+        makeClient({
+          data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'active' },
+          error: null,
+        }) as any,
+      ) // profile upsert
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: deactivate others
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: upsert global
     const created = await addUserFromActionInput(superAdmin, {
       email: 'new@example.com',
       role: 'tutor',
@@ -171,16 +195,24 @@ describe('user action-input helpers', () => {
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
     await revokeUserFromActionInput(superAdmin, { id: targetTutorId })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'user.revoke', entity_type: 'profile', entity_id: targetTutorId,
+      actor_id: 'admin-1',
+      action: 'user.revoke',
+      entity_type: 'profile',
+      entity_id: targetTutorId,
     })
 
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // select role + update status
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restorePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // selectProfileRole
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds
     await restoreUserFromActionInput(superAdmin, { id: targetTutorId })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'user.restore', entity_type: 'profile', entity_id: targetTutorId,
+      actor_id: 'admin-1',
+      action: 'user.restore',
+      entity_type: 'profile',
+      entity_id: targetTutorId,
     })
 
     vi.mocked(createAdminClient)
@@ -192,7 +224,10 @@ describe('user action-input helpers', () => {
       class_level: 'Grade 8',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'admin-1', action: 'user.edit', entity_type: 'profile', entity_id: targetTutorId,
+      actor_id: 'admin-1',
+      action: 'user.edit',
+      entity_type: 'profile',
+      entity_id: targetTutorId,
     })
   })
 })
@@ -231,7 +266,10 @@ describe('revokeUser', () => {
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
     await revokeUser(superAdmin, targetTutor.id)
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'user.revoke', entity_type: 'profile', entity_id: 'teach-1',
+      actor_id: 'admin-1',
+      action: 'user.revoke',
+      entity_type: 'profile',
+      entity_id: 'teach-1',
     })
   })
 })
@@ -247,11 +285,16 @@ describe('restoreUser', () => {
   it('restores and audits user.restore', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // select role + update status (same client)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restorePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds (no mentees)
     await restoreUser(superAdmin, targetTutor.id)
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'user.restore', entity_type: 'profile', entity_id: 'teach-1',
+      actor_id: 'admin-1',
+      action: 'user.restore',
+      entity_type: 'profile',
+      entity_id: 'teach-1',
     })
   })
 })
@@ -264,7 +307,10 @@ describe('editUser', () => {
       .mockReturnValueOnce(updateClient as any) // profiles update
     await editUser(superAdmin, targetTutor.id, { full_name: 'New name' } as any)
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1', action: 'user.edit', entity_type: 'profile', entity_id: 'teach-1',
+      actor_id: 'admin-1',
+      action: 'user.edit',
+      entity_type: 'profile',
+      entity_id: 'teach-1',
     })
     // No identity change => no persona/mentorship sync at all.
     expect(updateClient.from).toHaveBeenCalledWith('profiles')
@@ -275,28 +321,21 @@ describe('editUser', () => {
 
 describe('countPeople', () => {
   it('runs three head-only counts and returns them by kind, defaulting a null count to 0', async () => {
-    const client = {
-      from: vi
-        .fn()
-        .mockReturnValueOnce(queryBuilder({ data: [], error: null, count: 42 })) // students
-        .mockReturnValueOnce(queryBuilder({ data: [], error: null, count: 6 })) // tutors
-        .mockReturnValueOnce(queryBuilder({ data: [], error: null, count: null })), // pending
-    }
-    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+    // Each count is its own data-layer call, so each gets its own client.
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(countClient(42) as any) // students
+      .mockReturnValueOnce(countClient(6) as any) // tutors
+      .mockReturnValueOnce(countClient(null) as any) // pending
     await expect(countPeople()).resolves.toEqual({ students: 42, tutors: 6, pending: 0 })
   })
 })
 
 describe('countUsersHubStats', () => {
   it('runs three head-only counts (students/tutors/admin-tier)', async () => {
-    const client = {
-      from: vi
-        .fn()
-        .mockReturnValueOnce(queryBuilder({ data: [], error: null, count: 120 })) // students
-        .mockReturnValueOnce(queryBuilder({ data: [], error: null, count: 15 })) // tutors
-        .mockReturnValueOnce(queryBuilder({ data: [], error: null, count: 3 })), // admin tier
-    }
-    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(countClient(120) as any) // students
+      .mockReturnValueOnce(countClient(15) as any) // tutors
+      .mockReturnValueOnce(countClient(3) as any) // admin tier
     await expect(countUsersHubStats()).resolves.toEqual({ students: 120, tutors: 15, adminTier: 3 })
   })
 })
@@ -389,7 +428,10 @@ describe('self-service settings writes', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await updateOwnProfile(selfActor, { full_name: 'New Name' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'self-1', action: 'profile.update', entity_type: 'profile', entity_id: 'self-1',
+      actor_id: 'self-1',
+      action: 'profile.update',
+      entity_type: 'profile',
+      entity_id: 'self-1',
     })
   })
 
@@ -400,7 +442,10 @@ describe('self-service settings writes', () => {
     await changeOwnPassword(selfActor, 'new-password-123')
     expect(updateUser).toHaveBeenCalledWith({ password: 'new-password-123' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'self-1', action: 'profile.password', entity_type: 'profile', entity_id: 'self-1',
+      actor_id: 'self-1',
+      action: 'profile.password',
+      entity_type: 'profile',
+      entity_id: 'self-1',
     })
   })
 
@@ -409,7 +454,10 @@ describe('self-service settings writes', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await changeOwnPassword(selfActor, 'mock-password')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'self-1', action: 'profile.password', entity_type: 'profile', entity_id: 'self-1',
+      actor_id: 'self-1',
+      action: 'profile.password',
+      entity_type: 'profile',
+      entity_id: 'self-1',
     })
   })
 })
@@ -478,6 +526,9 @@ describe('completePasswordRegistration', () => {
   it('deletes the orphaned auth user when binding loses a race', async () => {
     const createUser = vi.fn(async () => ({ data: { user: { id: 'auth-1' } }, error: null }))
     const deleteUser = vi.fn(async () => ({ data: {}, error: null }))
+    // createAuthUser and deleteAuthUser are separate data-layer calls, so the auth
+    // client is requested twice - once to create, once to undo.
+    const authClient = { auth: { admin: { createUser, deleteUser } } }
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(
         makeClient({
@@ -491,8 +542,9 @@ describe('completePasswordRegistration', () => {
           error: null,
         }) as any,
       )
-      .mockReturnValueOnce({ auth: { admin: { createUser, deleteUser } } } as any)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+      .mockReturnValueOnce(authClient as any) // createAuthUser
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // bind loses the race
+      .mockReturnValueOnce(authClient as any) // deleteAuthUser
 
     await expect(
       completePasswordRegistration({ email: 'student@x.c', code: 'valid-code', password: 'password123' }),

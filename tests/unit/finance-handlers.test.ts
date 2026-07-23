@@ -34,7 +34,7 @@ vi.mock('@/lib/finance/render', () => ({
   renderDocPdf: (...args: any[]) => renderDocPdf(...args),
 }))
 
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn(async () => {}) }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn(async () => {}) }))
 
 import { ValidationError } from '@/lib/errors'
 import { issueHandler, voidHandler, pdfHandler } from '@/lib/finance/handlers'

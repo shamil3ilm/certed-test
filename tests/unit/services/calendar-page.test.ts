@@ -1,24 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/capabilities', () => ({ hasCapability: vi.fn(), isAdminTier: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ listClasses: vi.fn() }))
 vi.mock('@/lib/services/class-tutors', () => ({ listClassTutors: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ listActiveByRole: vi.fn() }))
 
-import { hasCapability, isAdminTier } from '@/lib/capabilities'
+import type { Capability } from '@/lib/capabilities'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'
 import { listClasses } from '@/lib/services/classes'
 import { listClassTutors } from '@/lib/services/class-tutors'
 import { listActiveByRole } from '@/lib/services/users'
 
+// The loader now decides against the RESOLVED capability set passed in (persona
+// baseline + admin overrides), so tests supply that set directly.
+const caps = (...names: Capability[]) => new Set<Capability>(names)
+
 beforeEach(() => vi.resetAllMocks())
 
 describe('loadCalendarPageData', () => {
-  it('returns empty management data for a read-only actor', async () => {
-    vi.mocked(hasCapability).mockReturnValueOnce(false as any)
-    vi.mocked(isAdminTier).mockReturnValueOnce(false as any)
-
-    await expect(loadCalendarPageData({ id: 'student-1', role: 'student' } as any)).resolves.toEqual({
+  it('returns empty management data for a read-only actor (no manageCalendar)', async () => {
+    await expect(loadCalendarPageData({ id: 'student-1', role: 'student' } as any, caps())).resolves.toEqual({
       canManage: false,
       isAdmin: false,
       classes: [],
@@ -27,8 +27,6 @@ describe('loadCalendarPageData', () => {
   })
 
   it('loads active classes and active tutors for an admin manager', async () => {
-    vi.mocked(hasCapability).mockReturnValueOnce(true as any)
-    vi.mocked(isAdminTier).mockReturnValueOnce(true as any)
     vi.mocked(listClasses).mockResolvedValueOnce([
       { id: 'c1', name: 'Math', status: 'active' },
       { id: 'c2', name: 'Science', status: 'archived' },
@@ -36,7 +34,9 @@ describe('loadCalendarPageData', () => {
     // listActiveByRole already filters to active tutors SQL-side and returns {id,name}.
     vi.mocked(listActiveByRole).mockResolvedValueOnce([{ id: 't1', name: 'Maya Mentor' }] as any)
 
-    await expect(loadCalendarPageData({ id: 'admin-1', role: 'admin' } as any)).resolves.toEqual({
+    await expect(
+      loadCalendarPageData({ id: 'admin-1', role: 'admin' } as any, caps('manageCalendar', 'manageAdminTier')),
+    ).resolves.toEqual({
       canManage: true,
       isAdmin: true,
       classes: [{ id: 'c1', name: 'Math' }],
@@ -44,9 +44,8 @@ describe('loadCalendarPageData', () => {
     })
   })
 
-  it('loads only the tutor-owned active classes for a tutor manager', async () => {
-    vi.mocked(hasCapability).mockReturnValueOnce(true as any)
-    vi.mocked(isAdminTier).mockReturnValueOnce(false as any)
+  it('loads only the tutor-owned active classes for a manager without the admin tier', async () => {
+    // A tutor - OR anyone granted manageCalendar by override - manages own classes.
     vi.mocked(listClasses).mockResolvedValueOnce([
       { id: 'c1', name: 'Math', status: 'active' },
       { id: 'c2', name: 'Science', status: 'active' },
@@ -58,7 +57,10 @@ describe('loadCalendarPageData', () => {
     ] as any)
 
     await expect(
-      loadCalendarPageData({ id: 'tutor-1', role: 'tutor', full_name: 'Tarun Tutor', email: 'tarun@test.com' } as any),
+      loadCalendarPageData(
+        { id: 'tutor-1', role: 'tutor', full_name: 'Tarun Tutor', email: 'tarun@test.com' } as any,
+        caps('manageCalendar'),
+      ),
     ).resolves.toEqual({
       canManage: true,
       isAdmin: false,

@@ -16,13 +16,30 @@ vi.mock('@/lib/services/finance/org-settings', () => ({
 
 // RLS-scoped repo reads (the route trusts RLS to scope; here we return fixed rows)
 const listSlots = vi.fn(async (..._a: any[]) => [
-  { id: 's-1', class_id: 'c-1', subject: 'Maths', tutor_id: null,
-    day_of_week: 1, start_time: '09:00', end_time: '10:00', mode_or_location: 'Room 1', active: true },
+  {
+    id: 's-1',
+    class_id: 'c-1',
+    subject: 'Maths',
+    tutor_id: null,
+    day_of_week: 1,
+    start_time: '09:00',
+    end_time: '10:00',
+    mode_or_location: 'Room 1',
+    active: true,
+  },
 ])
 vi.mock('@/lib/services/timetable-slots', () => ({ listSlots: (...a: any[]) => listSlots(...a) }))
 
 const listEvents = vi.fn(async (..._a: any[]) => [
-  { id: 'e-1', title: 'Holiday', event_date: '2026-07-13', start_time: null, end_time: null, class_id: null, kind: 'holiday' },
+  {
+    id: 'e-1',
+    title: 'Holiday',
+    event_date: '2026-07-13',
+    start_time: null,
+    end_time: null,
+    class_id: null,
+    kind: 'holiday',
+  },
 ])
 vi.mock('@/lib/services/calendar-events', () => ({ listEvents: (...a: any[]) => listEvents(...a) }))
 
@@ -35,7 +52,9 @@ import { GET } from '@/app/api/calendar/route'
 
 const req = (qs: string) => new Request(`http://t/api/calendar${qs}`)
 
-beforeEach(() => { profile.status = 'active' })
+beforeEach(() => {
+  profile.status = 'active'
+})
 
 describe('GET /api/calendar', () => {
   it('rejects a missing from/to range with 400', async () => {

@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(async () => new Map()) }))
 vi.mock('@/lib/messaging/recipient-policy', () => ({ canMessage: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import { canMessage } from '@/lib/messaging/recipient-policy'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -97,9 +97,9 @@ describe('createConversation', () => {
         conversation_participants: [],
       }) as any,
     )
-    await expect(
-      createConversation(actor, { recipientIds: ['r1', 'r2'], title: 'Study group' }),
-    ).resolves.toEqual({ id: 'g1' })
+    await expect(createConversation(actor, { recipientIds: ['r1', 'r2'], title: 'Study group' })).resolves.toEqual({
+      id: 'g1',
+    })
     expect(writeAudit).toHaveBeenCalledTimes(1) // a newly created conversation is audited
   })
 })
@@ -123,8 +123,52 @@ describe('sendMessage', () => {
 
   it('inserts a message for a participant', async () => {
     const msg = { id: 'm-1', conversation_id: 'conv-1', sender_id: 'actor-1', body: 'hello', created_at: 't' }
-    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: msg, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        // assertParticipant.maybeSingle() -> first row (participant found);
+        // the notify hook re-reads this table for the recipient fan-out.
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }, { profile_id: 'other' }],
+        messages: [msg], // insert().select().single() -> msg
+      }) as any,
+    )
     await expect(sendMessage(actor, 'conv-1', 'hello')).resolves.toMatchObject({ id: 'm-1', body: 'hello' })
+  })
+
+  it('blocks a send on a DIRECT thread once the relationship no longer permits it', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }, { profile_id: 'other' }],
+        conversations: [{ id: 'conv-1', kind: 'direct' }],
+      }) as any,
+    )
+    vi.mocked(canMessage).mockResolvedValueOnce(false) // unenrolled / mentorship ended
+    await expect(sendMessage(actor, 'conv-1', 'hello')).rejects.toBeInstanceOf(PermissionError)
+  })
+
+  it('still sends on a DIRECT thread while the relationship permits it', async () => {
+    const msg = { id: 'm-2', conversation_id: 'conv-1', sender_id: 'actor-1', body: 'hello', created_at: 't' }
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }, { profile_id: 'other' }],
+        conversations: [{ id: 'conv-1', kind: 'direct' }],
+        messages: [msg],
+      }) as any,
+    )
+    vi.mocked(canMessage).mockResolvedValueOnce(true)
+    await expect(sendMessage(actor, 'conv-1', 'hello')).resolves.toMatchObject({ id: 'm-2' })
+  })
+
+  it('leaves a GROUP thread participation-gated (no pairwise re-check)', async () => {
+    const msg = { id: 'm-3', conversation_id: 'conv-2', sender_id: 'actor-1', body: 'hi all', created_at: 't' }
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }, { profile_id: 'b' }, { profile_id: 'c' }],
+        conversations: [{ id: 'conv-2', kind: 'group' }],
+        messages: [msg],
+      }) as any,
+    )
+    await expect(sendMessage(actor, 'conv-2', 'hi all')).resolves.toMatchObject({ id: 'm-3' })
+    expect(canMessage).not.toHaveBeenCalled()
   })
 })
 
@@ -157,10 +201,17 @@ describe('listInbox', () => {
           { conversation_id: 'c1', profile_id: 'other', last_read_at: '2026-01-01T00:00:00Z' },
         ],
         conversations: [
-          { id: 'c1', kind: 'direct', title: null, created_by: 'actor-1', last_message_at: '2026-01-02T00:00:00Z', created_at: '2026-01-01T00:00:00Z' },
+          {
+            id: 'c1',
+            kind: 'direct',
+            title: null,
+            created_by: 'actor-1',
+            last_message_at: '2026-01-02T00:00:00Z',
+            last_message_body: 'unread from bob',
+            last_message_sender_id: 'other',
+            created_at: '2026-01-01T00:00:00Z',
+          },
         ],
-        // The desc/limit-1 query returns the newest; the stub returns the first row.
-        messages: [{ conversation_id: 'c1', sender_id: 'other', body: 'unread from bob', created_at: '2026-01-02T00:00:00Z' }],
       }) as any,
     )
     const inbox = await listInbox(actor)
@@ -177,9 +228,17 @@ describe('listInbox', () => {
           { conversation_id: 'c1', profile_id: 'other', last_read_at: '2026-01-01T00:00:00Z' },
         ],
         conversations: [
-          { id: 'c1', kind: 'direct', title: null, created_by: 'actor-1', last_message_at: '2026-01-03T00:00:00Z', created_at: '2026-01-01T00:00:00Z' },
+          {
+            id: 'c1',
+            kind: 'direct',
+            title: null,
+            created_by: 'actor-1',
+            last_message_at: '2026-01-03T00:00:00Z',
+            last_message_body: 'my own reply',
+            last_message_sender_id: 'actor-1',
+            created_at: '2026-01-01T00:00:00Z',
+          },
         ],
-        messages: [{ conversation_id: 'c1', sender_id: 'actor-1', body: 'my own reply', created_at: '2026-01-03T00:00:00Z' }],
       }) as any,
     )
     const inbox = await listInbox(actor)
@@ -201,7 +260,12 @@ describe('loadThread', () => {
   })
 
   it('returns messages and titles the direct thread with the other participant', async () => {
-    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['actor-1', 'Me'], ['other', 'Bob']]))
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(
+      new Map([
+        ['actor-1', 'Me'],
+        ['other', 'Bob'],
+      ]),
+    )
     vi.mocked(createAdminClient).mockReturnValue(
       multiTableClient({
         conversation_participants: [
@@ -269,7 +333,11 @@ describe('loadThread', () => {
 
   it('auto-titles a group thread from the other participants when no title is set', async () => {
     vi.mocked(getProfileNamesByIds).mockResolvedValue(
-      new Map([['actor-1', 'Me'], ['b', 'Bob'], ['c', 'Carol']]),
+      new Map([
+        ['actor-1', 'Me'],
+        ['b', 'Bob'],
+        ['c', 'Carol'],
+      ]),
     )
     vi.mocked(createAdminClient).mockReturnValue(
       multiTableClient({

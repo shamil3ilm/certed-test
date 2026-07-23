@@ -19,7 +19,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(loadPersonaFlags).mockImplementation(async (profileId: string) => {
     if (profileId === 'student-1') {
-      return { personas: [], isAdmin: false, isSubAdmin: false, isManager: false, isStudent: true, isMentor: false } as any
+      return {
+        personas: [],
+        isAdmin: false,
+        isSubAdmin: false,
+        isManager: false,
+        isStudent: true,
+        isMentor: false,
+      } as any
     }
     return { personas: [], isAdmin: true, isSubAdmin: false, isManager: true, isStudent: false, isMentor: false } as any
   })
@@ -34,16 +41,32 @@ describe('classStreamPageUrl', () => {
 
 describe('loadClassStreamViewData', () => {
   it('loads and shapes the admin stream view', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'admin')
     vi.mocked(listAnnouncementsForClassPage)
       .mockResolvedValueOnce({
-        items: [{ id: 'a1', class_id: 'class-1', title: 'Class post', message: 'Hello', created_at: '2026-07-16T10:00:00.000Z' }],
+        items: [
+          {
+            id: 'a1',
+            class_id: 'class-1',
+            title: 'Class post',
+            message: 'Hello',
+            created_at: '2026-07-16T10:00:00.000Z',
+          },
+        ],
         total: 11,
       } as any)
       .mockResolvedValueOnce({
         items: [
-          { id: 'a2', class_id: 'class-1', title: 'Archived class', message: '', created_at: '2026-07-16T09:00:00.000Z' },
+          {
+            id: 'a2',
+            class_id: 'class-1',
+            title: 'Archived class',
+            message: '',
+            created_at: '2026-07-16T09:00:00.000Z',
+          },
           { id: 'a3', class_id: null, title: 'Archived global', message: '', created_at: '2026-07-16T08:00:00.000Z' },
         ],
         total: 2,
@@ -69,15 +92,21 @@ describe('loadClassStreamViewData', () => {
     expect(result.streamTotalPages).toBe(2)
     expect(result.archivedAnnouncements).toHaveLength(2)
     expect(result.meetLinks).toEqual([{ id: 'm1', class_id: 'class-1', title: 'Live class meet', active: true }])
-    expect(result.archivedMeetLinks).toEqual([{ id: 'm2', class_id: null, title: 'Archived global meet', active: false }])
+    expect(result.archivedMeetLinks).toEqual([
+      { id: 'm2', class_id: null, title: 'Archived global meet', active: false },
+    ])
     expect(result.classList).toEqual([{ id: 'class-1', name: 'Math' }])
   })
 
   it('hides archived manager-only data from a student view', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'student', scope_type: null, scope_id: null, status: 'active' }] as any)
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'student', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
     vi.mocked(hasPersona).mockImplementation(() => false)
     vi.mocked(listAnnouncementsForClassPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
-    vi.mocked(listMeetLinks).mockResolvedValueOnce([{ id: 'm1', class_id: 'class-1', title: 'Live', active: true }] as any)
+    vi.mocked(listMeetLinks).mockResolvedValueOnce([
+      { id: 'm1', class_id: 'class-1', title: 'Live', active: true },
+    ] as any)
     vi.mocked(listCommentsForEntities).mockResolvedValueOnce(new Map() as any)
 
     const result = await loadClassStreamViewData(

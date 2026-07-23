@@ -58,7 +58,9 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('mentor'), 'viewMessages')).toBe(true)
     expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(false)
     expect(hasCapability(profile('mentor'), 'viewGrading')).toBe(false)
-    expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(false)
+    // A dedicated mentor is paid via the same pay-slip flow as a tutor, so they
+    // can see their own pay slips (self-service payment visibility, not teaching).
+    expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(true)
   })
 
   it('reserved-but-unwired personas advertise no capabilities (fail-closed)', () => {
