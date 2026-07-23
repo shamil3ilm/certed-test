@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // don't advertise the framework (minor fingerprinting reduction)
+  env: {
+    // Expose the canonical mock-mode flag to browser code so client-side
+    // features such as the Drive picker use the same toggle as the server-side
+    // mock stack.
+    NEXT_PUBLIC_MOCK_MODE: process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0',
+  },
   // Keep the headless-Chromium PDF deps out of the bundle (server-only, runtime).
   experimental: {
     serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
@@ -9,9 +15,12 @@ const nextConfig = {
     // NOT bundled into serverless functions by default — trace them in so the
     // render doesn't ENOENT on Vercel. (Verify on a preview deploy.)
     outputFileTracingIncludes: {
-      '/api/receipts/[id]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
-      '/api/payslips/[id]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
-      '/api/report-card/[studentId]/pdf': ['./public/fonts/**', './public/lockups/**', './node_modules/@sparticuz/chromium/**'],
+      '/api/receipts/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
+      '/api/payslips/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
+      '/api/report-card/[studentId]/pdf': [
+        './src/lib/pdf/assets/**',
+        './node_modules/@sparticuz/chromium/**',
+      ],
     },
   },
   // Defense-in-depth security headers (HSTS is added at the Vercel edge).
@@ -42,7 +51,7 @@ const nextConfig = {
               "img-src 'self' data: https:",
               "font-src 'self' data:",
               "connect-src 'self' https://*.supabase.co https://accounts.google.com https://apis.google.com",
-              "frame-src https://accounts.google.com https://content.googleapis.com https://docs.google.com https://drive.google.com",
+              'frame-src https://accounts.google.com https://content.googleapis.com https://docs.google.com https://drive.google.com',
               "object-src 'none'",
               "base-uri 'self'",
               // NB: no `form-action` — it blocks redirect-after-POST across hosts
@@ -61,6 +70,6 @@ const nextConfig = {
       },
     ]
   },
-};
+}
 
-module.exports = nextConfig;
+module.exports = nextConfig
