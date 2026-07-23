@@ -27,10 +27,28 @@ type TestUser = {
 
 const testUsers: TestUser[] = [
   { key: 'admin', email: 'admin@test.example.com', fullName: 'Admin User', role: 'admin', globalPersona: 'admin' },
-  { key: 'subadmin', email: 'subadmin@test.example.com', fullName: 'Sub-Admin User', role: 'sub_admin', globalPersona: 'sub_admin' },
-  { key: 'teacher', email: 'teacher@test.example.com', fullName: 'Teacher User', role: 'teacher', globalPersona: 'tutor' },
+  {
+    key: 'subadmin',
+    email: 'subadmin@test.example.com',
+    fullName: 'Sub-Admin User',
+    role: 'sub_admin',
+    globalPersona: 'sub_admin',
+  },
+  {
+    key: 'teacher',
+    email: 'teacher@test.example.com',
+    fullName: 'Teacher User',
+    role: 'teacher',
+    globalPersona: 'tutor',
+  },
   { key: 'mentor', email: 'mentor@test.example.com', fullName: 'Mentor User', role: 'teacher', globalPersona: 'tutor' },
-  { key: 'student', email: 'student@test.example.com', fullName: 'Student User', role: 'student', globalPersona: 'student' },
+  {
+    key: 'student',
+    email: 'student@test.example.com',
+    fullName: 'Student User',
+    role: 'student',
+    globalPersona: 'student',
+  },
 ]
 
 async function ensureProfile(user: TestUser): Promise<string | null> {
@@ -109,7 +127,11 @@ async function ensureGlobalPersona(profileId: string, user: TestUser) {
 }
 
 async function ensureClass(name: string): Promise<string | null> {
-  const { data: existing, error: fetchError } = await supabase.from('classes').select('id').eq('name', name).maybeSingle()
+  const { data: existing, error: fetchError } = await supabase
+    .from('classes')
+    .select('id')
+    .eq('name', name)
+    .maybeSingle()
   if (fetchError) {
     console.log(`  FAIL class lookup ${name}: ${fetchError.message}`)
     return null
@@ -153,10 +175,9 @@ async function main() {
     for (const key of ['teacher', 'mentor'] as const) {
       const teacherId = profileIds[key]
       if (!teacherId) continue
-      const { error } = await supabase.from('class_teachers').upsert(
-        { class_id: classId, teacher_id: teacherId, active: true },
-        { onConflict: 'teacher_id,class_id' }
-      )
+      const { error } = await supabase
+        .from('class_teachers')
+        .upsert({ class_id: classId, teacher_id: teacherId, active: true }, { onConflict: 'teacher_id,class_id' })
       if (error) console.log(`  FAIL class teacher ${key}: ${error.message}`)
       else console.log(`  OK   class teacher ${key}`)
     }
@@ -167,10 +188,9 @@ async function main() {
   const studentId = profileIds.student
   if (studentId) {
     for (const classId of classIds) {
-      const { error } = await supabase.from('enrollments').upsert(
-        { student_id: studentId, class_id: classId, active: true },
-        { onConflict: 'student_id,class_id' }
-      )
+      const { error } = await supabase
+        .from('enrollments')
+        .upsert({ student_id: studentId, class_id: classId, active: true }, { onConflict: 'student_id,class_id' })
       if (error) console.log(`  FAIL enrollment: ${error.message}`)
       else console.log('  OK   enrollment')
     }
@@ -179,10 +199,12 @@ async function main() {
   console.log()
   console.log('Creating mentorship and mentor persona scope')
   if (profileIds.mentor && studentId) {
-    const { error: mentorshipError } = await supabase.from('mentorships').upsert(
-      { teacher_id: profileIds.mentor, student_id: studentId, active: true },
-      { onConflict: 'teacher_id,student_id' }
-    )
+    const { error: mentorshipError } = await supabase
+      .from('mentorships')
+      .upsert(
+        { teacher_id: profileIds.mentor, student_id: studentId, active: true },
+        { onConflict: 'teacher_id,student_id' },
+      )
     if (mentorshipError) {
       console.log(`  FAIL mentorship: ${mentorshipError.message}`)
     } else {
@@ -197,7 +219,7 @@ async function main() {
         scope_id: studentId,
         status: 'active',
       },
-      { onConflict: 'profile_id,persona_name,scope_id' }
+      { onConflict: 'profile_id,persona_name,scope_id' },
     )
     if (mentorPersonaError) {
       console.log(`  FAIL mentor persona: ${mentorPersonaError.message}`)
@@ -241,7 +263,7 @@ async function main() {
             rate: 500,
             amount: 5000,
           },
-          { onConflict: 'id' }
+          { onConflict: 'id' },
         )
       }
     }
@@ -277,7 +299,7 @@ async function main() {
             rate: 500,
             amount: 3000,
           },
-          { onConflict: 'id' }
+          { onConflict: 'id' },
         )
       }
     }
