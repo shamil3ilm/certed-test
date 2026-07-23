@@ -1,38 +1,68 @@
-# Database SQL — authority model
+# Database SQL
 
-There are two SQL surfaces here. They have **different jobs** and one is
-authoritative:
+This folder contains the database source material for the application.
 
-| Path | Role | Authoritative? |
-|------|------|----------------|
-| `migrations/*.sql` | Sequential, append-only upgrade path. Applied in order to move any existing environment forward. | **Yes — source of truth.** |
-| `rebuild/0000_full_rebuild.sql` | Single-run fresh-build snapshot: the end state of applying `0001..NNNN` at once, for standing up a brand-new database. | No — derived snapshot. |
+There are two SQL surfaces here, with different responsibilities:
 
-## Rules
+| Path                            | Purpose                                                   | Authoritative               |
+| ------------------------------- | --------------------------------------------------------- | --------------------------- |
+| `migrations/*.sql`              | Sequential upgrade path for real environments             | Yes                         |
+| `rebuild/0000_full_rebuild.sql` | Single-run fresh-build snapshot of the intended end state | No, derived from migrations |
 
-1. **Every schema/RLS/function change starts as a new numbered migration** in
-   `migrations/`. Never change the meaning of an already-applied migration.
-2. **The rebuild file is kept in sync with migrations, not hand-designed.** When
-   you add a migration, update `rebuild/0000_full_rebuild.sql` to match the new
-   end state (it is currently maintained by hand — treat it as generated output,
-   not a place to introduce schema that isn't in a migration).
-3. **A fresh build must equal the migrated end state.** After applying migrations
-   to a scratch DB and, separately, running the rebuild file on another scratch
-   DB, `pg_policies`, tables, columns, functions and indexes should match. See
-   `docs/rls-policy-inventory.md` for the expected policy set and
-   `scripts/verify-migrations.ts` for the table/persona checks.
+## Source of truth
 
-## Identity vs authorization (settled model)
+The source of truth is always:
 
-- `profiles.role` is the account's **fixed identity** (`admin` / `sub_admin` /
-  `teacher` / `student`), set at creation. It is **not** a transitional or
-  compatibility field, and it is not reassigned in normal operation.
-- `persona_assignments` is the **authorization** model. Global personas are kept
-  in sync with `profiles.role` by trigger; scoped personas (e.g.
-  `mentor`-for-a-student) come from their own tables (`mentorships`).
+- `supabase/migrations`
 
-## Current chain
+Never change the meaning of an already-applied migration.
 
-`0001`–`0017` (17 migrations). Persona model: `0014` table, `0015` populate,
-`0016` helper functions, `0017` RLS hardening. See
-`docs/schema-reference.md`.
+## Current migration chain
+
+The current chain runs from:
+
+- `0001_foundation.sql`
+- through `0029_notifications_readonly_content.sql`
+
+## Current identity and authorization model
+
+Identity:
+
+- `profiles.role` is the fixed account identity
+- current role values:
+  - `admin`
+  - `sub_admin`
+  - `tutor`
+  - `mentor`
+  - `student`
+
+Authorization:
+
+- `persona_assignments` is the authorization model
+- global personas are kept aligned with the fixed identity model
+- scoped personas are used for relationship-based access such as mentorship
+- capability overrides layer on top of persona defaults
+
+## Important rules
+
+1. Every schema, RLS, helper-function, or index change must start as a new numbered migration.
+2. The rebuild SQL must be updated to reflect the end state of the migration chain.
+3. RLS and helper functions must stay consistent with the app-layer capability and persona model.
+4. Verification docs must be updated when policies or schema change.
+
+## Current notable migration groups
+
+- `0014` to `0017`: persona model introduction and hardening
+- `0018`: messaging
+- `0019` to `0021`: tutor rename, capability overrides, independent mentor role
+- `0022` to `0024`: persona and self-read hardening
+- `0025` and `0028`: messaging performance and direct-thread integrity
+- `0026`: unified admin authority
+- `0027` and `0029`: notifications and notification content hardening
+
+## Related docs
+
+- [../docs/schema-reference.md](../docs/schema-reference.md)
+- [../docs/rls-policy-inventory.md](../docs/rls-policy-inventory.md)
+- [../docs/persona-model.md](../docs/persona-model.md)
+- [../docs/setup-guide.md](../docs/setup-guide.md)
