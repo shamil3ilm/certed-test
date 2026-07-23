@@ -26,20 +26,51 @@ export class MockQueryBuilder implements PromiseLike<Result> {
   private wantCount = false
   private headOnly = false
 
-  constructor(private rows: Row[], private tableName: string) {}
+  constructor(
+    private rows: Row[],
+    private tableName: string,
+  ) {}
 
   // ---- filters -------------------------------------------------------------
-  eq(col: string, val: unknown) { this.filters.push((r) => r[col] === val); return this }
-  neq(col: string, val: unknown) { this.filters.push((r) => r[col] !== val); return this }
-  in(col: string, vals: unknown[]) { this.filters.push((r) => vals.includes(r[col])); return this }
-  gte(col: string, val: unknown) { this.filters.push((r) => (r[col] as never) >= (val as never)); return this }
-  lte(col: string, val: unknown) { this.filters.push((r) => (r[col] as never) <= (val as never)); return this }
-  gt(col: string, val: unknown) { this.filters.push((r) => (r[col] as never) > (val as never)); return this }
-  lt(col: string, val: unknown) { this.filters.push((r) => (r[col] as never) < (val as never)); return this }
-  is(col: string, val: unknown) { this.filters.push((r) => (val === null ? r[col] == null : r[col] === val)); return this }
+  eq(col: string, val: unknown) {
+    this.filters.push((r) => r[col] === val)
+    return this
+  }
+  neq(col: string, val: unknown) {
+    this.filters.push((r) => r[col] !== val)
+    return this
+  }
+  in(col: string, vals: unknown[]) {
+    this.filters.push((r) => vals.includes(r[col]))
+    return this
+  }
+  gte(col: string, val: unknown) {
+    this.filters.push((r) => (r[col] as never) >= (val as never))
+    return this
+  }
+  lte(col: string, val: unknown) {
+    this.filters.push((r) => (r[col] as never) <= (val as never))
+    return this
+  }
+  gt(col: string, val: unknown) {
+    this.filters.push((r) => (r[col] as never) > (val as never))
+    return this
+  }
+  lt(col: string, val: unknown) {
+    this.filters.push((r) => (r[col] as never) < (val as never))
+    return this
+  }
+  is(col: string, val: unknown) {
+    this.filters.push((r) => (val === null ? r[col] == null : r[col] === val))
+    return this
+  }
   ilike(col: string, pattern: string) {
     const needle = String(pattern).replace(/%/g, '').toLowerCase()
-    this.filters.push((r) => String(r[col] ?? '').toLowerCase().includes(needle))
+    this.filters.push((r) =>
+      String(r[col] ?? '')
+        .toLowerCase()
+        .includes(needle),
+    )
     return this
   }
   /** Minimal stand-in for PostgREST's `.or('col.op.val,col2.op2.val2')` - only
@@ -53,7 +84,10 @@ export class MockQueryBuilder implements PromiseLike<Result> {
       const value = rest.join('.')
       if (op === 'ilike') {
         const needle = value.replace(/%/g, '').toLowerCase()
-        return (r: Row) => String(r[col] ?? '').toLowerCase().includes(needle)
+        return (r: Row) =>
+          String(r[col] ?? '')
+            .toLowerCase()
+            .includes(needle)
       }
       if (op === 'is') {
         return (r: Row) => (value === 'null' ? r[col] == null : String(r[col]) === value)
@@ -68,11 +102,22 @@ export class MockQueryBuilder implements PromiseLike<Result> {
   }
 
   // ---- shaping -------------------------------------------------------------
-  order(col: string, opts?: { ascending?: boolean }) { this.orderBy = { col, asc: opts?.ascending !== false }; return this }
-  limit(n: number) { this.limitN = n; return this }
-  range(from: number, to: number) { this.rangeFrom = from; this.limitN = to - from + 1; return this }
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderBy = { col, asc: opts?.ascending !== false }
+    return this
+  }
+  limit(n: number) {
+    this.limitN = n
+    return this
+  }
+  range(from: number, to: number) {
+    this.rangeFrom = from
+    this.limitN = to - from + 1
+    return this
+  }
 
-  select(_cols = '*', opts?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }) {
+  select(cols = '*', opts?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }) {
+    void cols
     if (this.op !== 'select') this.returning = true
     if (opts?.count) this.wantCount = true
     if (opts?.head) this.headOnly = true
@@ -80,16 +125,36 @@ export class MockQueryBuilder implements PromiseLike<Result> {
   }
 
   // ---- mutations -----------------------------------------------------------
-  insert(payload: Row | Row[]) { this.op = 'insert'; this.payload = payload; return this }
-  update(payload: Row) { this.op = 'update'; this.payload = payload; return this }
-  delete() { this.op = 'delete'; return this }
+  insert(payload: Row | Row[]) {
+    this.op = 'insert'
+    this.payload = payload
+    return this
+  }
+  update(payload: Row) {
+    this.op = 'update'
+    this.payload = payload
+    return this
+  }
+  delete() {
+    this.op = 'delete'
+    return this
+  }
   upsert(payload: Row | Row[], opts?: { onConflict?: string }) {
-    this.op = 'upsert'; this.payload = payload; this.onConflict = opts?.onConflict ?? null; return this
+    this.op = 'upsert'
+    this.payload = payload
+    this.onConflict = opts?.onConflict ?? null
+    return this
   }
 
   // ---- terminals -----------------------------------------------------------
-  single(): Promise<Result> { this.want = 'single'; return this.exec() }
-  maybeSingle(): Promise<Result> { this.want = 'maybe'; return this.exec() }
+  single(): Promise<Result> {
+    this.want = 'single'
+    return this.exec()
+  }
+  maybeSingle(): Promise<Result> {
+    this.want = 'maybe'
+    return this.exec()
+  }
   then<R1 = Result, R2 = never>(
     onfulfilled?: ((v: Result) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
@@ -98,7 +163,9 @@ export class MockQueryBuilder implements PromiseLike<Result> {
   }
 
   // ---- engine --------------------------------------------------------------
-  private match(): Row[] { return this.rows.filter((r) => this.filters.every((f) => f(r))) }
+  private match(): Row[] {
+    return this.rows.filter((r) => this.filters.every((f) => f(r)))
+  }
 
   private withDefaults(row: Row): Row {
     const out = { ...row }
@@ -123,7 +190,8 @@ export class MockQueryBuilder implements PromiseLike<Result> {
       if (this.orderBy) {
         const { col, asc } = this.orderBy
         out = [...out].sort((a, b) => {
-          const av = a[col] as never, bv = b[col] as never
+          const av = a[col] as never,
+            bv = b[col] as never
           return (av < bv ? -1 : av > bv ? 1 : 0) * (asc ? 1 : -1)
         })
       }
@@ -166,8 +234,14 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     const affected: Row[] = []
     for (const item of incoming) {
       const existing = this.rows.find((r) => keys.every((k) => r[k] === item[k]))
-      if (existing) { Object.assign(existing, item); affected.push(existing) }
-      else { const row = this.withDefaults(item); this.rows.push(row); affected.push(row) }
+      if (existing) {
+        Object.assign(existing, item)
+        affected.push(existing)
+      } else {
+        const row = this.withDefaults(item)
+        this.rows.push(row)
+        affected.push(row)
+      }
     }
     persist()
     return this.returning ? this.shapeReturn(affected) : { data: null, error: null }

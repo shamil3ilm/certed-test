@@ -23,10 +23,7 @@ async function getUserReal(request: NextRequest, response: NextResponse) {
     {
       cookies: {
         getAll: () => request.cookies.getAll(),
-        setAll: (toSet) =>
-          toSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          ),
+        setAll: (toSet) => toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)),
       },
     },
   )

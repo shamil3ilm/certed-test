@@ -9,8 +9,9 @@ import { isMock } from '@/lib/mock/env'
  */
 export async function htmlToPdf(html: string): Promise<Buffer> {
   if (isMock()) {
-    // Render the REAL template with a locally-installed Chrome/Edge if present;
-    // otherwise fall back to a minimal placeholder PDF.
+    // Local mock mode still renders the real template, but it must use an actual
+    // locally-installed browser. Returning placeholder documents hides setup
+    // problems and makes PDF failures harder to detect.
     const { findLocalBrowser } = await import('@/lib/mock/local-chrome')
     const executablePath = findLocalBrowser()
     if (executablePath) {
@@ -25,9 +26,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
         await browser.close()
       }
     }
-    const { placeholderPdf } = await import('@/lib/mock/storage')
-    const title = /<title>(.*?)<\/title>/i.exec(html)?.[1] ?? 'Cert-Ed Academia document'
-    return placeholderPdf(`${title} (mock render - no local Chrome found)`)
+    throw new Error('Mock PDF rendering requires a local Chrome or Edge installation.')
   }
   const chromium = (await import('@sparticuz/chromium')).default
   const puppeteer = (await import('puppeteer-core')).default

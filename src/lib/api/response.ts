@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server'
-import {
-  ERROR_CODES,
-  codeForAuthMessage,
-  codeForServiceError,
-  type ErrorCode,
-} from '@/lib/api/error-codes'
+import { ERROR_CODES, codeForAuthMessage, codeForServiceError, type ErrorCode } from '@/lib/api/error-codes'
 import { ServiceError } from '@/lib/errors'
 import {
   GENERIC_ERROR_MESSAGE,
@@ -13,9 +8,7 @@ import {
   TOO_MANY_REQUESTS_MESSAGE,
 } from '@/lib/api/messages'
 
-export type ApiResponse<T> =
-  | { success: true; data: T }
-  | { success: false; error: string; code?: ErrorCode }
+export type ApiResponse<T> = { success: true; data: T } | { success: false; error: string; code?: ErrorCode }
 
 /** Success envelope: `{ success: true, data }`. */
 export function ok<T>(data: T) {
@@ -29,10 +22,7 @@ export function created<T>(data: T) {
 
 /** Error envelope: `{ success: false, error }` with an HTTP status (default 400). */
 export function fail(error: string, status = 400, code?: ErrorCode) {
-  return NextResponse.json(
-    { success: false, error, code } satisfies ApiResponse<never>,
-    { status },
-  )
+  return NextResponse.json({ success: false, error, code } satisfies ApiResponse<never>, { status })
 }
 
 export function invalidJson(message = INVALID_REQUEST_MESSAGE) {

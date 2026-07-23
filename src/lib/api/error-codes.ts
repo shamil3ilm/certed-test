@@ -1,10 +1,4 @@
-import {
-  NotFoundError,
-  PermissionError,
-  RateLimitError,
-  type ServiceError,
-  ValidationError,
-} from '@/lib/errors'
+import { NotFoundError, PermissionError, RateLimitError, type ServiceError, ValidationError } from '@/lib/errors'
 
 export const ERROR_CODES = {
   unauthorized: 'UNAUTHORIZED',

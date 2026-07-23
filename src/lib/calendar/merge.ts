@@ -9,9 +9,14 @@ function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): stri
   const naiveUtc = Date.UTC(y, mo - 1, d, h, mi, 0)
   const offset = (instantMs: number): number => {
     const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: anchorTz, hourCycle: 'h23',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZone: anchorTz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
     }).formatToParts(new Date(instantMs))
     const g = (t: string) => Number(parts.find((p) => p.type === t)!.value)
     return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - instantMs
@@ -24,10 +29,10 @@ function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): stri
 export type CalendarSource = 'slot' | 'event' | 'assignment'
 
 export type CalendarItem = {
-  id: string                 // source-prefixed, stable
+  id: string // source-prefixed, stable
   source: CalendarSource
   title: string
-  start: string              // absolute UTC ISO, OR "YYYY-MM-DD" when allDay
+  start: string // absolute UTC ISO, OR "YYYY-MM-DD" when allDay
   end: string | null
   allDay: boolean
   classId: string | null
@@ -39,9 +44,13 @@ export type MergeInput = {
   slotOccurrences: SlotOccurrence[]
   slotMeta: Record<string, { subject: string; classId: string; location: string | null }>
   events: Array<{
-    id: string; title: string; event_date: string
-    start_time: string | null; end_time: string | null
-    class_id: string | null; kind: CalendarEventKind
+    id: string
+    title: string
+    event_date: string
+    start_time: string | null
+    end_time: string | null
+    class_id: string | null
+    kind: CalendarEventKind
     slot_id?: string | null
   }>
   assignments: Array<{ id: string; title: string; due_date: string; class_id: string }>
@@ -53,7 +62,10 @@ export type MergeInput = {
 // cancellation/reschedule event.
 function wallClockDate(iso: string, tz: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date(iso))
   const g = (t: string) => parts.find((p) => p.type === t)!.value
   return `${g('year')}-${g('month')}-${g('day')}`
@@ -108,7 +120,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       id: `assignment-${a.id}`,
       source: 'assignment',
       title: `Due: ${a.title}`,
-      start: a.due_date,   // already an absolute UTC instant
+      start: a.due_date, // already an absolute UTC instant
       end: null,
       allDay: false,
       classId: a.class_id,

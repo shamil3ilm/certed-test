@@ -2,9 +2,7 @@ import { codeForServiceError, type ErrorCode } from '@/lib/api/error-codes'
 import { ServiceError } from '@/lib/errors'
 import { GENERIC_ERROR_MESSAGE } from '@/lib/api/messages'
 
-export type ActionResult<T = void> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: ErrorCode }
+export type ActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string; code?: ErrorCode }
 export type ActionStatusResult = { ok: true } | { ok: false; error: string; code?: ErrorCode }
 
 export function actionOk<T>(data: T): ActionResult<T> {

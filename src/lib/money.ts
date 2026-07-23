@@ -8,8 +8,17 @@ export type Currency = (typeof SUPPORTED_CURRENCIES)[number]
 // 3-decimal currencies (fils) and the 0-decimal ones (yen/won) must be handled
 // explicitly so amounts both round and display correctly.
 const MINOR_UNITS: Record<string, number> = {
-  BHD: 3, IQD: 3, JOD: 3, KWD: 3, OMR: 3, TND: 3, LYD: 3,
-  JPY: 0, KRW: 0, VND: 0, CLP: 0,
+  BHD: 3,
+  IQD: 3,
+  JOD: 3,
+  KWD: 3,
+  OMR: 3,
+  TND: 3,
+  LYD: 3,
+  JPY: 0,
+  KRW: 0,
+  VND: 0,
+  CLP: 0,
 }
 
 /** Decimal places for a currency's minor unit (2 by default). */
@@ -69,9 +78,7 @@ export function formatMoney(amount: number, currency: string): string {
 }
 
 /** Sums non-void finance docs per currency into one display string (e.g. "Rs1,200 + $50"). */
-export function totalByCurrency(
-  rows: { total: number; currency: string; voided: boolean }[],
-): string {
+export function totalByCurrency(rows: { total: number; currency: string; voided: boolean }[]): string {
   const m = new Map<string, number>()
   rows.filter((r) => !r.voided).forEach((r) => m.set(r.currency, (m.get(r.currency) ?? 0) + Number(r.total)))
   const g = [...m.entries()]

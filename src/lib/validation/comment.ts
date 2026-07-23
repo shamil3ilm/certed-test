@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const commentEntityTypeSchema = z.enum(['submission', 'resource', 'meet'])
+export type CommentEntity = z.infer<typeof commentEntityTypeSchema>
 
 export const addCommentSchema = z.object({
   entity_type: commentEntityTypeSchema,

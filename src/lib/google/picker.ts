@@ -53,12 +53,10 @@ export async function getDriveAccessToken(loginHint?: string): Promise<string> {
       scope: DRIVE_SCOPE,
       login_hint: loginHint,
       // In-flow OAuth errors (e.g. consent denied) arrive here...
-      callback: (resp: any) =>
-        resp.error ? reject(new Error(resp.error)) : resolve(resp.access_token),
+      callback: (resp: any) => (resp.error ? reject(new Error(resp.error)) : resolve(resp.access_token)),
       // ...while popup-level failures (closed / blocked) arrive here - without this,
       // closing the Google popup would leave the promise (and the button) hung.
-      error_callback: (err: any) =>
-        reject(new Error(err?.type ?? 'Google sign-in was cancelled')),
+      error_callback: (err: any) => reject(new Error(err?.type ?? 'Google sign-in was cancelled')),
     })
     client.requestAccessToken()
   })

@@ -9,15 +9,15 @@
  */
 export type ExpandableSlot = {
   id: string
-  day_of_week: number   // 0=Sun .. 6=Sat
-  start_time: string    // "HH:mm" or "HH:mm:ss"
+  day_of_week: number // 0=Sun .. 6=Sat
+  start_time: string // "HH:mm" or "HH:mm:ss"
   end_time: string
 }
 
 export type SlotOccurrence = {
   slotId: string
-  startIso: string      // absolute UTC instant
-  endIso: string        // absolute UTC instant
+  startIso: string // absolute UTC instant
+  endIso: string // absolute UTC instant
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -32,9 +32,14 @@ function parseHm(t: string): { h: number; m: number } {
 // Uses Intl to read the zoned wall-clock fields back, which is DST-correct.
 function tzOffsetMs(instantMs: number, tz: string): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   })
   const parts = dtf.formatToParts(new Date(instantMs))
   const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
@@ -54,7 +59,11 @@ function zonedWallClockToUtcMs(y: number, mo: number, d: number, h: number, mi: 
 // Y/M/D weekday (0=Sun) of an instant interpreted in `tz`.
 function zonedYmdWeekday(instantMs: number, tz: string): { y: number; mo: number; d: number; wd: number } {
   const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   })
   const parts = dtf.formatToParts(new Date(instantMs))
   const get = (t: string) => parts.find((p) => p.type === t)!.value

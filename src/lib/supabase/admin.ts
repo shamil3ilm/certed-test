@@ -10,9 +10,7 @@ import { createMockAdminClient } from '@/lib/mock/client'
  */
 export function createAdminClient() {
   if (isMock()) return createMockAdminClient()
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  )
+  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 }

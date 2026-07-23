@@ -1,3 +1,5 @@
+import { readMockModeFlag } from '@/lib/mock/env'
+
 export type DriveConfig = {
   clientId: string
   apiKey: string
@@ -15,6 +17,6 @@ export function readDriveConfig(): DriveConfig | null {
 
 /** True only when Google is configured AND we're not in offline mock mode. */
 export function isPickerConfigured(): boolean {
-  if (process.env.NEXT_PUBLIC_MOCK_MODE === '1') return false
+  if (readMockModeFlag()) return false
   return readDriveConfig() !== null
 }

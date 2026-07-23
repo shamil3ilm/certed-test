@@ -16,7 +16,10 @@ async function rpc(uid: string | null, fn: string, args: Args) {
   if (fn === 'next_document_number') {
     const counters = table('document_counters')
     let row = counters.find((c) => c.doc_type === args.p_doc_type && c.year === args.p_year)
-    if (!row) { row = { doc_type: args.p_doc_type, year: args.p_year, last_number: 0 }; counters.push(row) }
+    if (!row) {
+      row = { doc_type: args.p_doc_type, year: args.p_year, last_number: 0 }
+      counters.push(row)
+    }
     row.last_number = (row.last_number as number) + 1
     persist()
     return { data: row.last_number as number, error: null }
@@ -61,10 +64,7 @@ async function rpc(uid: string | null, fn: string, args: Args) {
 
     const submissions = table('submissions')
     const current = submissions.find(
-      (row) =>
-        row.assignment_id === args.p_assignment_id &&
-        row.student_id === me.id &&
-        row.is_active === true,
+      (row) => row.assignment_id === args.p_assignment_id && row.student_id === me.id && row.is_active === true,
     )
     if (current && current.score != null) {
       return { data: null, error: { message: 'submission_already_graded' } }
@@ -82,8 +82,7 @@ async function rpc(uid: string | null, fn: string, args: Args) {
       student_id: me.id,
       drive_link: args.p_drive_link ?? null,
       file_name: args.p_file_name ?? null,
-      status:
-        assignment.due_date != null && String(now) > String(assignment.due_date) ? 'late' : 'submitted',
+      status: assignment.due_date != null && String(now) > String(assignment.due_date) ? 'late' : 'submitted',
       score: null,
       feedback: null,
       graded_at: null,
