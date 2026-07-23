@@ -1,6 +1,9 @@
 import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { selectOwnProfileByAuthUserId } from '@/lib/data/profiles'
+import { selectOwnActivePersonas } from '@/lib/data/personas'
+import { selectOwnActiveGlobalOverrides } from '@/lib/data/capability-overrides'
 import {
   type Capability,
   type CapabilityOverride,
@@ -51,10 +54,7 @@ function resolveAccessState(profile: Profile | null): AccessState {
  * auth.uid() - auth.uid() is the authentication identity, profile.id the domain one.
  */
 export const getActorContext = cache(async (): Promise<ActorContext> => {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  ) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return { userId: null, profile: null, personas: [], capabilities: NO_CAPABILITIES, accessState: 'unauthenticated' }
   }
 
@@ -67,33 +67,28 @@ export const getActorContext = cache(async (): Promise<ActorContext> => {
     return { userId: null, profile: null, personas: [], capabilities: NO_CAPABILITIES, accessState: 'unauthenticated' }
   }
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
-
-  const profile = (profileData as Profile) ?? null
+  const profile = await selectOwnProfileByAuthUserId(user.id)
 
   // Personas are keyed by profile.id (persona_assignments.profile_id), not auth.uid().
   let personas: PersonaAssignment[] = []
   let overrides: CapabilityOverride[] = []
   if (profile) {
-    const [personaRes, overrideRes] = await Promise.all([
-      supabase.from('persona_assignments').select('*').eq('profile_id', profile.id).eq('status', 'active'),
-      // The actor's own ACTIVE GLOBAL overrides, read through the RLS client via
-      // the self-read policy - the same trust boundary as persona_assignments.
-      supabase
-        .from('capability_overrides')
-        .select('capability, effect')
-        .eq('profile_id', profile.id)
-        .eq('status', 'active')
-        .eq('scope_type', 'global'),
+    // Both reads go through the RLS client's self-read policy - the same trust
+    // boundary - and both THROW rather than yielding []. See the note on each.
+    const [personaRows, overrideRows] = await Promise.all([
+      selectOwnActivePersonas(profile.id),
+      selectOwnActiveGlobalOverrides(profile.id),
     ])
-    personas = (personaRes.data as PersonaAssignment[]) ?? []
-    overrides = ((overrideRes.data as { capability: string; effect: 'allow' | 'deny' }[]) ?? [])
+    // Both reads fail CLOSED and LOUD rather than yielding []. Coercing a failed
+    // read to [] is a double hazard: it strips EVERY capability (blank nav +
+    // dashboard for a healthy user - the 0022 recursion outage), and it drops any
+    // admin-issued DENY override, granting back a capability an admin explicitly
+    // revoked. Throwing surfaces via the page error boundary / API authFail
+    // instead, so no access is derived from a read we could not trust.
+    personas = personaRows as unknown as PersonaAssignment[]
+    overrides = overrideRows
       .filter((o) => isCapability(o.capability))
-      .map((o) => ({ capability: o.capability as Capability, effect: o.effect }))
+      .map((o) => ({ capability: o.capability as Capability, effect: o.effect as 'allow' | 'deny' }))
   }
 
   return {

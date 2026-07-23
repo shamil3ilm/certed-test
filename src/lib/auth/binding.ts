@@ -1,49 +1,26 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-
-type AdminClient = ReturnType<typeof createAdminClient>
+import {
+  bindAuthUserIdIfUnbound,
+  selectAllowlistRowByEmail,
+  selectProfileIdByAuthUserId,
+} from '@/lib/data/profiles'
 
 /**
  * On first login, bind the authenticated user's id to their pre-created
  * allowlist profile (matched by email).
  *
  * Returns the bound profile id, or null if the email isn't allowlisted (or the
- * matching row is already bound to a different user). `admin` is injectable for
- * testing.
+ * matching row is already bound to a different user). Table access is in
+ * src/lib/data/profiles; the rules about WHICH row may be claimed are here.
  */
-export async function bindProfileOnFirstLogin(
-  authUserId: string,
-  email: string,
-  admin: AdminClient = createAdminClient(),
-): Promise<string | null> {
-  // Already bound?
-  const existing = await admin
-    .from('profiles')
-    .select('id')
-    .eq('auth_user_id', authUserId)
-    .maybeSingle()
-  if (existing.data) return (existing.data as { id: string }).id
+export async function bindProfileOnFirstLogin(authUserId: string, email: string): Promise<string | null> {
+  const alreadyBound = await selectProfileIdByAuthUserId(authUserId)
+  if (alreadyBound) return alreadyBound
 
-  // Find the allowlist row by exact (normalized) email. Emails are stored
-  // lower-cased on write, so an exact match is case-insensitive without the
-  // LIKE-wildcard collision that .ilike(email) would allow (a `_`/`%` in one
-  // address pattern-matching another).
-  const found = await admin
-    .from('profiles')
-    .select('id, auth_user_id, status')
-    .eq('email', email.trim().toLowerCase())
-    .maybeSingle()
-  const row = found.data as { id: string; auth_user_id: string | null } | null
+  const row = await selectAllowlistRowByEmail(email)
   if (!row) return null
+  // Already claimed: return it only if this same user holds it, so a second
+  // login is idempotent while another user's row is never re-pointed.
   if (row.auth_user_id) return row.auth_user_id === authUserId ? row.id : null
 
-  // Bind it (guarded by `is null` so concurrent logins can't double-bind).
-  const updated = await admin
-    .from('profiles')
-    .update({ auth_user_id: authUserId })
-    .eq('id', row.id)
-    .is('auth_user_id', null)
-    .select('id')
-    .single()
-  if (updated.error) return null
-  return (updated.data as { id: string } | null)?.id ?? null
+  return bindAuthUserIdIfUnbound(row.id, authUserId)
 }

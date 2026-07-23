@@ -15,6 +15,7 @@ export const ALL_CAPABILITIES = [
   'viewFinance',
   'viewHistory',
   'viewMentees',
+  'manageMentorships',
   'viewPayslips',
   'viewReceipts',
   'manageAdminTier',
@@ -47,18 +48,18 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewFinance',
     'viewHistory',
     'viewMentees',
+    // Assigning a mentor is a pastoral ACCESS decision (it grants a scoped mentor
+    // persona over a student's data), so it is admin-tier by default rather than
+    // riding on general manageUsers. It stays override-grantable, so an admin can
+    // delegate it to a sub_admin explicitly and with an audited reason.
+    'manageMentorships',
     // NOT viewPayslips/viewReceipts: those are the self-service "my own docs"
     // pages (tutor's payslips, student's receipts). An admin manages all finance
     // via /admin/finance, so surfacing those nav links only led to note-only
     // pages. Admin PDF access is enforced in render.ts, not via these caps.
     'manageAdminTier',
   ]),
-  sub_admin: new Set<Capability>([
-    'viewDashboard',
-    'viewMessages',
-    'viewUsers',
-    'manageUsers',
-  ]),
+  sub_admin: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewUsers', 'manageUsers']),
   tutor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',
@@ -76,14 +77,11 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewDashboard',
     'viewMessages',
     'viewMentees',
+    // A dedicated mentor is paid via the same pay-slip flow as a tutor, so they
+    // need to see their own pay slips (self-scoped, like a tutor's).
+    'viewPayslips',
   ]),
-  student: new Set<Capability>([
-    'viewDashboard',
-    'viewMessages',
-    'viewClasses',
-    'viewCalendar',
-    'viewReceipts',
-  ]),
+  student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar', 'viewReceipts']),
   // RESERVED, INTENTIONALLY NOT LISTED: `guardian`, `finance_operator`,
   // `assistant`, `executive` exist in the persona_name DB enum (migration 0014)
   // as forward-looking headroom, but nothing in the app can assign them
@@ -121,6 +119,19 @@ function aggregateCapabilities(personas: Array<{ persona_name: string }>): Reado
   return aggregated
 }
 
+/**
+ * Two overloads, two different meanings:
+ *  - Profile arg  -> the role's BASELINE capabilities (ROLE_CAPABILITIES[role]).
+ *    Identity/display only; NOT override-aware.
+ *  - personas arg -> the aggregate of those personas' capabilities.
+ *
+ * For an access/visibility GATE that must honour admin capability overrides, use
+ * the actor's RESOLVED set instead - `actor.capabilities.allowed` from
+ * getActorContext() (route guards, nav, and the calendar/finance view-models
+ * already do). The Profile overload is fine for identity checks such as
+ * isAdminTier, which gates on the hard-rule manageAdminTier and thus can never be
+ * widened by an override anyway.
+ */
 export function getCapabilities(arg: Profile | Array<{ persona_name: string }>): ReadonlySet<Capability> {
   if (Array.isArray(arg)) {
     return aggregateCapabilities(arg)

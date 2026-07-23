@@ -18,10 +18,7 @@ const PUBLIC_APP_PATHS = [
 export async function middleware(request: NextRequest) {
   // Until Supabase is configured, the portal is dormant — let the existing
   // marketing site serve every request untouched.
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  ) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return NextResponse.next()
   }
 
@@ -42,9 +39,7 @@ export async function middleware(request: NextRequest) {
       const hostHeader = request.headers.get('host') ?? ''
       const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
       const appHost = isLocal ? `app.${hostHeader}` : process.env.APP_HOSTNAME
-      return NextResponse.redirect(
-        new URL(`${isLocal ? 'http' : 'https'}://${appHost}${pathname}`, request.url),
-      )
+      return NextResponse.redirect(new URL(`${isLocal ? 'http' : 'https'}://${appHost}${pathname}`, request.url))
     }
     return response
   }
@@ -56,9 +51,7 @@ export async function middleware(request: NextRequest) {
     const hostHeader = request.headers.get('host') ?? ''
     const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
     const marketingHost = isLocal ? hostHeader.replace(/^app\./, '') : process.env.MARKETING_HOSTNAME
-    return NextResponse.redirect(
-      new URL(`${isLocal ? 'http' : 'https'}://${marketingHost}${pathname}`, request.url),
-    )
+    return NextResponse.redirect(new URL(`${isLocal ? 'http' : 'https'}://${marketingHost}${pathname}`, request.url))
   }
 
   // App host: refresh the Supabase session, then gate.

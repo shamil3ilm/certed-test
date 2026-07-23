@@ -1,5 +1,5 @@
 import { cache } from 'react'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { selectActivePersonaAssignments } from '@/lib/data/personas'
 import { getActorContext } from '@/lib/session/actor-context'
 import type { Profile } from '@/lib/auth/profile'
 import { PermissionError } from '@/lib/errors'
@@ -34,24 +34,29 @@ export const loadActivePersonas = cache(async (profileId: string): Promise<Perso
     // Actor context unavailable (e.g. non-request context) - load directly below.
   }
 
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('persona_assignments')
-    .select('profile_id, persona_name, scope_type, scope_id, status, created_at')
-    .eq('profile_id', profileId)
-    .eq('status', 'active')
-
-  if (error) throw new Error(`loadActivePersonas: ${error.message}`)
-  return (data ?? []) as PersonaAssignment[]
+  return (await selectActivePersonaAssignments(profileId)) as unknown as PersonaAssignment[]
 })
 
 /**
- * Check if a profile has a global persona by name.
- * Returns true if persona exists with scope_type='global' and status='active'.
- * Use hasScopedPersona for scoped (student/class) checks.
+ * Check if a profile has a GLOBAL persona by name (scope_type='global', active).
+ *
+ * This is an IDENTITY question ("is this account a mentor account?"), not an
+ * authority question. A tutor who mentors holds only STUDENT-SCOPED mentor
+ * personas, so hasPersona(personas, 'mentor') is FALSE for them. Use
+ * hasScopedPersona for a specific scope, hasAnyPersona for "any authority at all",
+ * or canMentor() for the actual mentee-access decision.
  */
 export function hasPersona(personas: PersonaAssignment[], name: PersonaName): boolean {
   return personas.some((p) => p.persona_name === name && p.scope_type === 'global' && p.status === 'active')
+}
+
+/**
+ * Check if a profile holds a persona at ANY scope (global or scoped). Answers
+ * "does this person mentor anyone at all?", which the global-only hasPersona
+ * cannot - a tutor-who-mentors has scoped mentor personas and no global one.
+ */
+export function hasAnyPersona(personas: PersonaAssignment[], name: PersonaName): boolean {
+  return personas.some((p) => p.persona_name === name && p.status === 'active')
 }
 
 /**
@@ -80,7 +85,13 @@ export async function loadPersonaFlags(profileId: string) {
     isTutor,
     isManager: isAdmin || isTutor,
     isStudent: hasPersona(personas, 'student'),
+    /** IDENTITY: holds the GLOBAL mentor persona (a dedicated mentor account). A
+     *  tutor who mentors is FALSE here - see hasMentorAuthority. */
     isMentor: hasPersona(personas, 'mentor'),
+    /** AUTHORITY: mentors at least one student, via a global OR student-scoped
+     *  mentor persona. Use this for "does this person mentor anyone", e.g. the
+     *  hybrid "Tutor & Mentor" label. Per-student access is still canMentor(). */
+    hasMentorAuthority: hasAnyPersona(personas, 'mentor'),
   }
 }
 
