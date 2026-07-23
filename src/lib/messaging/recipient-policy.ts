@@ -1,6 +1,18 @@
 import 'server-only'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
+import {
+  selectActiveAdminTierIds,
+  selectActiveIdsAmong,
+  selectActiveProfileIds,
+  selectActiveProfileRoles,
+} from '@/lib/data/profiles'
+import {
+  selectActiveClassIdsForStudent,
+  selectActiveClassIdsForTutor,
+  selectActiveStudentIdsByClassIds,
+  selectActiveTutorIdsByClassIds,
+} from '@/lib/data/class-membership'
+import { selectActiveMentorIdsForStudent } from '@/lib/data/mentorships'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
@@ -23,25 +35,24 @@ export type Contact = { id: string; name: string }
  */
 async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
   const flags = await loadPersonaFlags(actor.id)
-  const admin = createAdminClient()
   const ids = new Set<string>()
 
   if (flags.isAdmin) {
-    const { data } = await admin.from('profiles').select('id').eq('status', 'active')
-    for (const r of (data ?? []) as { id: string }[]) ids.add(r.id)
+    for (const id of await selectActiveProfileIds()) ids.add(id)
     ids.delete(actor.id)
     return ids
   }
 
   if (flags.isSubAdmin) {
-    // Sub-admins message the users they manage: tutors + students. Expressed as
-    // "every active profile that isn't an admin/sub_admin" rather than a positive
-    // .in('role', ['tutor', 'student']) -- the positive form would SILENTLY drop
-    // tutors in any environment where the teacher->tutor role migration hasn't
-    // run yet, whereas admin/sub_admin are stable values, so this stays correct
-    // regardless of DB migration state.
-    const { data } = await admin.from('profiles').select('id, role').eq('status', 'active')
-    for (const r of (data ?? []) as { id: string; role: string }[]) {
+    // Sub-admins message the users they manage. Expressed as "every active
+    // profile that isn't an admin/sub_admin" rather than a positive
+    // .in('role', ['tutor', 'student']) -- the negative form is the point, not a
+    // shortcut. Eligibility here is "not admin-tier", so a role added later is
+    // reachable by default rather than silently unreachable until someone
+    // remembers to extend a list. Dedicated mentors (0021) are exactly that
+    // case: a positive tutor/student list would have dropped them, and nothing
+    // would have failed - the mentor would just never appear as a contact.
+    for (const r of await selectActiveProfileRoles()) {
       if (r.role !== 'admin' && r.role !== 'sub_admin') ids.add(r.id)
     }
     ids.delete(actor.id)
@@ -49,12 +60,8 @@ async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
   }
 
   if (flags.isTutor) {
-    const { data: ct } = await admin.from('class_tutors').select('class_id').eq('tutor_id', actor.id).eq('active', true)
-    const classIds = [...new Set(((ct ?? []) as { class_id: string }[]).map((r) => r.class_id))]
-    if (classIds.length) {
-      const { data: enr } = await admin.from('enrollments').select('student_id').in('class_id', classIds).eq('active', true)
-      for (const r of (enr ?? []) as { student_id: string }[]) ids.add(r.student_id)
-    }
+    const classIds = [...new Set(await selectActiveClassIdsForTutor(actor.id))]
+    for (const id of await selectActiveStudentIdsByClassIds(classIds)) ids.add(id)
   }
 
   // tutor + mentor authority both include the actor's mentees.
@@ -63,17 +70,20 @@ async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
   }
 
   if (flags.isStudent) {
-    const { data: enr } = await admin.from('enrollments').select('class_id').eq('student_id', actor.id).eq('active', true)
-    const classIds = [...new Set(((enr ?? []) as { class_id: string }[]).map((r) => r.class_id))]
-    if (classIds.length) {
-      const { data: ct } = await admin.from('class_tutors').select('tutor_id').in('class_id', classIds).eq('active', true)
-      for (const r of (ct ?? []) as { tutor_id: string }[]) ids.add(r.tutor_id)
-    }
-    const { data: ms } = await admin.from('mentorships').select('tutor_id').eq('student_id', actor.id).eq('active', true)
-    for (const r of (ms ?? []) as { tutor_id: string }[]) ids.add(r.tutor_id)
-    const { data: staff } = await admin.from('profiles').select('id').in('role', ['admin', 'sub_admin']).eq('status', 'active')
-    for (const r of (staff ?? []) as { id: string }[]) ids.add(r.id)
+    const classIds = [...new Set(await selectActiveClassIdsForStudent(actor.id))]
+    for (const id of await selectActiveTutorIdsByClassIds(classIds)) ids.add(id)
+
+    // A mentorship row deliberately SURVIVES the mentor's revocation (so restoring
+    // the account rebuilds their scoped personas), so reachability has to check the
+    // mentor's account status rather than assume the graph was pruned.
+    const mentorIds = await selectActiveMentorIdsForStudent(actor.id)
+    for (const id of await selectActiveIdsAmong(mentorIds)) ids.add(id)
   }
+
+  // The academy's active staff (admins + sub-admins) are reachable by every
+  // teaching/learning persona, so a tutor or mentor can raise something with an
+  // admin - not merely be messaged by one. (admin/sub_admin returned earlier.)
+  for (const id of await selectActiveAdminTierIds()) ids.add(id)
 
   ids.delete(actor.id)
   return ids
@@ -91,7 +101,5 @@ export async function listMessageableContacts(actor: Profile): Promise<Contact[]
   const ids = [...(await eligibleRecipientIds(actor))]
   if (ids.length === 0) return []
   const names = await getProfileNamesByIds(ids)
-  return ids
-    .map((id) => ({ id, name: names.get(id) ?? id }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  return ids.map((id) => ({ id, name: names.get(id) ?? id })).sort((a, b) => a.name.localeCompare(b.name))
 }

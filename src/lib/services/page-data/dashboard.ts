@@ -1,5 +1,4 @@
 import type { Profile } from '@/lib/auth/profile'
-import { hasCapability } from '@/lib/capabilities'
 import { formatMoneyTotals } from '@/lib/money'
 import { todayInDisplayZone } from '@/lib/time/format'
 import { listEvents, type CalendarEvent } from '@/lib/services/calendar-events'
@@ -35,11 +34,7 @@ export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee
 export type MentorDashboardViewData = { kind: 'mentor'; mentees: DashboardMentee[]; teaches: boolean }
 
 export type DashboardViewData =
-  | AdminDashboardViewData
-  | SubAdminDashboardViewData
-  | MentorDashboardViewData
-  | { kind: 'tutor' }
-  | { kind: 'student' }
+  AdminDashboardViewData | SubAdminDashboardViewData | MentorDashboardViewData | { kind: 'tutor' } | { kind: 'student' }
 
 export type AdminDashboardViewData = {
   kind: 'admin'
@@ -60,18 +55,30 @@ export type SubAdminDashboardViewData = {
   pending: number
 }
 
-function roleKind(me: Profile): 'admin' | 'sub_admin' | 'tutor' | 'mentor' | 'student' {
-  if (hasCapability(me, 'viewFinance')) return 'admin'
-  if (hasCapability(me, 'manageUsers')) return 'sub_admin'
-  if (hasCapability(me, 'viewPayslips')) return 'tutor'
-  // A dedicated mentor account holds viewMentees but not the teaching caps above.
-  if (hasCapability(me, 'viewMentees')) return 'mentor'
-  return 'student'
+/**
+ * The dashboard's view kind is the actor's FIXED IDENTITY (profiles.role), not a
+ * resolved-capability decision: a capability override (e.g. viewFinance granted to
+ * a sub_admin) widens what they can access but must NOT flip which dashboard they
+ * see. Per-capability access - the nav links, the finance page - already honours
+ * overrides via the resolved set; the home layout stays tied to who they are.
+ */
+function roleKind(me: Profile): Profile['role'] {
+  return me.role
 }
 
 async function loadAdminDashboardViewData(me: Profile): Promise<AdminDashboardViewData> {
   const today = todayInDisplayZone()
-  const [upcoming, reminders, pastReminders, peopleCounts, activeClassCount, classes, enrollCounts, receiptTotals, payslipTotals] = await Promise.all([
+  const [
+    upcoming,
+    reminders,
+    pastReminders,
+    peopleCounts,
+    activeClassCount,
+    classes,
+    enrollCounts,
+    receiptTotals,
+    payslipTotals,
+  ] = await Promise.all([
     listEvents({ from: today, limit: 6 }),
     listMyReminders(me.id),
     listMyPastReminders(me.id),

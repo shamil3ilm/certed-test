@@ -1,30 +1,27 @@
 import 'server-only'
-import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth/profile'
+import {
+  insertMeetLink,
+  selectMeetLinkById,
+  selectMeetLinks,
+  selectNewestForClasses,
+  setMeetLinkActive,
+  type MeetLinkRow,
+} from '@/lib/data/meet-links'
 import { canManageScope } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { linkUrl } from '@/lib/validation/url'
 import { z } from 'zod'
 
-export type MeetLink = {
-  id: string
-  class_id: string | null
-  title: string
-  url: string
-  description: string | null
-  active: boolean
-  created_by: string | null
-  created_at: string
-}
+export type MeetLink = MeetLinkRow
+
+/** Newest first, ties left in encounter order. */
+const byNewest = (a: MeetLink, b: MeetLink): number =>
+  a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
 
 export async function listMeetLinks(classId?: string, includeInactive = false): Promise<MeetLink[]> {
-  const supabase = await createClient()
-  let query = supabase.from('meet_links').select('*').order('created_at', { ascending: false })
-  if (!includeInactive) query = query.eq('active', true)
-  const { data, error } = await query
-  if (error) throw new Error(`meetLinks.list: ${error.message}`)
-  const rows = (data ?? []) as MeetLink[]
+  const rows = await selectMeetLinks(includeInactive)
   // A class view includes academy-wide (null) links too; no classId = global listing.
   return classId ? rows.filter((m) => m.class_id === classId || m.class_id === null) : rows
 }
@@ -37,33 +34,12 @@ export async function listMeetLinks(classId?: string, includeInactive = false): 
  * (time-ordered) list without a schema change.
  */
 export async function listMeetLinksForClasses(classIds: string[], limit = 5): Promise<MeetLink[]> {
-  const supabase = await createClient()
-  const global = supabase
-    .from('meet_links')
-    .select('*')
-    .eq('active', true)
-    .is('class_id', null)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  const forClasses = supabase
-    .from('meet_links')
-    .select('*')
-    .eq('active', true)
-    .in('class_id', classIds)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  const [classRes, globalRes] = await Promise.all([forClasses, global])
-  if (classRes.error) throw new Error(`meetLinks.listForClasses: ${classRes.error.message}`)
-  if (globalRes.error) throw new Error(`meetLinks.listForClasses: ${globalRes.error.message}`)
-  return ([...(classRes.data ?? []), ...(globalRes.data ?? [])] as MeetLink[])
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
-    .slice(0, limit)
+  const { classRows, globalRows } = await selectNewestForClasses(classIds, limit)
+  return [...classRows, ...globalRows].sort(byNewest).slice(0, limit)
 }
 
 export async function getMeetLink(id: string): Promise<MeetLink | null> {
-  const supabase = await createClient()
-  const { data } = await supabase.from('meet_links').select('*').eq('id', id).maybeSingle()
-  return (data as MeetLink) ?? null
+  return selectMeetLinkById(id)
 }
 
 export type CreateMeetLinkInput = {
@@ -112,21 +88,14 @@ export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput)
   if (!(await canManageScope(actor, input.class_id))) {
     throw new PermissionError('Not allowed to post a meet link to this class')
   }
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('meet_links')
-    .insert({
-      class_id: input.class_id,
-      title: input.title,
-      url: input.url,
-      description: input.description ?? null,
-      created_by: actor.id,
-      active: true,
-    })
-    .select('*')
-    .single()
-  if (error) throw new Error(`meetLinks.create: ${error.message}`)
-  const created = data as MeetLink
+  const created = await insertMeetLink({
+    class_id: input.class_id,
+    title: input.title,
+    url: input.url,
+    description: input.description ?? null,
+    created_by: actor.id,
+    active: true,
+  })
   await auditPrivilegedAction(actor, 'meet.create', 'meet_link', created.id)
   return created
 }
@@ -149,9 +118,7 @@ export async function deleteMeetLink(actor: Profile, id: string): Promise<void> 
   if (!(await canManageScope(actor, link.class_id))) {
     throw new PermissionError('Not authorized for this meet link')
   }
-  const supabase = await createClient()
-  const { error } = await supabase.from('meet_links').update({ active: false }).eq('id', id)
-  if (error) throw new Error(`meetLinks.delete: ${error.message}`)
+  await setMeetLinkActive(id, false)
   await auditPrivilegedAction(actor, 'meet.delete', 'meet_link', id)
 }
 
@@ -163,8 +130,6 @@ export async function restoreMeetLink(actor: Profile, id: string): Promise<void>
   if (!(await canManageScope(actor, link.class_id))) {
     throw new PermissionError('Not authorized for this meet link')
   }
-  const supabase = await createClient()
-  const { error } = await supabase.from('meet_links').update({ active: true }).eq('id', id)
-  if (error) throw new Error(`meetLinks.restore: ${error.message}`)
+  await setMeetLinkActive(id, true)
   await auditPrivilegedAction(actor, 'meet.restore', 'meet_link', id)
 }

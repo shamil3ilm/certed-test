@@ -85,7 +85,9 @@ function parseFilters(searchParams: {
     tab: (USER_TABS.find((t) => t.key === searchParams.tab)?.key ?? 'students') as UsersTab,
     page: Math.max(1, Number(searchParams.page) || 1),
     q: searchParams.q?.trim() || undefined,
-    status: STATUS_OPTIONS.includes(searchParams.status as UsersStatus) ? (searchParams.status as UsersStatus) : undefined,
+    status: STATUS_OPTIONS.includes(searchParams.status as UsersStatus)
+      ? (searchParams.status as UsersStatus)
+      : undefined,
     sortBy: ['name', 'email', 'created_at'].includes(searchParams.sortBy ?? '')
       ? (searchParams.sortBy as UsersSortBy)
       : undefined,
@@ -122,6 +124,8 @@ export async function loadAdminUsersPageData(
   },
 ): Promise<AdminUsersPageData> {
   const filters = parseFilters(searchParams)
+  // Hard-rule identity (manageAdminTier is never override-granted), so the Profile
+  // overload already equals the resolved answer - no resolved-set threading needed.
   const isSuper = isAdminTier(me)
   // Only a full admin creates mentor and admin-tier accounts; a sub_admin is
   // limited to students and tutors.

@@ -3,7 +3,7 @@ import { lineAmount, computeTotals } from '@/lib/money'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { getProfileById } from '@/lib/services/users'
 import { issueDocRecord, type FinanceKind, type FinanceLine } from '@/lib/services/finance/finance-docs'
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import { ValidationError } from '@/lib/errors'
 import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
 
@@ -18,9 +18,14 @@ export async function issueDoc(
   input: IssueDocInput,
   actorId: string,
 ): Promise<{ id: string; number: string }> {
+  // Receipts are issued to a student; pay slips to a payee - a tutor OR a
+  // dedicated (non-tutor) mentor, who is otherwise unpayable. The party must also
+  // be ACTIVE: don't issue a financial document to a disabled/revoked account.
   const party = await getProfileById(input.party_id)
-  const expectedRole = kind === 'receipt' ? 'student' : 'tutor'
-  if (!party || party.role !== expectedRole) throw new Error(`${expectedRole} not found`)
+  const allowedRoles = kind === 'receipt' ? ['student'] : ['tutor', 'mentor']
+  if (!party || !allowedRoles.includes(party.role) || party.status !== 'active') {
+    throw new Error(`${kind === 'receipt' ? 'active student' : 'active payee'} not found`)
+  }
 
   const lines: FinanceLine[] = input.lines.map((l) => ({
     label: l.subject,
@@ -32,23 +37,20 @@ export async function issueDoc(
   const org = await getOrgSettings()
   const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix
 
-  const doc = await issueDocRecord(
-    kind,
-    {
-      party_id: party.id,
-      party_name: party.full_name ?? party.email,
-      class_level: kind === 'receipt' ? party.class_level : null,
-      issue_date: input.issue_date,
-      currency: input.currency,
-      note: input.note ?? null,
-      subtotal,
-      discount: input.discount ?? null,
-      total,
-      created_by: actorId,
-      prefix,
-      lines,
-    },
-  )
+  const doc = await issueDocRecord(actorId, kind, {
+    party_id: party.id,
+    party_name: party.full_name ?? party.email,
+    class_level: kind === 'receipt' ? party.class_level : null,
+    issue_date: input.issue_date,
+    currency: input.currency,
+    note: input.note ?? null,
+    subtotal,
+    discount: input.discount ?? null,
+    total,
+    created_by: actorId,
+    prefix,
+    lines,
+  })
 
   await writeAudit({ actor_id: actorId, action: `${kind}.issue`, entity_type: kind, entity_id: doc.id })
   return { id: doc.id, number: doc.number }

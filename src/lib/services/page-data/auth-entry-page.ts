@@ -47,9 +47,7 @@ export async function loadLoginPageData(
     }
   }
 
-  const demoEmails = mockMode
-    ? (await listProfiles()).slice(0, 5).map((profile) => profile.email)
-    : []
+  const demoEmails = mockMode ? (await listProfiles()).slice(0, 5).map((profile) => profile.email) : []
 
   return {
     redirectTo: null,

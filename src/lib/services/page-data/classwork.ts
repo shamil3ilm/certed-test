@@ -58,7 +58,12 @@ export async function loadClassworkPageData(
   const materialsQuery = searchParams?.matQ?.trim() || undefined
 
   const [resourcesPage, archivedPage, assignments, mySubs, myPriorSubs] = await Promise.all([
-    listResourcesPage(course.id, { page: materialsPage, pageSize: MATERIALS_PAGE_SIZE, status: 'active', search: materialsQuery }),
+    listResourcesPage(course.id, {
+      page: materialsPage,
+      pageSize: MATERIALS_PAGE_SIZE,
+      status: 'active',
+      search: materialsQuery,
+    }),
     canManage
       ? listResourcesPage(course.id, { page: 1, pageSize: ARCHIVED_PAGE_SIZE, status: 'archived' })
       : Promise.resolve({ items: [], total: 0 }),
@@ -78,9 +83,15 @@ export async function loadClassworkPageData(
 
   const [commentsBySub, resourceComments] = await Promise.all([
     isStudent
-      ? listCommentsForEntities('submission', mySubs.map((s) => s.id))
+      ? listCommentsForEntities(
+          'submission',
+          mySubs.map((s) => s.id),
+        )
       : Promise.resolve(new Map<string, Comment[]>()),
-    listCommentsForEntities('resource', resourcesPage.items.map((r) => r.id)),
+    listCommentsForEntities(
+      'resource',
+      resourcesPage.items.map((r) => r.id),
+    ),
   ])
 
   return {

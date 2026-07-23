@@ -1,26 +1,22 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
+import {
+  deactivateEnrollment,
+  selectActiveEnrollments,
+  selectAllActiveEnrollmentRefs,
+  upsertEnrollment,
+  type EnrollmentRecord,
+} from '@/lib/data/class-membership'
+import { selectClassStatus } from '@/lib/data/classes'
 import { canManageClass } from '@/lib/permission'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
-export type Enrollment = {
-  id: string
-  student_id: string
-  class_id: string
-  created_at: string
-}
+export type Enrollment = EnrollmentRecord
 
 export async function listEnrollments(classId?: string): Promise<Enrollment[]> {
-  const supabase = await createClient()
-  let query = supabase.from('enrollments').select('*').eq('active', true)
-  if (classId) query = query.eq('class_id', classId)
-  const { data, error } = await query
-  if (error) throw new Error(`enrollments.list: ${error.message}`)
-  return (data ?? []) as Enrollment[]
+  return selectActiveEnrollments(classId)
 }
 
 /**
@@ -31,11 +27,8 @@ export async function listEnrollments(classId?: string): Promise<Enrollment[]> {
  * enrollments)).
  */
 export async function countEnrollmentsPerClass(): Promise<Map<string, number>> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('enrollments').select('class_id').eq('active', true)
-  if (error) throw new Error(`enrollments.countPerClass: ${error.message}`)
   const counts = new Map<string, number>()
-  for (const row of (data ?? []) as { class_id: string }[]) {
+  for (const row of await selectAllActiveEnrollmentRefs()) {
     counts.set(row.class_id, (counts.get(row.class_id) ?? 0) + 1)
   }
   return counts
@@ -73,12 +66,11 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
   if (!student || student.role !== 'student' || student.status !== 'active') {
     throw new ValidationError('student_id must be an active student')
   }
-  const admin = createAdminClient()
-  // Re-enrolling reactivates a previously soft-removed row (keeps its history).
-  const { error } = await admin
-    .from('enrollments')
-    .upsert({ student_id: params.studentId, class_id: params.classId, active: true }, { onConflict: 'student_id,class_id' })
-  if (error) throw new Error(`enrollments.enroll: ${error.message}`)
+  // Don't add members to an archived class (soft-deleted state).
+  if ((await selectClassStatus(params.classId)) !== 'active') {
+    throw new ValidationError('That class is archived - restore it before enrolling students.')
+  }
+  await upsertEnrollment(params.studentId, params.classId)
   await auditPrivilegedAction(actor, 'class.enroll', 'enrollment', params.classId)
 }
 
@@ -91,13 +83,7 @@ export async function removeStudent(actor: Profile, params: EnrollmentParams): P
   if (!(await canManageClass(actor, params.classId))) {
     throw new PermissionError('Not authorized for this class.')
   }
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('enrollments')
-    .update({ active: false })
-    .eq('class_id', params.classId)
-    .eq('student_id', params.studentId)
-  if (error) throw new Error(`enrollments.unenroll: ${error.message}`)
+  await deactivateEnrollment(params.classId, params.studentId)
   await auditPrivilegedAction(actor, 'class.unenroll', 'enrollment', params.classId)
 }
 

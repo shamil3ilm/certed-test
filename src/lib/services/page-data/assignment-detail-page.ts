@@ -34,7 +34,10 @@ export async function loadAssignmentDetailPageData(
 
   const [names, commentsBySub] = await Promise.all([
     getProfileNamesByIds(submissions.map((submission) => submission.student_id)),
-    listCommentsForEntities('submission', submissions.map((submission) => submission.id)),
+    listCommentsForEntities(
+      'submission',
+      submissions.map((submission) => submission.id),
+    ),
   ])
 
   const historyByStudent = new Map<string, Submission[]>()

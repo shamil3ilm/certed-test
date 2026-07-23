@@ -19,12 +19,20 @@ export type SettingsPageData = {
   roleLabel: string
 }
 
-/** Highest-privilege label from persona flags - persona-native, not profiles.role. */
-function labelFromFlags(flags: { isAdmin: boolean; isSubAdmin: boolean; isTutor: boolean; isMentor: boolean }): string {
+/** Highest-privilege label from persona flags - persona-native, not profiles.role.
+ *  Must stay in step with personaLabel() in @/lib/ui, which labels the header:
+ *  a tutor who also mentors is the hybrid "Tutor & Mentor", and mentor authority
+ *  counts scoped personas (a tutor-who-mentors has no GLOBAL mentor persona). */
+function labelFromFlags(flags: {
+  isAdmin: boolean
+  isSubAdmin: boolean
+  isTutor: boolean
+  hasMentorAuthority: boolean
+}): string {
   if (flags.isAdmin) return 'Super Admin'
   if (flags.isSubAdmin) return 'Sub Admin'
-  if (flags.isTutor) return 'Tutor'
-  if (flags.isMentor) return 'Mentor'
+  if (flags.isTutor) return flags.hasMentorAuthority ? 'Tutor & Mentor' : 'Tutor'
+  if (flags.hasMentorAuthority) return 'Mentor'
   return 'Student'
 }
 

@@ -8,9 +8,7 @@ export const contactSchema = z.object({
   message: z.string().trim().min(1).max(5000),
 })
 
-export type ContactRelayResult =
-  | { success: true }
-  | { success: false; status: number; error: string; code: ErrorCode }
+export type ContactRelayResult = { success: true } | { success: false; status: number; error: string; code: ErrorCode }
 
 type ContactRelayOptions = {
   scriptUrl?: string

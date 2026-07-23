@@ -1,18 +1,18 @@
-import { createClient } from '@/lib/supabase/server'
+import { insertComment, selectForEntities, type CommentRow } from '@/lib/data/comments'
 import { ValidationError, RateLimitError } from '@/lib/errors'
 import { getProfilesByIds } from '@/lib/services/users'
+import { assertCanComment } from '@/lib/services/comment-auth'
 import { addCommentSchema } from '@/lib/validation/comment'
 import { rateLimit } from '@/lib/security/rate-limit'
+import type { Profile } from '@/lib/auth/profile'
 
-export type CommentEntity = 'submission' | 'resource' | 'meet'
 
-export type Comment = {
-  id: string
-  entity_type: CommentEntity
-  entity_id: string
-  author_id: string
-  content: string
-  created_at: string
+export type { CommentEntity } from '@/lib/data/comments'
+import type { CommentEntity } from '@/lib/data/comments'
+
+/** A stored comment plus the author details resolved for display. The name and
+ *  role are not columns - withAuthors fills them in. */
+export type Comment = CommentRow & {
   author_name?: string | null
   author_role?: string | null
 }
@@ -59,15 +59,7 @@ export async function listCommentsForEntities(
   const out = new Map<string, Comment[]>()
   for (const id of entityIds) out.set(id, [])
   if (entityIds.length === 0) return out
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('comments')
-    .select('*')
-    .eq('entity_type', entityType)
-    .in('entity_id', entityIds)
-    .order('created_at', { ascending: true })
-  if (error) throw new Error(`comments.listForEntities: ${error.message}`)
-  const rows = await withAuthors((data ?? []) as Comment[])
+  const rows = await withAuthors((await selectForEntities(entityType, entityIds)) as Comment[])
   for (const r of rows) {
     const arr = out.get(r.entity_id)
     if (arr) arr.push(r)
@@ -76,10 +68,9 @@ export async function listCommentsForEntities(
 }
 
 /**
- * Insert a comment. Own-scoped / RLS-only - no canManage* gate exists here
- * because comment access is derived from the parent entity (submission /
- * resource / meet), which RLS already checks; there is no separate
- * "commenting" permission to centralize.
+ * Insert a comment row. Authorization against the parent entity is enforced by
+ * the caller (assertCanComment in createCommentFromActionInput) - keep this a
+ * pure insert so the check is never accidentally bypassed by a new caller.
  */
 export async function createComment(
   entityType: CommentEntity,
@@ -87,24 +78,17 @@ export async function createComment(
   authorId: string,
   content: string,
 ): Promise<Comment> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('comments')
-    .insert({ entity_type: entityType, entity_id: entityId, author_id: authorId, content })
-    .select('*')
-    .single()
-  if (error) throw new Error(`comments.create: ${error.message}`)
-  return data as Comment
+  return insertComment({ entity_type: entityType, entity_id: entityId, author_id: authorId, content })
 }
 
-export async function createCommentFromActionInput(
-  authorId: string,
-  input: CreateCommentActionInput,
-): Promise<Comment> {
+export async function createCommentFromActionInput(author: Profile, input: CreateCommentActionInput): Promise<Comment> {
   // Throttle per author so a comment thread can't be flooded (students can post here).
-  if (!rateLimit(`comment-create:${authorId}`, { limit: 20, windowMs: 60_000 }).ok) {
+  if (!rateLimit(`comment-create:${author.id}`, { limit: 20, windowMs: 60_000 }).ok) {
     throw new RateLimitError('You are commenting too quickly. Please wait a moment.')
   }
   const parsed = validateCreateCommentInput(input)
-  return createComment(parsed.entity_type, parsed.entity_id, authorId, parsed.content)
+  // App-side authorization: the author must be able to access the parent entity
+  // (mirrors its read rule), not merely hold viewClasses. See assertCanComment.
+  await assertCanComment(author, parsed.entity_type, parsed.entity_id)
+  return createComment(parsed.entity_type, parsed.entity_id, author.id, parsed.content)
 }

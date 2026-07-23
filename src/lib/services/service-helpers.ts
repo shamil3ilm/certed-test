@@ -1,4 +1,4 @@
-import { writeAudit } from '@/lib/repos/audit'
+import { writeAudit } from '@/lib/data/audit'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { NotFoundError, PermissionError } from '@/lib/errors'

@@ -1,26 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { Profile } from '@/lib/auth/profile'
+import {
+  deactivateClassTutor,
+  selectActiveClassTutors,
+  upsertClassTutor,
+  type ClassTutorRecord,
+} from '@/lib/data/class-membership'
+import { selectClassStatus } from '@/lib/data/classes'
 import { requireAdminPersona } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
-export type ClassTutor = {
-  id: string
-  tutor_id: string
-  class_id: string
-  created_at: string
-}
+export type ClassTutor = ClassTutorRecord
 
 export async function listClassTutors(classId?: string): Promise<ClassTutor[]> {
-  const supabase = await createClient()
-  let query = supabase.from('class_tutors').select('*').eq('active', true)
-  if (classId) query = query.eq('class_id', classId)
-  const { data, error } = await query
-  if (error) throw new Error(`classTutors.list: ${error.message}`)
-  return (data ?? []) as ClassTutor[]
+  return selectActiveClassTutors(classId)
 }
 
 // Use requireAdminPersona from personas.ts instead of local implementation
@@ -57,12 +52,11 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
   if (!tutor || tutor.role !== 'tutor' || tutor.status !== 'active') {
     throw new ValidationError('tutor_id must be an active tutor')
   }
-  const admin = createAdminClient()
-  // Re-assigning reactivates a previously soft-removed row.
-  const { error } = await admin
-    .from('class_tutors')
-    .upsert({ tutor_id: params.tutorId, class_id: params.classId, active: true }, { onConflict: 'tutor_id,class_id' })
-  if (error) throw new Error(`classTutors.assign: ${error.message}`)
+  // Don't assign teaching staff to an archived class (soft-deleted state).
+  if ((await selectClassStatus(params.classId)) !== 'active') {
+    throw new ValidationError('That class is archived - restore it before assigning tutors.')
+  }
+  await upsertClassTutor(params.tutorId, params.classId)
   await auditPrivilegedAction(actor, 'class.assign_tutor', 'class_tutor', params.classId)
 }
 
@@ -73,13 +67,7 @@ export async function addTutorFromActionInput(actor: Profile, input: ClassTutorA
 /** Soft-remove (scoped by class + tutor) - keeps the row for later re-assign. */
 export async function removeTutor(actor: Profile, params: ClassTutorParams): Promise<void> {
   await requireAdminPersona(actor)
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('class_tutors')
-    .update({ active: false })
-    .eq('class_id', params.classId)
-    .eq('tutor_id', params.tutorId)
-  if (error) throw new Error(`classTutors.unassign: ${error.message}`)
+  await deactivateClassTutor(params.classId, params.tutorId)
   await auditPrivilegedAction(actor, 'class.unassign_tutor', 'class_tutor', params.classId)
 }
 

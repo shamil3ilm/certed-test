@@ -37,7 +37,9 @@ export async function loadGradingQueuePageData(
   searchParams?: GradingSearchParams,
 ): Promise<GradingQueuePageData> {
   const classIds = await myClassIds(me)
-  const assignments = classIds.length ? await listAssignments({ classIds }) : []
+  // activeOnly: archiving an assignment must also drop its ungraded submissions
+  // from the "to review" queue - otherwise archived work lingers there forever.
+  const assignments = classIds.length ? await listAssignments({ classIds, activeOnly: true }) : []
   const assignmentsById = new Map(assignments.map((a) => [a.id, a]))
   const allUngraded = await listUngradedSubmissions(assignments.map((a) => a.id))
 

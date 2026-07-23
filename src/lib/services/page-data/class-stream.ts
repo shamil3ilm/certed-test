@@ -32,7 +32,12 @@ export function classStreamPageUrl(page: number, search?: string): string {
   return query ? `?${query}` : '?'
 }
 
-function canManageAnnouncement(canManage: boolean, isAdmin: boolean, courseId: string, classId: string | null): boolean {
+function canManageAnnouncement(
+  canManage: boolean,
+  isAdmin: boolean,
+  courseId: string,
+  classId: string | null,
+): boolean {
   return canManage && (isAdmin || classId === courseId)
 }
 
@@ -47,7 +52,12 @@ export async function loadClassStreamViewData(
   const streamQ = searchParams?.streamQ?.trim() || undefined
 
   const [activePage, archivedPage, allMeetLinks] = await Promise.all([
-    listAnnouncementsForClassPage(course.id, { page: streamPage, pageSize: STREAM_PAGE_SIZE, status: 'active', search: streamQ }),
+    listAnnouncementsForClassPage(course.id, {
+      page: streamPage,
+      pageSize: STREAM_PAGE_SIZE,
+      status: 'active',
+      search: streamQ,
+    }),
     canManage
       ? listAnnouncementsForClassPage(course.id, { page: 1, pageSize: ARCHIVED_PAGE_SIZE, status: 'archived' })
       : Promise.resolve({ items: [], total: 0 }),
@@ -62,7 +72,10 @@ export async function loadClassStreamViewData(
   const archivedMeetLinks = canManage
     ? allMeetLinks.filter((m) => !m.active && (isAdmin || m.class_id === course.id))
     : []
-  const commentsByMeet = await listCommentsForEntities('meet', meetLinks.map((m) => m.id))
+  const commentsByMeet = await listCommentsForEntities(
+    'meet',
+    meetLinks.map((m) => m.id),
+  )
 
   return {
     canManage,

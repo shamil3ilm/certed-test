@@ -1,20 +1,12 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { callNextDocumentNumber } from '@/lib/data/finance-docs'
 import { receiptNumber } from '@/lib/services/finance/org-settings'
 
 /**
- * Allocates the next sequential document number atomically (via the
- * `next_document_number` Postgres function) and formats it, e.g. `CEA-R-2026-0007`.
+ * Allocates the next sequential document number and formats it, e.g.
+ * `CEA-R-2026-0007`. The allocation itself is atomic in the database (the
+ * `next_document_number` function), so two concurrent issues can never take the
+ * same number.
  */
-export async function allocateNumber(
-  docType: 'receipt' | 'payslip',
-  prefix: string,
-  year: number,
-): Promise<string> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.rpc('next_document_number', {
-    p_doc_type: docType,
-    p_year: year,
-  })
-  if (error) throw new Error(`counters.allocate: ${error.message}`)
-  return receiptNumber(prefix, year, data as number)
+export async function allocateNumber(docType: 'receipt' | 'payslip', prefix: string, year: number): Promise<string> {
+  return receiptNumber(prefix, year, await callNextDocumentNumber(docType, year))
 }

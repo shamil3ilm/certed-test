@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Profile } from '@/lib/auth/profile'
+import type { ActorContext } from '@/lib/session/actor-context'
 import { getReportCardData } from './data'
 import { buildReportCardHtml } from './template'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
@@ -11,10 +11,10 @@ import { htmlToPdf } from '@/lib/pdf/render-pdf'
  * demand and never stored - the marks + attendance rows are the source of truth.
  */
 export async function renderReportCardPdf(
-  viewer: Profile,
+  actor: ActorContext,
   studentId: string,
 ): Promise<{ pdf: Buffer; filename: string } | null> {
-  const data = await getReportCardData(viewer, studentId)
+  const data = await getReportCardData(actor, studentId)
   if (!data) return null
   const org = await getOrgSettings()
   const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })

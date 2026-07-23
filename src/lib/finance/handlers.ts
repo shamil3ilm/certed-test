@@ -14,12 +14,7 @@ import { requireCapabilityApi, requireRoleApi } from '@/lib/auth/require-role'
 import { ValidationError } from '@/lib/errors'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
 import { renderDocPdf } from '@/lib/finance/render'
-import {
-  validateFinanceDocId,
-  voidDoc,
-  listAllDocs,
-  type FinanceKind,
-} from '@/lib/services/finance/finance-docs'
+import { validateFinanceDocId, voidDoc, listAllDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { rateLimit } from '@/lib/security/rate-limit'
 
@@ -78,7 +73,7 @@ export function voidHandler(kind: FinanceKind) {
     if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
     try {
       const id = validateFinanceDocId(ctx.params.id)
-      const voided = await voidDoc(kind, id)
+      const voided = await voidDoc(me.id, kind, id)
       if (!voided) return fail('Document not found or already voided.', 404)
       await auditPrivilegedAction(me, `${kind}.void`, kind, id)
       return ok({ voided: true })
@@ -89,10 +84,12 @@ export function voidHandler(kind: FinanceKind) {
   }
 }
 
-/** GET /api/{kind}s/[id]/pdf - render on demand; ownership enforced inside
- *  renderDocPdf (admin, or the doc's own party). Mentor is allowed at the gate
- *  because a mentor is staff who may hold their own payslip; renderDocPdf's
- *  party_id === viewer.id check still restricts them to their own document. */
+/** GET /api/{kind}s/[id]/pdf - render on demand. Access is OWNERSHIP-based, not
+ *  role-based: renderDocPdf returns the document only to an admin or its own party
+ *  (party_id === viewer.id). The role list here is just a coarse "authenticated,
+ *  non-anonymous" pre-filter run before the expensive render - it includes mentor
+ *  only because a mentor is staff who may hold their own payslip. The party
+ *  ownership check inside renderDocPdf is the actual boundary. */
 export function pdfHandler(kind: FinanceKind) {
   return async function GET(_req: Request, ctx: { params: { id: string } }) {
     let me

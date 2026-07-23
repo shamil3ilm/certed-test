@@ -62,11 +62,9 @@ function toFilters(searchParams: {
 
 function toParties(
   profiles: Array<{ id: string; full_name: string | null; email: string; role: string }>,
-  role: 'student' | 'tutor',
+  roles: string[],
 ): FinancePageParty[] {
-  return profiles
-    .filter((p) => p.role === role)
-    .map((p) => ({ id: p.id, name: p.full_name ?? p.email }))
+  return profiles.filter((p) => roles.includes(p.role)).map((p) => ({ id: p.id, name: p.full_name ?? p.email }))
 }
 
 function toRows(items: FinanceDoc[]): FinancePageRow[] {
@@ -138,8 +136,9 @@ export async function loadAdminFinancePageData(searchParams: {
   ])
 
   return {
-    students: toParties(profiles, 'student'),
-    tutors: toParties(profiles, 'tutor'),
+    students: toParties(profiles, ['student']),
+    // Pay-slip payees: tutors plus dedicated (non-tutor) mentors.
+    tutors: toParties(profiles, ['tutor', 'mentor']),
     receipts: toLedgerView('Receipts', 'receipts', receiptsPage, receiptFilters, payslipFilters),
     payslips: toLedgerView('Pay slips', 'payslips', payslipsPage, payslipFilters, receiptFilters),
   }

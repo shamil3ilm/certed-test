@@ -1,4 +1,4 @@
-import { listAuditPage } from '@/lib/repos/audit'
+import { listAuditPage } from '@/lib/data/audit'
 import { getProfilesByIds, listProfiles } from '@/lib/services/users'
 
 const PAGE_SIZE = 25

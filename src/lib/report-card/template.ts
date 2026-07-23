@@ -14,7 +14,10 @@ export type ReportOrgInfo = { instituteName: string; email: string | null; phone
 export function buildReportCardHtml(data: ReportCardData, org: ReportOrgInfo, generatedOn: string): string {
   const { student, marks, average, attendance } = data
   const name = esc(student.full_name ?? student.email)
-  const contact = [org.email, org.phone].filter(Boolean).map((s) => esc(String(s))).join(' - ')
+  const contact = [org.email, org.phone]
+    .filter(Boolean)
+    .map((s) => esc(String(s)))
+    .join(' - ')
 
   const marksRows = marks.length
     ? marks
@@ -77,7 +80,11 @@ export function buildReportCardHtml(data: ReportCardData, org: ReportOrgInfo, ge
   <div class="student">
     <div><div class="label">Student</div><div class="value">${name}</div></div>
     ${student.class_level ? `<div><div class="label">Class</div><div class="value">${esc(student.class_level)}</div></div>` : ''}
-    ${average ? `<div><div class="label">Average</div><div class="value">${average.percent}%</div></div>` : ''}
+    ${
+      average
+        ? `<div><div class="label">Average</div><div class="value">${average.percent}%</div><div class="label">points-weighted across ${average.gradedCount} item${average.gradedCount === 1 ? '' : 's'}${average.excludedNoMax > 0 ? ` - ${average.excludedNoMax} not counted (no maximum set)` : ''}</div></div>`
+        : ''
+    }
   </div>
 
   <h2>Marks</h2>

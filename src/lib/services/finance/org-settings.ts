@@ -1,28 +1,14 @@
-import { createClient } from '@/lib/supabase/server'
+import { selectOrgSettings, type OrgSettingsRow } from '@/lib/data/org-settings'
 
-export type OrgSettings = {
-  institute_name: string
-  contact_email: string | null
-  contact_phone: string | null
-  bank_account: string | null
-  bank_ifsc: string | null
-  bank_branch: string | null
-  terms_text: string | null
-  signatory_name: string | null
-  signatory_title: string | null
-  signature_mode: 'text' | 'image'
-  signature_text: string | null
-  default_currency: string
-  timezone: string
-  receipt_prefix: string
-  payslip_prefix: string
-}
+export type OrgSettings = OrgSettingsRow
 
+/**
+ * Global institutional config (name, timezone, currency, bank details, terms).
+ * Read service-role rather than under the caller's RLS - see the note in
+ * src/lib/data/org-settings for why that is required rather than convenient.
+ */
 export async function getOrgSettings(): Promise<OrgSettings> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('org_settings').select('*').single()
-  if (error) throw new Error(`org_settings: ${error.message}`)
-  return data as OrgSettings
+  return selectOrgSettings()
 }
 
 /** Formats a sequential document number, e.g. receiptNumber('CEA-R', 2026, 7) -> 'CEA-R-2026-0007'. */

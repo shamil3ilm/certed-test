@@ -1,5 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
-import { hasCapability, isAdminTier } from '@/lib/capabilities'
+import type { Capability } from '@/lib/capabilities'
 import { listClasses } from '@/lib/services/classes'
 import { listClassTutors } from '@/lib/services/class-tutors'
 import { listActiveByRole } from '@/lib/services/users'
@@ -11,10 +11,16 @@ export type CalendarPageData = {
   tutors: { id: string; name: string }[]
 }
 
-/** Shapes the calendar/timetable management options for the signed-in actor. */
-export async function loadCalendarPageData(profile: Profile): Promise<CalendarPageData> {
-  const canManage = hasCapability(profile, 'manageCalendar')
-  const isAdmin = isAdminTier(profile)
+/**
+ * Shapes the calendar/timetable management options for the signed-in actor.
+ * Decides against the actor's RESOLVED capabilities (persona baseline + admin
+ * overrides), not Profile.role - so an override granting manageCalendar opens
+ * the management UI here exactly as it opens the route. `manageAdminTier` is a
+ * hard rule (never override-granted), so it still reflects the true admin tier.
+ */
+export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<Capability>): Promise<CalendarPageData> {
+  const canManage = caps.has('manageCalendar')
+  const isAdmin = caps.has('manageAdminTier')
 
   if (!canManage) {
     return { canManage, isAdmin, classes: [], tutors: [] }
@@ -38,9 +44,7 @@ export async function loadCalendarPageData(profile: Profile): Promise<CalendarPa
   return {
     canManage,
     isAdmin,
-    classes: allClasses
-      .filter((c) => c.status === 'active' && mine.has(c.id))
-      .map((c) => ({ id: c.id, name: c.name })),
+    classes: allClasses.filter((c) => c.status === 'active' && mine.has(c.id)).map((c) => ({ id: c.id, name: c.name })),
     tutors: [{ id: profile.id, name: profile.full_name ?? profile.email }],
   }
 }

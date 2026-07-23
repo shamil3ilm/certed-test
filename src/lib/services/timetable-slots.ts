@@ -1,6 +1,18 @@
-import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth/profile'
-import { createSlotSchema, updateSlotSchema, type CreateSlotInput, type UpdateSlotInput } from '@/lib/validation/timetable-slot'
+import {
+  insertSlot,
+  selectSlotById,
+  selectSlots,
+  updateSlot as updateSlotRowInDb, // aliased: the domain's own updateSlot is the gated one
+  type SlotFilters,
+  type TimetableSlotRow,
+} from '@/lib/data/timetable-slots'
+import {
+  createSlotSchema,
+  updateSlotSchema,
+  type CreateSlotInput,
+  type UpdateSlotInput,
+} from '@/lib/validation/timetable-slot'
 import { canWriteClass } from '@/lib/permission'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -16,18 +28,7 @@ function assertTimetableWriteRate(actorId: string): void {
   }
 }
 
-export type TimetableSlot = {
-  id: string
-  class_id: string
-  subject: string
-  tutor_id: string | null
-  day_of_week: number
-  start_time: string // "HH:mm[:ss]" wall-clock in org_settings.timezone
-  end_time: string
-  mode_or_location: string | null
-  active: boolean
-  created_at: string
-}
+export type TimetableSlot = TimetableSlotRow
 
 const slotIdSchema = z.string().uuid()
 
@@ -56,26 +57,12 @@ export function validateSlotId(input: unknown): string {
 }
 
 // RLS scopes the rows: enrolled student / tutor-of-course / admin.
-export async function listSlots(
-  opts: { classId?: string; classIds?: string[]; dayOfWeek?: number; activeOnly?: boolean; limit?: number } = {},
-): Promise<TimetableSlot[]> {
-  const supabase = await createClient()
-  let q = supabase.from('timetable_slots').select('*').order('day_of_week', { ascending: true })
-  if (opts.classId) q = q.eq('class_id', opts.classId)
-  if (opts.classIds) q = q.in('class_id', opts.classIds)
-  if (opts.dayOfWeek != null) q = q.eq('day_of_week', opts.dayOfWeek)
-  if (opts.activeOnly !== false) q = q.eq('active', true)
-  if (opts.limit) q = q.limit(opts.limit)
-  const { data, error } = await q
-  if (error) throw new Error(`listSlots: ${error.message}`)
-  return (data ?? []) as TimetableSlot[]
+export async function listSlots(opts: SlotFilters = {}): Promise<TimetableSlot[]> {
+  return selectSlots(opts)
 }
 
 export async function getSlot(id: string): Promise<TimetableSlot | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('timetable_slots').select('*').eq('id', id).maybeSingle()
-  if (error) throw new Error(`getSlot: ${error.message}`)
-  return (data as TimetableSlot) ?? null
+  return selectSlotById(id)
 }
 
 /** tutor_id is optional (a slot can be created unassigned); when present,
@@ -94,23 +81,16 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
   }
   if (input.tutor_id) await assertActiveTutor(input.tutor_id)
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('timetable_slots')
-    .insert({
-      class_id: input.class_id,
-      subject: input.subject,
-      tutor_id: input.tutor_id ?? null,
-      day_of_week: input.day_of_week,
-      start_time: input.start_time,
-      end_time: input.end_time,
-      mode_or_location: input.mode_or_location ?? null,
-      active: true,
-    })
-    .select('*')
-    .single()
-  if (error) throw new Error(`createSlot: ${error.message}`)
-  const created = data as TimetableSlot
+  const created = await insertSlot({
+    class_id: input.class_id,
+    subject: input.subject,
+    tutor_id: input.tutor_id ?? null,
+    day_of_week: input.day_of_week,
+    start_time: input.start_time,
+    end_time: input.end_time,
+    mode_or_location: input.mode_or_location ?? null,
+    active: true,
+  })
   await auditPrivilegedAction(actor, 'timetable.create', 'timetable_slot', created.id)
   return created
 }
@@ -118,13 +98,6 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
 export async function createSlotFromApiInput(actor: Profile, input: unknown): Promise<TimetableSlot> {
   assertTimetableWriteRate(actor.id)
   return createSlot(actor, validateCreateSlotInput(input))
-}
-
-async function updateSlotRow(id: string, patch: UpdateSlotInput): Promise<TimetableSlot> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('timetable_slots').update(patch).eq('id', id).select('*').single()
-  if (error) throw new Error(`updateSlot: ${error.message}`)
-  return data as TimetableSlot
 }
 
 export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotInput): Promise<TimetableSlot> {
@@ -135,7 +108,7 @@ export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotIn
   }
   if (patch.tutor_id) await assertActiveTutor(patch.tutor_id)
 
-  const updated = await updateSlotRow(id, patch)
+  const updated = await updateSlotRowInDb(id, patch)
   await auditPrivilegedAction(actor, patch.tutor_id ? 'timetable.reassign' : 'timetable.update', 'timetable_slot', id)
   return updated
 }
@@ -152,7 +125,7 @@ export async function deactivateSlot(actor: Profile, id: string): Promise<Timeta
   if (!(await canWriteClass(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
-  const updated = await updateSlotRow(id, { active: false })
+  const updated = await updateSlotRowInDb(id, { active: false })
   await auditPrivilegedAction(actor, 'timetable.deactivate', 'timetable_slot', id)
   return updated
 }
