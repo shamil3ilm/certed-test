@@ -1,85 +1,194 @@
 # RLS Policy Inventory
 
-Reference for the intended end-state Row-Level Security policies after applying
-migrations `0001`–`0021` (or a fresh build from `supabase/rebuild/0000_full_rebuild.sql`).
+- Status: Verification reference
+- Scope: High-level policy inventory, not a line-by-line generated catalog
+- Source of truth: live migrations in `supabase/migrations`
 
-## Verification
+This document is a verification guide for the intended public-schema RLS surface.
 
-After applying migrations, run:
+Use this file for:
+
+- policy family verification
+- table-level access expectations
+- post-migration review guidance
+
+Do not use this file as the sole source for:
+
+- exact `create policy` statements
+- exhaustive policy SQL bodies
+- helper-function implementation details
+
+For those, use the migrations directly.
+
+## Current migration range
+
+The current chain runs from:
+
+- `0001`
+- through `0029`
+
+## Verification query
+
+Run:
 
 ```sql
-SELECT schemaname, tablename, policyname
-  FROM pg_policies
- WHERE schemaname = 'public'
- ORDER BY tablename, policyname;
+select schemaname, tablename, policyname
+from pg_policies
+where schemaname = 'public'
+order by tablename, policyname;
 ```
 
-Compare the output against the expected policies below — it should match exactly
-(no extra policies, no missing policies). Expected total: ~50 policies (includes the
-5 capability_overrides policies added in 0020).
+## Current policy families to verify
 
-## Expected policies
+This is the current functional inventory. It is intentionally grouped by purpose rather than frozen to an outdated count from older phases.
 
-| Table | Policy | Purpose |
-|-------|--------|---------|
-| profiles | profiles_self_read | User reads own profile OR admin |
-| profiles | profiles_self_update | User updates own profile OR admin |
-| profiles | profiles_admin_write | Admin writes any profile |
-| org_settings | org_read | Active admin only (0017) |
-| org_settings | org_admin_write | Active admin writes only (0017) |
-| classes | classes_read | Active users read classes |
-| classes | classes_admin_write | Admin writes classes |
-| enrollments | enrollments_read | Admin OR tutor OR student self, hardened by 0017 |
-| enrollments | enrollments_admin_write | Admin writes enrollments |
-| class_tutors | class_tutors_read | Admin OR tutor self |
-| class_tutors | class_tutors_admin_write | Admin writes |
-| mentorships | mentorships_read | Admin OR mentor/student self (mentor_id per 0021), hardened by 0017 |
-| mentorships | mentorships_admin_write | Admin writes |
-| announcements | announcements_read | Admin OR enrolled OR tutor OR global |
-| announcements | announcements_insert | Admin OR tutor |
-| announcements | announcements_update | Admin OR tutor |
-| resources | resources_read | Admin OR enrolled OR tutor |
-| resources | resources_insert | Admin OR tutor |
-| resources | resources_update | Admin OR tutor |
-| assignments | assignments_read | Admin OR enrolled OR tutor |
-| assignments | assignments_insert | Admin OR tutor |
-| assignments | assignments_update | Admin OR tutor |
-| submissions | submissions_read | Admin OR tutor OR student self, hardened by 0017 |
-| submissions | submissions_insert | Student self in enrolled class |
-| submissions | submissions_update | Admin OR student self, hardened by 0017 |
-| comments | comments_read | Polymorphic (submission/resource/meet access) |
-| comments | comments_insert | Polymorphic (same) |
-| meet_links | meet_links_read | Admin OR tutor OR enrolled OR global |
-| meet_links | meet_links_write | Admin OR tutor |
-| persona_assignments | Users can read own persona assignments | User reads own only (0014) |
-| persona_assignments | Admins can read all persona assignments | Admin reads all (0014) |
-| persona_assignments | Only admins can insert persona assignments | Admin writes only (0014) |
-| persona_assignments | Only admins can update persona assignments | Admin writes only (0014) |
-| persona_assignments | Only admins can delete persona assignments | Admin deletes only (0014) |
-| receipts | receipts_read | Admin OR student self, hardened by 0017 |
-| receipts | receipts_admin_write | Admin writes |
-| receipt_lines | receipt_lines_read | Admin OR student self, hardened by 0017 |
-| receipt_lines | receipt_lines_admin_write | Admin writes |
-| payslips | payslips_read | Admin OR tutor self, hardened by 0017 |
-| payslips | payslips_admin_write | Admin writes |
-| payslip_lines | payslip_lines_read | Admin OR tutor self, hardened by 0017 |
-| payslip_lines | payslip_lines_admin_write | Admin writes |
-| reminders | reminders_all | User self only |
-| attendance | attendance_read | Admin OR tutor OR student self, hardened by 0017 |
-| audit_log | audit_read | Admin only |
-| audit_log | audit_admin_insert | Admin only |
-| timetable_slots | timetable_slots_read | Admin OR tutor OR enrolled |
-| timetable_slots | timetable_slots_write | Admin OR tutor (not admin-only) |
-| conversations | conversations_read | Participant OR admin (0018) |
-| conversations | conversations_insert | created_by = current_profile_id() (0018) |
-| conversation_participants | conversation_participants_read | Participant of the conversation (0018) |
-| messages | messages_read | Participant of the conversation (0018) |
-| messages | messages_insert | sender = current_profile_id() AND conversation member (0018) |
+### Identity and authorization tables
 
-## Checklist
+- `profiles`
+  - self-read
+  - self-update
+  - admin write
 
-- [ ] All expected policies exist
-- [ ] No duplicate policies (same table, different names, same purpose)
-- [ ] All unit tests pass
-- [ ] All E2E persona journeys pass
-- [ ] Policy count is ~45 total
+- `persona_assignments`
+  - self-read
+  - admin read-all
+  - admin insert
+  - admin update
+  - admin delete
+
+- `capability_overrides`
+  - self-read
+  - admin read-all
+  - admin insert
+  - admin update
+  - admin delete
+
+### Organization and admin-only records
+
+- `org_settings`
+  - read
+  - admin write
+
+- `audit_log`
+  - admin read
+  - admin insert
+
+### Academic relationship tables
+
+- `classes`
+  - read
+  - admin write
+
+- `enrollments`
+  - read
+  - admin write
+
+- `class_tutors`
+  - read
+  - admin write
+
+- `mentorships`
+  - read
+  - admin write
+
+### Content tables
+
+- `announcements`
+  - read
+  - insert
+  - update
+
+- `resources`
+  - read
+  - insert
+  - update
+
+- `assignments`
+  - read
+  - insert
+  - update
+
+- `submissions`
+  - read
+  - insert
+  - update
+
+- `comments`
+  - read
+  - insert
+
+- `meet_links`
+  - read
+  - write
+
+### Calendar and attendance
+
+- `timetable_slots`
+  - read
+  - write
+
+- `calendar_events`
+  - read
+  - write
+
+- `attendance`
+  - read
+  - write
+
+### Finance
+
+- `receipts`
+  - read
+
+- `receipt_lines`
+  - read
+
+- `payslips`
+  - read
+
+- `payslip_lines`
+  - read
+
+### Self-scoped workflow data
+
+- `reminders`
+  - self all
+
+- `notifications`
+  - self read
+  - restricted self update for read-state behavior
+
+### Messaging
+
+- `conversations`
+  - participant read
+  - controlled insert
+
+- `conversation_participants`
+  - participant read
+  - self read-state update behavior as implemented
+
+- `messages`
+  - participant read
+  - participant insert
+
+## What to check
+
+1. expected tables have policies
+2. no stale duplicate policies remain from replaced migrations
+3. admin helper policy rewrites match the post-`0022` and post-`0026` authority model
+4. notifications policies reflect the read-only content hardening from `0029`
+5. messaging policies reflect the current messaging schema
+
+## Required follow-up on schema changes
+
+Whenever a migration changes:
+
+- policy names
+- helper-function authority
+- a new RLS table
+- self-update restrictions
+
+this file must be updated in the same workstream.
+
+If a future workflow needs an exact generated policy register, add that as a separate artifact instead of turning this verification guide into a raw dump.

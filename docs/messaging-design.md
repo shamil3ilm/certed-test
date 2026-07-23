@@ -1,118 +1,152 @@
-# Messaging domain — design (v1)
+# Messaging Domain Design
 
-A **separate** domain from comments. Comments stay as contextual discussion on a
-submission / resource / meet. Messaging is standalone: its own schema, RLS,
-services, and UI. Do not reuse the comments table.
+- Status: Current design reference
+- Scope: v1 messaging model
 
-## Scope (v1)
-- Direct (1:1) and group conversations.
-- Inbox (conversation list with unread counts) + thread view.
-- Unread tracking via `conversation_participants.last_read_at`.
-- Conversation creation restricted to **allowed recipients only** (policy below).
-- Server-readable (moderation-capable). Structured so conversation-type-specific
-  E2EE can be added later without a schema redesign (see "Future E2EE").
+Messaging is a separate domain from comments.
 
-## Tables
+Comments remain contextual discussion attached to:
 
-```
-conversations
-  id            uuid pk
-  kind          conversation_kind  -- 'direct' | 'group'
-  title         text null          -- group name; null for direct
-  created_by    uuid -> profiles(id)
-  created_at    timestamptz
+- submissions
+- resources
+- meet links
 
-conversation_participants
-  id              uuid pk
-  conversation_id uuid -> conversations(id) on delete cascade
-  profile_id      uuid -> profiles(id) on delete cascade
-  last_read_at    timestamptz null   -- unread = messages.created_at > this
-  joined_at       timestamptz
-  unique(conversation_id, profile_id)
+Messaging is standalone and has its own:
 
-messages
-  id              uuid pk
-  conversation_id uuid -> conversations(id) on delete cascade
-  sender_id       uuid -> profiles(id)
-  body            text               -- plaintext in v1 (see Future E2EE)
-  created_at      timestamptz
-  index(conversation_id, created_at)
-```
+- schema
+- RLS
+- services
+- UI
 
-Unread is a `last_read_at` column, not a `message_reads` table: a per-participant
-watermark is enough for inbox counts and read receipts, and avoids a row per
-message per reader. (A `message_reads` table can be added later if per-message
-receipts are needed.)
+## Scope
 
-Direct-conversation dedupe: enforce "one direct conversation per unordered pair"
-in the service (look up an existing direct conversation whose participant set is
-exactly {a,b} before creating) rather than a DB constraint, since the pair spans
-two participant rows.
+Current messaging scope includes:
 
-## RLS (the server trust boundary)
+- direct conversations
+- group conversations
+- inbox listing
+- thread view
+- unread tracking
+- allowed-recipient policy
+- admin-readable moderation surface
 
-- **conversations**: a row is readable if the caller is a participant, OR the
-  caller is an active admin (moderation). Insert: any active user (the recipient
-  policy is enforced in the service, see below). No update/delete in v1.
-- **conversation_participants**: readable if the caller participates in that
-  conversation, or is an active admin. Insert is service-role only (adding
-  participants is part of create-conversation). A participant may update **only
-  their own** row's `last_read_at`.
-- **messages**: readable if the caller participates in the conversation, or is an
-  active admin. Insert: only a participant of the conversation, and only as
-  themselves (`sender_id = caller`). No update/delete in v1 (immutable log).
+## Core tables
 
-Admin read-all gives moderation without a separate audit copy of message bodies.
+### `conversations`
 
-## Recipient policy (who may START a conversation with whom)
+Purpose:
 
-This is **app-layer**, centralized in `canMessage(actor, recipientId)` /
-`listMessageableContacts(actor)`, because eligibility depends on persona
-relationships RLS can't cheaply express. Personas, not `profiles.role`, drive it:
+- direct and group thread containers
 
-| Actor persona | May message |
-|---|---|
-| admin | anyone |
-| sub_admin | users they can manage (tutors + students; never the admin tier) |
-| tutor | students in classes they teach + their assigned mentees |
-| mentor | their assigned mentees |
-| student | their class tutors + their mentors + admins/sub_admins (support) |
-| guardian / finance_operator / assistant / executive (future) | add a policy branch — **no schema change** |
+Current shape includes:
 
-The policy is a pure function over already-loaded relationships (class
-memberships, mentorships, personas), so new personas plug in by extending the
-function, not the tables.
+- `kind`
+- `title`
+- `created_by`
+- `last_message_at`
+- `last_message_body`
+- `last_message_sender_id`
+- `direct_key`
 
-## Moderation / supervision hooks
-- Admin RLS read-all on conversations/participants/messages -> admin-visible
-  metadata and admin-readable content in v1.
-- Audit events: `conversation.create` (always); `message.send` optional/off by
-  default to avoid duplicating bodies; `conversation.admin_view` when an admin
-  opens a conversation they are not a participant of (administrative intervention).
+### `conversation_participants`
 
-## Public interfaces (services)
-- `listInbox(actor)` -> conversations with last message + unread count.
-- `loadThread(actor, conversationId)` -> messages + participants (RLS-gated).
-- `sendMessage(actor, conversationId, body)` -> inserts (participant-gated).
-- `createConversation(actor, { recipientIds, title? })` -> validates every
-  recipient via `canMessage`, dedupes a direct pair, seeds participants.
-- `markRead(actor, conversationId)` -> sets the caller's `last_read_at = now()`.
-- `listMessageableContacts(actor)` -> the allowed recipient list for the composer.
+Purpose:
 
-## UI entry points
-- Inbox link in the portal nav/header (new `viewMessages` capability, held by all
-  active personas) with an unread badge.
-- "Message" CTA on the Users hub rows (where policy allows).
-- "Message" CTA in student/mentee/class-people contexts where policy allows.
+- membership
+- joined-at state
+- unread watermark through `last_read_at`
 
-## Future E2EE (not v1, but structured for)
-- v1 stores `messages.body` as plaintext; server can read (moderation).
-- To add E2EE later per conversation-kind: add a nullable `ciphertext` column +
-  a `message_envelopes` table (per-recipient wrapped keys) and a
-  `conversations.encryption` marker. `body` becomes null for encrypted
-  conversations. No table is dropped or repurposed, so v1 rows stay valid.
+### `messages`
 
-## Migration
-`supabase/migrations/0018_messaging.sql` (enum + 3 tables + indexes + RLS +
-`last_read_at` self-update policy). Rebuild snapshot updated to match. Delivered
-as a standalone .sql for the Supabase editor per the project workflow.
+Purpose:
+
+- immutable thread messages
+
+## Current unread model
+
+Unread state is tracked through:
+
+- `conversation_participants.last_read_at`
+
+This keeps inbox read-state bounded without requiring a per-message read table.
+
+## Current recipient policy
+
+Conversation creation is restricted by app-layer policy.
+
+The policy is centralized through:
+
+- `canMessage(actor, recipientId)`
+- `listMessageableContacts(actor)`
+
+Current intent by persona:
+
+- admin: anyone
+- sub-admin: users they can manage
+- tutor: students they teach and students they mentor
+- mentor: their mentees
+- student: their tutors, their mentors, and admin-tier support contacts
+
+Implementation notes:
+
+- recipient eligibility must remain centralized in one policy surface
+- future personas must not inherit contacts implicitly
+- comments are not a fallback messaging system and should stay separate
+
+Future personas should extend this policy in code without requiring schema redesign.
+
+## Current trust boundary
+
+RLS remains the database trust boundary.
+
+The broad rules are:
+
+- conversations are readable by participants and intended admin paths
+- participant rows are readable within conversation scope
+- messages are readable by participants and inserted only by participants
+
+## Service surface
+
+Current messaging service responsibilities include:
+
+- inbox loading
+- thread loading
+- direct-thread dedupe
+- message send
+- mark read
+- leave conversation
+- recipient policy enforcement
+
+## Current implementation notes
+
+Recent messaging migrations added:
+
+- denormalized last-message fields for inbox performance
+- canonical direct-thread keys
+
+These support:
+
+- cheaper inbox reads
+- stable one-thread-per-direct-pair behavior
+
+## Future extension points
+
+Possible later additions include:
+
+- richer moderation tooling
+- message retention rules
+- attachment support
+- conversation settings
+- stronger encryption model
+
+Any such change should preserve the separation between:
+
+- comments
+- messaging
+
+## Related docs
+
+- [schema-reference.md](./schema-reference.md)
+- [persona-model.md](./persona-model.md)
+- [architecture-rules.md](./architecture-rules.md)
+- [workflow-invariants.md](./workflow-invariants.md)

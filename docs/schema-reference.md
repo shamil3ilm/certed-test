@@ -1,178 +1,296 @@
 # Schema Reference
 
-**Purpose:** Document the active schema (tables, columns, RLS helpers) as built by
-migrations `0001`–`0021` and the canonical `supabase/rebuild/0000_full_rebuild.sql`.
-**Status:** Authoritative — source of truth for schema-aware work.
+- Status: Current reference
+- Scope: High-level current-state summary, not a generated full-column dump
+- Source of truth: `supabase/migrations`
 
-See [rls-policy-inventory.md](./rls-policy-inventory.md) for the expected end-state
-RLS policies and [persona-model.md](./persona-model.md) for the persona design.
+This document summarizes the active schema and helper-function model at a practical level.
 
----
+Use this file for:
 
-## Tables
+- table purpose
+- major schema concepts
+- important helper-function relationships
+- current architectural understanding of the database
 
-### Core
-- `profiles` (id, auth_user_id, email, full_name, role, status, class_level, created_at)
-  - Columns: NO access_state
-  - Status enum: active | pending | disabled
-  - Role enum: admin | sub_admin | tutor | mentor | student
-    (mentor is an independent identity — a mentor may or may not also be a tutor)
+Do not use this file as the sole source for:
 
-- `org_settings` (id, institute_name, contact_email, contact_phone, bank_account, bank_ifsc, bank_branch, terms_text, signatory_name, signatory_title, signature_mode, signature_text, default_currency, timezone, receipt_prefix, payslip_prefix)
+- exact DDL
+- exact indexes
+- exact constraints
+- exact policy SQL
 
-### Classes & Membership
-- `classes` (id, name, status, created_at)
-  - Columns: id, name, status (active|archived), created_at
-  - NO class_id or mentor_id field
+For those, use the migration chain directly.
 
-- `enrollments` (id, student_id, class_id, active, created_at)
-  - Soft-deletable via active boolean
-  - Columns: student_id, class_id, active (NOT disabled/pending)
-  - Unique constraint: (student_id, class_id)
+## Current migration range
 
-- `class_tutors` (id, tutor_id, class_id, active, created_at)
-  - Soft-deletable via active boolean
-  - Columns: tutor_id, class_id, active
-  - Unique constraint: (tutor_id, class_id)
+The active migration chain runs from:
 
-- `mentorships` (id, mentor_id, student_id, active, created_at)
-  - Soft-deletable via active boolean
-  - `mentor_id` is the supervising party (renamed from tutor_id in 0021 — a mentor
-    may be a dedicated mentor account or a tutor who also mentors)
-  - Columns: mentor_id, student_id, active (NOT class_id)
-  - Unique constraint: (mentor_id, student_id)
+- `0001`
+- through `0029`
 
-### Content
-- `assignments` (id, class_id, title, description, due_date, attachment_drive_link, created_by, status, created_at)
-- `submissions` (id, assignment_id, student_id, drive_link, file_name, status, submitted_at, is_active, created_at)
-  - Columns: assignment_id, student_id (NOT class_id)
-  - Grading info: score, feedback, graded_at, graded_by (added in 0008)
+## Core identity model
 
-- `resources` (id, class_id, title, drive_link, uploaded_by, status, created_at)
+### `profiles`
 
-- `announcements` (id, class_id, title, message, author_id, status, created_at)
-  - class_id is nullable (global announcements)
+Purpose:
 
-- `comments` (id, entity_type, entity_id, author_id, body, created_at)
-  - Polymorphic: entity_type in (submission | resource | meet)
+- fixed account identity
+- sign-in binding target
+- lifecycle state
 
-- `meet_links` (id, class_id, title, meet_url, hosted_by, created_at)
-  - class_id is nullable (global meets)
+Key concepts:
 
-### Finance
-- `receipts` (id, number, student_id, student_name_snapshot, class_snapshot, issue_date, currency, note, subtotal, discount, total, voided, created_by, created_at)
+- `role` is the fixed account identity
+- `status` is the lifecycle state
+- `auth_user_id` binds the profile to the auth identity
 
-- `receipt_lines` (id, receipt_id, subject, hours, rate, amount)
+Current role values:
 
-- `payslips` (id, number, tutor_id, tutor_name_snapshot, issue_date, currency, note, subtotal, discount, total, voided, created_by, created_at)
+- `admin`
+- `sub_admin`
+- `tutor`
+- `mentor`
+- `student`
 
-- `payslip_lines` (id, payslip_id, subject, hours, rate, amount)
+Current status values:
 
-### Workflow
-- `reminders` (id, user_id, title, note, is_done, created_at, updated_at)
+- `active`
+- `pending`
+- `disabled`
 
-- `attendance` (id, class_id, student_id, session_date, status, marked_by, created_at, updated_at)
-  - status check: present | absent | late
+### `persona_assignments`
 
-- `audit_log` (id, actor_id, action, entity_type, entity_id, created_at)
+Purpose:
 
-- `setup_codes` (code, created_at) - [version table for feature flags, not schema]
+- authorization model
+- global and scoped personas
 
-- `topics` - [ALTER to assignments/resources in 0008]
+Used for:
 
-### Messaging (0018)
-- `conversations` (id, kind, title, created_by, last_message_at, created_at)
-  - `kind` enum: direct | group; `title` is null for direct (auto-titled from participants)
-- `conversation_participants` (id, conversation_id, profile_id, last_read_at, joined_at)
-  - Unique constraint: (conversation_id, profile_id); unread = messages newer than `last_read_at`
-- `messages` (id, conversation_id, sender_id, body, created_at)
-  - `sender_id` nullable (set null on sender delete); cascades on conversation delete
+- capability resolution
+- future persona expansion
+- scoped access such as mentor relationships
 
----
+Operational notes:
 
-## Helper Functions
+- global persona rows are synchronized to fixed identity on create and restore
+- scoped persona rows are also used for relationship-based access such as mentor-to-student visibility
+- revocation inactivates all scopes, not only global rows
 
-### Authentication Helpers
-- `current_app_role()` -> user_role
-  - Returns: role from profiles where auth_user_id = auth.uid()
+### `capability_overrides`
 
-- `current_status()` -> user_status
-  - Returns: status from profiles where auth_user_id = auth.uid()
+Purpose:
 
-- `is_active_admin()` -> boolean
-  - Returns: exists profile where role='admin' AND status='active' AND auth_user_id=auth.uid()
+- explicit per-profile allow and deny overrides over the persona baseline
 
-### Scope Helpers (Require Active + Link Active)
-- `is_enrolled(p_class_id uuid)` -> boolean
-  - Checks: enrollment exists AND profile.status='active' AND enrollment.active=true
+Operational notes:
 
-- `teaches_class(p_class_id uuid)` -> boolean
-  - Checks: class_tutors link exists AND profile.status='active' AND class_tutors.active=true
+- current live use is global override scope
+- hard capabilities are not override-grantable
+- admin-facing capability tooling currently reflects global capability state, not every scoped access path
 
-- `mentors_student(p_student_id uuid)` -> boolean
-  - Checks: mentorship link exists AND profile.status='active' AND mentorship.active=true
+## Academic structure
 
-### Self-Access Helper (0011 Hardening)
-- `is_self_active(p_id uuid)` -> boolean
-  - Checks: profile.id=p_id AND auth_user_id=auth.uid() AND status='active'
-  - Purpose: Gate self-read on disabled users
+### `classes`
 
----
+Purpose:
 
-## Existing RLS Patterns (0001-0016)
+- class lifecycle and class identity
 
-### Pattern 1: Admin Override + Role-Based Access
-```sql
-create policy TABLE_read on TABLE for select using (
-  is_active_admin()
-  or (role-based check)
-  or (self-read with is_self_active)
-);
-```
+### `enrollments`
 
-### Pattern 2: Status Check via Helper
-```sql
--- Use is_enrolled(), teaches_class(), mentors_student()
--- These already check status='active' internally
-or is_enrolled(class_id)
-or teaches_class(class_id)
-or mentors_student(student_id)
-```
+Purpose:
 
-### Pattern 3: Self-Read with Active Hardening
-```sql
--- Use is_self_active() for disabled-user protection
-or is_self_active(student_id)
-```
+- student-to-class relationship
 
-### Pattern 4: Via Join (Fallback for Computed Reads)
-```sql
-or exists (
-  select 1 from profiles p
-  where p.id = child_table.user_id
-    and p.auth_user_id = auth.uid()
-    and p.status = 'active'
-)
-```
+### `class_tutors`
 
----
+Purpose:
 
-## Persona model (0014-0017)
+- tutor-to-class relationship
 
-The persona model was added on top of the base schema:
-- `0014` — `persona_assignments` table, `persona_name` / `persona_scope_type` enums
-- `0015` — populate personas from `profiles.role` and `mentorships`
-- `0016` — persona helper functions (`user_has_persona`, `user_is_admin`, `user_is_mentor_for_student`)
-- `0017` — persona-era RLS hardening (disabled-user, settings, and finance)
+### `mentorships`
 
-See [persona-model.md](./persona-model.md) for the design and rationale.
+Purpose:
 
-## Constraints for future migrations
+- mentor-to-student relationship
 
-1. Use only helpers that exist in the current chain (`is_self_active`, `is_active_admin`,
-   `teaches_class`, `mentors_student`, `user_has_persona`, …).
-2. Reference only columns/tables that actually exist.
-3. Match actual policy names from base migrations when replacing policies.
-4. Use ASCII-only comments.
-5. Keep RLS policy changes and schema (table/column) changes in separate migrations.
+Notes:
 
+- `mentor_id` is the supervising party
+- mentors may be dedicated mentors or tutors who also mentor
+- revoking a mentor disables these links in the current workflow
+- restoring a revoked mentor does not automatically reactivate prior links in the current workflow
+
+## Content and learning records
+
+### `announcements`
+
+- class-scoped or academy-wide stream posts
+
+### `resources`
+
+- class materials and resource links
+
+### `assignments`
+
+- classwork definition
+
+### `submissions`
+
+- student assignment submissions
+- includes grading fields
+- includes `is_active` for versioning / replacement semantics
+
+### `comments`
+
+- contextual discussion attached to:
+  - submissions
+  - resources
+  - meet links
+
+### `attendance`
+
+- per-class, per-student, per-session attendance records
+
+## Messaging and notifications
+
+### `conversations`
+
+Purpose:
+
+- direct and group conversation containers
+
+Current model includes:
+
+- `kind`
+- `title`
+- `last_message_at`
+- `last_message_body`
+- `last_message_sender_id`
+- `direct_key`
+
+### `conversation_participants`
+
+Purpose:
+
+- conversation membership
+- unread watermark through `last_read_at`
+
+### `messages`
+
+Purpose:
+
+- immutable thread messages
+
+### `notifications`
+
+Purpose:
+
+- in-app notification feed
+- self-readable notification records
+- read-state updates only for end users
+
+## Finance and organization
+
+### `org_settings`
+
+- organization-wide display and finance settings
+
+### `receipts`
+
+- student-side finance documents
+
+### `receipt_lines`
+
+- receipt line items
+
+### `payslips`
+
+- tutor and mentor payout documents
+
+### `payslip_lines`
+
+- payslip line items
+
+### `document_counters`
+
+- atomic numbering support for finance documents
+
+## Workflow and operational tables
+
+### `reminders`
+
+- self-scoped reminder records
+
+### `audit_log`
+
+- privileged action tracking
+
+### `timetable_slots`
+
+- recurring timetable structure
+
+### `calendar_events`
+
+- dated event records
+
+## Helper-function model
+
+The application relies on helper functions to keep app auth and RLS aligned.
+
+Important families:
+
+- current actor helpers
+- self-active helpers
+- class-scope helpers
+- persona helpers
+- admin authority helpers
+
+Examples of important helpers:
+
+- `current_profile_id()`
+- `is_self_active(...)`
+- `is_enrolled(...)`
+- `teaches_class(...)`
+- `mentors_student(...)`
+- `user_has_persona(...)`
+- `user_is_admin(...)`
+- `is_active_admin()`
+
+Important current rule:
+
+- `is_active_admin()` is part of the unified admin authority model and must stay aligned with `user_is_admin(...)`
+
+## RLS model summary
+
+The database trust boundary is RLS.
+
+The broad access patterns are:
+
+1. self-scoped read and limited self-update
+2. class-scope access for tutors and enrolled students
+3. relationship-scope access for mentors
+4. admin-wide access where intended
+
+For exact policy names and verification expectations, use:
+
+- [rls-policy-inventory.md](./rls-policy-inventory.md)
+
+## Important notes for future changes
+
+1. Use the migration chain as truth, not older phase notes.
+2. Keep schema changes and policy changes explicit and reviewable.
+3. Update this document whenever:
+   - a new table is added
+   - helper-function authority changes
+   - persona or capability support changes
+   - a new user-facing domain is introduced
+4. If a fully exhaustive table or function snapshot is needed later, add it as a separate generated or maintenance-heavy document rather than overloading this summary.
+
+## Related docs
+
+- [persona-model.md](./persona-model.md)
+- [rls-policy-inventory.md](./rls-policy-inventory.md)
+- [workflow-invariants.md](./workflow-invariants.md)
