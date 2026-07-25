@@ -4,11 +4,11 @@ import { createAnnouncementSchema } from '@/lib/validation/announcement'
 import { createClassSchema } from '@/lib/validation/class'
 
 describe('addUserSchema', () => {
-  it('accepts a valid teacher', () => {
-    expect(addUserSchema.safeParse({ email: 'a@b.com', role: 'teacher' }).success).toBe(true)
+  it('accepts a valid tutor', () => {
+    expect(addUserSchema.safeParse({ email: 'a@b.com', role: 'tutor' }).success).toBe(true)
   })
   it('rejects a bad email', () => {
-    expect(addUserSchema.safeParse({ email: 'nope', role: 'teacher' }).success).toBe(false)
+    expect(addUserSchema.safeParse({ email: 'nope', role: 'tutor' }).success).toBe(false)
   })
   it('rejects an invalid role', () => {
     expect(addUserSchema.safeParse({ email: 'a@b.com', role: 'root' }).success).toBe(false)
@@ -17,9 +17,7 @@ describe('addUserSchema', () => {
 
 describe('createAnnouncementSchema', () => {
   it('accepts a global announcement (null course)', () => {
-    expect(
-      createAnnouncementSchema.safeParse({ class_id: null, title: 'Hi', message: 'Welcome' }).success,
-    ).toBe(true)
+    expect(createAnnouncementSchema.safeParse({ class_id: null, title: 'Hi', message: 'Welcome' }).success).toBe(true)
   })
   it('rejects an empty title', () => {
     expect(createAnnouncementSchema.safeParse({ title: '', message: 'x' }).success).toBe(false)

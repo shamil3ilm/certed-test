@@ -1,35 +1,62 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const profile = { id: 'stud-1', email: 's@x.c', role: 'student', status: 'active' } as any
-vi.mock('@/lib/auth/profile', () => ({ getProfile: vi.fn(async () => profile) }))
+const requireCapabilityApi = vi.fn<(capability: string) => Promise<any>>().mockImplementation(async () => profile)
+vi.mock('@/lib/auth/require-role', () => ({
+  requireCapabilityApi: (capability: string) => requireCapabilityApi(capability),
+}))
 
 // org timezone anchor
-vi.mock('@/lib/services/finance/orgSettings', () => ({
+vi.mock('@/lib/services/finance/org-settings', () => ({
   getOrgSettings: vi.fn(async () => ({ timezone: 'Asia/Kolkata' })),
 }))
 
 // RLS-scoped repo reads (the route trusts RLS to scope; here we return fixed rows)
 const listSlots = vi.fn(async (..._a: any[]) => [
-  { id: 's-1', class_id: 'c-1', subject: 'Maths', teacher_id: null,
-    day_of_week: 1, start_time: '09:00', end_time: '10:00', mode_or_location: 'Room 1', active: true },
+  {
+    id: 's-1',
+    class_id: 'c-1',
+    subject: 'Maths',
+    tutor_id: null,
+    day_of_week: 1,
+    start_time: '09:00',
+    end_time: '10:00',
+    mode_or_location: 'Room 1',
+    active: true,
+  },
 ])
-vi.mock('@/lib/services/timetableSlots', () => ({ listSlots: (...a: any[]) => listSlots(...a) }))
+vi.mock('@/lib/services/timetable-slots', () => ({ listSlots: (opts?: unknown) => listSlots(opts) }))
 
 const listEvents = vi.fn(async (..._a: any[]) => [
-  { id: 'e-1', title: 'Holiday', event_date: '2026-07-13', start_time: null, end_time: null, class_id: null, kind: 'holiday' },
+  {
+    id: 'e-1',
+    title: 'Holiday',
+    event_date: '2026-07-13',
+    start_time: null,
+    end_time: null,
+    class_id: null,
+    kind: 'holiday',
+  },
 ])
-vi.mock('@/lib/services/calendarEvents', () => ({ listEvents: (...a: any[]) => listEvents(...a) }))
+vi.mock('@/lib/services/calendar-events', () => ({ listEvents: (opts?: unknown) => listEvents(opts) }))
 
 const listAssignments = vi.fn(async (..._a: any[]) => [
   { id: 'a-1', class_id: 'c-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', status: 'active' },
 ])
-vi.mock('@/lib/services/assignments', () => ({ listAssignments: (...a: any[]) => listAssignments(...a) }))
+vi.mock('@/lib/services/assignments', () => ({ listAssignments: (opts?: unknown) => listAssignments(opts) }))
 
 import { GET } from '@/app/api/calendar/route'
 
 const req = (qs: string) => new Request(`http://t/api/calendar${qs}`)
 
-beforeEach(() => { profile.status = 'active' })
+beforeEach(() => {
+  profile.status = 'active'
+  requireCapabilityApi.mockReset()
+  requireCapabilityApi.mockImplementation(async () => {
+    if (profile.status !== 'active') throw new Error('no-access')
+    return profile
+  })
+})
 
 describe('GET /api/calendar', () => {
   it('rejects a missing from/to range with 400', async () => {

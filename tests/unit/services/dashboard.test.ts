@@ -1,0 +1,251 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Capability } from '@/lib/capabilities'
+
+vi.mock('@/lib/money', () => ({
+  formatMoney: vi.fn((amount: number, currency: string) => `${currency}:${amount}`),
+  formatMoneyTotals: vi.fn((totals: { currency: string; live_total: number }[], fallback = 'INR') =>
+    totals.length ? totals.map((t) => `${t.currency}:${t.live_total}`).join(' + ') : `${fallback}:0`,
+  ),
+}))
+vi.mock('@/lib/time/format', () => ({ todayInZone: vi.fn(() => '2026-07-16') }))
+vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForTutor: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
+vi.mock('@/lib/services/finance/org-settings', () => ({ getInstituteTimeZone: vi.fn(async () => 'Asia/Kolkata') }))
+vi.mock('@/lib/services/calendar-events', () => ({ listEvents: vi.fn() }))
+vi.mock('@/lib/services/classes', () => ({ countActiveClasses: vi.fn(), listClassesByIds: vi.fn() }))
+vi.mock('@/lib/services/enrollments', () => ({ countEnrollmentsPerClass: vi.fn() }))
+vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotals: vi.fn() }))
+vi.mock('@/lib/services/reminders', () => ({ listMyPastReminders: vi.fn(), listMyReminders: vi.fn() }))
+vi.mock('@/lib/services/users', () => ({ countPeople: vi.fn(), getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
+
+import { listEvents } from '@/lib/services/calendar-events'
+import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
+import { loadPersonaFlags } from '@/lib/permission/personas'
+import { countActiveClasses, listClassesByIds } from '@/lib/services/classes'
+import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
+import { financeTotals } from '@/lib/services/finance/finance-docs'
+import { listMyPastReminders, listMyReminders } from '@/lib/services/reminders'
+import { countPeople, getProfileNamesByIds } from '@/lib/services/users'
+import { studentIdsOfMentor } from '@/lib/services/mentorships'
+import { loadDashboardViewData, loadDashboardMentees } from '@/lib/services/page-data/dashboard'
+
+const caps = (...names: Capability[]) => new Set<Capability>(names)
+const flags = (
+  input: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isStudent' | 'hasMentorAuthority', boolean>>,
+) =>
+  ({
+    personas: [],
+    isAdmin: false,
+    isSubAdmin: false,
+    isTutor: false,
+    isManager: false,
+    isStudent: false,
+    isMentor: false,
+    hasMentorAuthority: false,
+    ...input,
+  }) as any
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(selectActiveClassIdsForTutor).mockResolvedValue([])
+})
+
+describe('loadDashboardViewData', () => {
+  it('loads and shapes the admin dashboard view model', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isAdmin: true }))
+    vi.mocked(listEvents).mockResolvedValueOnce([
+      { id: 'e1', title: 'Exam', event_date: '2026-07-16', kind: 'exam' },
+    ] as any)
+    vi.mocked(listMyReminders).mockResolvedValueOnce([{ id: 'r1' }] as any)
+    vi.mocked(listMyPastReminders).mockResolvedValueOnce([{ id: 'r2' }] as any)
+    vi.mocked(countPeople).mockResolvedValueOnce({ students: 10, tutors: 2, pending: 1 } as any)
+    vi.mocked(countActiveClasses).mockResolvedValueOnce(3 as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([
+      { id: 'c1', name: 'Math', status: 'active' },
+      { id: 'c3', name: 'English', status: 'active' },
+    ] as any)
+    vi.mocked(countEnrollmentsPerClass).mockResolvedValueOnce(
+      new Map([
+        ['c1', 22],
+        ['c3', 17],
+      ]) as any,
+    )
+    vi.mocked(financeTotals)
+      .mockResolvedValueOnce([{ live_total: 1200, currency: 'INR' }] as any)
+      .mockResolvedValueOnce([{ live_total: 400, currency: 'INR' }] as any)
+
+    await expect(
+      loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps('viewUsers', 'viewFinance')),
+    ).resolves.toEqual({
+      kind: 'admin',
+      upcoming: [{ id: 'e1', title: 'Exam', event_date: '2026-07-16', kind: 'exam' }],
+      reminders: [{ id: 'r1' }],
+      pastReminders: [{ id: 'r2' }],
+      peopleCounts: { students: 10, tutors: 2, pending: 1 },
+      activeClassCount: 3,
+      perClass: [
+        { label: 'Math', value: 22 },
+        { label: 'English', value: 17 },
+      ],
+      revenueLabel: 'INR:1200',
+      payoutLabel: 'INR:400',
+    })
+  })
+
+  it('omits admin user and finance aggregates when those capabilities are denied', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isAdmin: true }))
+    vi.mocked(listEvents).mockResolvedValueOnce([] as any)
+    vi.mocked(listMyReminders).mockResolvedValueOnce([] as any)
+    vi.mocked(listMyPastReminders).mockResolvedValueOnce([] as any)
+    vi.mocked(countActiveClasses).mockResolvedValueOnce(3 as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([{ id: 'c1', name: 'Math', status: 'active' }] as any)
+    vi.mocked(countEnrollmentsPerClass).mockResolvedValueOnce(new Map([['c1', 22]]) as any)
+
+    await expect(loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps())).resolves.toEqual({
+      kind: 'admin',
+      upcoming: [],
+      reminders: [],
+      pastReminders: [],
+      peopleCounts: null,
+      activeClassCount: 3,
+      perClass: [{ label: 'Math', value: 22 }],
+      revenueLabel: null,
+      payoutLabel: null,
+    })
+    expect(countPeople).not.toHaveBeenCalled()
+    expect(financeTotals).not.toHaveBeenCalled()
+  })
+
+  it('loads the sub-admin dashboard counts only', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isSubAdmin: true }))
+    vi.mocked(countPeople).mockResolvedValueOnce({ students: 9, tutors: 4, pending: 2 } as any)
+
+    await expect(loadDashboardViewData({ id: 'sub-1', role: 'sub_admin' } as any, caps('viewUsers'))).resolves.toEqual({
+      kind: 'sub_admin',
+      canViewUsers: true,
+      students: 9,
+      tutors: 4,
+      pending: 2,
+    })
+    expect(listEvents).not.toHaveBeenCalled()
+  })
+
+  it('suppresses sub-admin user aggregates when viewUsers is revoked', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isSubAdmin: true }))
+    await expect(loadDashboardViewData({ id: 'sub-1', role: 'sub_admin' } as any, caps())).resolves.toEqual({
+      kind: 'sub_admin',
+      canViewUsers: false,
+      students: 0,
+      tutors: 0,
+      pending: 0,
+    })
+    expect(countPeople).not.toHaveBeenCalled()
+  })
+
+  it('returns the tutor view kind for a tutor with no mentees, without admin aggregates', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isTutor: true }))
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce([]) // no mentees -> stays 'tutor'
+
+    await expect(loadDashboardViewData({ id: 'tutor-1', role: 'tutor' } as any, caps())).resolves.toEqual({
+      kind: 'tutor',
+    })
+    expect(countPeople).not.toHaveBeenCalled()
+  })
+
+  it('refines a tutor WITH mentees to the mentor view kind (mentees + teaching)', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isTutor: true, hasMentorAuthority: true }))
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1'])
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara']]))
+
+    await expect(loadDashboardViewData({ id: 'mentor-1', role: 'tutor' } as any, caps())).resolves.toEqual({
+      kind: 'mentor',
+      mentees: [{ id: 's-1', name: 'Sara' }],
+      teaches: true, // a tutor who mentors keeps the teaching widgets
+    })
+  })
+
+  it('resolves a dedicated mentor account to the mentor view without teaching widgets', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ hasMentorAuthority: true }))
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1', 's-2'])
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+      new Map([
+        ['s-1', 'Sara'],
+        ['s-2', 'Sam'],
+      ]),
+    )
+
+    await expect(loadDashboardViewData({ id: 'maya-mentor', role: 'mentor' } as any, caps())).resolves.toEqual({
+      kind: 'mentor',
+      mentees: [
+        { id: 's-1', name: 'Sara' },
+        { id: 's-2', name: 'Sam' },
+      ],
+      teaches: false, // a dedicated mentor teaches nothing
+    })
+  })
+
+  it('resolves a dedicated mentor with no mentees yet to the mentor view instead of crashing', async () => {
+    // A freshly-provisioned mentor holds the global mentor persona (mentor
+    // authority) but has no mentorships until an admin assigns one. This must
+    // land on the mentor dashboard, not throw identity_unmapped and 500 the
+    // landing page.
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ hasMentorAuthority: true }))
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce([])
+
+    await expect(loadDashboardViewData({ id: 'new-mentor', role: 'mentor' } as any, caps())).resolves.toEqual({
+      kind: 'mentor',
+      mentees: [],
+      teaches: false,
+    })
+  })
+
+  it('keeps a teaching mentor on the mentor dashboard with tutor widgets', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ hasMentorAuthority: true }))
+    vi.mocked(selectActiveClassIdsForTutor).mockResolvedValueOnce(['c-1'])
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1'])
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara']]))
+
+    await expect(loadDashboardViewData({ id: 'mentor-1', role: 'mentor' } as any, caps())).resolves.toEqual({
+      kind: 'mentor',
+      mentees: [{ id: 's-1', name: 'Sara' }],
+      teaches: true,
+    })
+  })
+
+  it('returns the student view for a student persona', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isStudent: true }))
+    await expect(loadDashboardViewData({ id: 'student-1', role: 'student' } as any, caps())).resolves.toEqual({
+      kind: 'student',
+    })
+  })
+
+  it('throws for an unmapped persona state instead of silently showing the student dashboard', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({}))
+    await expect(loadDashboardViewData({ id: 'mystery-1', role: 'student' } as any, caps())).rejects.toThrow(
+      'dashboard.identity_unmapped',
+    )
+  })
+})
+
+describe('loadDashboardMentees', () => {
+  it('returns empty and skips the name lookup when the actor mentors nobody', async () => {
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce([])
+    await expect(loadDashboardMentees({ id: 'tutor-1' } as any)).resolves.toEqual([])
+    expect(getProfileNamesByIds).not.toHaveBeenCalled()
+  })
+
+  it('resolves the actor own mentees to id + name, preserving order', async () => {
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1', 's-2'])
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+      new Map([
+        ['s-1', 'Sara'],
+        ['s-2', 'Sam'],
+      ]),
+    )
+    await expect(loadDashboardMentees({ id: 'mentor-1' } as any)).resolves.toEqual([
+      { id: 's-1', name: 'Sara' },
+      { id: 's-2', name: 'Sam' },
+    ])
+  })
+})

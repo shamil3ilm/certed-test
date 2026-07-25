@@ -1,20 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabaseQueryBuilder'
+import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
-vi.mock('@/lib/repos/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { writeAudit } from '@/lib/repos/audit'
-import { createAssignment, archiveAssignment, editAssignment } from '@/lib/services/assignments'
-import { PermissionError, NotFoundError } from '@/lib/errors'
+import { writeAudit } from '@/lib/data/audit'
+import {
+  createAssignment,
+  createAssignmentFromApiInput,
+  archiveAssignment,
+  archiveAssignmentFromActionInput,
+  editAssignment,
+  editAssignmentFromActionInput,
+  listAssignments,
+  validateCreateAssignmentInput,
+  validateArchiveAssignmentInput,
+  validateEditAssignmentInput,
+} from '@/lib/services/assignments'
+import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
-const actor = { id: 'teacher-1', email: 't@x.c', role: 'teacher', status: 'active' } as any
+const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const assignmentRow = {
-  id: 'a-1', class_id: 'class-1', title: 'HW', description: null, due_date: '2026-07-20T00:00:00.000Z',
-  attachment_drive_link: null, topic: null, max_marks: 100, created_by: 'teacher-1', status: 'active', created_at: 't',
+  id: 'a-1',
+  class_id: 'class-1',
+  title: 'HW',
+  description: null,
+  due_date: '2026-07-20T00:00:00.000Z',
+  attachment_drive_link: null,
+  topic: null,
+  max_marks: 100,
+  created_by: 'tutor-1',
+  status: 'active',
+  created_at: 't',
 }
 
 beforeEach(() => vi.resetAllMocks())
@@ -32,10 +54,18 @@ describe('createAssignment', () => {
   it('creates and audits assignment.create for a manager (explicit gate — RLS alone was the prior guard)', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
-    const created = await createAssignment(actor, { class_id: 'class-1', title: 'HW', description: null, due_date: 't' })
+    const created = await createAssignment(actor, {
+      class_id: 'class-1',
+      title: 'HW',
+      description: null,
+      due_date: 't',
+    })
     expect(created.id).toBe('a-1')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'teacher-1', action: 'assignment.create', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.create',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
   })
 
@@ -45,7 +75,52 @@ describe('createAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(client as any)
     await createAssignment(actor, { class_id: 'class-1', title: 'HW', description: null, due_date: 't' })
     const builder = client.from.mock.results[0].value
-    expect(builder.insert).toHaveBeenCalledWith(expect.objectContaining({ created_by: 'teacher-1' }))
+    expect(builder.insert).toHaveBeenCalledWith(expect.objectContaining({ created_by: 'tutor-1' }))
+  })
+})
+
+describe('createAssignment API-input helpers', () => {
+  it('validates API payloads and normalizes the assignment create shape', () => {
+    expect(
+      validateCreateAssignmentInput({
+        class_id: '550e8400-e29b-41d4-a716-446655440000',
+        title: 'Homework',
+        description: 'Solve all',
+        due_date: '2026-07-20T00:00:00.000Z',
+        attachment_drive_link: 'https://example.com/brief',
+        topic: 'Chapter 1',
+        max_marks: 100,
+      }),
+    ).toEqual({
+      class_id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'Homework',
+      description: 'Solve all',
+      due_date: '2026-07-20T00:00:00.000Z',
+      attachment_drive_link: 'https://example.com/brief',
+      topic: 'Chapter 1',
+      max_marks: 100,
+    })
+  })
+
+  it('rejects invalid create payloads with a typed validation error', () => {
+    expect(() =>
+      validateCreateAssignmentInput({
+        class_id: 'bad',
+        title: '',
+        due_date: 'bad',
+      }),
+    ).toThrow(ValidationError)
+  })
+
+  it('delegates validated API input into the assignment create flow', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
+    const created = await createAssignmentFromApiInput(actor, {
+      class_id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'HW',
+      due_date: '2026-07-20T00:00:00.000Z',
+    })
+    expect(created.id).toBe('a-1')
   })
 })
 
@@ -69,7 +144,10 @@ describe('archiveAssignment / editAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveAssignment(actor, 'a-1', 'archived')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'teacher-1', action: 'assignment.archive', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.archive',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
@@ -77,7 +155,10 @@ describe('archiveAssignment / editAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await archiveAssignment(actor, 'a-1', 'active')
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'teacher-1', action: 'assignment.restore', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.restore',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
     })
   })
 
@@ -87,7 +168,133 @@ describe('archiveAssignment / editAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await editAssignment(actor, 'a-1', { title: 'New' })
     expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'teacher-1', action: 'assignment.edit', entity_type: 'assignment', entity_id: 'a-1',
+      actor_id: 'tutor-1',
+      action: 'assignment.edit',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
+    })
+  })
+
+  it('edits a due date atomically via the reclassify RPC, and audits on success', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any) // requireManageable read
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    // Changing the due date takes the atomic path: one edit_assignment_and_reclassify
+    // RPC that updates the assignment AND re-stamps its submissions in one txn.
+    const admin = makeClient({ data: null, error: null }, { data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
+    await editAssignment(actor, 'a-1', { due_date: '2026-08-01T00:00:00.000Z' })
+    expect(admin.rpc).toHaveBeenCalledWith('edit_assignment_and_reclassify', expect.objectContaining({ p_id: 'a-1' }))
+    expect(writeAudit).toHaveBeenCalledWith({
+      actor_id: 'tutor-1',
+      action: 'assignment.edit',
+      entity_type: 'assignment',
+      entity_id: 'a-1',
+    })
+  })
+
+  it('surfaces an atomic edit+reclassify failure and does not audit (the DB rolled both back)', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any) // requireManageable read
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    // RPC fails -> its transaction rolled back BOTH the assignment and the
+    // submissions, so there is no app-side rollback to perform; the error just
+    // propagates and nothing is audited.
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'reclassify failed' } }) as any,
+    )
+    await expect(editAssignment(actor, 'a-1', { due_date: '2026-08-01T00:00:00.000Z' })).rejects.toThrow(
+      'assignments.editAndReclassify: reclassify failed',
+    )
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+})
+
+describe('listAssignments', () => {
+  it('filters by classIds via .in() when given a set of classes (the grading queue)', async () => {
+    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null })) }
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await listAssignments({ classIds: ['class-1', 'class-2'] })
+    const builder = client.from.mock.results[0].value
+    expect(builder.in).toHaveBeenCalledWith('class_id', ['class-1', 'class-2'])
+  })
+})
+
+describe('assignment action-input helpers', () => {
+  it('validates archive payloads from the action layer', () => {
+    expect(
+      validateArchiveAssignmentInput({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        status: 'active',
+      }),
+    ).toEqual({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'active',
+    })
+  })
+
+  it('validates edit payloads and normalizes the patch', () => {
+    expect(
+      validateEditAssignmentInput({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        title: ' Homework ',
+        description: ' Solve all ',
+        due_date: '2026-07-20T00:00:00.000Z',
+        attachment_drive_link: 'https://example.com/brief',
+      }),
+    ).toEqual({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      patch: {
+        title: 'Homework',
+        description: 'Solve all',
+        due_date: '2026-07-20T00:00:00.000Z',
+        attachment_drive_link: 'https://example.com/brief',
+        topic: null,
+        max_marks: null,
+      },
+    })
+  })
+
+  it('rejects invalid edit payloads with a typed validation error', () => {
+    expect(() =>
+      validateEditAssignmentInput({
+        id: 'bad',
+        title: '',
+        description: '',
+        due_date: 'bad',
+        attachment_drive_link: 'javascript:alert(1)',
+      }),
+    ).toThrow(ValidationError)
+  })
+
+  it('delegates archive/edit action input through the service boundary', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    await archiveAssignmentFromActionInput(actor, {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'archived',
+    })
+    expect(writeAudit).toHaveBeenLastCalledWith({
+      actor_id: 'tutor-1',
+      action: 'assignment.archive',
+      entity_type: 'assignment',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
+    })
+
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    await editAssignmentFromActionInput(actor, {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      title: ' Homework ',
+      description: ' Solve all ',
+      due_date: '2026-07-20T00:00:00.000Z',
+      attachment_drive_link: 'https://example.com/brief',
+    })
+    expect(writeAudit).toHaveBeenLastCalledWith({
+      actor_id: 'tutor-1',
+      action: 'assignment.edit',
+      entity_type: 'assignment',
+      entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
   })
 })
