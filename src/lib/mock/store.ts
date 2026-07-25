@@ -34,7 +34,7 @@ function load(): MockDb {
       if (changed) persist()
       return holder[KEY]!
     } catch {
-      /* corrupt file → fall through and reseed */
+      /* corrupt file -> fall through and reseed */
     }
   }
   holder[KEY] = buildSeed()

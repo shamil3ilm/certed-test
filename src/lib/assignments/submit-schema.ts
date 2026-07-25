@@ -6,5 +6,3 @@ export const submissionInputSchema = z.object({
   url: linkUrl,
   file_name: z.string().trim().max(255).optional(),
 })
-
-export type SubmissionInput = z.infer<typeof submissionInputSchema>

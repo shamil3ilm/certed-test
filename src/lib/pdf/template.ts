@@ -1,4 +1,5 @@
 import { formatMoney } from '@/lib/money'
+import { BRAND_COLORS } from '@/lib/brand/tokens'
 
 export type DocLine = { label: string; hours: number; rate: number; amount: number }
 
@@ -33,11 +34,11 @@ export type BrandAssets = { louisGeorge: string; daggerSquare: string; logo: str
 
 // Match the on-screen brand tokens (globals.css --primary / --secondary) so the
 // printed receipt/pay slip reads the same as the app.
-const NAVY = '#124d7e'
-const BLUE = '#50b5e1'
+const NAVY = BRAND_COLORS.primary
+const BLUE = BRAND_COLORS.secondary
 
 function esc(s: string): string {
-  // Escapes quotes too — instituteName is interpolated into an alt="" attribute,
+  // Escapes quotes too - instituteName is interpolated into an alt="" attribute,
   // and every field here can derive from a self-edited full_name.
   return s
     .replace(/&/g, '&amp;')
@@ -48,7 +49,7 @@ function esc(s: string): string {
 }
 
 function buildHtml(
-  partyLabel: 'STUDENT' | 'TEACHER',
+  partyLabel: 'STUDENT' | 'TUTOR',
   showClass: boolean,
   doc: FinanceDoc,
   org: OrgInfo,
@@ -133,7 +134,7 @@ function buildHtml(
         ${
           org.bankAccount
             ? `<div style="font-size:11px;letter-spacing:1.4px;color:#98a2b3;font-weight:700;">PAYMENT DETAILS</div>
-               <div style="margin-top:8px;font-size:13px;line-height:1.8;color:#475467;">Account ${esc(org.bankAccount)}<br>IFSC ${esc(org.bankIfsc ?? '')} · ${esc(org.bankBranch ?? '')}</div>`
+               <div style="margin-top:8px;font-size:13px;line-height:1.8;color:#475467;">Account ${esc(org.bankAccount)}<br>IFSC ${esc(org.bankIfsc ?? '')} - ${esc(org.bankBranch ?? '')}</div>`
             : ''
         }
       </div>
@@ -149,5 +150,5 @@ export function buildReceiptHtml(doc: FinanceDoc, org: OrgInfo, assets: BrandAss
 }
 
 export function buildPayslipHtml(doc: FinanceDoc, org: OrgInfo, assets: BrandAssets): string {
-  return buildHtml('TEACHER', false, doc, org, assets)
+  return buildHtml('TUTOR', false, doc, org, assets)
 }

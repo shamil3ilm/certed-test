@@ -12,9 +12,9 @@ let cached: { daggerSquare: string; louisGeorge: string; logo: string } | null =
 export function brandAssets() {
   if (!cached) {
     cached = {
-      daggerSquare: base64('public/fonts/DAGGERSQUARE.otf'),
-      louisGeorge: base64('public/fonts/louis-george-cafe.regular.ttf'),
-      logo: base64('public/lockups/logo_h.png'),
+      daggerSquare: base64('src/lib/pdf/assets/DAGGERSQUARE.otf'),
+      louisGeorge: base64('src/lib/pdf/assets/louis-george-cafe.regular.ttf'),
+      logo: base64('src/lib/pdf/assets/logo_h.png'),
     }
   }
   return cached

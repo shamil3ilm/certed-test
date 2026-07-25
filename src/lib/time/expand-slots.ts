@@ -9,20 +9,20 @@
  */
 export type ExpandableSlot = {
   id: string
-  day_of_week: number   // 0=Sun .. 6=Sat
-  start_time: string    // "HH:mm" or "HH:mm:ss"
+  day_of_week: number // 0=Sun .. 6=Sat
+  start_time: string // "HH:mm" or "HH:mm:ss"
   end_time: string
 }
 
 export type SlotOccurrence = {
   slotId: string
-  startIso: string      // absolute UTC instant
-  endIso: string        // absolute UTC instant
+  startIso: string // absolute UTC instant
+  endIso: string // absolute UTC instant
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// Parse "HH:mm[:ss]" → { h, m }.
+// Parse "HH:mm[:ss]" -> { h, m }.
 function parseHm(t: string): { h: number; m: number } {
   const [h, m] = t.split(':')
   return { h: Number(h), m: Number(m) }
@@ -32,9 +32,14 @@ function parseHm(t: string): { h: number; m: number } {
 // Uses Intl to read the zoned wall-clock fields back, which is DST-correct.
 function tzOffsetMs(instantMs: number, tz: string): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   })
   const parts = dtf.formatToParts(new Date(instantMs))
   const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
@@ -54,7 +59,11 @@ function zonedWallClockToUtcMs(y: number, mo: number, d: number, h: number, mi: 
 // Y/M/D weekday (0=Sun) of an instant interpreted in `tz`.
 function zonedYmdWeekday(instantMs: number, tz: string): { y: number; mo: number; d: number; wd: number } {
   const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   })
   const parts = dtf.formatToParts(new Date(instantMs))
   const get = (t: string) => parts.find((p) => p.type === t)!.value
@@ -75,7 +84,7 @@ export function expandSlots(
   const occ: SlotOccurrence[] = []
   const seen = new Set<string>()
   // Iterate calendar days IN THE ANCHOR ZONE. We sample one instant per 24h hop and read its
-  // zoned Y/M/D + weekday — but UTC-midnight maps to the previous local day for west-of-UTC
+  // zoned Y/M/D + weekday - but UTC-midnight maps to the previous local day for west-of-UTC
   // zones, so we pad the scan by a day on each side and keep only occurrences whose absolute
   // instant lands within [startMs, endMs). Dedupe by (slot, instant) guards DST-boundary days.
   for (let cursor = startMs - DAY_MS; cursor < endMs + DAY_MS; cursor += DAY_MS) {

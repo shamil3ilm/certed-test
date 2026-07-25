@@ -1,10 +1,13 @@
 import { z } from 'zod'
-import { hhmm } from '@/lib/validation/timetableSlot'
+import { hhmm } from '@/lib/validation/timetable-slot'
+import { isCalendarDate } from '@/lib/time/format'
 
 // "YYYY-MM-DD" calendar date (interpreted as a wall-clock date in org_settings.timezone).
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+// isCalendarDate also rejects roll-over dates (2026-02-30, 2026-13-45) that a bare
+// format regex would let through to the Postgres `date` column as a 500.
+const isoDate = z.string().refine(isCalendarDate, 'must be a valid YYYY-MM-DD date')
 
-export const calendarEventKind = z.enum(['event', 'holiday', 'cancellation', 'reschedule'])
+const calendarEventKind = z.enum(['event', 'holiday', 'cancellation', 'reschedule'])
 
 export const createEventSchema = z
   .object({

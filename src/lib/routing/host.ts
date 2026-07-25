@@ -1,4 +1,4 @@
-export type HostKind = 'app' | 'marketing'
+type HostKind = 'app' | 'marketing'
 
 /** Decides whether a request belongs to the app subdomain or the marketing site. */
 export function resolveHost(hostHeader: string | null | undefined): HostKind {

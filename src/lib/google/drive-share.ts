@@ -1,4 +1,4 @@
-export type ShareRequest = {
+type ShareRequest = {
   url: string
   method: 'POST'
   headers: Record<string, string>

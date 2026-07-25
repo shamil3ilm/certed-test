@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 import { isMock } from '@/lib/mock/env'
+import { supabaseAnonEnv } from '@/lib/env'
 import { getMockUidFromRequest } from '@/lib/mock/session'
 
 /**
@@ -17,19 +18,13 @@ export async function updateSession(request: NextRequest, response: NextResponse
 }
 
 async function getUserReal(request: NextRequest, response: NextResponse) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (toSet) =>
-          toSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          ),
-      },
+  const { url, anonKey } = supabaseAnonEnv()
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (toSet) => toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)),
     },
-  )
+  })
   const {
     data: { user },
   } = await supabase.auth.getUser()

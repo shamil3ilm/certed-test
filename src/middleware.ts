@@ -12,16 +12,13 @@ const PUBLIC_APP_PATHS = [
   '/api/contact', // public enquiry form; the handler rate-limits + honeypots itself
   '/api/dev/login', // dev-only mock sign-in (no-op unless MOCK_MODE)
   '/api/dev/logout',
-  '/api/cron', // Vercel Cron keepalive — the route enforces its own CRON_SECRET (fails closed)
+  '/api/cron', // Vercel Cron keepalive; the route enforces its own CRON_SECRET (fails closed)
 ]
 
 export async function middleware(request: NextRequest) {
-  // Until Supabase is configured, the portal is dormant — let the existing
+  // Until Supabase is configured, the portal is dormant; let the existing
   // marketing site serve every request untouched.
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  ) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return NextResponse.next()
   }
 
@@ -34,7 +31,7 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
 
   if (kind === 'marketing') {
-    // /api/contact is served on the marketing host (that's where the form lives) —
+    // /api/contact is served on the marketing host (that's where the form lives);
     // don't cross-host-redirect its POST, which would strip it to a GET/login.
     const isMarketing =
       MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/') || pathname === '/api/contact'
@@ -42,9 +39,7 @@ export async function middleware(request: NextRequest) {
       const hostHeader = request.headers.get('host') ?? ''
       const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
       const appHost = isLocal ? `app.${hostHeader}` : process.env.APP_HOSTNAME
-      return NextResponse.redirect(
-        new URL(`${isLocal ? 'http' : 'https'}://${appHost}${pathname}`, request.url),
-      )
+      return NextResponse.redirect(new URL(`${isLocal ? 'http' : 'https'}://${appHost}${pathname}`, request.url))
     }
     return response
   }
@@ -56,9 +51,7 @@ export async function middleware(request: NextRequest) {
     const hostHeader = request.headers.get('host') ?? ''
     const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
     const marketingHost = isLocal ? hostHeader.replace(/^app\./, '') : process.env.MARKETING_HOSTNAME
-    return NextResponse.redirect(
-      new URL(`${isLocal ? 'http' : 'https'}://${marketingHost}${pathname}`, request.url),
-    )
+    return NextResponse.redirect(new URL(`${isLocal ? 'http' : 'https'}://${marketingHost}${pathname}`, request.url))
   }
 
   // App host: refresh the Supabase session, then gate.
@@ -69,7 +62,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
   }
 
-  // The login page is for logged-OUT users only — bounce an active session home.
+  // The login page is for logged-out users only; bounce an active session home.
   if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }

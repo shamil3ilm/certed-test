@@ -1,18 +1,18 @@
 import 'server-only'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { isMock } from '@/lib/mock/env'
+import { supabaseServiceEnv } from '@/lib/env'
 import { createMockAdminClient } from '@/lib/mock/client'
 
 /**
- * Service-role client. Bypasses RLS — use ONLY in server code for admin
+ * Service-role client. Bypasses RLS - use ONLY in server code for admin
  * operations (adding users, revoking access, finance issuance). Never import
  * this into a client component.
  */
 export function createAdminClient() {
   if (isMock()) return createMockAdminClient()
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  )
+  const { url, serviceKey } = supabaseServiceEnv()
+  return createSupabaseClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 }

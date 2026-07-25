@@ -1,7 +1,10 @@
 import { z } from 'zod'
 import { linkUrl } from './url'
 
-const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'invalid datetime')
+// Strict ISO-8601 instant (the client sends new Date(...).toISOString()). Rejects
+// rollover/non-ISO strings like "2026-02-30" or "June 20 2026" that Date.parse
+// would silently accept and shift into the wrong stored due instant.
+const isoDate = z.string().datetime()
 
 export const createAssignmentSchema = z.object({
   class_id: z.string().uuid(),
@@ -10,7 +13,7 @@ export const createAssignmentSchema = z.object({
   due_date: isoDate, // absolute ISO instant (client converts its local input to UTC)
   attachment_drive_link: linkUrl.optional(),
   topic: z.string().max(60).optional(),
-  // Capped at the DB column precision numeric(6,2) → max 9999.99, so an oversized
+  // Capped at the DB column precision numeric(6,2) -> max 9999.99, so an oversized
   // value is rejected with a clear message instead of a Postgres overflow.
   max_marks: z.number().nonnegative().max(9999.99).optional(),
 })
