@@ -1,0 +1,121 @@
+import 'server-only'
+import type { Profile } from '@/lib/auth/profile'
+import { canManageClass } from '@/lib/permission'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { PermissionError, NotFoundError, RateLimitError } from '@/lib/errors'
+import { rateLimit } from '@/lib/security/rate-limit'
+import {
+  callEditAssignmentAndReclassify as editAssignmentAndReclassify,
+  insertAssignment,
+  updateAssignment,
+  updateAssignmentStatus,
+  type AssignmentPatch,
+} from '@/lib/data/assignments'
+import { getAssignment, type Assignment } from './queries'
+import {
+  validateArchiveAssignmentInput,
+  validateCreateAssignmentInput,
+  validateEditAssignmentInput,
+  type ArchiveAssignmentActionInput,
+  type CreateAssignmentApiInput,
+  type CreateAssignmentInput,
+  type EditAssignmentActionInput,
+} from './validation'
+
+/** Creating, archiving and editing an assignment. Every write is gated on
+ *  canManageClass and audited. Reads live in ./queries. */
+
+/**
+ * Explicit canManageClass gate - the route this replaces relied on RLS alone
+ * for insert authorization; every other write path in the app double-checks
+ * app-side too, so this closes that inconsistency (a hardening change, not
+ * just a mechanical move).
+ */
+export async function createAssignment(actor: Profile, input: CreateAssignmentInput): Promise<Assignment> {
+  // Throttle the write path per user, matching the calendar/timetable write
+  // services, so a client holding manageClassContent can't spam assignment inserts.
+  if (!rateLimit(`assignment-write:${actor.id}`, { limit: 60, windowMs: 60_000 }).ok) {
+    throw new RateLimitError('Too many assignment changes in a short time. Please wait a moment.')
+  }
+  if (!(await canManageClass(actor, input.class_id))) {
+    throw new PermissionError('Not allowed to create an assignment for this class.')
+  }
+  const created = await insertAssignment({
+    class_id: input.class_id,
+    title: input.title,
+    description: input.description,
+    due_date: input.due_date,
+    attachment_drive_link: input.attachment_drive_link ?? null,
+    topic: input.topic ?? null,
+    max_marks: input.max_marks ?? null,
+    status: 'active',
+    created_by: actor.id,
+  })
+  await auditPrivilegedAction(actor, 'assignment.create', 'assignment', created.id)
+  return created
+}
+
+export async function createAssignmentFromApiInput(
+  actor: Profile,
+  input: CreateAssignmentApiInput,
+): Promise<Assignment> {
+  return createAssignment(actor, validateCreateAssignmentInput(input))
+}
+
+/** Resolves an assignment and proves the actor may manage its class. Authorizing
+ *  against the assignment's OWN class - never a client-supplied class id. */
+async function requireManageable(actor: Profile, id: string): Promise<Assignment> {
+  const assignment = await getAssignment(id)
+  if (!assignment) throw new NotFoundError('Assignment not found')
+  if (!(await canManageClass(actor, assignment.class_id))) {
+    throw new PermissionError('Not authorized for this assignment')
+  }
+  return assignment
+}
+
+/** Soft archive / restore (reversible). */
+export async function archiveAssignment(actor: Profile, id: string, status: 'active' | 'archived'): Promise<void> {
+  await requireManageable(actor, id)
+  await updateAssignmentStatus(id, status)
+  await auditPrivilegedAction(actor, `assignment.${status === 'active' ? 'restore' : 'archive'}`, 'assignment', id)
+}
+
+export async function archiveAssignmentFromActionInput(
+  actor: Profile,
+  input: ArchiveAssignmentActionInput,
+): Promise<void> {
+  const parsed = validateArchiveAssignmentInput(input)
+  await archiveAssignment(actor, parsed.id, parsed.status)
+}
+
+export async function editAssignment(actor: Profile, id: string, patch: AssignmentPatch): Promise<void> {
+  const existing = await requireManageable(actor, id)
+
+  if (patch.due_date !== undefined && patch.due_date !== existing.due_date) {
+    // A moved deadline invalidates every stamped on-time/late verdict on this
+    // assignment's submissions. Update the assignment AND re-derive those
+    // verdicts in ONE database transaction (edit_assignment_and_reclassify,
+    // migration 0026), so the two can never disagree - no app-side rollback, no
+    // stale-snapshot overwrite. The full field set is sent (patch value where
+    // present, else the current value) since the RPC rewrites the whole row.
+    const field = <K extends keyof AssignmentPatch>(key: K): NonNullable<AssignmentPatch[K]> | null =>
+      (patch[key] !== undefined ? patch[key] : (existing[key as keyof Assignment] as AssignmentPatch[K])) ?? null
+    await editAssignmentAndReclassify(id, {
+      title: field('title') ?? existing.title,
+      description: field('description'),
+      due_date: patch.due_date,
+      attachment_drive_link: field('attachment_drive_link'),
+      topic: field('topic'),
+      max_marks: field('max_marks'),
+    })
+  } else {
+    await updateAssignment(id, patch)
+  }
+
+  await auditPrivilegedAction(actor, 'assignment.edit', 'assignment', id)
+}
+
+export async function editAssignmentFromActionInput(actor: Profile, input: EditAssignmentActionInput): Promise<void> {
+  const parsed = validateEditAssignmentInput(input)
+  await editAssignment(actor, parsed.id, parsed.patch)
+}

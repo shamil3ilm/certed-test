@@ -1,17 +1,38 @@
-import { createClient } from '@/lib/supabase/server'
+import { insertComment, selectForEntities, type CommentEntity, type CommentRow } from '@/lib/data/comments'
+import { ValidationError, RateLimitError } from '@/lib/errors'
 import { getProfilesByIds } from '@/lib/services/users'
+import { assertCanComment } from '@/lib/services/comment-auth'
+import { addCommentSchema } from '@/lib/validation/comment'
+import { rateLimit } from '@/lib/security/rate-limit'
+import type { Profile } from '@/lib/auth/profile'
 
-export type CommentEntity = 'submission' | 'resource' | 'meet'
+export type { CommentEntity } from '@/lib/data/comments'
 
-export type Comment = {
-  id: string
-  entity_type: CommentEntity
-  entity_id: string
-  author_id: string
-  content: string
-  created_at: string
+/** A stored comment plus the author details resolved for display. The name and
+ *  role are not columns - withAuthors fills them in. */
+export type Comment = CommentRow & {
   author_name?: string | null
   author_role?: string | null
+}
+
+type CreateCommentActionInput = {
+  entity_type?: FormDataEntryValue | null
+  entity_id?: FormDataEntryValue | null
+  content?: FormDataEntryValue | null
+}
+
+export function validateCreateCommentInput(input: CreateCommentActionInput) {
+  const parsed = addCommentSchema.safeParse({
+    entity_type: input.entity_type,
+    entity_id: input.entity_id,
+    content: input.content,
+  })
+
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid comment data: ${parsed.error.message}`)
+  }
+
+  return parsed.data
 }
 
 /** Resolve author names + roles in a single admin lookup (shared by both list fns). */
@@ -25,7 +46,7 @@ async function withAuthors(rows: Comment[]): Promise<Comment[]> {
 }
 
 /**
- * Comments for many entities of one type, keyed by entity id — one query and one
+ * Comments for many entities of one type, keyed by entity id - one query and one
  * author lookup for the whole set (avoids the per-item N+1 the old per-entity
  * loaders caused when a page rendered a list of resources/meets/submissions).
  */
@@ -36,15 +57,7 @@ export async function listCommentsForEntities(
   const out = new Map<string, Comment[]>()
   for (const id of entityIds) out.set(id, [])
   if (entityIds.length === 0) return out
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('comments')
-    .select('*')
-    .eq('entity_type', entityType)
-    .in('entity_id', entityIds)
-    .order('created_at', { ascending: true })
-  if (error) throw new Error(`comments.listForEntities: ${error.message}`)
-  const rows = await withAuthors((data ?? []) as Comment[])
+  const rows = await withAuthors((await selectForEntities(entityType, entityIds)) as Comment[])
   for (const r of rows) {
     const arr = out.get(r.entity_id)
     if (arr) arr.push(r)
@@ -53,23 +66,27 @@ export async function listCommentsForEntities(
 }
 
 /**
- * Insert a comment. Own-scoped / RLS-only — no canManage* gate exists here
- * because comment access is derived from the parent entity (submission /
- * resource / meet), which RLS already checks; there is no separate
- * "commenting" permission to centralize.
+ * Insert a comment row. Authorization against the parent entity is enforced by
+ * the caller (assertCanComment in createCommentFromActionInput) - keep this a
+ * pure insert so the check is never accidentally bypassed by a new caller.
  */
-export async function createComment(
+async function createComment(
   entityType: CommentEntity,
   entityId: string,
   authorId: string,
   content: string,
 ): Promise<Comment> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('comments')
-    .insert({ entity_type: entityType, entity_id: entityId, author_id: authorId, content })
-    .select('*')
-    .single()
-  if (error) throw new Error(`comments.create: ${error.message}`)
-  return data as Comment
+  return insertComment({ entity_type: entityType, entity_id: entityId, author_id: authorId, content })
+}
+
+export async function createCommentFromActionInput(author: Profile, input: CreateCommentActionInput): Promise<Comment> {
+  // Throttle per author so a comment thread can't be flooded (students can post here).
+  if (!rateLimit(`comment-create:${author.id}`, { limit: 20, windowMs: 60_000 }).ok) {
+    throw new RateLimitError('You are commenting too quickly. Please wait a moment.')
+  }
+  const parsed = validateCreateCommentInput(input)
+  // App-side authorization: the author must be able to access the parent entity
+  // (mirrors its read rule), not merely hold viewClasses. See assertCanComment.
+  await assertCanComment(author, parsed.entity_type, parsed.entity_id)
+  return createComment(parsed.entity_type, parsed.entity_id, author.id, parsed.content)
 }
