@@ -1,9 +1,10 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
   --foreground: #000000;
   --primary: #124d7e;
+  --primary-strong: #0f365c;
   --secondary: #50b5e1;
 }
 
@@ -11,15 +12,24 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
   --color-secondary: var(--secondary);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
+  --font-display: var(--font-brand-display), var(--font-brand-sans), Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.brand-display {
+  font-family: var(--font-display), Georgia, serif;
 }
 
 html {
@@ -44,7 +54,7 @@ html {
   background: var(--primary);
 }
 
-/* Tailwind v4 defaults bare `border` to currentColor — restore a soft default so
+/* Tailwind v4 defaults bare `border` to currentColor - restore a soft default so
    boxes/containers/inputs across the app read as light grey, not dark. */
 @layer base {
   *,
@@ -54,7 +64,7 @@ html {
   }
 }
 
-/* ───────────────────────── Portal design system ─────────────────────────
+/* ------------------------- Portal design system -------------------------
    Scoped to `.prt-scope` (the portal layout), so the marketing site is never
    affected. Gives every form control + table a consistent, branded look
    without restyling each page. */
@@ -69,7 +79,9 @@ html {
   font-size: 1rem;
   line-height: 1.25rem;
   color: #0f172a;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 @media (min-width: 640px) {
   .prt-scope input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
@@ -97,7 +109,7 @@ html {
   color: #94a3b8;
 }
 
-/* Data tables — opt-in via `.data-table` so we never touch library tables
+/* Data tables - opt-in via `.data-table` so we never touch library tables
    (e.g. FullCalendar renders its grid with <table> elements). */
 .prt-scope table.data-table {
   width: 100%;
@@ -127,7 +139,7 @@ html {
   background: #f1f5f9;
 }
 
-/* Buttons — one consistent system across the portal. */
+/* Buttons - one consistent system across the portal. */
 .prt-scope .btn {
   display: inline-flex;
   align-items: center;
@@ -139,7 +151,12 @@ html {
   font-weight: 500;
   line-height: 1.25rem;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 .prt-scope .btn:disabled {
   opacity: 0.5;
@@ -162,7 +179,7 @@ html {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
 .prt-scope .btn-primary:hover:not(:disabled) {
-  background: #0f365c;
+  background: var(--primary-strong);
 }
 .prt-scope .btn-ghost {
   background: #fff;
@@ -173,7 +190,7 @@ html {
   background: #f1f5f9;
   border-color: #cbd5e1;
 }
-/* Small, soft-tinted variants for inline row actions (Edit, Remove, Void…).
+/* Small, soft-tinted variants for inline row actions (Edit, Remove, Void...).
    min-height keeps them a comfortable tap target on phones. */
 .prt-scope .btn-sm {
   padding: 0.3rem 0.7rem;
@@ -211,7 +228,7 @@ html {
   background: #fef3c7;
 }
 
-/* Interactive affordances — clickable non-button elements signal themselves. */
+/* Interactive affordances - clickable non-button elements signal themselves. */
 .prt-scope summary {
   cursor: pointer;
   transition: color 0.15s ease;
@@ -223,7 +240,7 @@ html {
   cursor: pointer;
 }
 
-/* FullCalendar — themed to the brand so its controls match the rest of the app. */
+/* FullCalendar - themed to the brand so its controls match the rest of the app. */
 .prt-scope .fc {
   --fc-border-color: #e2e8f0;
   --fc-neutral-bg-color: #f8fafc;
@@ -244,9 +261,12 @@ html {
   font-weight: 500;
   text-transform: none;
   box-shadow: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
-/* Active view button (Month/Week) sits on the brand bg — keep its text white. */
+/* Active view button (Month/Week) sits on the brand bg - keep its text white. */
 .prt-scope .fc .fc-button-primary:not(:disabled).fc-button-active,
 .prt-scope .fc .fc-button-primary:not(:disabled):active {
   color: #fff;
