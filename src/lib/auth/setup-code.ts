@@ -19,7 +19,7 @@ export function generateSetupCode(): string {
   return out
 }
 
-/** SHA-256 hex of the normalized code — what we store. */
+/** SHA-256 hex of the normalized code - what we store. */
 export function hashSetupCode(code: string): string {
   return createHash('sha256').update(code.trim().toUpperCase()).digest('hex')
 }
@@ -36,6 +36,9 @@ export function setupCodeValid(
   expiresAt: string | null | undefined,
 ): boolean {
   if (!hash || !expiresAt) return false
-  if (new Date(expiresAt).getTime() < Date.now()) return false
+  // Fail closed on an unparseable expiry: NaN < now is false, so without the
+  // NaN guard a corrupt expiry timestamp would be treated as "not expired".
+  const expiryMs = new Date(expiresAt).getTime()
+  if (Number.isNaN(expiryMs) || expiryMs < Date.now()) return false
   return hashSetupCode(code) === hash
 }

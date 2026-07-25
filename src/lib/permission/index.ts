@@ -5,6 +5,5 @@
  */
 export { canManageClass, canManageScope, canAccessClass } from './class'
 export { canMentor } from './mentor'
-export { canWriteClass } from './classWrite'
-export { canAccessResource } from '@/lib/auth/access'
-export { teachesClass } from '@/lib/auth/classScope'
+export { canWriteClass } from './class-write'
+export { teachesClass } from '@/lib/auth/class-scope'

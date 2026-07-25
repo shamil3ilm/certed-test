@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { callTeachesClass } from '@/lib/data/class-scope'
 
 /**
  * App-layer mirror of the Postgres scope helpers used by RLS (`teaches_class` /
@@ -8,8 +8,5 @@ import { createClient } from '@/lib/supabase/server'
  * teaches / is enrolled in the given course.
  */
 export async function teachesClass(classId: string): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('teaches_class', { p_class_id: classId })
-  if (error) throw new Error(`teachesClass: ${error.message}`)
-  return Boolean(data)
+  return callTeachesClass(classId)
 }
