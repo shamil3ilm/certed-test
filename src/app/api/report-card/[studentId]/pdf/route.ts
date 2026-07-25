@@ -1,6 +1,8 @@
-import { requireRoleApi } from '@/lib/auth/requireRole'
-import { renderReportCardPdf } from '@/lib/reportCard/render'
-import { rateLimit } from '@/lib/security/rateLimit'
+import { authTextFail, notFoundText, textFail, tooManyRequestsText } from '@/lib/api/response'
+import { assertActiveProfile } from '@/lib/auth/guards'
+import { getActorContext } from '@/lib/session/actor-context'
+import { renderReportCardPdf } from '@/lib/report-card/render'
+import { rateLimit } from '@/lib/security/rate-limit'
 
 // Headless-Chromium render: pin the Node runtime + generous timeout so a cold
 // start can't 504 (same as the finance PDFs).
@@ -8,30 +10,32 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function GET(_req: Request, ctx: { params: { studentId: string } }) {
+  // getActorContext() fails loud (its persona/override reads throw rather than
+  // coercing to []), so keep it inside the try - a transient read failure then
+  // returns a clean envelope instead of a bare 500, matching the finance PDFs.
+  let actor
   let me
   try {
-    me = await requireRoleApi(['admin', 'teacher', 'student'])
-  } catch {
-    return new Response('Forbidden', { status: 403 })
+    actor = await getActorContext()
+    me = assertActiveProfile(actor)
+  } catch (error) {
+    return authTextFail(error)
   }
-  // Each render spins up headless Chromium — throttle per user to deter casual
+  // Each render spins up headless Chromium - throttle per user to deter casual
   // bursts (per-instance; not a hard distributed cap).
   const rl = rateLimit(`report-card:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
-  if (!rl.ok) {
-    return new Response('Too many requests', { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } })
-  }
+  if (!rl.ok) return tooManyRequestsText(undefined, rl.retryAfterSec)
+
   let out
   try {
-    out = await renderReportCardPdf(me, ctx.params.studentId)
+    out = await renderReportCardPdf(actor, ctx.params.studentId)
   } catch {
-    // A headless-Chromium failure (cold start / OOM / timeout) or a DB read error —
+    // A headless-Chromium failure (cold start / OOM / timeout) or a DB read error -
     // return a clean message rather than a bare 500.
-    return new Response('Could not generate the report card. Please try again in a moment.', {
-      status: 502,
-      headers: { 'Content-Type': 'text/plain' },
-    })
+    return textFail('Could not generate the report card. Please try again in a moment.', 502)
   }
-  if (!out) return new Response('Not found', { status: 404 })
+
+  if (!out) return notFoundText()
   return new Response(new Uint8Array(out.pdf), {
     headers: {
       'Content-Type': 'application/pdf',

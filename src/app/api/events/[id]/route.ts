@@ -1,34 +1,44 @@
-import { ok, fail, apiError } from '@/lib/api/response'
-import { getProfile } from '@/lib/auth/profile'
-import { updateEventSchema } from '@/lib/validation/calendarEvent'
-import { updateEvent, deleteEvent } from '@/lib/services/calendarEvents'
+import { ok, invalidJson, apiError, authFail } from '@/lib/api/response'
+import { requireCapabilityApi } from '@/lib/auth/require-role'
+import { updateEventFromApiInput, deleteEventFromApiInput } from '@/lib/services/calendar-events'
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const profile = await getProfile()
-  if (!profile || profile.status !== 'active') return fail('no-access', 401)
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+  const { id } = params
+
+  let profile
+  try {
+    profile = await requireCapabilityApi('manageCalendar')
+  } catch (error) {
+    return authFail(error)
+  }
 
   let raw: unknown
-  try { raw = await request.json() } catch { return fail('invalid-json', 400) }
-  const parsed = updateEventSchema.safeParse(raw)
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'invalid', 400)
+  try {
+    raw = await request.json()
+  } catch {
+    return invalidJson()
+  }
 
   try {
-    // Permission check (incl. re-authorizing the destination class on a
-    // move) + audit all happen inside the service.
-    const updated = await updateEvent(profile, id, parsed.data)
+    const updated = await updateEventFromApiInput(profile, id, raw)
     return ok(updated)
   } catch (e) {
     return apiError(e)
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const profile = await getProfile()
-  if (!profile || profile.status !== 'active') return fail('no-access', 401)
+export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+  const { id } = params
+
+  let profile
   try {
-    await deleteEvent(profile, id)
+    profile = await requireCapabilityApi('manageCalendar')
+  } catch (error) {
+    return authFail(error)
+  }
+
+  try {
+    await deleteEventFromApiInput(profile, id)
     return ok({ id })
   } catch (e) {
     return apiError(e)

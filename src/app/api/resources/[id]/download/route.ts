@@ -1,6 +1,7 @@
-import { requireRoleApi } from '@/lib/auth/requireRole'
+import { authTextFail, notFoundText, tooManyRequestsText, textFail } from '@/lib/api/response'
+import { requireCapabilityApi } from '@/lib/auth/require-role'
 import { getResource } from '@/lib/services/resources'
-import { rateLimit } from '@/lib/security/rateLimit'
+import { rateLimit } from '@/lib/security/rate-limit'
 
 /**
  * Resources are Google Drive links. This route is an access-checked indirection:
@@ -10,20 +11,28 @@ import { rateLimit } from '@/lib/security/rateLimit'
 export async function GET(_req: Request, ctx: { params: { id: string } }) {
   let me
   try {
-    me = await requireRoleApi(['admin', 'teacher', 'student'])
-  } catch {
-    return new Response('Forbidden', { status: 403 })
+    // Override-aware gate: class materials belong to the class workspace, so the
+    // same resolved `viewClasses` capability that opens the workspace must also
+    // govern direct file downloads. The RLS-scoped read below then narrows access
+    // to the specific class relationship.
+    me = await requireCapabilityApi('viewClasses')
+  } catch (error) {
+    return authTextFail(error)
   }
 
   const rl = rateLimit(`resource:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
-  if (!rl.ok) {
-    return new Response('Too many requests', { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } })
-  }
+  if (!rl.ok) return tooManyRequestsText(undefined, rl.retryAfterSec)
 
-  // getResource uses the caller's RLS-scoped client → null unless they may see it.
-  const resource = await getResource(ctx.params.id)
+  // getResource uses the caller's RLS-scoped client - null unless they may see it.
+  // Wrap so a query/RLS error returns a clean message, not a bare unhandled 500.
+  let resource
+  try {
+    resource = await getResource(ctx.params.id)
+  } catch {
+    return textFail('Could not open the resource. Please try again in a moment.', 502)
+  }
   if (!resource || resource.status !== 'active' || !resource.drive_link) {
-    return new Response('Not found', { status: 404 })
+    return notFoundText()
   }
   return Response.redirect(resource.drive_link, 302)
 }
