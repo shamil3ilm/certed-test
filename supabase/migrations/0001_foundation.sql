@@ -1,4 +1,4 @@
--- Phase 0 — Foundation: profiles allowlist, org settings, role helpers, RLS.
+-- Foundation: profiles allowlist, org settings, role helpers, RLS.
 
 create type user_role as enum ('admin','teacher','student');
 create type user_status as enum ('active','pending','disabled');

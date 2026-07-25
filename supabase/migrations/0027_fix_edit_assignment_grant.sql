@@ -1,0 +1,13 @@
+-- 0027: grant EXECUTE on edit_assignment_and_reclassify to service_role.
+--
+-- 0026 created this SECURITY DEFINER function and revoked EXECUTE from
+-- public/anon/authenticated, but - unlike every sibling DEFINER function
+-- (replace_own_submission -> authenticated in 0012; issue_receipt_doc /
+-- issue_payslip_doc / next_document_number -> service_role in 0013/0009) - it
+-- never granted EXECUTE to service_role. The only caller
+-- (src/lib/data/assignments.ts callEditAssignmentAndReclassify) uses the
+-- service-role client, which authenticates as the literal `service_role` DB
+-- role; that role bypasses RLS but NOT function ACLs, so every call failed with
+-- "permission denied for function edit_assignment_and_reclassify" - the Edit
+-- Assignment feature was non-functional against a real Supabase instance.
+grant execute on function edit_assignment_and_reclassify(uuid, text, text, timestamptz, text, text, numeric) to service_role;

@@ -1,0 +1,2861 @@
+-- ============================================================================
+-- Cert-Ed Academia - full schema rebuild
+-- ============================================================================
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0026) via
+-- pg_dump of the fully-migrated schema. The numbered migrations are the single
+-- source of truth; this file provisions a fresh database in one shot and is kept
+-- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
+--
+-- This file previously drifted by hand (a stale mentorships.tutor_id, a divergent
+-- persona-uniqueness scheme, and a duplicate constraint that made it fail to
+-- apply at all); regenerating from the migrations is the only supported update.
+--
+-- Requires the Supabase-provided `auth` schema (auth.users, auth.uid()) and the
+-- anon / authenticated / service_role roles, present on any Supabase project.
+-- ============================================================================
+
+--
+-- PostgreSQL database dump
+--
+
+
+-- Dumped from database version 18.0
+-- Dumped by pg_dump version 18.0
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: public; Type: SCHEMA; Schema: -; Owner: -
+--
+
+
+
+--
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
+--
+
+
+
+--
+-- Name: calendar_event_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.calendar_event_kind AS ENUM (
+    'event',
+    'holiday',
+    'cancellation',
+    'reschedule'
+);
+
+
+--
+-- Name: conversation_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.conversation_kind AS ENUM (
+    'direct',
+    'group'
+);
+
+
+--
+-- Name: persona_name; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.persona_name AS ENUM (
+    'admin',
+    'sub_admin',
+    'tutor',
+    'mentor',
+    'student',
+    'guardian',
+    'finance_operator',
+    'assistant',
+    'executive'
+);
+
+
+--
+-- Name: persona_scope_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.persona_scope_type AS ENUM (
+    'global',
+    'class',
+    'student',
+    'finance',
+    'reporting'
+);
+
+
+--
+-- Name: user_role; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.user_role AS ENUM (
+    'admin',
+    'tutor',
+    'student',
+    'sub_admin',
+    'mentor'
+);
+
+
+--
+-- Name: user_status; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.user_status AS ENUM (
+    'active',
+    'pending',
+    'disabled'
+);
+
+
+--
+-- Name: current_app_role(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_app_role() RETURNS public.user_role
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select role from profiles where auth_user_id = auth.uid()
+$$;
+
+
+--
+-- Name: current_profile_id(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_profile_id() RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select id from profiles where auth_user_id = auth.uid()
+$$;
+
+
+--
+-- Name: current_status(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_status() RETURNS public.user_status
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select status from profiles where auth_user_id = auth.uid()
+$$;
+
+
+--
+-- Name: edit_assignment_and_reclassify(uuid, text, text, timestamp with time zone, text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update assignments set
+    title = p_title,
+    description = p_description,
+    due_date = p_due_date,
+    attachment_drive_link = p_attachment_drive_link,
+    topic = p_topic,
+    max_marks = p_max_marks
+  where id = p_id;
+
+  if not found then
+    raise exception 'assignment % not found', p_id;
+  end if;
+
+  -- Re-derive lateness against the new deadline, matching set_submission_status()
+  -- (0009) and the app's computeStatus: submitted AFTER the due instant is 'late',
+  -- at-or-before is 'submitted'. Only rows whose verdict actually changes are
+  -- written.
+  update submissions set
+    status = case when submitted_at > p_due_date then 'late' else 'submitted' end
+  where assignment_id = p_id
+    and status <> (case when submitted_at > p_due_date then 'late' else 'submitted' end);
+end;
+$$;
+
+
+--
+-- Name: finance_totals(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_totals(p_kind text) RETURNS TABLE(currency text, live_total numeric, live_count bigint)
+    LANGUAGE sql STABLE
+    AS $$
+  select r.currency, coalesce(sum(r.total), 0)::numeric, count(*)::bigint
+  from receipts r
+  where p_kind = 'receipt' and r.voided = false
+  group by r.currency
+  union all
+  select p.currency, coalesce(sum(p.total), 0)::numeric, count(*)::bigint
+  from payslips p
+  where p_kind = 'payslip' and p.voided = false
+  group by p.currency;
+$$;
+
+
+--
+-- Name: is_active_admin(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_active_admin() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.user_is_admin((select id from profiles where auth_user_id = auth.uid()))
+$$;
+
+
+--
+-- Name: is_conversation_member(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_conversation_member(p_conversation_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1 from conversation_participants cp
+    where cp.conversation_id = p_conversation_id
+      and cp.profile_id = current_profile_id()
+  )
+$$;
+
+
+--
+-- Name: is_enrolled(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_enrolled(p_class_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1 from enrollments e
+    join profiles p on p.id = e.student_id
+    where p.auth_user_id = auth.uid() and p.status = 'active'
+      and e.class_id = p_class_id and e.active
+  )
+$$;
+
+
+--
+-- Name: is_self_active(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_self_active(p_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1 from profiles p
+    where p.id = p_id and p.auth_user_id = auth.uid() and p.status = 'active'
+  )
+$$;
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: payslips; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payslips (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    number text NOT NULL,
+    tutor_id uuid,
+    tutor_name_snapshot text CONSTRAINT payslips_teacher_name_snapshot_not_null NOT NULL,
+    issue_date date DEFAULT CURRENT_DATE NOT NULL,
+    currency text NOT NULL,
+    note text,
+    subtotal numeric(16,3) NOT NULL,
+    discount numeric(16,3),
+    total numeric(16,3) NOT NULL,
+    voided boolean DEFAULT false NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: issue_payslip_doc(uuid, text, text, date, text, text, numeric, numeric, numeric, uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.issue_payslip_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb) RETURNS public.payslips
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_year int;
+  v_number text;
+  v_counter int;
+  v_payslip payslips%rowtype;
+begin
+  v_year := extract(year from p_issue_date);
+  v_counter := next_document_number('payslip', v_year);
+  v_number := p_prefix || '-' || v_year || '-' || lpad(v_counter::text, 4, '0');
+
+  insert into payslips (
+    number,
+    tutor_id,
+    tutor_name_snapshot,
+    issue_date,
+    currency,
+    note,
+    subtotal,
+    discount,
+    total,
+    voided,
+    created_by
+  ) values (
+    v_number,
+    p_party_id,
+    p_party_name,
+    p_issue_date,
+    p_currency,
+    p_note,
+    p_subtotal,
+    p_discount,
+    p_total,
+    false,
+    p_created_by
+  )
+  returning *
+  into v_payslip;
+
+  insert into payslip_lines (payslip_id, label, hours, rate, amount)
+  select
+    v_payslip.id,
+    item->>'label',
+    (item->>'hours')::numeric,
+    (item->>'rate')::numeric,
+    (item->>'amount')::numeric
+  from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) item;
+
+  return v_payslip;
+end;
+$$;
+
+
+--
+-- Name: receipts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.receipts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    number text NOT NULL,
+    student_id uuid,
+    student_name_snapshot text NOT NULL,
+    class_snapshot text,
+    issue_date date DEFAULT CURRENT_DATE NOT NULL,
+    currency text NOT NULL,
+    note text,
+    subtotal numeric(16,3) NOT NULL,
+    discount numeric(16,3),
+    total numeric(16,3) NOT NULL,
+    voided boolean DEFAULT false NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: issue_receipt_doc(uuid, text, text, date, text, text, numeric, numeric, numeric, uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.issue_receipt_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb) RETURNS public.receipts
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_year int;
+  v_number text;
+  v_counter int;
+  v_receipt receipts%rowtype;
+begin
+  v_year := extract(year from p_issue_date);
+  v_counter := next_document_number('receipt', v_year);
+  v_number := p_prefix || '-' || v_year || '-' || lpad(v_counter::text, 4, '0');
+
+  insert into receipts (
+    number,
+    student_id,
+    student_name_snapshot,
+    class_snapshot,
+    issue_date,
+    currency,
+    note,
+    subtotal,
+    discount,
+    total,
+    voided,
+    created_by
+  ) values (
+    v_number,
+    p_party_id,
+    p_party_name,
+    p_class_level,
+    p_issue_date,
+    p_currency,
+    p_note,
+    p_subtotal,
+    p_discount,
+    p_total,
+    false,
+    p_created_by
+  )
+  returning *
+  into v_receipt;
+
+  insert into receipt_lines (receipt_id, subject, hours, rate, amount)
+  select
+    v_receipt.id,
+    item->>'label',
+    (item->>'hours')::numeric,
+    (item->>'rate')::numeric,
+    (item->>'amount')::numeric
+  from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) item;
+
+  return v_receipt;
+end;
+$$;
+
+
+--
+-- Name: mentors_student(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mentors_student(p_student_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1 from mentorships m
+    join profiles p on p.id = m.mentor_id
+    where p.auth_user_id = auth.uid() and p.status = 'active'
+      and m.student_id = p_student_id and m.active
+  )
+$$;
+
+
+--
+-- Name: next_document_number(text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.next_document_number(p_doc_type text, p_year integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare n int;
+begin
+  insert into document_counters (doc_type, year, last_number)
+  values (p_doc_type, p_year, 1)
+  on conflict (doc_type, year)
+    do update set last_number = document_counters.last_number + 1
+  returning last_number into n;
+  return n;
+end $$;
+
+
+--
+-- Name: submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.submissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    assignment_id uuid NOT NULL,
+    student_id uuid NOT NULL,
+    drive_link text,
+    file_name text,
+    status text NOT NULL,
+    submitted_at timestamp with time zone DEFAULT now() NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    score numeric(6,2),
+    feedback text,
+    graded_at timestamp with time zone,
+    graded_by uuid,
+    CONSTRAINT submissions_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'late'::text])))
+);
+
+
+--
+-- Name: replace_own_submission(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.replace_own_submission(p_assignment_id uuid, p_drive_link text, p_file_name text DEFAULT NULL::text) RETURNS public.submissions
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_assignment assignments%rowtype;
+  v_student_id uuid;
+  v_current submissions%rowtype;
+  v_created submissions%rowtype;
+begin
+  select *
+  into v_assignment
+  from assignments
+  where id = p_assignment_id and status = 'active';
+
+  if not found then
+    raise exception 'assignment_not_found';
+  end if;
+
+  select id
+  into v_student_id
+  from profiles
+  where auth_user_id = auth.uid() and status = 'active';
+
+  if v_student_id is null then
+    raise exception 'actor_not_active';
+  end if;
+
+  if not is_enrolled(v_assignment.class_id) then
+    raise exception 'not_enrolled';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_assignment_id::text || ':' || v_student_id::text, 0));
+
+  select *
+  into v_current
+  from submissions
+  where assignment_id = p_assignment_id
+    and student_id = v_student_id
+    and is_active = true
+  for update;
+
+  if found and v_current.score is not null then
+    raise exception 'submission_already_graded';
+  end if;
+
+  update submissions
+  set is_active = false
+  where assignment_id = p_assignment_id
+    and student_id = v_student_id
+    and is_active = true;
+
+  insert into submissions (
+    assignment_id,
+    student_id,
+    drive_link,
+    file_name,
+    is_active
+  ) values (
+    p_assignment_id,
+    v_student_id,
+    p_drive_link,
+    p_file_name,
+    true
+  )
+  returning *
+  into v_created;
+
+  return v_created;
+end;
+$$;
+
+
+--
+-- Name: set_submission_status(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_submission_status() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare due timestamptz;
+begin
+  new.submitted_at := now();
+  select due_date into due from assignments where id = new.assignment_id;
+  new.status := case when due is not null and new.submitted_at > due then 'late' else 'submitted' end;
+  return new;
+end $$;
+
+
+--
+-- Name: teaches_class(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.teaches_class(p_class_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1 from class_tutors ct
+    join profiles p on p.id = ct.tutor_id
+    where p.auth_user_id = auth.uid() and p.status = 'active'
+      and ct.class_id = p_class_id and ct.active
+  )
+$$;
+
+
+--
+-- Name: user_has_persona(uuid, public.persona_name, public.persona_scope_type, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.user_has_persona(p_user_id uuid, p_persona public.persona_name, p_scope_type public.persona_scope_type DEFAULT 'global'::public.persona_scope_type, p_scope_id uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  return exists (
+    select 1
+    from persona_assignments pa
+    join profiles p on p.id = pa.profile_id and p.status = 'active'
+    where pa.profile_id = p_user_id
+      and pa.persona_name = p_persona
+      and pa.scope_type = p_scope_type
+      and (
+        (p_scope_type = 'global' and pa.scope_id is null) or
+        (p_scope_type != 'global' and pa.scope_id = p_scope_id)
+      )
+      and pa.status = 'active'
+  );
+end;
+$$;
+
+
+--
+-- Name: user_is_admin(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.user_is_admin(p_user_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  return user_has_persona(p_user_id, 'admin'::persona_name);
+end;
+$$;
+
+
+--
+-- Name: user_is_mentor_for_student(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.user_is_mentor_for_student(p_user_id uuid, p_student_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  return user_has_persona(
+    p_user_id,
+    'mentor'::persona_name,
+    'student'::persona_scope_type,
+    p_student_id
+  );
+end;
+$$;
+
+
+--
+-- Name: announcements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.announcements (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid,
+    title text NOT NULL,
+    message text NOT NULL,
+    author_id uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: assignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid NOT NULL,
+    title text NOT NULL,
+    description text,
+    due_date timestamp with time zone NOT NULL,
+    attachment_drive_link text,
+    created_by uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    topic text,
+    max_marks numeric(6,2),
+    CONSTRAINT assignments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
+);
+
+
+--
+-- Name: attendance; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.attendance (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid NOT NULL,
+    student_id uuid NOT NULL,
+    session_date date NOT NULL,
+    status text NOT NULL,
+    marked_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT attendance_status_check CHECK ((status = ANY (ARRAY['present'::text, 'absent'::text, 'late'::text])))
+);
+
+
+--
+-- Name: audit_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audit_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    actor_id uuid,
+    action text NOT NULL,
+    entity_type text NOT NULL,
+    entity_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: calendar_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.calendar_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    description text,
+    event_date date NOT NULL,
+    start_time time without time zone,
+    end_time time without time zone,
+    class_id uuid,
+    kind public.calendar_event_kind DEFAULT 'event'::public.calendar_event_kind NOT NULL,
+    slot_id uuid,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: capability_overrides; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.capability_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    profile_id uuid NOT NULL,
+    capability text NOT NULL,
+    effect text NOT NULL,
+    scope_type public.persona_scope_type DEFAULT 'global'::public.persona_scope_type NOT NULL,
+    scope_id uuid,
+    reason text,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT capability_overrides_effect_check CHECK ((effect = ANY (ARRAY['allow'::text, 'deny'::text]))),
+    CONSTRAINT capability_overrides_scope_consistency CHECK ((((scope_type = 'global'::public.persona_scope_type) AND (scope_id IS NULL)) OR ((scope_type <> 'global'::public.persona_scope_type) AND (scope_id IS NOT NULL)))),
+    CONSTRAINT capability_overrides_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
+);
+
+
+--
+-- Name: TABLE capability_overrides; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.capability_overrides IS 'Admin-managed per-profile capability exceptions layered over the persona baseline.
+Precedence: hard rule > explicit deny > explicit allow > persona default. Only
+active, global rows are consumed by resolution today; scoped rows are reserved.';
+
+
+--
+-- Name: class_tutors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.class_tutors (
+    id uuid DEFAULT gen_random_uuid() CONSTRAINT class_teachers_id_not_null NOT NULL,
+    tutor_id uuid CONSTRAINT class_teachers_teacher_id_not_null NOT NULL,
+    class_id uuid CONSTRAINT class_teachers_class_id_not_null NOT NULL,
+    active boolean DEFAULT true CONSTRAINT class_teachers_active_not_null NOT NULL,
+    created_at timestamp with time zone DEFAULT now() CONSTRAINT class_teachers_created_at_not_null NOT NULL
+);
+
+
+--
+-- Name: classes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.classes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.comments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    entity_type text NOT NULL,
+    entity_id uuid NOT NULL,
+    author_id uuid NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT comments_entity_type_check CHECK ((entity_type = ANY (ARRAY['submission'::text, 'resource'::text, 'meet'::text])))
+);
+
+
+--
+-- Name: conversation_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conversation_participants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    conversation_id uuid NOT NULL,
+    profile_id uuid NOT NULL,
+    last_read_at timestamp with time zone,
+    joined_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: conversations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conversations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    kind public.conversation_kind NOT NULL,
+    title text,
+    created_by uuid,
+    last_message_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_message_body text,
+    last_message_sender_id uuid,
+    direct_key text
+);
+
+
+--
+-- Name: TABLE conversations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.conversations IS 'Messaging: a direct (1:1) or group conversation. Separate from comments (which are contextual discussion on a submission/resource/meet).';
+
+
+--
+-- Name: document_counters; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.document_counters (
+    doc_type text NOT NULL,
+    year integer NOT NULL,
+    last_number integer DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: enrollments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.enrollments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    student_id uuid NOT NULL,
+    class_id uuid NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: meet_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.meet_links (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid,
+    title text NOT NULL,
+    url text NOT NULL,
+    description text,
+    active boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: mentorships; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mentorships (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    mentor_id uuid CONSTRAINT mentorships_teacher_id_not_null NOT NULL,
+    student_id uuid NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    conversation_id uuid NOT NULL,
+    sender_id uuid,
+    body text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.messages IS 'Messaging: an immutable message in a conversation. body is plaintext in v1 (server-readable for moderation); structured to allow per-conversation E2EE later without a redesign.';
+
+
+--
+-- Name: notifications; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.notifications (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    profile_id uuid NOT NULL,
+    kind text NOT NULL,
+    title text NOT NULL,
+    body text,
+    link text,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: org_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_settings (
+    id boolean DEFAULT true NOT NULL,
+    institute_name text DEFAULT 'Cert-Ed Academia'::text NOT NULL,
+    contact_email text,
+    contact_phone text,
+    bank_account text,
+    bank_ifsc text,
+    bank_branch text,
+    terms_text text,
+    signatory_name text,
+    signatory_title text,
+    signature_mode text DEFAULT 'text'::text NOT NULL,
+    signature_text text DEFAULT 'Digitally signed'::text,
+    default_currency text DEFAULT 'INR'::text NOT NULL,
+    timezone text DEFAULT 'Asia/Kolkata'::text NOT NULL,
+    receipt_prefix text DEFAULT 'CEA-R'::text NOT NULL,
+    payslip_prefix text DEFAULT 'CEA-P'::text NOT NULL,
+    CONSTRAINT org_settings_single_row CHECK (id)
+);
+
+
+--
+-- Name: payslip_lines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payslip_lines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    payslip_id uuid NOT NULL,
+    label text NOT NULL,
+    hours numeric(8,2) NOT NULL,
+    rate numeric(16,3) NOT NULL,
+    amount numeric(16,3) NOT NULL
+);
+
+
+--
+-- Name: persona_assignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.persona_assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    profile_id uuid NOT NULL,
+    persona_name public.persona_name NOT NULL,
+    scope_type public.persona_scope_type DEFAULT 'global'::public.persona_scope_type NOT NULL,
+    scope_id uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    assigned_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT scope_consistency CHECK ((((scope_type = 'global'::public.persona_scope_type) AND (scope_id IS NULL)) OR ((scope_type <> 'global'::public.persona_scope_type) AND (scope_id IS NOT NULL))))
+);
+
+
+--
+-- Name: TABLE persona_assignments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.persona_assignments IS 'Authorization model: personas (global + scoped) per profile. Global personas are
+kept in sync with profiles.role (the account''s fixed identity); scoped personas
+(e.g. mentor-for-a-student) come from their own tables such as mentorships.';
+
+
+--
+-- Name: profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.profiles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    auth_user_id uuid,
+    email text NOT NULL,
+    full_name text,
+    role public.user_role DEFAULT 'student'::public.user_role NOT NULL,
+    status public.user_status DEFAULT 'pending'::public.user_status NOT NULL,
+    class_level text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    setup_code_hash text,
+    setup_code_expires_at timestamp with time zone
+);
+
+
+--
+-- Name: receipt_lines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.receipt_lines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    receipt_id uuid NOT NULL,
+    subject text NOT NULL,
+    hours numeric(8,2) NOT NULL,
+    rate numeric(16,3) NOT NULL,
+    amount numeric(16,3) NOT NULL
+);
+
+
+--
+-- Name: reminders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reminders (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    title text NOT NULL,
+    description text,
+    remind_at timestamp with time zone NOT NULL,
+    is_sent boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: resources; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.resources (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid NOT NULL,
+    title text NOT NULL,
+    drive_link text,
+    uploaded_by uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    topic text,
+    CONSTRAINT resources_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
+);
+
+
+--
+-- Name: timetable_slots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.timetable_slots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid NOT NULL,
+    subject text NOT NULL,
+    tutor_id uuid,
+    day_of_week smallint NOT NULL,
+    start_time time without time zone NOT NULL,
+    end_time time without time zone NOT NULL,
+    mode_or_location text,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT timetable_slots_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 6))),
+    CONSTRAINT timetable_slots_time_order CHECK ((end_time > start_time))
+);
+
+
+--
+-- Name: announcements announcements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.announcements
+    ADD CONSTRAINT announcements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: assignments assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.assignments
+    ADD CONSTRAINT assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: attendance attendance_class_id_student_id_session_date_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_class_id_student_id_session_date_key UNIQUE (class_id, student_id, session_date);
+
+
+--
+-- Name: attendance attendance_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_log audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_log
+    ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: calendar_events calendar_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.calendar_events
+    ADD CONSTRAINT calendar_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: capability_overrides capability_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.capability_overrides
+    ADD CONSTRAINT capability_overrides_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: class_tutors class_teachers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_tutors
+    ADD CONSTRAINT class_teachers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: class_tutors class_teachers_teacher_id_class_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_tutors
+    ADD CONSTRAINT class_teachers_teacher_id_class_id_key UNIQUE (tutor_id, class_id);
+
+
+--
+-- Name: classes classes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.classes
+    ADD CONSTRAINT classes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: comments comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comments
+    ADD CONSTRAINT comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversation_participants conversation_participants_conversation_id_profile_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_participants
+    ADD CONSTRAINT conversation_participants_conversation_id_profile_id_key UNIQUE (conversation_id, profile_id);
+
+
+--
+-- Name: conversation_participants conversation_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_participants
+    ADD CONSTRAINT conversation_participants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversations conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversations
+    ADD CONSTRAINT conversations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: document_counters document_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_counters
+    ADD CONSTRAINT document_counters_pkey PRIMARY KEY (doc_type, year);
+
+
+--
+-- Name: enrollments enrollments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollments
+    ADD CONSTRAINT enrollments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: enrollments enrollments_student_id_class_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollments
+    ADD CONSTRAINT enrollments_student_id_class_id_key UNIQUE (student_id, class_id);
+
+
+--
+-- Name: meet_links meet_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meet_links
+    ADD CONSTRAINT meet_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mentorships mentorships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentorships
+    ADD CONSTRAINT mentorships_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mentorships mentorships_teacher_id_student_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentorships
+    ADD CONSTRAINT mentorships_teacher_id_student_id_key UNIQUE (mentor_id, student_id);
+
+
+--
+-- Name: messages messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: org_settings org_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_settings
+    ADD CONSTRAINT org_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payslip_lines payslip_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslip_lines
+    ADD CONSTRAINT payslip_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payslips payslips_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT payslips_number_key UNIQUE (number);
+
+
+--
+-- Name: payslips payslips_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT payslips_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: persona_assignments persona_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.persona_assignments
+    ADD CONSTRAINT persona_assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: persona_assignments persona_assignments_profile_id_persona_name_scope_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.persona_assignments
+    ADD CONSTRAINT persona_assignments_profile_id_persona_name_scope_id_key UNIQUE (profile_id, persona_name, scope_id);
+
+
+--
+-- Name: profiles profiles_auth_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profiles
+    ADD CONSTRAINT profiles_auth_user_id_key UNIQUE (auth_user_id);
+
+
+--
+-- Name: profiles profiles_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profiles
+    ADD CONSTRAINT profiles_email_key UNIQUE (email);
+
+
+--
+-- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profiles
+    ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: receipt_lines receipt_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipt_lines
+    ADD CONSTRAINT receipt_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: receipts receipts_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipts
+    ADD CONSTRAINT receipts_number_key UNIQUE (number);
+
+
+--
+-- Name: receipts receipts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipts
+    ADD CONSTRAINT receipts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reminders reminders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reminders
+    ADD CONSTRAINT reminders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: resources resources_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resources
+    ADD CONSTRAINT resources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: submissions submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.submissions
+    ADD CONSTRAINT submissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: timetable_slots timetable_slots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.timetable_slots
+    ADD CONSTRAINT timetable_slots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: announcements_class_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX announcements_class_created_idx ON public.announcements USING btree (class_id, created_at DESC);
+
+
+--
+-- Name: assignments_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX assignments_class_idx ON public.assignments USING btree (class_id);
+
+
+--
+-- Name: assignments_status_due_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX assignments_status_due_idx ON public.assignments USING btree (status, due_date);
+
+
+--
+-- Name: attendance_class_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attendance_class_date_idx ON public.attendance USING btree (class_id, session_date);
+
+
+--
+-- Name: attendance_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attendance_student_idx ON public.attendance USING btree (student_id, session_date DESC);
+
+
+--
+-- Name: calendar_events_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calendar_events_class_idx ON public.calendar_events USING btree (class_id);
+
+
+--
+-- Name: calendar_events_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calendar_events_date_idx ON public.calendar_events USING btree (event_date);
+
+
+--
+-- Name: class_tutors_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX class_tutors_class_idx ON public.class_tutors USING btree (class_id, active);
+
+
+--
+-- Name: class_tutors_tutor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX class_tutors_tutor_idx ON public.class_tutors USING btree (tutor_id, active);
+
+
+--
+-- Name: comments_entity_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX comments_entity_idx ON public.comments USING btree (entity_type, entity_id, created_at);
+
+
+--
+-- Name: conversations_direct_key_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX conversations_direct_key_uniq ON public.conversations USING btree (direct_key) WHERE ((kind = 'direct'::public.conversation_kind) AND (direct_key IS NOT NULL));
+
+
+--
+-- Name: enrollments_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX enrollments_class_idx ON public.enrollments USING btree (class_id, active);
+
+
+--
+-- Name: enrollments_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX enrollments_student_idx ON public.enrollments USING btree (student_id, active);
+
+
+--
+-- Name: idx_capability_overrides_resolve; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_capability_overrides_resolve ON public.capability_overrides USING btree (profile_id) WHERE ((status = 'active'::text) AND (scope_type = 'global'::public.persona_scope_type));
+
+
+--
+-- Name: idx_conversation_participants_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conversation_participants_conversation ON public.conversation_participants USING btree (conversation_id);
+
+
+--
+-- Name: idx_conversation_participants_profile; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conversation_participants_profile ON public.conversation_participants USING btree (profile_id);
+
+
+--
+-- Name: idx_conversations_last_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conversations_last_message ON public.conversations USING btree (last_message_at DESC);
+
+
+--
+-- Name: idx_messages_conversation_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messages_conversation_created ON public.messages USING btree (conversation_id, created_at);
+
+
+--
+-- Name: idx_persona_assignments_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_persona_assignments_active ON public.persona_assignments USING btree (profile_id, persona_name) WHERE (status = 'active'::text);
+
+
+--
+-- Name: idx_persona_assignments_persona_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_persona_assignments_persona_name ON public.persona_assignments USING btree (persona_name);
+
+
+--
+-- Name: idx_persona_assignments_profile_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_persona_assignments_profile_id ON public.persona_assignments USING btree (profile_id);
+
+
+--
+-- Name: idx_persona_assignments_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_persona_assignments_scope ON public.persona_assignments USING btree (scope_type, scope_id) WHERE (scope_id IS NOT NULL);
+
+
+--
+-- Name: idx_persona_assignments_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_persona_assignments_status ON public.persona_assignments USING btree (status);
+
+
+--
+-- Name: meet_links_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX meet_links_class_idx ON public.meet_links USING btree (class_id);
+
+
+--
+-- Name: mentorships_mentor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mentorships_mentor_idx ON public.mentorships USING btree (mentor_id, active);
+
+
+--
+-- Name: mentorships_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mentorships_student_idx ON public.mentorships USING btree (student_id, active);
+
+
+--
+-- Name: notifications_profile_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_profile_idx ON public.notifications USING btree (profile_id, created_at DESC);
+
+
+--
+-- Name: payslip_lines_payslip_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX payslip_lines_payslip_idx ON public.payslip_lines USING btree (payslip_id);
+
+
+--
+-- Name: payslips_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX payslips_created_idx ON public.payslips USING btree (created_at DESC);
+
+
+--
+-- Name: payslips_tutor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX payslips_tutor_idx ON public.payslips USING btree (tutor_id);
+
+
+--
+-- Name: persona_assignments_global_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX persona_assignments_global_unique ON public.persona_assignments USING btree (profile_id, persona_name) WHERE (scope_type = 'global'::public.persona_scope_type);
+
+
+--
+-- Name: receipt_lines_receipt_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX receipt_lines_receipt_idx ON public.receipt_lines USING btree (receipt_id);
+
+
+--
+-- Name: receipts_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX receipts_created_idx ON public.receipts USING btree (created_at DESC);
+
+
+--
+-- Name: receipts_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX receipts_student_idx ON public.receipts USING btree (student_id);
+
+
+--
+-- Name: reminders_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reminders_user_idx ON public.reminders USING btree (user_id);
+
+
+--
+-- Name: resources_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX resources_class_idx ON public.resources USING btree (class_id);
+
+
+--
+-- Name: submissions_one_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX submissions_one_active ON public.submissions USING btree (assignment_id, student_id) WHERE is_active;
+
+
+--
+-- Name: submissions_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX submissions_student_idx ON public.submissions USING btree (student_id, is_active);
+
+
+--
+-- Name: timetable_slots_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX timetable_slots_active_idx ON public.timetable_slots USING btree (active);
+
+
+--
+-- Name: timetable_slots_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX timetable_slots_class_idx ON public.timetable_slots USING btree (class_id);
+
+
+--
+-- Name: uq_capability_overrides_identity; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_capability_overrides_identity ON public.capability_overrides USING btree (profile_id, capability, effect, scope_type, COALESCE((scope_id)::text, 'global'::text));
+
+
+--
+-- Name: submissions trg_submission_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_submission_status BEFORE INSERT ON public.submissions FOR EACH ROW EXECUTE FUNCTION public.set_submission_status();
+
+
+--
+-- Name: announcements announcements_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.announcements
+    ADD CONSTRAINT announcements_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: announcements announcements_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.announcements
+    ADD CONSTRAINT announcements_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: assignments assignments_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.assignments
+    ADD CONSTRAINT assignments_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: assignments assignments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.assignments
+    ADD CONSTRAINT assignments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: attendance attendance_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: attendance attendance_marked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_marked_by_fkey FOREIGN KEY (marked_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: attendance attendance_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audit_log audit_log_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_log
+    ADD CONSTRAINT audit_log_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: calendar_events calendar_events_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.calendar_events
+    ADD CONSTRAINT calendar_events_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: calendar_events calendar_events_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.calendar_events
+    ADD CONSTRAINT calendar_events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id);
+
+
+--
+-- Name: calendar_events calendar_events_slot_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.calendar_events
+    ADD CONSTRAINT calendar_events_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.timetable_slots(id) ON DELETE SET NULL;
+
+
+--
+-- Name: capability_overrides capability_overrides_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.capability_overrides
+    ADD CONSTRAINT capability_overrides_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: capability_overrides capability_overrides_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.capability_overrides
+    ADD CONSTRAINT capability_overrides_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: class_tutors class_teachers_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_tutors
+    ADD CONSTRAINT class_teachers_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: class_tutors class_teachers_teacher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_tutors
+    ADD CONSTRAINT class_teachers_teacher_id_fkey FOREIGN KEY (tutor_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: comments comments_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comments
+    ADD CONSTRAINT comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversation_participants conversation_participants_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_participants
+    ADD CONSTRAINT conversation_participants_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversation_participants conversation_participants_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_participants
+    ADD CONSTRAINT conversation_participants_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversations conversations_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversations
+    ADD CONSTRAINT conversations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: conversations conversations_last_message_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversations
+    ADD CONSTRAINT conversations_last_message_sender_id_fkey FOREIGN KEY (last_message_sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: enrollments enrollments_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollments
+    ADD CONSTRAINT enrollments_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: enrollments enrollments_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollments
+    ADD CONSTRAINT enrollments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: meet_links meet_links_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meet_links
+    ADD CONSTRAINT meet_links_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: meet_links meet_links_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meet_links
+    ADD CONSTRAINT meet_links_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: mentorships mentorships_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentorships
+    ADD CONSTRAINT mentorships_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: mentorships mentorships_teacher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentorships
+    ADD CONSTRAINT mentorships_teacher_id_fkey FOREIGN KEY (mentor_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: messages messages_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: messages messages_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: notifications notifications_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payslip_lines payslip_lines_payslip_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslip_lines
+    ADD CONSTRAINT payslip_lines_payslip_id_fkey FOREIGN KEY (payslip_id) REFERENCES public.payslips(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payslips payslips_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT payslips_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payslips payslips_teacher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT payslips_teacher_id_fkey FOREIGN KEY (tutor_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: persona_assignments persona_assignments_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.persona_assignments
+    ADD CONSTRAINT persona_assignments_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: profiles profiles_auth_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profiles
+    ADD CONSTRAINT profiles_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: receipt_lines receipt_lines_receipt_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipt_lines
+    ADD CONSTRAINT receipt_lines_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES public.receipts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: receipts receipts_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipts
+    ADD CONSTRAINT receipts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: receipts receipts_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipts
+    ADD CONSTRAINT receipts_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reminders reminders_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reminders
+    ADD CONSTRAINT reminders_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: resources resources_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resources
+    ADD CONSTRAINT resources_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: resources resources_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resources
+    ADD CONSTRAINT resources_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: submissions submissions_assignment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.submissions
+    ADD CONSTRAINT submissions_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES public.assignments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: submissions submissions_graded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.submissions
+    ADD CONSTRAINT submissions_graded_by_fkey FOREIGN KEY (graded_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: submissions submissions_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.submissions
+    ADD CONSTRAINT submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: timetable_slots timetable_slots_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.timetable_slots
+    ADD CONSTRAINT timetable_slots_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: timetable_slots timetable_slots_teacher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.timetable_slots
+    ADD CONSTRAINT timetable_slots_teacher_id_fkey FOREIGN KEY (tutor_id) REFERENCES public.profiles(id);
+
+
+--
+-- Name: capability_overrides Admins can read all capability overrides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can read all capability overrides" ON public.capability_overrides FOR SELECT USING (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: persona_assignments Admins can read all persona assignments; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can read all persona assignments" ON public.persona_assignments FOR SELECT USING (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: capability_overrides Only admins can delete capability overrides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete capability overrides" ON public.capability_overrides FOR DELETE USING (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: persona_assignments Only admins can delete persona assignments; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can delete persona assignments" ON public.persona_assignments FOR DELETE USING (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: capability_overrides Only admins can insert capability overrides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can insert capability overrides" ON public.capability_overrides FOR INSERT WITH CHECK (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: persona_assignments Only admins can insert persona assignments; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can insert persona assignments" ON public.persona_assignments FOR INSERT WITH CHECK (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: capability_overrides Only admins can update capability overrides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can update capability overrides" ON public.capability_overrides FOR UPDATE USING (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: persona_assignments Only admins can update persona assignments; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins can update persona assignments" ON public.persona_assignments FOR UPDATE USING (public.user_is_admin(( SELECT profiles.id
+   FROM public.profiles
+  WHERE (profiles.auth_user_id = auth.uid()))));
+
+
+--
+-- Name: capability_overrides Users can read own capability overrides; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can read own capability overrides" ON public.capability_overrides FOR SELECT USING (public.is_self_active(profile_id));
+
+
+--
+-- Name: persona_assignments Users can read own persona assignments; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can read own persona assignments" ON public.persona_assignments FOR SELECT USING (public.is_self_active(profile_id));
+
+
+--
+-- Name: announcements; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: announcements announcements_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY announcements_insert ON public.announcements FOR INSERT WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+
+
+--
+-- Name: announcements announcements_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY announcements_read ON public.announcements FOR SELECT USING ((public.is_active_admin() OR ((class_id IS NULL) AND (public.current_status() = 'active'::public.user_status) AND (status = 'active'::text)) OR (public.is_enrolled(class_id) AND (status = 'active'::text)) OR public.teaches_class(class_id)));
+
+
+--
+-- Name: announcements announcements_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY announcements_update ON public.announcements FOR UPDATE USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+
+
+--
+-- Name: assignments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: assignments assignments_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY assignments_insert ON public.assignments FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
+-- Name: assignments assignments_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY assignments_read ON public.assignments FOR SELECT USING ((public.is_active_admin() OR (public.is_enrolled(class_id) AND (status = 'active'::text)) OR public.teaches_class(class_id)));
+
+
+--
+-- Name: assignments assignments_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY assignments_update ON public.assignments FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
+-- Name: attendance; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: attendance attendance_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY attendance_read ON public.attendance FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR public.is_self_active(student_id) OR public.mentors_student(student_id)));
+
+
+--
+-- Name: attendance attendance_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY attendance_write ON public.attendance USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK (((public.is_active_admin() OR public.teaches_class(class_id)) AND (EXISTS ( SELECT 1
+   FROM public.enrollments e
+  WHERE ((e.class_id = attendance.class_id) AND (e.student_id = attendance.student_id) AND e.active)))));
+
+
+--
+-- Name: audit_log audit_admin_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY audit_admin_insert ON public.audit_log FOR INSERT WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: audit_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: audit_log audit_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY audit_read ON public.audit_log FOR SELECT USING (public.is_active_admin());
+
+
+--
+-- Name: calendar_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: calendar_events calendar_events_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY calendar_events_read ON public.calendar_events FOR SELECT USING ((public.is_active_admin() OR ((class_id IS NULL) AND (public.current_status() = 'active'::public.user_status)) OR public.teaches_class(class_id) OR public.is_enrolled(class_id)));
+
+
+--
+-- Name: calendar_events calendar_events_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+
+
+--
+-- Name: capability_overrides; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.capability_overrides ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: class_tutors; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.class_tutors ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: class_tutors class_tutors_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_tutors_admin_write ON public.class_tutors USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: class_tutors class_tutors_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_tutors_read ON public.class_tutors FOR SELECT USING ((public.is_active_admin() OR public.is_self_active(tutor_id)));
+
+
+--
+-- Name: classes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: classes classes_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY classes_admin_write ON public.classes USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: classes classes_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY classes_read ON public.classes FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(id) OR public.is_enrolled(id)));
+
+
+--
+-- Name: comments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: comments comments_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comments_insert ON public.comments FOR INSERT WITH CHECK ((public.is_active_admin() OR (public.is_self_active(author_id) AND (((entity_type = 'submission'::text) AND (EXISTS ( SELECT 1
+   FROM public.submissions s
+  WHERE ((s.id = comments.entity_id) AND (public.is_self_active(s.student_id) OR (EXISTS ( SELECT 1
+           FROM public.assignments a
+          WHERE ((a.id = s.assignment_id) AND public.teaches_class(a.class_id)))) OR public.mentors_student(s.student_id)))))) OR ((entity_type = 'resource'::text) AND (EXISTS ( SELECT 1
+   FROM public.resources r
+  WHERE ((r.id = comments.entity_id) AND (public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text))))))) OR ((entity_type = 'meet'::text) AND (EXISTS ( SELECT 1
+   FROM public.meet_links m
+  WHERE ((m.id = comments.entity_id) AND ((m.class_id IS NULL) OR public.teaches_class(m.class_id) OR public.is_enrolled(m.class_id))))))))));
+
+
+--
+-- Name: comments comments_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comments_read ON public.comments FOR SELECT USING ((public.is_active_admin() OR ((entity_type = 'submission'::text) AND (EXISTS ( SELECT 1
+   FROM public.submissions s
+  WHERE ((s.id = comments.entity_id) AND (public.is_self_active(s.student_id) OR (EXISTS ( SELECT 1
+           FROM public.assignments a
+          WHERE ((a.id = s.assignment_id) AND public.teaches_class(a.class_id)))) OR public.mentors_student(s.student_id)))))) OR ((entity_type = 'resource'::text) AND (EXISTS ( SELECT 1
+   FROM public.resources r
+  WHERE ((r.id = comments.entity_id) AND (public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text))))))) OR ((entity_type = 'meet'::text) AND (EXISTS ( SELECT 1
+   FROM public.meet_links m
+  WHERE ((m.id = comments.entity_id) AND ((m.class_id IS NULL) OR public.teaches_class(m.class_id) OR public.is_enrolled(m.class_id))))))));
+
+
+--
+-- Name: conversation_participants; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: conversation_participants conversation_participants_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversation_participants_read ON public.conversation_participants FOR SELECT USING ((public.is_conversation_member(conversation_id) OR public.is_active_admin()));
+
+
+--
+-- Name: conversations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: conversations conversations_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversations_insert ON public.conversations FOR INSERT WITH CHECK ((created_by = public.current_profile_id()));
+
+
+--
+-- Name: conversations conversations_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversations_read ON public.conversations FOR SELECT USING ((public.is_conversation_member(id) OR public.is_active_admin()));
+
+
+--
+-- Name: document_counters counters_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY counters_admin ON public.document_counters USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: document_counters; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.document_counters ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: enrollments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.enrollments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: enrollments enrollments_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY enrollments_admin_write ON public.enrollments USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: enrollments enrollments_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY enrollments_read ON public.enrollments FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR public.is_self_active(student_id)));
+
+
+--
+-- Name: meet_links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.meet_links ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: meet_links meet_links_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY meet_links_read ON public.meet_links FOR SELECT USING ((public.is_active_admin() OR ((class_id IS NULL) AND (public.current_status() = 'active'::public.user_status)) OR public.teaches_class(class_id) OR public.is_enrolled(class_id)));
+
+
+--
+-- Name: meet_links meet_links_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY meet_links_write ON public.meet_links USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+
+
+--
+-- Name: mentorships; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mentorships ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mentorships mentorships_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mentorships_admin_write ON public.mentorships USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: mentorships mentorships_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mentorships_read ON public.mentorships FOR SELECT USING ((public.is_active_admin() OR public.is_self_active(mentor_id) OR public.is_self_active(student_id)));
+
+
+--
+-- Name: messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: messages messages_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY messages_insert ON public.messages FOR INSERT WITH CHECK (((sender_id = public.current_profile_id()) AND public.is_conversation_member(conversation_id)));
+
+
+--
+-- Name: messages messages_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY messages_read ON public.messages FOR SELECT USING ((public.is_conversation_member(conversation_id) OR public.is_active_admin()));
+
+
+--
+-- Name: notifications; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: notifications notifications_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY notifications_read ON public.notifications FOR SELECT USING (public.is_self_active(profile_id));
+
+
+--
+-- Name: notifications notifications_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY notifications_update ON public.notifications FOR UPDATE USING (public.is_self_active(profile_id)) WITH CHECK (public.is_self_active(profile_id));
+
+
+--
+-- Name: org_settings org_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_admin_write ON public.org_settings USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: org_settings org_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_read ON public.org_settings FOR SELECT USING (public.is_active_admin());
+
+
+--
+-- Name: org_settings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_settings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: payslip_lines; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.payslip_lines ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: payslip_lines payslip_lines_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payslip_lines_admin_write ON public.payslip_lines USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: payslip_lines payslip_lines_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payslip_lines_read ON public.payslip_lines FOR SELECT USING ((public.is_active_admin() OR (EXISTS ( SELECT 1
+   FROM (public.payslips ps
+     JOIN public.profiles p ON ((p.id = ps.tutor_id)))
+  WHERE ((ps.id = payslip_lines.payslip_id) AND (p.auth_user_id = auth.uid()) AND (p.status = 'active'::public.user_status))))));
+
+
+--
+-- Name: payslips; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.payslips ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: payslips payslips_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payslips_admin_write ON public.payslips USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: payslips payslips_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payslips_read ON public.payslips FOR SELECT USING ((public.is_active_admin() OR public.is_self_active(tutor_id)));
+
+
+--
+-- Name: persona_assignments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.persona_assignments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: profiles profiles_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY profiles_admin_write ON public.profiles USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: profiles profiles_self_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY profiles_self_read ON public.profiles FOR SELECT USING (((auth_user_id = auth.uid()) OR public.is_active_admin()));
+
+
+--
+-- Name: profiles profiles_self_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (((auth_user_id = auth.uid()) OR public.is_active_admin()));
+
+
+--
+-- Name: receipt_lines; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.receipt_lines ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: receipt_lines receipt_lines_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY receipt_lines_admin_write ON public.receipt_lines USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: receipt_lines receipt_lines_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY receipt_lines_read ON public.receipt_lines FOR SELECT USING ((public.is_active_admin() OR (EXISTS ( SELECT 1
+   FROM (public.receipts r
+     JOIN public.profiles p ON ((p.id = r.student_id)))
+  WHERE ((r.id = receipt_lines.receipt_id) AND (p.auth_user_id = auth.uid()) AND (p.status = 'active'::public.user_status))))));
+
+
+--
+-- Name: receipts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.receipts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: receipts receipts_admin_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY receipts_admin_write ON public.receipts USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: receipts receipts_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY receipts_read ON public.receipts FOR SELECT USING ((public.is_active_admin() OR public.is_self_active(student_id)));
+
+
+--
+-- Name: reminders; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: reminders reminders_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reminders_all ON public.reminders USING (public.is_self_active(user_id));
+
+
+--
+-- Name: resources; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: resources resources_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY resources_insert ON public.resources FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
+-- Name: resources resources_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY resources_read ON public.resources FOR SELECT USING ((public.is_active_admin() OR (public.is_enrolled(class_id) AND (status = 'active'::text)) OR public.teaches_class(class_id)));
+
+
+--
+-- Name: resources resources_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY resources_update ON public.resources FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
+-- Name: submissions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: submissions submissions_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY submissions_insert ON public.submissions FOR INSERT WITH CHECK (((EXISTS ( SELECT 1
+   FROM public.assignments a
+  WHERE ((a.id = submissions.assignment_id) AND (a.status = 'active'::text) AND public.is_enrolled(a.class_id)))) AND (EXISTS ( SELECT 1
+   FROM public.profiles p
+  WHERE ((p.id = submissions.student_id) AND (p.auth_user_id = auth.uid()))))));
+
+
+--
+-- Name: submissions submissions_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY submissions_read ON public.submissions FOR SELECT USING ((public.is_active_admin() OR (EXISTS ( SELECT 1
+   FROM public.assignments a
+  WHERE ((a.id = submissions.assignment_id) AND public.teaches_class(a.class_id)))) OR public.is_self_active(student_id) OR public.mentors_student(student_id)));
+
+
+--
+-- Name: submissions submissions_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR public.is_self_active(student_id))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
+
+
+--
+-- Name: timetable_slots; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.timetable_slots ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: timetable_slots timetable_slots_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY timetable_slots_read ON public.timetable_slots FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR public.is_enrolled(class_id)));
+
+
+--
+-- Name: timetable_slots timetable_slots_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
+-- Name: FUNCTION edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION issue_payslip_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.issue_payslip_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.issue_payslip_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION issue_receipt_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.issue_receipt_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.issue_receipt_doc(p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text, p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid, p_prefix text, p_lines jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION next_document_number(p_doc_type text, p_year integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.next_document_number(p_doc_type text, p_year integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.next_document_number(p_doc_type text, p_year integer) TO service_role;
+
+
+--
+-- Name: COLUMN submissions.assignment_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(assignment_id) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: COLUMN submissions.student_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(student_id) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: COLUMN submissions.drive_link; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(drive_link) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: COLUMN submissions.file_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(file_name) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: COLUMN submissions.status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(status) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: COLUMN submissions.submitted_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(submitted_at) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: COLUMN submissions.is_active; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(is_active),UPDATE(is_active) ON TABLE public.submissions TO authenticated;
+
+
+--
+-- Name: FUNCTION replace_own_submission(p_assignment_id uuid, p_drive_link text, p_file_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.replace_own_submission(p_assignment_id uuid, p_drive_link text, p_file_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.replace_own_submission(p_assignment_id uuid, p_drive_link text, p_file_name text) TO authenticated;
+
+
+--
+-- Name: FUNCTION user_has_persona(p_user_id uuid, p_persona public.persona_name, p_scope_type public.persona_scope_type, p_scope_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.user_has_persona(p_user_id uuid, p_persona public.persona_name, p_scope_type public.persona_scope_type, p_scope_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.user_has_persona(p_user_id uuid, p_persona public.persona_name, p_scope_type public.persona_scope_type, p_scope_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.user_has_persona(p_user_id uuid, p_persona public.persona_name, p_scope_type public.persona_scope_type, p_scope_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION user_is_admin(p_user_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.user_is_admin(p_user_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.user_is_admin(p_user_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.user_is_admin(p_user_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION user_is_mentor_for_student(p_user_id uuid, p_student_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.user_is_mentor_for_student(p_user_id uuid, p_student_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.user_is_mentor_for_student(p_user_id uuid, p_student_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.user_is_mentor_for_student(p_user_id uuid, p_student_id uuid) TO service_role;
+
+
+--
+-- Name: COLUMN notifications.read_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(read_at) ON TABLE public.notifications TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.full_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(full_name) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.class_level; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(class_level) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+
