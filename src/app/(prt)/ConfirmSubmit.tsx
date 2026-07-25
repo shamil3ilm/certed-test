@@ -13,6 +13,7 @@ export function ConfirmSubmit({
   message,
   confirmLabel,
   variant = 'danger',
+  'aria-label': ariaLabel,
 }: {
   children: ReactNode
   className?: string
@@ -20,12 +21,14 @@ export function ConfirmSubmit({
   message?: string
   confirmLabel?: string
   variant?: 'danger' | 'warning' | 'primary'
+  'aria-label'?: string
 }) {
   const { confirm } = useUI()
   return (
     <button
       type="button"
       className={className}
+      aria-label={ariaLabel}
       onClick={async (e) => {
         const form = e.currentTarget.closest('form')
         if (!form) return

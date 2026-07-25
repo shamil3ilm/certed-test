@@ -1,46 +1,54 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth/requireRole'
-import { archiveAssignment, editAssignment } from '@/lib/services/assignments'
-import { gradeSubmission } from '@/lib/services/submissions'
-import { archiveResource } from '@/lib/services/resources'
-import { linkUrl } from '@/lib/validation/url'
-import { gradeSchema } from '@/lib/validation/assignment'
+import { redirect } from 'next/navigation'
+import { requireCapability } from '@/lib/auth/require-role'
+import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { ServiceError } from '@/lib/errors'
+import { archiveAssignmentFromActionInput, editAssignmentFromActionInput } from '@/lib/services/assignments'
+import { gradeSubmissionFromActionInput } from '@/lib/services/submissions'
+import { archiveResourceFromActionInput, restoreResourceFromActionInput } from '@/lib/services/resources'
+import { classErrorUrl } from '../action-redirect'
 
 // Permission check + audit on every mutation now happens inside each service
-// — not swallowed to a no-op here, thrown errors propagate to the portal
-// error boundary (or, for actions with a structured return, are mapped to
-// { ok: false, error }).
+// and action-input parsing lives with the owning domain service.
+
+// The archive/restore controls below are native `<form action>`s: a service
+// error (e.g. acting on a row deleted in a concurrent session) would otherwise
+// crash into Next's generic error page. Surface it as an inline banner by
+// redirecting back to the classwork page with `?error=1`; the class id travels
+// in a hidden `class_id` field. redirect() throws, so it stays outside catch.
+const classworkErrorUrl = (formData: FormData) => classErrorUrl(formData, { fields: ['class_id'], sub: 'classwork' })
 
 export async function archiveAssignmentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const id = String(formData.get('id') ?? '')
-  const status = String(formData.get('status') ?? 'archived') === 'active' ? 'active' : 'archived'
-  if (!id) return
-  await archiveAssignment(me, id, status)
+  const me = await requireCapability('manageClassContent')
+  try {
+    await archiveAssignmentFromActionInput(me, {
+      id: formData.get('id'),
+      status: formData.get('status'),
+    })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }
 
 /** `due_date` arrives already converted to an ISO instant by the client. */
-export async function editAssignmentAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const id = String(formData.get('id') ?? '')
-  const title = String(formData.get('title') ?? '').trim()
-  const description = String(formData.get('description') ?? '').trim()
-  const dueIso = String(formData.get('due_date') ?? '')
-  const brief = String(formData.get('attachment_drive_link') ?? '').trim()
-  if (!id || !title || Number.isNaN(Date.parse(dueIso))) return
-  // Same URL-scheme guard as every other link write path — a stored javascript:/
-  // data: link would otherwise render as a clickable href for students.
-  if (brief && !linkUrl.safeParse(brief).success) return
-  await editAssignment(me, id, {
-    title,
-    description: description || null,
-    due_date: new Date(dueIso).toISOString(),
-    attachment_drive_link: brief || null,
-  })
-  revalidatePath('/classroom', 'layout')
+export async function editAssignmentAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await editAssignmentFromActionInput(me, {
+      id: formData.get('id'),
+      title: formData.get('title'),
+      description: formData.get('description'),
+      due_date: formData.get('due_date'),
+      attachment_drive_link: formData.get('attachment_drive_link'),
+    })
+    revalidatePath('/classroom', 'layout')
+    return actionDone()
+  } catch (e) {
+    return toActionError(e)
+  }
 }
 
 /**
@@ -48,42 +56,41 @@ export async function editAssignmentAction(formData: FormData) {
  * grading-race guard, max-marks validation, and audit all happen inside the
  * service. An empty mark clears a previous score.
  */
-export async function gradeSubmissionAction(
-  formData: FormData,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const me = await requireRole(['admin', 'teacher'])
-  const submissionId = String(formData.get('submission_id') ?? '')
-  if (!submissionId) return { ok: false, error: 'Missing submission.' }
-  const scoreRaw = String(formData.get('score') ?? '').trim()
-  const feedbackRaw = String(formData.get('feedback') ?? '').trim()
-  const parsed = gradeSchema.safeParse({
-    score: scoreRaw === '' ? null : Number(scoreRaw),
-    feedback: feedbackRaw || undefined,
-  })
-  if (!parsed.success) return { ok: false, error: 'Enter a valid mark (0–9999.99).' }
-
+export async function gradeSubmissionAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('viewGrading') // grading matches the grading/assignment-detail pages
   try {
-    const { assignmentId } = await gradeSubmission(me, {
-      submissionId,
-      score: parsed.data.score,
-      feedback: parsed.data.feedback ?? null,
+    const { assignmentId } = await gradeSubmissionFromActionInput(me, {
+      submission_id: formData.get('submission_id'),
+      score: formData.get('score'),
+      feedback: formData.get('feedback'),
     })
     revalidatePath('/classroom', 'layout')
     revalidatePath(`/assignments/${assignmentId}`)
-    return { ok: true }
+    return actionDone()
   } catch (e) {
-    return { ok: false, error: e instanceof ServiceError ? e.message : 'Something went wrong. Please try again.' }
+    return toActionError(e)
   }
 }
 
-/** Soft-remove a material (kept on record via status='archived'). Permission
- *  check + audit happen inside the service; a not-found/not-authorized error
- *  propagates to the portal error boundary, same as every other action's
- *  thrown errors (not swallowed to a silent no-op). */
+/** Soft-remove a material (kept on record via status='archived'). */
 export async function deleteResourceAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const id = String(formData.get('id') ?? '')
-  if (!id) return
-  await archiveResource(me, id)
+  const me = await requireCapability('manageClassContent')
+  try {
+    await archiveResourceFromActionInput(me, { id: formData.get('id') })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
+    throw error
+  }
+  revalidatePath('/classroom', 'layout')
+}
+
+export async function restoreResourceAction(formData: FormData) {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await restoreResourceFromActionInput(me, { id: formData.get('id') })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }

@@ -1,35 +1,42 @@
 'use client'
-import { useState } from 'react'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { requestJson } from '../../api-client'
 import { useUI } from '../../Providers'
 
 export function VoidButton({ endpoint }: { endpoint: string }) {
+  const router = useRouter()
   const { confirm, toast } = useUI()
   const [busy, setBusy] = useState(false)
+  const [, startRefreshTransition] = useTransition()
+
+  async function onClick() {
+    const confirmed = await confirm({
+      title: 'Void this document?',
+      message: "It stays on record and can't be undone. To correct it, issue a new document with the right details.",
+      confirmLabel: 'Void',
+      variant: 'danger',
+    })
+    if (!confirmed) return
+
+    setBusy(true)
+
+    try {
+      await requestJson(endpoint, { method: 'POST' })
+      toast('Document voided', 'success')
+      startRefreshTransition(() => {
+        router.refresh()
+      })
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Failed to void', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <button
-      disabled={busy}
-      onClick={async () => {
-        const ok = await confirm({
-          title: 'Void this document?',
-          message: 'It stays on record and can’t be undone. To correct it, issue a new document with the right details.',
-          confirmLabel: 'Void',
-          variant: 'danger',
-        })
-        if (!ok) return
-        setBusy(true)
-        try {
-          const res = await fetch(endpoint, { method: 'POST' })
-          const json = await res.json().catch(() => ({}))
-          if (!res.ok || json.success === false) throw new Error(json.error ?? 'Failed to void')
-          toast('Document voided', 'success')
-          location.reload()
-        } catch (e) {
-          toast(e instanceof Error ? e.message : 'Failed to void', 'error')
-          setBusy(false)
-        }
-      }}
-      className="btn btn-sm btn-danger"
-    >
+    <button disabled={busy} onClick={onClick} className="btn btn-sm btn-danger">
       Void
     </button>
   )

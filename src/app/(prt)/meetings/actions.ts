@@ -1,44 +1,52 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth/requireRole'
-import { createMeetLink, deleteMeetLink } from '@/lib/services/meetLinks'
-import { linkUrl } from '@/lib/validation/url'
-import { z } from 'zod'
+import { redirect } from 'next/navigation'
+import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
+import { ServiceError } from '@/lib/errors'
+import { requireCapability } from '@/lib/auth/require-role'
+import { createMeetLinkFromActionInput, deleteMeetLink, restoreMeetLink } from '@/lib/services/meet-links'
 
-const meetLinkSchema = z.object({
-  classId: z.string().uuid().nullable().or(z.literal('')),
-  title: z.string().trim().min(1).max(200),
-  url: linkUrl,
-  description: z.string().trim().max(1000).optional(),
-})
-
-export async function createMeetLinkAction(formData: FormData) {
-  const me = await requireRole(['teacher', 'admin'])
-
-  const rawClassId = formData.get('classId')
-  const classId = rawClassId === '' || rawClassId === 'global' ? null : (rawClassId as string)
-
-  const parsed = meetLinkSchema.safeParse({
-    classId,
-    title: formData.get('title'),
-    url: formData.get('url'),
-    description: formData.get('description'),
-  })
-
-  if (!parsed.success) {
-    throw new Error('Invalid meet link data: ' + parsed.error.message)
+export async function createMeetLinkAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await createMeetLinkFromActionInput(me, {
+      classId: formData.get('classId'),
+      title: formData.get('title'),
+      url: formData.get('url'),
+      description: formData.get('description'),
+    })
+    revalidatePath('/classroom', 'layout')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
   }
-
-  const { title, url, description } = parsed.data
-  // Permission check + write + audit all happen inside the service.
-  await createMeetLink(me, { class_id: classId, title, url, description })
-
-  revalidatePath('/classroom', 'layout')
 }
 
-export async function deleteMeetLinkAction(id: string) {
-  const me = await requireRole(['teacher', 'admin'])
-  await deleteMeetLink(me, id)
+export async function deleteMeetLinkAction(id: string): Promise<ActionStatusResult> {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await deleteMeetLink(me, id)
+    revalidatePath('/classroom', 'layout')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
+}
+
+/**
+ * Native `<form action>` on the class stream (bound to the link + its class), so
+ * it matches the other restore actions: a service error surfaces as the stream's
+ * inline banner via `?error=meet` rather than crashing the Server Action.
+ * redirect() throws, so it stays outside the catch.
+ */
+export async function restoreMeetLinkAction(id: string, streamClassId: string): Promise<void> {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await restoreMeetLink(me, id)
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(`/classroom/${streamClassId}?error=meet`)
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }

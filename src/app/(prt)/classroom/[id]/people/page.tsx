@@ -1,7 +1,7 @@
 import { requireClassAccess } from '../../access'
-import { getClassMembers, mentorsByStudent, type ClassMember } from '@/lib/services/classes'
-import { listActiveByRole } from '@/lib/services/users'
-import { Avatar, Card, EmptyState, cx, CARD } from '../../../ui'
+import type { ClassMember } from '@/lib/services/classes'
+import { loadClassPeopleViewData } from '@/lib/services/page-data/class-people'
+import { AlertBanner, Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
@@ -29,64 +29,80 @@ function MemberRow({
   removeName?: string
   showEmail?: boolean
 }) {
-  // Students see classmates' names only — email is roster PII shown to managers.
-  const meta = [showEmail ? m.email : null, subtitle].filter(Boolean).join(' · ')
+  const meta = [showEmail ? m.email : null, subtitle].filter(Boolean).join(' - ')
   return (
-    <Card as="li" className="flex items-center gap-3 p-4">
-      <Avatar name={m.name} role={m.role} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-800">{m.name}</p>
-        {meta && <p className="truncate text-xs text-slate-400">{meta}</p>}
-      </div>
-      {removeAction && classId && removeName && (
-        <form action={removeAction}>
-          <input type="hidden" name="class_id" value={classId} />
-          <input type="hidden" name={removeName} value={m.id} />
-          <ConfirmSubmit
-            className="btn btn-sm btn-danger"
-            title="Remove from class?"
-            message="They lose access now, but the link is kept on record — re-add any time."
-            confirmLabel="Remove"
-          >
-            Remove
-          </ConfirmSubmit>
-        </form>
-      )}
-    </Card>
+    <li>
+      <ListRow
+        leading={<Avatar name={m.name} role={m.role} />}
+        title={m.name}
+        subtitle={meta || undefined}
+        trailing={
+          removeAction && classId && removeName ? (
+            <form action={removeAction}>
+              <input type="hidden" name="class_id" value={classId} />
+              <input type="hidden" name={removeName} value={m.id} />
+              <ConfirmSubmit
+                className="btn btn-sm btn-danger"
+                title="Remove from class?"
+                message="They lose access now, but the link is kept on record - re-add any time."
+                confirmLabel="Remove"
+              >
+                Remove
+              </ConfirmSubmit>
+            </form>
+          ) : undefined
+        }
+      />
+    </li>
   )
 }
 
-export default async function ClassPeoplePage({ params }: { params: { id: string } }) {
+export default async function ClassPeoplePage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams?: { error?: string }
+}) {
   const { me, course } = await requireClassAccess(params.id)
-  const canManage = me.role !== 'student' // requireClassAccess already scopes a tutor to this class
-  const isAdmin = me.role === 'admin' // class settings + tutor roster are admin-only
-  const { teachers, students } = await getClassMembers(course.id)
-
-  const [mentorMap, allTeachers, allStudents] = await Promise.all([
-    canManage ? mentorsByStudent(students.map((s) => s.id)) : Promise.resolve(new Map()),
-    isAdmin ? listActiveByRole('teacher') : Promise.resolve([] as { id: string; name: string }[]),
-    canManage ? listActiveByRole('student') : Promise.resolve([] as { id: string; name: string }[]),
-  ])
-  const assignedTutorIds = new Set(teachers.map((t) => t.id))
-  const enrolledStudentIds = new Set(students.map((s) => s.id))
-  const addableTutors = allTeachers.filter((t) => !assignedTutorIds.has(t.id))
-  const addableStudents = allStudents.filter((s) => !enrolledStudentIds.has(s.id))
+  const data = await loadClassPeopleViewData(me, course.id)
 
   return (
     <div className="space-y-8">
-      {/* Class settings (rename/archive) are admin-only — a tutor manages students, not the class. */}
-      {isAdmin && (
+      {searchParams?.error === '1' && (
+        <AlertBanner>That change couldn&apos;t be applied. Please check the details and try again.</AlertBanner>
+      )}
+
+      {!data.canManage && data.myMentors.length > 0 && (
+        <Card className="flex items-center gap-3 p-4">
+          <Avatar name={data.myMentors[0].name} role="mentor" />
+          <p className="text-sm text-slate-600">
+            Your mentor:{' '}
+            {data.myMentors.map((m, i) => (
+              <span key={m.email}>
+                {i > 0 && ', '}
+                <a href={`mailto:${m.email}`} className="font-semibold text-primary hover:underline">
+                  {m.name}
+                </a>
+              </span>
+            ))}
+            <span className="block text-xs text-slate-400">Your point of contact - email them or ask in class.</span>
+          </p>
+        </Card>
+      )}
+
+      {data.isAdmin && (
         <Card className="space-y-3 p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Class settings</h2>
-          {/* Rename and archive/restore are SEPARATE, sibling forms (never nested,
-              or the archive button would submit the rename action). */}
+          <SectionLabel>Class settings</SectionLabel>
           <div className="flex flex-wrap items-end gap-2">
             <form action={renameClassAction} className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
               <input type="hidden" name="id" value={course.id} />
               <Field label="Class name" className="min-w-0 flex-1 sm:max-w-xs">
                 <Input name="name" defaultValue={course.name} required />
               </Field>
-              <SubmitButton className="btn-sm btn-soft" pendingLabel="Saving…">Rename</SubmitButton>
+              <SubmitButton className="btn-sm btn-soft" pendingLabel="Saving...">
+                Rename
+              </SubmitButton>
             </form>
             {course.status === 'active' ? (
               <form action={archiveClassAction} className="ml-auto">
@@ -103,82 +119,87 @@ export default async function ClassPeoplePage({ params }: { params: { id: string
             ) : (
               <form action={restoreClassAction} className="ml-auto">
                 <input type="hidden" name="id" value={course.id} />
-                <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring…">Restore</SubmitButton>
+                <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
+                  Restore
+                </SubmitButton>
               </form>
             )}
           </div>
         </Card>
       )}
 
-      {/* Tutors */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Tutors <span className="text-slate-300">· {teachers.length}</span>
-        </h2>
-        {isAdmin && addableTutors.length > 0 && (
+        <SectionLabel count={data.tutors.length}>Teachers</SectionLabel>
+        {data.isAdmin && data.addableTutors.length > 0 && (
           <form action={addTutorAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
             <input type="hidden" name="class_id" value={course.id} />
-            <Field label="Add a tutor" className="min-w-0 flex-1 sm:max-w-xs">
-              <Select name="teacher_id" required defaultValue="">
-                <option value="" disabled>Select tutor…</option>
-                {addableTutors.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+            <Field label="Add a teacher" className="min-w-0 flex-1 sm:max-w-xs">
+              <Select name="tutor_id" required defaultValue="">
+                <option value="" disabled>
+                  Select teacher...
+                </option>
+                {data.addableTutors.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
                 ))}
               </Select>
             </Field>
-            <SubmitButton className="btn-sm btn-soft" pendingLabel="Adding…">Add</SubmitButton>
+            <SubmitButton className="btn-sm btn-soft" pendingLabel="Adding...">
+              Add
+            </SubmitButton>
           </form>
         )}
         <ul className="space-y-2">
-          {teachers.map((t) => (
+          {data.tutors.map((t) => (
             <MemberRow
               key={t.id}
               m={t}
               classId={course.id}
-              showEmail={canManage}
-              removeAction={isAdmin ? removeTutorAction : undefined}
-              removeName="teacher_id"
+              showEmail={data.canManage}
+              removeAction={data.isAdmin ? removeTutorAction : undefined}
+              removeName="tutor_id"
             />
           ))}
-          {teachers.length === 0 && <EmptyState as="li">No tutors assigned yet.</EmptyState>}
+          {data.tutors.length === 0 && <EmptyState as="li">No teachers assigned yet.</EmptyState>}
         </ul>
       </section>
 
-      {/* Students */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Students <span className="text-slate-300">· {students.length}</span>
-        </h2>
-        {canManage && addableStudents.length > 0 && (
+        <SectionLabel count={data.students.length}>Students</SectionLabel>
+        {data.canManage && data.addableStudents.length > 0 && (
           <form action={enrolStudentAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
             <input type="hidden" name="class_id" value={course.id} />
             <Field label="Enrol a student" className="min-w-0 flex-1 sm:max-w-xs">
               <Select name="student_id" required defaultValue="">
-                <option value="" disabled>Select student…</option>
-                {addableStudents.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                <option value="" disabled>
+                  Select student...
+                </option>
+                {data.addableStudents.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
               </Select>
             </Field>
-            <SubmitButton className="btn-sm btn-soft" pendingLabel="Enrolling…">Enrol</SubmitButton>
+            <SubmitButton className="btn-sm btn-soft" pendingLabel="Enrolling...">
+              Enrol
+            </SubmitButton>
           </form>
         )}
         <ul className="space-y-2">
-          {students.map((s) => {
-            const mentors = mentorMap.get(s.id)
-            return (
-              <MemberRow
-                key={s.id}
-                m={s}
-                subtitle={mentors && mentors.length ? `Mentor: ${mentors.map((mm: { name: string }) => mm.name).join(', ')}` : undefined}
-                classId={course.id}
-                showEmail={canManage}
-                removeAction={canManage ? removeStudentAction : undefined}
-                removeName="student_id"
-              />
-            )
-          })}
-          {students.length === 0 && <EmptyState as="li">No students enrolled yet.</EmptyState>}
+          {data.students.map((s) => (
+            <MemberRow
+              key={s.id}
+              m={s}
+              subtitle={s.subtitle}
+              classId={course.id}
+              showEmail={data.canManage}
+              removeAction={data.canManage ? removeStudentAction : undefined}
+              removeName="student_id"
+            />
+          ))}
+          {data.students.length === 0 && <EmptyState as="li">No students enrolled yet.</EmptyState>}
         </ul>
       </section>
     </div>

@@ -10,17 +10,35 @@ const KEY = 'cea:last-active'
 export function IdleLogout() {
   useEffect(() => {
     const mark = () => {
-      try { localStorage.setItem(KEY, String(Date.now())) } catch {}
+      try {
+        localStorage.setItem(KEY, String(Date.now()))
+      } catch {
+        /* best-effort: private mode / quota can block writes - idle tracking is
+           non-essential, so a failed write must never surface to the user */
+      }
     }
     const check = () => {
       let last: number
-      try { last = Number(localStorage.getItem(KEY)) || Date.now() } catch { return }
-      if (Date.now() - last > IDLE_MS) window.location.href = '/api/logout'
+      try {
+        last = Number(localStorage.getItem(KEY)) || Date.now()
+      } catch {
+        return
+      }
+      if (Date.now() - last > IDLE_MS) {
+        // POST (not a GET redirect) so it matches the CSRF-safe logout route.
+        const form = document.createElement('form')
+        form.method = 'POST'
+        form.action = '/api/logout'
+        document.body.appendChild(form)
+        form.submit()
+      }
     }
     mark()
     const activity = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll']
     activity.forEach((e) => window.addEventListener(e, mark, { passive: true }))
-    const onVisible = () => { if (!document.hidden) check() }
+    const onVisible = () => {
+      if (!document.hidden) check()
+    }
     document.addEventListener('visibilitychange', onVisible)
     const iv = setInterval(check, 60 * 1000)
     return () => {

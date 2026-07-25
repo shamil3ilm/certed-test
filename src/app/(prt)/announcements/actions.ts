@@ -1,53 +1,82 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth/requireRole'
-import { createAnnouncementSchema } from '@/lib/validation/announcement'
+import { redirect } from 'next/navigation'
+import { requireCapability } from '@/lib/auth/require-role'
+import { ServiceError } from '@/lib/errors'
 import {
-  createAnnouncement,
+  createAnnouncementFromActionInput,
   archiveAnnouncement,
   restoreAnnouncement,
-  editAnnouncement,
+  editAnnouncementFromActionInput,
 } from '@/lib/services/announcements'
+import { classErrorUrl } from '../action-redirect'
+
+/**
+ * These run as native `<form action>` submissions (so SubmitButton's
+ * useFormStatus pending state keeps working). A service-thrown
+ * ValidationError/PermissionError/NotFoundError - e.g. a message over the length
+ * limit, or an archive/restore of a row deleted in a concurrent session - would
+ * otherwise crash the Server Action into Next's generic error page. Instead we
+ * redirect back to the class stream with `?error=announcement`, which the page
+ * renders as an inline banner. The originating class id travels in a hidden
+ * `stream_class_id` field so archive/restore (which only carry the post id) know
+ * where to return. redirect() throws NEXT_REDIRECT, so it stays outside catch.
+ */
+const announcementErrorUrl = (formData: FormData) =>
+  classErrorUrl(formData, { fields: ['stream_class_id'], error: 'announcement' })
 
 export async function createAnnouncementAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const rawClass = String(formData.get('class_id') ?? '')
-  const parsed = createAnnouncementSchema.safeParse({
-    class_id: rawClass === '' ? null : rawClass,
-    title: String(formData.get('title') ?? ''),
-    message: String(formData.get('message') ?? ''),
-  })
-  if (!parsed.success) return
-  await createAnnouncement(me, {
-    class_id: parsed.data.class_id ?? null,
-    title: parsed.data.title,
-    message: parsed.data.message,
-  })
+  const me = await requireCapability('manageClassContent')
+  try {
+    await createAnnouncementFromActionInput(me, {
+      class_id: formData.get('class_id'),
+      title: formData.get('title'),
+      message: formData.get('message'),
+    })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }
 
 export async function archiveAnnouncementAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
+  const me = await requireCapability('manageClassContent')
   const id = String(formData.get('id') ?? '')
   if (!id) return
-  await archiveAnnouncement(me, id)
+  try {
+    await archiveAnnouncement(me, id)
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }
 
 export async function restoreAnnouncementAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
+  const me = await requireCapability('manageClassContent')
   const id = String(formData.get('id') ?? '')
   if (!id) return
-  await restoreAnnouncement(me, id)
+  try {
+    await restoreAnnouncement(me, id)
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }
 
 export async function editAnnouncementAction(formData: FormData) {
-  const me = await requireRole(['admin', 'teacher'])
-  const id = String(formData.get('id') ?? '')
-  const title = String(formData.get('title') ?? '').trim()
-  const message = String(formData.get('message') ?? '').trim()
-  if (!id || !title || !message) return
-  await editAnnouncement(me, id, { title, message })
+  const me = await requireCapability('manageClassContent')
+  try {
+    await editAnnouncementFromActionInput(me, {
+      id: formData.get('id'),
+      title: formData.get('title'),
+      message: formData.get('message'),
+    })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
+    throw error
+  }
   revalidatePath('/classroom', 'layout')
 }

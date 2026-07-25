@@ -1,16 +1,23 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { cx } from '@/lib/ui'
+import { useFocusTrap } from '@/lib/ui/use-focus-trap'
+import { LogoutForm } from './LogoutForm'
+import { NavIcon } from './NavIcon'
 
 type NavItem = { href: string; label: string }
 
 export function MobileNav({ links }: { links: NavItem[] }) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const panelRef = useRef<HTMLElement>(null)
+  useFocusTrap(panelRef, { active: open, onEscape: () => setOpen(false) })
   return (
     <>
       <button
+        type="button"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
         className="-ml-1 rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden"
@@ -23,11 +30,29 @@ export function MobileNav({ links }: { links: NavItem[] }) {
       {open && (
         <div className="fixed inset-0 z-[80] md:hidden">
           <div className="absolute inset-0 bg-slate-900/40" onClick={() => setOpen(false)} />
-          <aside className="absolute left-0 top-0 flex h-dvh w-64 flex-col bg-white p-4 shadow-xl">
+          <aside
+            ref={panelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+            className="absolute left-0 top-0 flex h-dvh w-64 flex-col bg-white p-4 shadow-xl focus:outline-none"
+          >
             <div className="flex items-center justify-between">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/cert-ed-academia-online-tuition-logo.webp" alt="Cert-Ed Academia" className="h-8 w-auto object-contain" />
-              <button onClick={() => setOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">✕</button>
+              <img
+                src="/cert-ed-academia-online-tuition-logo.webp"
+                alt="Cert-Ed Academia"
+                className="h-8 w-auto object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close menu"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                &times;
+              </button>
             </div>
             <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
               {links.map((l) => {
@@ -38,23 +63,22 @@ export function MobileNav({ links }: { links: NavItem[] }) {
                     href={l.href}
                     onClick={() => setOpen(false)}
                     aria-current={active ? 'page' : undefined}
-                    className={
+                    className={cx(
+                      'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition',
                       active
-                        ? 'rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary'
-                        : 'rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-primary/5 hover:text-primary'
-                    }
+                        ? 'bg-gradient-to-r from-primary/15 to-secondary/10 font-semibold text-primary ring-1 ring-primary/10'
+                        : 'font-medium text-slate-600 hover:bg-primary/5 hover:text-primary',
+                    )}
                   >
+                    <NavIcon href={l.href} />
                     {l.label}
                   </Link>
                 )
               })}
             </nav>
-            <a
-              href="/api/logout"
-              className="mt-2 rounded-lg border border-primary/30 px-3 py-2 text-center text-sm font-medium text-primary hover:bg-primary/5"
-            >
+            <LogoutForm className="mt-2 w-full rounded-lg border border-primary/30 px-3 py-2 text-center text-sm font-medium text-primary hover:bg-primary/5">
               Sign out
-            </a>
+            </LogoutForm>
           </aside>
         </div>
       )}

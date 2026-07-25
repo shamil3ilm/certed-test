@@ -1,7 +1,6 @@
+import Link from 'next/link'
 import { requireClassAccess } from '../access'
-import { listAnnouncementsForClass } from '@/lib/services/announcements'
-import { listMeetLinks } from '@/lib/services/meetLinks'
-import { listCommentsForEntities } from '@/lib/services/comments'
+import { classStreamPageUrl, loadClassStreamViewData } from '@/lib/services/page-data/class-stream'
 import { LocalTime } from '../../LocalTime'
 import {
   createAnnouncementAction,
@@ -11,43 +10,60 @@ import {
 } from '../../announcements/actions'
 import { MeetForm } from '../../meetings/MeetForm'
 import { MeetList } from '../../meetings/MeetList'
-import { Card, EmptyState, Badge } from '../../ui'
+import { restoreMeetLinkAction } from '../../meetings/actions'
+import {
+  AlertBanner,
+  ARCHIVED_ROW,
+  CARD,
+  Card,
+  EmptyState,
+  Badge,
+  SectionLabel,
+  FilterBar,
+  FilterField,
+  FILTER_CONTROL,
+  cx,
+} from '@/lib/ui'
 import { Field, Input, Select, Textarea, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { EscapableDetails } from '../../EscapableDetails'
 
-export default async function ClassStreamPage({ params }: { params: { id: string } }) {
+export default async function ClassStreamPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams?: { streamPage?: string; streamQ?: string; error?: string }
+}) {
   const { me, course } = await requireClassAccess(params.id)
-  const canManage = me.role === 'admin' || me.role === 'teacher'
-  const isAdmin = me.role === 'admin'
-  // Global (academy-wide) posts show here too, but only an admin may manage them;
-  // a class post is managed by a teacher of THIS class.
-  const canManageAnn = (classId: string | null) => canManage && (isAdmin || classId === course.id)
-
-  const [announcements, meetLinks] = await Promise.all([
-    listAnnouncementsForClass(course.id, canManage),
-    listMeetLinks(course.id),
-  ])
-  const activeAnnouncements = announcements.filter((a) => a.status === 'active')
-  const archivedAnnouncements = announcements.filter(
-    (a) => a.status === 'archived' && canManageAnn(a.class_id),
-  )
-
-  const commentsByMeet = await listCommentsForEntities('meet', meetLinks.map((m) => m.id))
-  const classList = [{ id: course.id, name: course.name }]
+  const data = await loadClassStreamViewData(me, course, searchParams)
 
   return (
     <div className="space-y-8">
-      {/* Stream / announcements — the primary class activity */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Stream</h2>
+        <SectionLabel>Stream</SectionLabel>
 
-        {canManage && (
-          <form
-            action={createAnnouncementAction}
-            className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
+        {searchParams?.error && (
+          <AlertBanner>That change couldn&apos;t be saved. Please check the details and try again.</AlertBanner>
+        )}
+
+        <FilterBar clearHref="?" showClear={Boolean(data.streamQ)} applyLabel="Search">
+          <FilterField label="Search posts" className="min-w-0 flex-1 sm:max-w-xs">
+            <input
+              type="search"
+              name="streamQ"
+              defaultValue={data.streamQ ?? ''}
+              placeholder="Title or message..."
+              className={cx(FILTER_CONTROL, 'w-full')}
+            />
+          </FilterField>
+        </FilterBar>
+
+        {data.canManage && (
+          <form action={createAnnouncementAction} className={cx(CARD, 'space-y-2 p-4')}>
             <h3 className="font-medium text-slate-900">Post an announcement</h3>
-            {isAdmin ? (
+            <input type="hidden" name="stream_class_id" value={course.id} />
+            {data.isAdmin ? (
               <Field label="Post to">
                 <Select name="class_id" defaultValue={course.id}>
                   <option value={course.id}>This class</option>
@@ -57,14 +73,24 @@ export default async function ClassStreamPage({ params }: { params: { id: string
             ) : (
               <input type="hidden" name="class_id" value={course.id} />
             )}
-            <Input name="title" required placeholder="Title" />
-            <Textarea name="message" required placeholder="Share something with your class…" rows={3} />
-            <SubmitButton pendingLabel="Posting…">Post</SubmitButton>
+            <Field label="Title">
+              <Input name="title" required maxLength={200} placeholder="Title" />
+            </Field>
+            <Field label="Message">
+              <Textarea
+                name="message"
+                required
+                maxLength={5000}
+                placeholder="Share something with your class..."
+                rows={3}
+              />
+            </Field>
+            <SubmitButton pendingLabel="Posting...">Post</SubmitButton>
           </form>
         )}
 
         <ul className="space-y-3">
-          {activeAnnouncements.map((a) => (
+          {data.activeAnnouncements.map((a) => (
             <Card as="li" key={a.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -73,28 +99,39 @@ export default async function ClassStreamPage({ params }: { params: { id: string
                     {a.class_id === null && <Badge tone="slate">Academy-wide</Badge>}
                   </h3>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{a.message}</p>
-                  <p className="mt-2 text-xs text-slate-400"><LocalTime iso={a.created_at} /></p>
+                  <p className="mt-2 text-xs text-slate-400">
+                    <LocalTime iso={a.created_at} />
+                  </p>
                 </div>
-                {canManageAnn(a.class_id) && (
+                {data.canManage && (data.isAdmin || a.class_id === course.id) && (
                   <div className="flex shrink-0 gap-2">
-                    <details className="relative text-xs">
-                      <summary className="cursor-pointer btn btn-sm btn-soft">Edit</summary>
+                    <EscapableDetails
+                      className="relative text-xs"
+                      summaryClassName="cursor-pointer btn btn-sm btn-soft"
+                      summary="Edit"
+                    >
                       <form
                         action={editAnnouncementAction}
                         className="absolute right-0 z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-slate-50 p-2 shadow-md"
                       >
                         <input type="hidden" name="id" value={a.id} />
-                        <Input name="title" defaultValue={a.title} required />
-                        <Textarea name="message" defaultValue={a.message} required rows={3} />
-                        <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
+                        <input type="hidden" name="stream_class_id" value={course.id} />
+                        <Field label="Title">
+                          <Input name="title" defaultValue={a.title} required maxLength={200} />
+                        </Field>
+                        <Field label="Message">
+                          <Textarea name="message" defaultValue={a.message} required maxLength={5000} rows={3} />
+                        </Field>
+                        <SubmitButton pendingLabel="Saving...">Save</SubmitButton>
                       </form>
-                    </details>
+                    </EscapableDetails>
                     <form action={archiveAnnouncementAction}>
                       <input type="hidden" name="id" value={a.id} />
+                      <input type="hidden" name="stream_class_id" value={course.id} />
                       <ConfirmSubmit
                         className="btn btn-sm btn-warning"
                         title="Archive this post?"
-                        message="It's hidden from the class but kept on record — you can restore it."
+                        message="It's hidden from the class but kept on record - you can restore it."
                         confirmLabel="Archive"
                       >
                         Archive
@@ -105,23 +142,48 @@ export default async function ClassStreamPage({ params }: { params: { id: string
               </div>
             </Card>
           ))}
-          {activeAnnouncements.length === 0 && (
-            <EmptyState as="li">Nothing posted to the class stream yet.</EmptyState>
+          {data.streamTotal === 0 && (
+            <EmptyState as="li">
+              {data.streamQ ? `No posts match "${data.streamQ}".` : 'Nothing posted to the class stream yet.'}
+            </EmptyState>
           )}
         </ul>
 
-        {canManage && archivedAnnouncements.length > 0 && (
+        {data.streamTotalPages > 1 && (
+          <div className="flex items-center justify-between text-sm text-slate-500">
+            <span>
+              Page {data.streamPage} of {data.streamTotalPages} - {data.streamTotal} total
+            </span>
+            <div className="flex gap-2">
+              {data.streamPage > 1 && (
+                <Link href={classStreamPageUrl(data.streamPage - 1, data.streamQ)} className="btn btn-sm btn-soft">
+                  Previous
+                </Link>
+              )}
+              {data.streamPage < data.streamTotalPages && (
+                <Link href={classStreamPageUrl(data.streamPage + 1, data.streamQ)} className="btn btn-sm btn-soft">
+                  Next
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {data.canManage && data.archivedAnnouncements.length > 0 && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-primary">
-              {archivedAnnouncements.length} archived post{archivedAnnouncements.length !== 1 ? 's' : ''}
+              {data.archivedAnnouncements.length} archived post{data.archivedAnnouncements.length !== 1 ? 's' : ''}
             </summary>
             <ul className="mt-2 space-y-2">
-              {archivedAnnouncements.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              {data.archivedAnnouncements.map((a) => (
+                <li key={a.id} className={ARCHIVED_ROW}>
                   <span className="truncate text-slate-500">{a.title}</span>
                   <form action={restoreAnnouncementAction}>
                     <input type="hidden" name="id" value={a.id} />
-                    <SubmitButton className="btn-sm btn-success" pendingLabel="…">Restore</SubmitButton>
+                    <input type="hidden" name="stream_class_id" value={course.id} />
+                    <SubmitButton className="btn-sm btn-success" pendingLabel="...">
+                      Restore
+                    </SubmitButton>
                   </form>
                 </li>
               ))}
@@ -130,19 +192,37 @@ export default async function ClassStreamPage({ params }: { params: { id: string
         )}
       </section>
 
-      {/* Class meet — folded in from the old standalone Meetings section */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Class meet</h2>
-        {canManage && <MeetForm classes={classList} canGlobal={isAdmin} />}
-        {/* Pass only the fields MeetList needs — never the whole `me` Profile, or
-            auth_user_id / status would serialize into the client RSC payload. */}
+        <SectionLabel>Class meet</SectionLabel>
+        {data.canManage && <MeetForm classes={data.classList} canGlobal={data.isAdmin} />}
         <MeetList
-          meetLinks={meetLinks}
-          initialComments={commentsByMeet}
+          meetLinks={data.meetLinks}
+          initialComments={data.commentsByMeet}
           me={{ id: me.id, email: me.email, full_name: me.full_name, role: me.role }}
-          classes={classList}
-          isAdmin={isAdmin}
+          classes={data.classList}
+          canManage={data.canManage}
+          isAdmin={data.isAdmin}
         />
+
+        {data.canManage && data.archivedMeetLinks.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-primary">
+              {data.archivedMeetLinks.length} removed link{data.archivedMeetLinks.length !== 1 ? 's' : ''}
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {data.archivedMeetLinks.map((m) => (
+                <li key={m.id} className={ARCHIVED_ROW}>
+                  <span className="truncate text-slate-500">{m.title}</span>
+                  <form action={restoreMeetLinkAction.bind(null, m.id, course.id)}>
+                    <SubmitButton className="btn-sm btn-success" pendingLabel="...">
+                      Restore
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </section>
     </div>
   )
