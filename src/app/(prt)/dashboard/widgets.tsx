@@ -241,7 +241,11 @@ export async function DueWorkWidget({ me }: { me: Profile }) {
   const due = assignments
     .filter((a) => a.status === 'active' && !submittedIds.has(a.id))
     .sort((a, b) => (a.due_date < b.due_date ? -1 : 1))
-  const today = todayInZone(await getInstituteTimeZone())
+  // Overdue = the due INSTANT has passed, matching the app's canonical convention
+  // (late-status.ts, mentees.ts, the classwork page). Comparing the due date's UTC
+  // slice against org-tz "today" was off by up to a day near the day boundary for
+  // any non-UTC org, and could disagree with the classwork page on the same item.
+  const now = Date.now()
   return (
     <Panel title="Due work">
       {due.length === 0 ? (
@@ -249,7 +253,7 @@ export async function DueWorkWidget({ me }: { me: Profile }) {
       ) : (
         <ul className="space-y-1 text-sm">
           {due.slice(0, 4).map((a) => {
-            const overdue = a.due_date.slice(0, 10) < today
+            const overdue = Date.parse(a.due_date) < now
             return (
               <li key={a.id}>
                 <Link href={`/classroom/${a.class_id}/classwork#assignment-${a.id}`} className={WIDGET_ROW_LINK}>
