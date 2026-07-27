@@ -1,7 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { escapeIlike } from '@/lib/text/ilike'
+import { escapeOrIlike } from '@/lib/text/ilike'
 
 /**
  * Table access for the two finance documents. Receipts and pay slips are
@@ -132,20 +132,23 @@ export async function selectDocsForParty(kind: FinanceKind, partyId: string): Pr
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => toDoc(kind, r))
 }
 
-/** Every document (RLS lets an admin read all), newest first. Unbounded - for
- *  the explicit CSV export only, never a page or dashboard read. */
+/** Every document, newest first. Unbounded - for the explicit CSV export only.
+ *  SERVICE-ROLE: the caller must have proved viewFinance in the domain first
+ *  (finance-docs service). An RLS-scoped client returns only the caller's OWN
+ *  docs, so a sub_admin granted viewFinance would export an empty ledger. */
 export async function selectAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
   const k = KIND[kind]
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase.from(k.table).select(docColumns(k)).order('created_at', { ascending: false })
   if (error) throw new Error(`${kind}.listAll: ${error.message}`)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => toDoc(kind, r))
 }
 
-/** The most recent documents, newest first - bounded, for ledger/preview views. */
+/** The most recent documents, newest first - bounded, for ledger/preview views.
+ *  SERVICE-ROLE (viewFinance proved by the caller) - see selectAllDocs. */
 export async function selectRecentDocs(kind: FinanceKind, limit: number): Promise<FinanceDoc[]> {
   const k = KIND[kind]
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from(k.table)
     .select(docColumns(k))
@@ -156,19 +159,20 @@ export async function selectRecentDocs(kind: FinanceKind, limit: number): Promis
 }
 
 /** One page of the ledger with an exact total. Search matches the document
- *  number or the party's name-snapshot (their name at time of issue). */
+ *  number or the party's name-snapshot (their name at time of issue).
+ *  SERVICE-ROLE (viewFinance proved by the caller) - see selectAllDocs. */
 export async function selectDocPage(
   kind: FinanceKind,
   opts: { from: number; to: number; search?: string; status?: 'active' | 'voided' },
 ): Promise<{ rows: FinanceDoc[]; total: number }> {
   const k = KIND[kind]
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   let query = supabase.from(k.table).select(docColumns(k), { count: 'exact' }).order('created_at', { ascending: false })
   if (opts.status === 'active') query = query.eq('voided', false)
   if (opts.status === 'voided') query = query.eq('voided', true)
   const search = opts.search?.trim()
   if (search) {
-    const needle = escapeIlike(search)
+    const needle = escapeOrIlike(search)
     query = query.or(`number.ilike.%${needle}%,${k.nameCol}.ilike.%${needle}%`)
   }
   const { data, error, count } = await query.range(opts.from, opts.to)
@@ -178,9 +182,12 @@ export async function selectDocPage(
 
 export type FinanceTotal = { currency: string; live_total: number; live_count: number }
 
-/** Per-currency, non-voided totals computed in SQL - no rows shipped to the app. */
+/** Per-currency, non-voided totals computed in SQL - no rows shipped to the app.
+ *  SERVICE-ROLE (viewFinance proved by the caller): finance_totals is SECURITY
+ *  INVOKER, so under an RLS client it would sum only the caller's own docs; the
+ *  service-role client bypasses RLS to total the whole institution ledger. */
 export async function callFinanceTotals(kind: FinanceKind): Promise<FinanceTotal[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase.rpc('finance_totals', { p_kind: kind })
   if (error) throw new Error(`${kind}.totals: ${error.message}`)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
@@ -256,17 +263,4 @@ export async function updateDocVoided(kind: FinanceKind, id: string): Promise<bo
     .select('id')
   if (error) throw new Error(`${kind}.void: ${error.message}`)
   return (data?.length ?? 0) > 0
-}
-
-/** Allocates the next sequential document number for a type and year, atomically
- *  via the `next_document_number` Postgres function. Returns the raw counter;
- *  formatting it into e.g. CEA-R-2026-0007 is the domain's job. */
-export async function callNextDocumentNumber(docType: FinanceKind, year: number): Promise<number> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.rpc('next_document_number', {
-    p_doc_type: docType,
-    p_year: year,
-  })
-  if (error) throw new Error(`counters.allocate: ${error.message}`)
-  return data as number
 }

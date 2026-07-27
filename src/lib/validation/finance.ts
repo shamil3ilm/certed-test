@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SUPPORTED_CURRENCIES } from '@/lib/money'
+import { SUPPORTED_CURRENCIES, computeTotals } from '@/lib/money'
 
 const lineSchema = z.object({
   subject: z.string().min(1).max(120),
@@ -27,11 +27,14 @@ export const issueDocSchema = z
     lines: z.array(lineSchema).min(1).max(50),
   })
   .superRefine((v, ctx) => {
-    const subtotal = v.lines.reduce((s, l) => s + l.hours * l.rate, 0)
-    const discount = v.discount ?? 0
+    // Validate against the SAME rounded amounts that get stored (round(line)
+    // subtotal, minor-unit-rounded discount), not the raw sum - otherwise a
+    // sub-unit rate can pass "total > 0" yet store total 0, and a sub-unit
+    // discount can pass here yet render inconsistently on the document.
+    const { subtotal, discount, total } = computeTotals(v.lines, v.discount ?? 0, v.currency)
     if (discount > subtotal) {
       ctx.addIssue({ code: 'custom', message: 'Discount cannot exceed the subtotal', path: ['discount'] })
-    } else if (subtotal - discount <= 0) {
+    } else if (total <= 0) {
       ctx.addIssue({ code: 'custom', message: 'Total must be greater than zero', path: ['discount'] })
     }
   })

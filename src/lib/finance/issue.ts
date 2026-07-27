@@ -36,7 +36,7 @@ async function issueDoc(
     rate: l.rate,
     amount: lineAmount(l.hours, l.rate, input.currency),
   }))
-  const { subtotal, total } = computeTotals(input.lines, input.discount ?? 0, input.currency)
+  const { subtotal, discount: roundedDiscount, total } = computeTotals(input.lines, input.discount ?? 0, input.currency)
   const org = await getOrgSettings()
   const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix
 
@@ -48,7 +48,9 @@ async function issueDoc(
     currency: input.currency,
     note: input.note ?? null,
     subtotal,
-    discount: input.discount ?? null,
+    // Store the rounded discount (null only when none was given) so the stored
+    // subtotal/discount/total are mutually consistent to the currency's minor unit.
+    discount: input.discount == null ? null : roundedDiscount,
     total,
     created_by: actorId,
     prefix,

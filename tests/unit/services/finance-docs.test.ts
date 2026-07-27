@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { queryBuilder } from '../../stubs/supabase-query-builder'
+import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { issueDocRecord, listDocsPage, validateFinanceDocId, voidDoc } from '@/lib/services/finance/finance-docs'
@@ -32,8 +31,8 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('listDocsPage', () => {
   it('requests the correct range and maps rows through toDoc', async () => {
-    const client = { from: vi.fn(() => queryBuilder({ data: [receiptRow], error: null, count: 45 })) }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const client = makeClient({ data: [receiptRow], error: null, count: 45 })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     const result = await listDocsPage('receipt', { page: 2, pageSize: 20 })
     const builder = client.from.mock.results[0].value
     expect(builder.range).toHaveBeenCalledWith(20, 39)
@@ -42,32 +41,32 @@ describe('listDocsPage', () => {
   })
 
   it('filters by voided status when given', async () => {
-    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const client = makeClient({ data: [], error: null, count: 0 })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     await listDocsPage('receipt', { page: 1, pageSize: 20, status: 'voided' })
     const builder = client.from.mock.results[0].value
     expect(builder.eq).toHaveBeenCalledWith('voided', true)
   })
 
   it('filters by active status when given', async () => {
-    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const client = makeClient({ data: [], error: null, count: 0 })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     await listDocsPage('payslip', { page: 1, pageSize: 20, status: 'active' })
     const builder = client.from.mock.results[0].value
     expect(builder.eq).toHaveBeenCalledWith('voided', false)
   })
 
   it('searches document number OR the kind-specific name-snapshot column', async () => {
-    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const client = makeClient({ data: [], error: null, count: 0 })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     await listDocsPage('payslip', { page: 1, pageSize: 20, search: 'tarun' })
     const builder = client.from.mock.results[0].value
     expect(builder.or).toHaveBeenCalledWith('number.ilike.%tarun%,tutor_name_snapshot.ilike.%tarun%')
   })
 
   it('ignores a blank search', async () => {
-    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const client = makeClient({ data: [], error: null, count: 0 })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     await listDocsPage('receipt', { page: 1, pageSize: 20, search: '  ' })
     const builder = client.from.mock.results[0].value
     expect(builder.or).not.toHaveBeenCalled()
@@ -171,9 +170,7 @@ describe('finance mutations enforce their own permission check', () => {
   })
 
   it('voidDoc gates on the hard admin-tier capability, not a role string', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce({
-      from: vi.fn(() => queryBuilder({ data: [{ id: 'r-1' }], error: null })),
-    } as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'r-1' }], error: null }) as any)
     await expect(voidDoc('admin-1', 'receipt', 'r-1')).resolves.toBe(true)
     expect(requireActorCapability).toHaveBeenCalledWith('admin-1', 'manageAdminTier', expect.any(String))
   })

@@ -55,8 +55,9 @@ export async function listMyDocs(kind: FinanceKind, partyId: string): Promise<Fi
   return selectDocsForParty(kind, partyId)
 }
 
-/** Every document (admin session; RLS lets admin read all), newest first.
- *  Unbounded - use only for the explicit CSV export, not for page/dashboard reads. */
+/** Every document, newest first. Unbounded - use only for the explicit CSV
+ *  export. Reads the whole ledger via the service-role client, so the CALLER
+ *  MUST have proved viewFinance first (the export handler does). */
 export async function listAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
   return selectAllDocs(kind)
 }

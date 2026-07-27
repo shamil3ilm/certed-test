@@ -31,15 +31,24 @@ describe('computeTotals', () => {
       { hours: 7.5, rate: 200 }, // 1500
       { hours: 6, rate: 200 }, // 1200
     ]
-    expect(computeTotals(lines)).toEqual({ subtotal: 2700, total: 2700 })
+    expect(computeTotals(lines)).toEqual({ subtotal: 2700, discount: 0, total: 2700 })
   })
   it('subtracts a discount from the total', () => {
-    expect(computeTotals([{ hours: 10, rate: 100 }], 250)).toEqual({ subtotal: 1000, total: 750 })
+    expect(computeTotals([{ hours: 10, rate: 100 }], 250)).toEqual({ subtotal: 1000, discount: 250, total: 750 })
   })
   it('rounds to the currency minor unit', () => {
     // 3 × 0.3335 = 1.0005 → 1.001 (KWD, 3dp) vs 1.00 (INR, 2dp)
-    expect(computeTotals([{ hours: 3, rate: 0.3335 }], 0, 'KWD')).toEqual({ subtotal: 1.001, total: 1.001 })
-    expect(computeTotals([{ hours: 3, rate: 0.3335 }])).toEqual({ subtotal: 1, total: 1 })
+    expect(computeTotals([{ hours: 3, rate: 0.3335 }], 0, 'KWD')).toEqual({
+      subtotal: 1.001,
+      discount: 0,
+      total: 1.001,
+    })
+    expect(computeTotals([{ hours: 3, rate: 0.3335 }])).toEqual({ subtotal: 1, discount: 0, total: 1 })
+  })
+  it('rounds the discount to the minor unit and derives total from it', () => {
+    // A sub-unit discount must round the SAME way it will be rendered, so the
+    // stored subtotal - discount = total stays internally consistent.
+    expect(computeTotals([{ hours: 1, rate: 100 }], 0.005)).toEqual({ subtotal: 100, discount: 0.01, total: 99.99 })
   })
   it('sums rounded line amounts so lines add up to the subtotal', () => {
     // Each 0.25 × 12.5 = 3.125 → prints 3.13; two of them must total 6.26, not
@@ -51,6 +60,7 @@ describe('computeTotals', () => {
       ]),
     ).toEqual({
       subtotal: 6.26,
+      discount: 0,
       total: 6.26,
     })
   })

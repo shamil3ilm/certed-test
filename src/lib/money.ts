@@ -39,7 +39,7 @@ export function computeTotals(
   lines: { hours: number; rate: number }[],
   discount = 0,
   currency = 'INR',
-): { subtotal: number; total: number } {
+): { subtotal: number; discount: number; total: number } {
   const decimals = currencyDecimals(currency)
   // Sum the ALREADY-ROUNDED line amounts (not the raw products) so the printed
   // line amounts add up exactly to the printed subtotal - sum round(line) rather
@@ -48,8 +48,13 @@ export function computeTotals(
     lines.reduce((sum, l) => sum + roundTo(l.hours * l.rate, decimals), 0),
     decimals,
   )
-  const total = roundTo(subtotal - (discount || 0), decimals)
-  return { subtotal, total }
+  // Round the discount to the currency's minor unit too, and derive total from
+  // the rounded discount - otherwise a sub-unit discount (e.g. 0.005) is stored
+  // raw while the PDF/CSV render it rounded, so the document's arithmetic
+  // (subtotal - discount = total) visibly disagrees with itself.
+  const roundedDiscount = roundTo(discount || 0, decimals)
+  const total = roundTo(subtotal - roundedDiscount, decimals)
+  return { subtotal, discount: roundedDiscount, total }
 }
 
 /**

@@ -14,17 +14,6 @@ function profileByUid(uid: string | null): Record<string, unknown> | null {
 }
 
 async function rpc(uid: string | null, fn: string, args: Args) {
-  if (fn === 'next_document_number') {
-    const counters = table('document_counters')
-    let row = counters.find((c) => c.doc_type === args.p_doc_type && c.year === args.p_year)
-    if (!row) {
-      row = { doc_type: args.p_doc_type, year: args.p_year, last_number: 0 }
-      counters.push(row)
-    }
-    row.last_number = (row.last_number as number) + 1
-    persist()
-    return { data: row.last_number as number, error: null }
-  }
   if (fn === 'teaches_class' || fn === 'is_enrolled') {
     const me = profileByUid(uid)
     if (!me) return { data: false, error: null }
