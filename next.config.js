@@ -1,3 +1,24 @@
+// Build-time guard for the public Supabase config. NEXT_PUBLIC_* values are inlined
+// into the CLIENT bundle at BUILD time; if they are missing here - unset, or marked
+// "Sensitive" in Vercel (Sensitive vars are withheld from the build step) - the
+// browser Supabase client cannot initialise and sign-in breaks, with nothing in the
+// runtime server logs to trace (the server still has the value at runtime). Log it
+// loudly in the BUILD output so the misconfiguration is caught in the deploy logs
+// instead of only in a user's browser. (Promote console.error -> throw for fail-fast.)
+if ((process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0') !== '1') {
+  const missingPublicEnv = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'].filter(
+    (name) => !process.env[name],
+  )
+  if (missingPublicEnv.length > 0) {
+    console.error(
+      `\n[build] WARNING: missing public env at build time: ${missingPublicEnv.join(', ')}.\n` +
+        '  These NEXT_PUBLIC_* values are inlined into the client bundle at build time. If they are unset,\n' +
+        '  or marked "Sensitive" in Vercel (Sensitive vars are withheld from the build), the browser\n' +
+        '  Supabase client fails and sign-in breaks. Set them as NON-sensitive vars and redeploy.\n',
+    )
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
