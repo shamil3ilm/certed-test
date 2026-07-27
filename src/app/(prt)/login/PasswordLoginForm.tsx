@@ -2,12 +2,13 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { signInWithPasswordClient } from '../auth-client'
+import { getBrowserAuthAvailability, signInWithPasswordClient } from '../auth-client'
 import { Field, Input, PasswordInput } from '../form'
 import { AlertBanner } from '@/lib/ui'
 
 export function PasswordLoginForm() {
   const router = useRouter()
+  const authAvailability = getBrowserAuthAvailability()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -15,6 +16,11 @@ export function PasswordLoginForm() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
+    if (!authAvailability.ok) {
+      setError(authAvailability.message)
+      return
+    }
+
     setBusy(true)
     setError(null)
 
@@ -49,8 +55,9 @@ export function PasswordLoginForm() {
           onChange={(event) => setPassword(event.target.value)}
         />
       </Field>
+      {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
-      <button type="submit" disabled={busy} className="btn btn-primary w-full">
+      <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">
         {busy ? 'Signing in...' : 'Sign in'}
       </button>
     </form>

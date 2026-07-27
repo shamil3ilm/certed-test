@@ -1,11 +1,27 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-function requiredPublicEnv(name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') {
+type PublicSupabaseEnvName = 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
+
+function requiredPublicEnv(name: PublicSupabaseEnvName) {
   const value = process.env[name]
   if (!value) {
     throw new Error(`Missing required public environment variable ${name}.`)
   }
   return value
+}
+
+export function getPublicSupabaseEnvError(): string | null {
+  const missing: PublicSupabaseEnvName[] = []
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    missing.push('NEXT_PUBLIC_SUPABASE_URL')
+  }
+  if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    missing.push('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
+  }
+
+  if (missing.length === 0) return null
+  return `Missing required public environment variable${missing.length > 1 ? 's' : ''} ${missing.join(', ')}.`
 }
 
 export function createClient() {
