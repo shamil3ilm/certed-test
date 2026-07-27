@@ -43,6 +43,12 @@ export async function editAssignmentAction(formData: FormData): Promise<ActionSt
       description: formData.get('description'),
       due_date: formData.get('due_date'),
       attachment_drive_link: formData.get('attachment_drive_link'),
+      // topic and max_marks MUST be forwarded: the validator turns a missing
+      // value into null, so omitting them here silently wiped both on every edit
+      // (a null max_marks drops that assignment's marks from the report-card
+      // average). The form always submits them - EditAssignment.tsx.
+      topic: formData.get('topic'),
+      max_marks: formData.get('max_marks'),
     })
     revalidatePath('/classroom', 'layout')
     return actionDone()

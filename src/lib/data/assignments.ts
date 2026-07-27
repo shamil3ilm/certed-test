@@ -116,11 +116,14 @@ export type AssignmentBrief = { id: string; title: string; class_id: string; due
 export async function selectActiveAssignmentsByClassIdsAsService(classIds: string[]): Promise<AssignmentBrief[]> {
   if (classIds.length === 0) return []
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('assignments')
     .select('id, title, class_id, due_date')
     .in('class_id', classIds)
     .eq('status', 'active')
+  // Fail loud, like the report-card AsService reads: a transient DB error must
+  // not become a silently empty mentee overview ("no overdue") that hides real work.
+  if (error) throw new Error(`menteeOverview.assignments: ${error.message}`)
   return (data ?? []) as AssignmentBrief[]
 }
 

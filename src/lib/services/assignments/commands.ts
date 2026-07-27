@@ -2,8 +2,8 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, NotFoundError, RateLimitError } from '@/lib/errors'
-import { rateLimit } from '@/lib/security/rate-limit'
+import { PermissionError, NotFoundError } from '@/lib/errors'
+import { throttleWrite } from '@/lib/security/throttle'
 import {
   callEditAssignmentAndReclassify as editAssignmentAndReclassify,
   insertAssignment,
@@ -23,7 +23,9 @@ import {
 } from './validation'
 
 /** Creating, archiving and editing an assignment. Every write is gated on
- *  canManageClass and audited. Reads live in ./queries. */
+ *  canManageClass and audited, and throttled under one per-user budget
+ *  (throttleWrite) - the edit path is the heaviest, driving a service-role
+ *  reclassify RPC, so it must be capped like create. Reads live in ./queries. */
 
 /**
  * Explicit canManageClass gate - the route this replaces relied on RLS alone
@@ -32,11 +34,7 @@ import {
  * just a mechanical move).
  */
 export async function createAssignment(actor: Profile, input: CreateAssignmentInput): Promise<Assignment> {
-  // Throttle the write path per user, matching the calendar/timetable write
-  // services, so a client holding manageClassContent can't spam assignment inserts.
-  if (!rateLimit(`assignment-write:${actor.id}`, { limit: 60, windowMs: 60_000 }).ok) {
-    throw new RateLimitError('Too many assignment changes in a short time. Please wait a moment.')
-  }
+  throttleWrite('assignment', actor.id, 'assignment')
   if (!(await canManageClass(actor, input.class_id))) {
     throw new PermissionError('Not allowed to create an assignment for this class.')
   }
@@ -75,6 +73,7 @@ async function requireManageable(actor: Profile, id: string): Promise<Assignment
 
 /** Soft archive / restore (reversible). */
 export async function archiveAssignment(actor: Profile, id: string, status: 'active' | 'archived'): Promise<void> {
+  throttleWrite('assignment', actor.id, 'assignment')
   await requireManageable(actor, id)
   await updateAssignmentStatus(id, status)
   await auditPrivilegedAction(actor, `assignment.${status === 'active' ? 'restore' : 'archive'}`, 'assignment', id)
@@ -89,9 +88,15 @@ export async function archiveAssignmentFromActionInput(
 }
 
 export async function editAssignment(actor: Profile, id: string, patch: AssignmentPatch): Promise<void> {
+  throttleWrite('assignment', actor.id, 'assignment')
   const existing = await requireManageable(actor, id)
 
-  if (patch.due_date !== undefined && patch.due_date !== existing.due_date) {
+  // Compare the deadlines as INSTANTS, not raw strings: patch.due_date is an
+  // ...T10:00:00.000Z ISOString while existing.due_date comes back from
+  // PostgREST as ...T10:00:00+00:00. They can denote the same moment yet differ
+  // as text, which would send a title-only edit down the heavy service-role
+  // reclassify path on nearly every save. (Kept inline so TS narrows due_date.)
+  if (patch.due_date !== undefined && new Date(patch.due_date).getTime() !== new Date(existing.due_date).getTime()) {
     // A moved deadline invalidates every stamped on-time/late verdict on this
     // assignment's submissions. Update the assignment AND re-derive those
     // verdicts in ONE database transaction (edit_assignment_and_reclassify,

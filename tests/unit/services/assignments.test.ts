@@ -253,6 +253,23 @@ describe('assignment action-input helpers', () => {
     })
   })
 
+  it('preserves topic and max_marks in the edit patch when supplied', () => {
+    // Regression: editAssignmentAction used to forward neither field, and the
+    // validator turns a missing value into null - so every edit silently wiped
+    // topic and max_marks (a null max drops that assignment from the report-card
+    // average). Passing them through must round-trip the real values.
+    const result = validateEditAssignmentInput({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'Homework',
+      description: 'Solve all',
+      due_date: '2026-07-20T00:00:00.000Z',
+      attachment_drive_link: '',
+      topic: ' Algebra ',
+      max_marks: '100',
+    })
+    expect(result.patch).toMatchObject({ topic: 'Algebra', max_marks: 100 })
+  })
+
   it('rejects invalid edit payloads with a typed validation error', () => {
     expect(() =>
       validateEditAssignmentInput({
