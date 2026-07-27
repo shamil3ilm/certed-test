@@ -74,7 +74,7 @@ export function validateCreateMeetLinkInput(input: CreateMeetLinkActionInput): C
   })
 
   if (!parsed.success) {
-    throw new ValidationError(`Invalid meet link data: ${parsed.error.message}`)
+    throw new ValidationError(`Invalid meet link data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
 
   return parsed.data

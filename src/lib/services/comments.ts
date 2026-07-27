@@ -29,7 +29,7 @@ export function validateCreateCommentInput(input: CreateCommentActionInput) {
   })
 
   if (!parsed.success) {
-    throw new ValidationError(`Invalid comment data: ${parsed.error.message}`)
+    throw new ValidationError(`Invalid comment data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
 
   return parsed.data

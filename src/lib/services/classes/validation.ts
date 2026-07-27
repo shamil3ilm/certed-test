@@ -22,7 +22,7 @@ export type ClassIdActionInput = {
 export function validateCreateClassInput(input: CreateClassActionInput): { name: string } {
   const parsed = createClassSchema.safeParse({ name: String(input.name ?? '') })
   if (!parsed.success) {
-    throw new ValidationError(`Invalid class data: ${parsed.error.message}`)
+    throw new ValidationError(`Invalid class data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
   return parsed.data
 }

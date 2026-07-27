@@ -37,7 +37,7 @@ export function validateCreateAnnouncementInput(input: CreateAnnouncementActionI
   })
 
   if (!parsed.success) {
-    throw new ValidationError(`Invalid announcement data: ${parsed.error.message}`)
+    throw new ValidationError(`Invalid announcement data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
 
   return {
@@ -58,7 +58,7 @@ export function validateEditAnnouncementInput(input: EditAnnouncementActionInput
   })
 
   if (!parsed.success) {
-    throw new ValidationError(`Invalid announcement update: ${parsed.error.message}`)
+    throw new ValidationError(`Invalid announcement update: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
 
   return {
