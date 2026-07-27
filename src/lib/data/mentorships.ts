@@ -41,11 +41,15 @@ export async function selectActiveMenteeIds(mentorId: string): Promise<string[]>
 export async function selectActiveMentorshipsForStudents(studentIds: string[]): Promise<MentorshipRef[]> {
   if (studentIds.length === 0) return []
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('mentorships')
     .select('student_id, mentor_id')
     .in('student_id', studentIds)
     .eq('active', true)
+  // Fail loud, like selectActiveMentorIdsForStudent below: a transient DB error
+  // must not silently become "no mentor" on a class roster, hiding every
+  // student's pastoral contact with nothing to indicate a fault.
+  if (error) throw new Error(`roster.mentors: ${error.message}`)
   return (data ?? []) as MentorshipRef[]
 }
 
@@ -67,20 +71,6 @@ export async function selectAllActiveMentorships(): Promise<MentorshipRow[]> {
   const { data, error } = await admin.from('mentorships').select('*').eq('active', true)
   if (error) throw new Error(`mentorships.listForUsersHub: ${error.message}`)
   return (data ?? []) as MentorshipRow[]
-}
-
-/** Active student ids a mentor supervises, RLS-scoped - so a caller only gets
- *  this list for a mentor they may see. The service-role twin above is
- *  selectActiveMenteeIds, used where the app has already gated the caller. */
-export async function selectMenteeIdsVisibleTo(mentorId: string): Promise<string[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('mentorships')
-    .select('student_id')
-    .eq('mentor_id', mentorId)
-    .eq('active', true)
-  if (error) throw new Error(`mentorships.studentsOf: ${error.message}`)
-  return ((data ?? []) as { student_id: string }[]).map((r) => r.student_id)
 }
 
 /** The two parties on a link, for persona cleanup when it is removed. Returns

@@ -1,10 +1,6 @@
 import 'server-only'
-import {
-  selectActiveMentorships,
-  selectAllActiveMentorships,
-  selectMenteeIdsVisibleTo,
-  type MentorshipRow,
-} from '@/lib/data/mentorships'
+import { selectActiveMentorships, selectAllActiveMentorships, type MentorshipRow } from '@/lib/data/mentorships'
+import { selectScopedMenteeIds } from '@/lib/data/personas'
 
 /** Reading mentorship links. Table access is in src/lib/data/mentorships. */
 
@@ -22,7 +18,11 @@ export async function listMentorshipsForUsersHub(): Promise<Mentorship[]> {
   return selectAllActiveMentorships()
 }
 
-/** Active student ids a mentor supervises. */
+/** Active student ids a mentor supervises. Derived from the mentor's active
+ *  student-scoped `mentor` personas - the SAME source canMentor authorizes
+ *  against - so the mentee list, dashboard "Your mentees", and messaging
+ *  recipients can never disagree with per-student access (which they could when
+ *  this read the mentorships table while access read personas). */
 export async function studentIdsOfMentor(mentorId: string): Promise<string[]> {
-  return selectMenteeIdsVisibleTo(mentorId)
+  return selectScopedMenteeIds(mentorId)
 }

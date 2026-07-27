@@ -1,5 +1,11 @@
 import type { Profile } from '@/lib/auth/profile'
-import { type Capability, type CapabilityOverride, HARD_CAPABILITIES, isCapability } from '@/lib/capabilities'
+import {
+  type Capability,
+  type CapabilityOverride,
+  HARD_CAPABILITIES,
+  REASON_REQUIRED_CAPABILITIES,
+  isCapability,
+} from '@/lib/capabilities'
 import {
   deleteGlobalOverrideFor,
   insertOverride,
@@ -10,8 +16,6 @@ import { requireAdminPersona } from '@/lib/permission/personas'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { ValidationError } from '@/lib/errors'
 
-// Overriding these touches sensitive data, so a reason is mandatory (and audited).
-const REASON_REQUIRED: ReadonlySet<Capability> = new Set<Capability>(['viewFinance', 'viewHistory', 'manageUsers'])
 // Global overrides cannot widen capabilities whose real boundary is a specific
 // student/relationship scope rather than broad app access.
 export const GLOBALLY_NON_OVERRIDEABLE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>(['viewMentees'])
@@ -68,7 +72,7 @@ async function createCapabilityOverride(
     throw new ValidationError('effect must be allow or deny.')
   }
   const reason = input.reason?.trim() || null
-  if (REASON_REQUIRED.has(capability) && !reason) {
+  if (REASON_REQUIRED_CAPABILITIES.has(capability) && !reason) {
     throw new ValidationError('A reason is required to override this capability.')
   }
 

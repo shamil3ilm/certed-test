@@ -3,7 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { getProfileById } from '@/lib/services/users'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { ValidationError } from '@/lib/errors'
+import { NotFoundError, ValidationError } from '@/lib/errors'
 import {
   deactivateMentorship,
   deactivateMentorshipByPair,
@@ -99,6 +99,11 @@ export async function assignMentorFromActionInput(actor: Profile, input: AssignM
 export async function removeMentor(actor: Profile, id: string): Promise<void> {
   await requireActorCapability(actor.id, 'manageMentorships', 'You are not allowed to manage mentors.')
   const parties = await selectMentorshipParties(id)
+  // A bogus/stale id names no mentorship at all - refuse rather than run the two
+  // no-op writes and audit a `mentorship.remove` that never happened. A row that
+  // exists (even already-inactive) still resolves parties, so an idempotent
+  // re-remove/retry is unaffected.
+  if (!parties) throw new NotFoundError('Mentorship not found')
 
   // These two writes aren't in one transaction, so order matters for safety.
   // Delete the ACCESS-GRANTING scoped persona FIRST: canMentor and every
@@ -106,9 +111,7 @@ export async function removeMentor(actor: Profile, id: string): Promise<void> {
   // write then fails, the worst case is a mentor with LESS access than the list
   // shows (fail-closed) - never a "removed" mentor who still has access. The
   // delete is idempotent, so an admin's retry reconciles cleanly.
-  if (parties) {
-    await deleteScopedMentorPersona(parties.mentor_id, parties.student_id)
-  }
+  await deleteScopedMentorPersona(parties.mentor_id, parties.student_id)
   await deactivateMentorship(id)
 
   await auditPrivilegedAction(actor, 'mentorship.remove', 'mentorship', id)

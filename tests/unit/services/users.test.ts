@@ -27,6 +27,7 @@ import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permissi
 import {
   addUser,
   addUserFromActionInput,
+  deleteUnregisteredProfile,
   revokeUser,
   revokeUserFromActionInput,
   restoreUser,
@@ -129,6 +130,12 @@ describe('addUser', () => {
       ) // profile upsert
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivate others
       .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // reactivate global (update)
+      .mockReturnValueOnce(
+        makeClient({
+          data: { id: 'new-1', auth_user_id: null, email: 'new@x.c', role: 'tutor', status: 'active' },
+          error: null,
+        }) as any,
+      ) // rollback: getProfileById confirms the account is still unregistered (auth_user_id null)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback delete personas
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback delete profile
 
@@ -136,6 +143,22 @@ describe('addUser', () => {
       'data.personas.upsertGlobal.reactivate: persona failed',
     )
     expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('deleteUnregisteredProfile is a NO-OP on a registered account (guards the persona delete)', async () => {
+    // Regression: the persona delete used to run unconditionally, so a stray call
+    // on a REGISTERED account would strip every persona (total lockout) while the
+    // guarded profile-row delete left the account standing. It now reads the
+    // account first and bails when it is bound to a login - only the existence
+    // read happens, no delete client is ever opened.
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({
+        data: { id: 'u-1', auth_user_id: 'auth-123', role: 'tutor', status: 'active' },
+        error: null,
+      }) as any,
+    )
+    await deleteUnregisteredProfile('u-1')
+    expect(createAdminClient).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -18,6 +18,7 @@ import {
   assignMentorFromActionInput,
   removeMentorFromActionInput,
 } from '@/lib/services/mentorships'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { ServiceError } from '@/lib/errors'
 
 export type AddUserState = {
@@ -46,10 +47,18 @@ export async function addUserAction(_prev: AddUserState, formData: FormData): Pr
       class_level: formData.get('class_level'),
       mentor_id: formData.get('mentor_id'),
     })
-    // Pre-flight the mentor BEFORE creating the account: if the dropdown went
-    // stale (mentor revoked / role changed since page-load), fail here so no
-    // profile is created and its one-time setup code isn't burned.
-    if (mentorId) await assertAssignableMentor(mentorId)
+    // Pre-flight the mentor BEFORE creating the account so no profile is created
+    // (and its one-time setup code burned) on a request that can't complete:
+    //  - the ACTOR must hold manageMentorships. assignMentor enforces this too,
+    //    but only after the account exists - so a user manager who lacks it (a
+    //    sub_admin) sending a crafted POST with mentor_id would otherwise create
+    //    the account, fail the assign, and roll back, discarding the setup code.
+    //  - the mentor must still be assignable (dropdown may have gone stale:
+    //    mentor revoked / role changed since page-load).
+    if (mentorId) {
+      await requireActorCapability(me.id, 'manageMentorships', 'You are not allowed to assign mentors.')
+      await assertAssignableMentor(mentorId)
+    }
 
     const { profile, code } = await addUser(me, user)
 

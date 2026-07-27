@@ -113,6 +113,29 @@ export async function deleteScopedMentorPersona(mentorId: string, studentId: str
   if (error) throw new Error(`data.personas.deleteScopedMentor: ${error.message}`)
 }
 
+/** Student ids a mentor holds an ACTIVE student-scoped `mentor` persona over.
+ *  This is the SAME source canMentor authorizes against (hasScopedPersona), so a
+ *  mentee list derived from it can't disagree with per-student access the way a
+ *  list built from the mentorships table can after a partial assign/remove left
+ *  the link and the persona out of sync. Filtered to profile_id, so a caller only
+ *  ever gets their own scope. */
+export async function selectScopedMenteeIds(mentorId: string): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('persona_assignments')
+    .select('scope_id')
+    .eq('profile_id', mentorId)
+    .eq('persona_name', 'mentor')
+    .eq('scope_type', 'student')
+    .eq('status', 'active')
+  if (error) throw new Error(`data.personas.scopedMentees: ${error.message}`)
+  return [
+    ...new Set(
+      ((data ?? []) as { scope_id: string | null }[]).map((r) => r.scope_id).filter((id): id is string => id != null),
+    ),
+  ]
+}
+
 /** Mark ALL of a profile's personas inactive, every scope - not just global, so a
  *  revoked mentor's student-scoped personas stop granting mentee access. */
 export async function deactivateAllPersonas(profileId: string): Promise<void> {

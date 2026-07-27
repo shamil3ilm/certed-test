@@ -21,7 +21,7 @@ import {
   validateAssignMentorInput,
   validateRemoveMentorInput,
 } from '@/lib/services/mentorships'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
 
 const admin = { id: 'admin-1', email: 'a@x.c', role: 'admin', status: 'active' } as any
 const student = { id: 'stud-1', email: 's@x.c', role: 'student', status: 'active' } as any
@@ -147,6 +147,14 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
       entity_type: 'mentorship',
       entity_id: 'link-1',
     })
+  })
+
+  it('removeMentor on a bogus id throws NotFound and does not audit (no phantom remove)', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    // selectMentorshipParties resolves null (no such mentorship id).
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    await expect(removeMentor(admin, 'nope')).rejects.toBeInstanceOf(NotFoundError)
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 

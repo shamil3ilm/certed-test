@@ -102,11 +102,18 @@ export async function addUserFromActionInput(
  * Roll back a just-created, never-registered account (and its synced persona
  * rows). Used when a dependent step - mentor assignment during add-user - fails
  * after the profile row exists, so the admin can retry cleanly instead of hitting
- * "email already exists" on an orphan whose one-time setup code was discarded. The
- * data layer's auth_user_id-null guard makes this a no-op on any account already
- * bound to a real login, so a stray call can never delete an active user.
+ * "email already exists" on an orphan whose one-time setup code was discarded.
+ *
+ * Both deletes are guarded on the account being unregistered, not just the
+ * profile-row delete: deletePersonasForProfile is UNCONDITIONAL, so on a
+ * registered account it would strip every persona (zero capabilities = total
+ * lockout) while the auth_user_id-null guard left the profile row standing. We
+ * read the account first and bail if it is bound to a real login, so a stray call
+ * is a true no-op on any active user - which is what both callers assume.
  */
 export async function deleteUnregisteredProfile(id: string): Promise<void> {
+  const target = await getProfileById(id)
+  if (!target || target.auth_user_id != null) return
   await deletePersonasForProfile(id)
   await deleteUnregisteredProfileRow(id)
 }
