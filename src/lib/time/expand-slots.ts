@@ -56,6 +56,29 @@ function zonedWallClockToUtcMs(y: number, mo: number, d: number, h: number, mi: 
   return guess
 }
 
+/**
+ * UTC instant (ms) at 00:00 local time of calendar date `dateYmd` (YYYY-MM-DD)
+ * in `tz`. The calendar window must be bounded at INSTITUTE-timezone midnight,
+ * not UTC midnight, so recurring slots and assignment deadlines line up with the
+ * org-local day the client actually asked for (a UTC-midnight bound shifts the
+ * window by the tz offset for any non-UTC org).
+ */
+export function zonedDayStartMs(dateYmd: string, tz: string): number {
+  const [y, mo, d] = dateYmd.split('-').map(Number)
+  return zonedWallClockToUtcMs(y, mo, d, 0, 0, tz)
+}
+
+/**
+ * The calendar date one day after `dateYmd` (YYYY-MM-DD). Used to turn an
+ * INCLUSIVE `to` day into an exclusive "start of the day after `to`" bound, so
+ * the whole final day is in range. Date-only UTC arithmetic is safe: only the
+ * next Y-M-D matters, and Date.UTC rolls month/year over correctly.
+ */
+export function nextCalendarDate(dateYmd: string): string {
+  const [y, mo, d] = dateYmd.split('-').map(Number)
+  return new Date(Date.UTC(y, mo - 1, d + 1)).toISOString().slice(0, 10)
+}
+
 // Y/M/D weekday (0=Sun) of an instant interpreted in `tz`.
 function zonedYmdWeekday(instantMs: number, tz: string): { y: number; mo: number; d: number; wd: number } {
   const dtf = new Intl.DateTimeFormat('en-US', {

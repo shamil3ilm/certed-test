@@ -14,19 +14,13 @@ import {
   type CreateEventInput,
   type UpdateEventInput,
 } from '@/lib/validation/calendar-event'
+import { parseOrThrow } from '@/lib/validation/parse'
 import { canWriteClass } from '@/lib/permission'
+import { selectSlotById } from '@/lib/data/timetable-slots'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, NotFoundError, ValidationError, RateLimitError } from '@/lib/errors'
-import { rateLimit } from '@/lib/security/rate-limit'
+import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
-
-/** Per-user throttle across the calendar-write API surface (create/update/delete),
- *  applied at the API boundary so a misbehaving client can't spam writes. */
-function assertCalendarWriteRate(actorId: string): void {
-  if (!rateLimit(`calendar-write:${actorId}`, { limit: 60, windowMs: 60_000 }).ok) {
-    throw new RateLimitError('Too many calendar changes in a short time. Please wait a moment.')
-  }
-}
 
 export type { CalendarEventKind }
 export type CalendarEvent = CalendarEventRow
@@ -34,27 +28,15 @@ export type CalendarEvent = CalendarEventRow
 const eventIdSchema = z.string().uuid()
 
 export function validateCreateEventInput(input: unknown): CreateEventInput {
-  const parsed = createEventSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError(parsed.error.issues[0]?.message ?? 'invalid')
-  }
-  return parsed.data
+  return parseOrThrow(createEventSchema, input)
 }
 
 export function validateUpdateEventInput(input: unknown): UpdateEventInput {
-  const parsed = updateEventSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError(parsed.error.issues[0]?.message ?? 'invalid')
-  }
-  return parsed.data
+  return parseOrThrow(updateEventSchema, input)
 }
 
 export function validateEventId(input: unknown): string {
-  const parsed = eventIdSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError('Invalid event id')
-  }
-  return parsed.data
+  return parseOrThrow(eventIdSchema, input, 'Invalid event id')
 }
 
 // RLS scopes the rows: global events + enrolled/taught course events / admin sees all.
@@ -67,6 +49,24 @@ export async function getEvent(id: string): Promise<CalendarEvent | null> {
 }
 
 /**
+ * A slot_id on an event must reference a timetable slot IN THE EVENT'S OWN CLASS.
+ * Otherwise a cancellation/reschedule event - which suppresses its slot on the
+ * merged calendar - could hide an UNRELATED class's slot from anyone who can see
+ * both. A global event (no class) can reference no slot, since slots belong to
+ * classes. The slot read is RLS-scoped, so a slot the caller cannot even see is
+ * also correctly rejected.
+ */
+async function assertSlotInClass(slotId: string, classId: string | null): Promise<void> {
+  if (classId == null) {
+    throw new ValidationError('A global event cannot reference a class timetable slot.')
+  }
+  const slot = await selectSlotById(slotId)
+  if (!slot || slot.class_id !== classId) {
+    throw new ValidationError("slot_id must reference a timetable slot in this event's class.")
+  }
+}
+
+/**
  * Global events (class_id null) are admin-only; tutors may only create
  * course events they teach - canWriteClass covers exactly this rule.
  */
@@ -74,6 +74,7 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
   if (!(await canWriteClass(actor, input.class_id ?? null))) {
     throw new PermissionError('Not authorized to create this event.')
   }
+  if (input.slot_id) await assertSlotInClass(input.slot_id, input.class_id ?? null)
   const created = await insertEvent({
     title: input.title,
     description: input.description ?? null,
@@ -90,7 +91,7 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
 }
 
 export async function createEventFromApiInput(actor: Profile, input: unknown): Promise<CalendarEvent> {
-  assertCalendarWriteRate(actor.id)
+  throttleWrite('calendar', actor.id, 'calendar')
   return createEvent(actor, validateCreateEventInput(input))
 }
 
@@ -111,13 +112,22 @@ export async function updateEvent(actor: Profile, id: string, patch: UpdateEvent
   if (patch.class_id !== undefined && moved && !(await canWriteClass(actor, patch.class_id))) {
     throw new PermissionError('Not authorized to move this event to that class.')
   }
+  // Keep any slot reference within the event's own class. Re-check when either the
+  // slot or the class changes - moving an event must not leave it pointing at the
+  // source class's slot.
+  const slotChanged = patch.slot_id !== undefined && patch.slot_id !== existing.slot_id
+  if (slotChanged || moved) {
+    const effSlot = patch.slot_id !== undefined ? patch.slot_id : existing.slot_id
+    const effClass = patch.class_id !== undefined ? patch.class_id : existing.class_id
+    if (effSlot) await assertSlotInClass(effSlot, effClass)
+  }
   const updated = await updateEventRow(id, patch)
   await auditPrivilegedAction(actor, moved ? 'event.move' : 'event.update', 'calendar_event', id)
   return updated
 }
 
 export async function updateEventFromApiInput(actor: Profile, id: unknown, input: unknown): Promise<CalendarEvent> {
-  assertCalendarWriteRate(actor.id)
+  throttleWrite('calendar', actor.id, 'calendar')
   return updateEvent(actor, validateEventId(id), validateUpdateEventInput(input))
 }
 
@@ -132,6 +142,6 @@ export async function deleteEvent(actor: Profile, id: string): Promise<void> {
 }
 
 export async function deleteEventFromApiInput(actor: Profile, id: unknown): Promise<void> {
-  assertCalendarWriteRate(actor.id)
+  throttleWrite('calendar', actor.id, 'calendar')
   await deleteEvent(actor, validateEventId(id))
 }

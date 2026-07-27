@@ -13,47 +13,29 @@ import {
   type CreateSlotInput,
   type UpdateSlotInput,
 } from '@/lib/validation/timetable-slot'
+import { parseOrThrow } from '@/lib/validation/parse'
 import { canWriteClass } from '@/lib/permission'
+import { isActiveClassTutor } from '@/lib/data/class-membership'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, NotFoundError, ValidationError, RateLimitError } from '@/lib/errors'
-import { rateLimit } from '@/lib/security/rate-limit'
+import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
-
-/** Per-user throttle across the timetable-write API surface (create/update/
- *  deactivate), applied at the API boundary against write spam. */
-function assertTimetableWriteRate(actorId: string): void {
-  if (!rateLimit(`timetable-write:${actorId}`, { limit: 60, windowMs: 60_000 }).ok) {
-    throw new RateLimitError('Too many timetable changes in a short time. Please wait a moment.')
-  }
-}
 
 export type TimetableSlot = TimetableSlotRow
 
 const slotIdSchema = z.string().uuid()
 
 export function validateCreateSlotInput(input: unknown): CreateSlotInput {
-  const parsed = createSlotSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError(parsed.error.issues[0]?.message ?? 'invalid')
-  }
-  return parsed.data
+  return parseOrThrow(createSlotSchema, input)
 }
 
 export function validateUpdateSlotInput(input: unknown): UpdateSlotInput {
-  const parsed = updateSlotSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError(parsed.error.issues[0]?.message ?? 'invalid')
-  }
-  return parsed.data
+  return parseOrThrow(updateSlotSchema, input)
 }
 
 export function validateSlotId(input: unknown): string {
-  const parsed = slotIdSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError('Invalid timetable slot id')
-  }
-  return parsed.data
+  return parseOrThrow(slotIdSchema, input, 'Invalid timetable slot id')
 }
 
 // RLS scopes the rows: enrolled student / tutor-of-course / admin.
@@ -65,14 +47,19 @@ export async function getSlot(id: string): Promise<TimetableSlot | null> {
   return selectSlotById(id)
 }
 
-/** tutor_id is optional (a slot can be created unassigned); when present,
- *  make sure it's actually an active teacher account, not an arbitrary/foreign
- *  profile id. A dedicated mentor may also teach when the academy assigns them
- *  to classes, so mentor accounts are valid here too. */
-async function assertActiveTutor(tutorId: string): Promise<void> {
+/** tutor_id is optional (a slot can be created unassigned); when present, make
+ *  sure it's an active teacher account AND that they actually teach THIS class.
+ *  Without the class scope, a tutor authorized for class X could label a slot in
+ *  X with an unrelated colleague's id - a data-integrity/labeling defect. A
+ *  dedicated mentor who teaches (i.e. is in class_tutors for the class) is valid
+ *  here too, which is exactly what isActiveClassTutor checks. */
+async function assertClassTutor(tutorId: string, classId: string): Promise<void> {
   const t = await getProfileById(tutorId)
   if (!t || (t.role !== 'tutor' && t.role !== 'mentor') || t.status !== 'active') {
     throw new ValidationError('tutor_id must be an active tutor or mentor')
+  }
+  if (!(await isActiveClassTutor(tutorId, classId))) {
+    throw new ValidationError('tutor_id must be a tutor assigned to this class')
   }
 }
 
@@ -80,7 +67,7 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
   if (!(await canWriteClass(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
-  if (input.tutor_id) await assertActiveTutor(input.tutor_id)
+  if (input.tutor_id) await assertClassTutor(input.tutor_id, input.class_id)
 
   const created = await insertSlot({
     class_id: input.class_id,
@@ -97,7 +84,7 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
 }
 
 export async function createSlotFromApiInput(actor: Profile, input: unknown): Promise<TimetableSlot> {
-  assertTimetableWriteRate(actor.id)
+  throttleWrite('timetable', actor.id, 'timetable')
   return createSlot(actor, validateCreateSlotInput(input))
 }
 
@@ -107,7 +94,7 @@ export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotIn
   if (!(await canWriteClass(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
-  if (patch.tutor_id) await assertActiveTutor(patch.tutor_id)
+  if (patch.tutor_id) await assertClassTutor(patch.tutor_id, existing.class_id)
 
   const updated = await updateSlotRowInDb(id, patch)
   await auditPrivilegedAction(actor, patch.tutor_id ? 'timetable.reassign' : 'timetable.update', 'timetable_slot', id)
@@ -115,7 +102,7 @@ export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotIn
 }
 
 export async function updateSlotFromApiInput(actor: Profile, id: unknown, input: unknown): Promise<TimetableSlot> {
-  assertTimetableWriteRate(actor.id)
+  throttleWrite('timetable', actor.id, 'timetable')
   return updateSlot(actor, validateSlotId(id), validateUpdateSlotInput(input))
 }
 
@@ -132,6 +119,6 @@ export async function deactivateSlot(actor: Profile, id: string): Promise<Timeta
 }
 
 export async function deactivateSlotFromApiInput(actor: Profile, id: unknown): Promise<TimetableSlot> {
-  assertTimetableWriteRate(actor.id)
+  throttleWrite('timetable', actor.id, 'timetable')
   return deactivateSlot(actor, validateSlotId(id))
 }

@@ -47,4 +47,14 @@ describe('updateEventSchema', () => {
   it('rejects an unknown kind on update', () => {
     expect(updateEventSchema.safeParse({ kind: 'nope' }).success).toBe(false)
   })
+  it('rejects end_time not after start_time on a partial update', () => {
+    // calendar_events has no DB time-order CHECK, so the schema must catch this.
+    expect(updateEventSchema.safeParse({ start_time: '15:00', end_time: '14:00' }).success).toBe(false)
+  })
+  it('rejects clearing start_time while setting end_time', () => {
+    expect(updateEventSchema.safeParse({ start_time: null, end_time: '14:00' }).success).toBe(false)
+  })
+  it('still allows a valid time pair on a partial update', () => {
+    expect(updateEventSchema.safeParse({ start_time: '09:00', end_time: '10:00' }).success).toBe(true)
+  })
 })

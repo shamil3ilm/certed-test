@@ -5,12 +5,14 @@ vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
+vi.mock('@/lib/data/class-membership', () => ({ isActiveClassTutor: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
 import { canWriteClass } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { getProfileById } from '@/lib/services/users'
+import { isActiveClassTutor } from '@/lib/data/class-membership'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
   createSlot,
@@ -86,6 +88,25 @@ describe('createSlot', () => {
     expect(createClient).not.toHaveBeenCalled()
   })
 
+  it('rejects a tutor_id who is an active tutor but does not teach this class', async () => {
+    // The colleague is a real, active tutor - but not assigned to class-1, so
+    // labeling this class's slot with them would be a cross-class mislabel.
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(getProfileById).mockResolvedValueOnce(activeTutorProfile)
+    vi.mocked(isActiveClassTutor).mockResolvedValueOnce(false)
+    await expect(
+      createSlot(tutor, {
+        class_id: 'class-1',
+        subject: 'x',
+        day_of_week: 1,
+        start_time: '09:00',
+        end_time: '10:00',
+        tutor_id: 'tutor-2',
+      } as any),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
   it('creates and audits timetable.create', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
@@ -124,6 +145,7 @@ describe('updateSlot', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutorProfile)
+    vi.mocked(isActiveClassTutor).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...slotRow, tutor_id: 'tutor-2' }, error: null }) as any,
     )
@@ -215,6 +237,9 @@ describe('timetable slot API-input helpers', () => {
     expect(() => validateCreateSlotInput({ class_id: 'bad', start_time: '10:00', end_time: '09:00' })).toThrow(
       ValidationError,
     )
+    // A partial update carrying both times inverted must fail validation cleanly
+    // (a 400) rather than slipping through to the DB CHECK as a 500-style error.
+    expect(() => validateUpdateSlotInput({ start_time: '10:00', end_time: '09:00' })).toThrow(ValidationError)
     expect(() => validateSlotId('bad')).toThrow(ValidationError)
   })
 

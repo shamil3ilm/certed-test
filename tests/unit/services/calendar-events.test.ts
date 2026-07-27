@@ -78,6 +78,41 @@ describe('createEvent', () => {
       entity_id: 'evt-1',
     })
   })
+
+  it('rejects a slot_id that belongs to a different class (no cross-class suppression)', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    // selectSlotById (RLS read) resolves a slot in ANOTHER class.
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { id: 'slot-9', class_id: 'other-class' }, error: null }) as any,
+    )
+    await expect(
+      createEvent(tutor, {
+        title: 'Cancelled',
+        event_date: '2026-07-20',
+        class_id: 'class-1',
+        kind: 'cancellation',
+        slot_id: 'slot-9',
+      } as any),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it("accepts a slot_id that belongs to the event's own class", async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: { id: 'slot-1', class_id: 'class-1' }, error: null }) as any) // selectSlotById
+      .mockResolvedValueOnce(
+        makeClient({ data: { ...eventRow, slot_id: 'slot-1', kind: 'cancellation' }, error: null }) as any,
+      ) // insertEvent
+    const created = await createEvent(tutor, {
+      title: 'Cancelled',
+      event_date: '2026-07-20',
+      class_id: 'class-1',
+      kind: 'cancellation',
+      slot_id: 'slot-1',
+    } as any)
+    expect(created.id).toBe('evt-1')
+  })
 })
 
 describe('updateEvent', () => {
@@ -103,6 +138,16 @@ describe('updateEvent', () => {
       PermissionError,
     )
     expect(canWriteClass).toHaveBeenNthCalledWith(2, tutor, 'other-class')
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects setting slot_id to a slot in another class', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any) // getEvent
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { id: 'slot-9', class_id: 'other-class' }, error: null }) as any,
+    ) // selectSlotById
+    await expect(updateEvent(tutor, 'evt-1', { slot_id: 'slot-9' } as any)).rejects.toBeInstanceOf(ValidationError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { hhmm } from '@/lib/validation/timetable-slot'
+import { refineTimeOrder } from '@/lib/validation/time-order'
 import { isCalendarDate } from '@/lib/time/format'
 
 // "YYYY-MM-DD" calendar date (interpreted as a wall-clock date in org_settings.timezone).
@@ -20,14 +21,8 @@ export const createEventSchema = z
     kind: calendarEventKind,
     slot_id: z.string().uuid().nullable().optional(),
   })
-  .superRefine((v, ctx) => {
-    if (v.end_time != null && v.start_time == null) {
-      ctx.addIssue({ code: 'custom', message: 'end_time requires a start_time', path: ['start_time'] })
-    }
-    if (v.start_time != null && v.end_time != null && v.end_time <= v.start_time) {
-      ctx.addIssue({ code: 'custom', message: 'end_time must be after start_time', path: ['end_time'] })
-    }
-  })
+  // A timed event needs both a start and an end, in order (shared refineTimeOrder).
+  .superRefine((v, ctx) => refineTimeOrder(v, ctx, { endRequiresStart: true }))
 
 export const updateEventSchema = z
   .object({
@@ -41,6 +36,12 @@ export const updateEventSchema = z
     slot_id: z.string().uuid().nullable(),
   })
   .partial()
+  // Same time invariants as create, for the fields a partial patch carries
+  // (shared refineTimeOrder, partial mode). calendar_events has NO DB time-order
+  // CHECK (unlike timetable_slots, 0004) and both time columns are nullable, so
+  // without this an inverted patch ({start:"10:00", end:"09:00"}) or one that
+  // clears start while setting end is silently persisted and corrupts the calendar.
+  .superRefine((v, ctx) => refineTimeOrder(v, ctx, { endRequiresStart: true, partial: true }))
 
 export type CreateEventInput = z.infer<typeof createEventSchema>
 export type UpdateEventInput = z.infer<typeof updateEventSchema>
