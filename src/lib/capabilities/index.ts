@@ -34,6 +34,21 @@ export function isCapability(value: string): value is Capability {
  */
 export const HARD_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>(['manageAdminTier'])
 
+/**
+ * Overriding one of these grants access to sensitive / institution-wide data - the
+ * finance ledger, the audit log, the whole user directory, or a student's scoped
+ * data - so a written, audited reason is mandatory to grant it. Single source of
+ * truth: the override SERVICE enforces it and the labels module surfaces it to the
+ * UI (both import this, so the two can't drift).
+ */
+export const REASON_REQUIRED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  'viewFinance',
+  'viewHistory',
+  'viewUsers',
+  'manageUsers',
+  'manageMentorships',
+])
+
 const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
   admin: new Set<Capability>([
     'viewDashboard',

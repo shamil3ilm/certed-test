@@ -56,10 +56,7 @@ export const CAPABILITY_META: Record<Capability, CapabilityMeta> = {
   },
 }
 
-/** Capabilities whose override needs a written, audited reason. Mirrors the
- *  server-side REASON_REQUIRED set so the UI can ask up front. */
-export const REASON_REQUIRED_CAPS: ReadonlySet<Capability> = new Set<Capability>([
-  'viewFinance',
-  'viewHistory',
-  'manageUsers',
-])
+/** Capabilities whose override needs a written, audited reason, so the editor can
+ *  ask up front. Re-exported from the single runtime source of truth (index.ts) -
+ *  the same set the override service enforces - so the UI hint can never drift. */
+export { REASON_REQUIRED_CAPABILITIES as REASON_REQUIRED_CAPS } from './index'
