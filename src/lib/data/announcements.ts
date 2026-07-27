@@ -1,6 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
-import { escapeIlike } from '@/lib/text/ilike'
+import { escapeOrIlike } from '@/lib/text/ilike'
 
 /**
  * Table access for `announcements`. RLS client throughout - a tutor may post to
@@ -81,7 +81,7 @@ export async function selectClassPageSources(
 ): Promise<ClassPageSources> {
   const supabase = await createClient()
   const search = opts.search?.trim()
-  const searchClause = search ? `title.ilike.%${escapeIlike(search)}%,message.ilike.%${escapeIlike(search)}%` : null
+  const searchClause = search ? `title.ilike.%${escapeOrIlike(search)}%,message.ilike.%${escapeOrIlike(search)}%` : null
 
   let forClass = supabase.from('announcements').select('*').eq('class_id', classId).eq('status', opts.status)
   let global = supabase.from('announcements').select('*').is('class_id', null).eq('status', opts.status)

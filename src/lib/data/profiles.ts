@@ -2,7 +2,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth/profile'
-import { escapeIlike } from '@/lib/text/ilike'
+import { escapeOrIlike } from '@/lib/text/ilike'
 
 /**
  * Data layer for `profiles` - table access only (docs/architecture-rules.md 2.4).
@@ -82,7 +82,7 @@ export async function selectProfilePage(
   if (opts.status) query = query.eq('status', opts.status)
   const search = opts.search?.trim()
   if (search) {
-    const needle = escapeIlike(search)
+    const needle = escapeOrIlike(search)
     query = query.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`)
   }
   const sortBy = opts.sortBy ?? 'created_at'
@@ -120,7 +120,7 @@ export async function selectProfileIdsBySearch(search: string): Promise<string[]
   const needle = search.trim()
   if (!needle) return []
   const admin = createAdminClient()
-  const escaped = escapeIlike(needle)
+  const escaped = escapeOrIlike(needle)
   const { data, error } = await admin
     .from('profiles')
     .select('id')
