@@ -15,7 +15,9 @@
   --color-primary-strong: var(--primary-strong);
   --color-secondary: var(--secondary);
   --font-sans: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
-  --font-display: var(--font-brand-display), var(--font-brand-sans), Georgia, serif;
+  /* Temporary: use Louis George Cafe (brand sans) everywhere, including headings.
+     Restore Dagger Square by putting var(--font-brand-display) first again. */
+  --font-display: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
