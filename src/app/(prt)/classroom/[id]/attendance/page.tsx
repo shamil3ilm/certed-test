@@ -5,7 +5,7 @@ import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/serv
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { clearAttendanceAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
-import { Card, EmptyState, Badge, SectionLabel } from '@/lib/ui'
+import { AlertBanner, Card, EmptyState, Badge, SectionLabel } from '@/lib/ui'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
@@ -16,7 +16,7 @@ export default async function AttendancePage({
   searchParams,
 }: {
   params: { id: string }
-  searchParams?: { date?: string; recPage?: string }
+  searchParams?: { date?: string; recPage?: string; error?: string }
 }) {
   const { me, course } = await requireClassAccess(params.id)
   const data = await loadClassAttendancePageData(me, course.id, searchParams)
@@ -90,6 +90,10 @@ export default async function AttendancePage({
     <div className="space-y-4">
       <SectionLabel>Mark attendance</SectionLabel>
 
+      {searchParams?.error === '1' && (
+        <AlertBanner>That change couldn&apos;t be applied. Please check the date and try again.</AlertBanner>
+      )}
+
       <form className="flex flex-wrap items-end gap-2">
         <label className="text-xs font-medium text-slate-500">
           Session date
@@ -110,7 +114,7 @@ export default async function AttendancePage({
       ) : (
         <>
           <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} />
-          {data.roster.some((r) => r.status != null) && (
+          {data.hasMarks && (
             <form action={clearAttendanceAction} className="flex justify-end">
               <input type="hidden" name="class_id" value={course.id} />
               <input type="hidden" name="session_date" value={data.date} />

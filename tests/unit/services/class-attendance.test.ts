@@ -118,6 +118,7 @@ describe('loadClassAttendancePageData', () => {
     ).resolves.toEqual({
       kind: 'manager',
       date: '2026-07-16',
+      hasMarks: true,
       roster: [
         { id: 's1', name: 'Sara Student', status: 'late' },
         { id: 's2', name: 'Sam Student', status: null },

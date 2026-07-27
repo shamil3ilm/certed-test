@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertMutated } from '@/lib/data/mutation'
 
 /**
  * Table access for the two membership tables - `class_tutors` and `enrollments`.
@@ -14,9 +15,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
  *  - AGGREGATION reads (the *Refs* and *RowsFor* / *IdsFor* functions) are
  *    service-role. They resolve the membership graph on a caller's behalf, so
  *    the domain MUST scope by that caller's own membership before using them.
- *  - DIRECT reads (selectActiveClassTutors, selectActiveEnrollments,
- *    selectAllActiveEnrollmentRefs) are RLS-scoped, because they answer a
- *    caller's own question and policy can safely bound the answer.
+ *  - DIRECT reads (selectAllActiveEnrollmentRefs) are RLS-scoped, because they
+ *    answer a caller's own question and policy can safely bound the answer.
  *
  * The writes are service-role, and gated in the domain.
  */
@@ -93,25 +93,6 @@ export async function selectActiveEnrollmentRowsForClass(classId: string): Promi
   return (data ?? []) as EnrollmentRow[]
 }
 
-export type ClassTutorRecord = {
-  id: string
-  tutor_id: string
-  class_id: string
-  created_at: string
-}
-
-/** Active teaching assignments, optionally for one class. RLS-scoped, unlike
- *  the aggregation reads above - this one answers a caller's own question
- *  rather than resolving the graph on their behalf. */
-export async function selectActiveClassTutors(classId?: string): Promise<ClassTutorRecord[]> {
-  const supabase = await createClient()
-  let query = supabase.from('class_tutors').select('*').eq('active', true)
-  if (classId) query = query.eq('class_id', classId)
-  const { data, error } = await query
-  if (error) throw new Error(`classTutors.list: ${error.message}`)
-  return (data ?? []) as ClassTutorRecord[]
-}
-
 /** Re-assigning reactivates a previously soft-removed row rather than adding a
  *  second one for the same pair. */
 export async function upsertClassTutor(tutorId: string, classId: string): Promise<void> {
@@ -122,33 +103,20 @@ export async function upsertClassTutor(tutorId: string, classId: string): Promis
   if (error) throw new Error(`classTutors.assign: ${error.message}`)
 }
 
-/** Soft-remove, scoped by class AND tutor - keeps the row for a later re-assign. */
+/** Soft-remove, scoped by class AND tutor - keeps the row for a later re-assign.
+ *  `.select()`s so a call for a pair that was never an assignment matches 0 rows
+ *  and fails loudly with NotFound, rather than returning success and letting the
+ *  caller audit a `class.unassign_tutor` that never happened. A row that already
+ *  exists (active OR inactive) still matches, so an idempotent re-remove is fine. */
 export async function deactivateClassTutor(classId: string, tutorId: string): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin
+  const result = await admin
     .from('class_tutors')
     .update({ active: false })
     .eq('class_id', classId)
     .eq('tutor_id', tutorId)
-  if (error) throw new Error(`classTutors.unassign: ${error.message}`)
-}
-
-export type EnrollmentRecord = {
-  id: string
-  student_id: string
-  class_id: string
-  created_at: string
-}
-
-/** Active enrolments, optionally for one class. RLS-scoped, like
- *  selectActiveClassTutors. */
-export async function selectActiveEnrollments(classId?: string): Promise<EnrollmentRecord[]> {
-  const supabase = await createClient()
-  let query = supabase.from('enrollments').select('*').eq('active', true)
-  if (classId) query = query.eq('class_id', classId)
-  const { data, error } = await query
-  if (error) throw new Error(`enrollments.list: ${error.message}`)
-  return (data ?? []) as EnrollmentRecord[]
+    .select('id')
+  assertMutated(result, 'classTutors.unassign', 'That tutor is not assigned to this class.')
 }
 
 /** Just the class_id of every active enrolment - cheaper than whole rows when
@@ -169,15 +137,20 @@ export async function upsertEnrollment(studentId: string, classId: string): Prom
   if (error) throw new Error(`enrollments.enroll: ${error.message}`)
 }
 
-/** Soft-remove, scoped by class AND student - keeps the row for a later re-enrol. */
+/** Soft-remove, scoped by class AND student - keeps the row for a later re-enrol.
+ *  `.select()`s so a call for a pair that was never an enrollment matches 0 rows
+ *  and fails loudly with NotFound, rather than returning success and letting the
+ *  caller audit a `class.unenroll` that never happened. A row that already exists
+ *  (active OR inactive) still matches, so an idempotent re-remove is fine. */
 export async function deactivateEnrollment(classId: string, studentId: string): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin
+  const result = await admin
     .from('enrollments')
     .update({ active: false })
     .eq('class_id', classId)
     .eq('student_id', studentId)
-  if (error) throw new Error(`enrollments.unenroll: ${error.message}`)
+    .select('id')
+  assertMutated(result, 'enrollments.unenroll', 'That student is not enrolled in this class.')
 }
 
 /** Student ids actively enrolled in any of the given classes. Service-role

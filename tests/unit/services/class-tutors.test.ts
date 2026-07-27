@@ -19,7 +19,7 @@ import {
   removeTutorFromActionInput,
   validateClassTutorParams,
 } from '@/lib/services/class-tutors'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
 
 const admin = { id: 'admin-1', email: 'a@x.c', role: 'admin', status: 'active' } as any
 const tutorActor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
@@ -84,7 +84,7 @@ describe('addTutor / removeTutor are admin-only', () => {
   })
 
   it('removeTutor unassigns and audits class.unassign_tutor for an admin', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'ct-1' }], error: null }) as any)
     await removeTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -94,10 +94,18 @@ describe('addTutor / removeTutor are admin-only', () => {
     })
   })
 
+  it('removeTutor on a non-assignment throws NotFound and does not audit (no phantom unassign)', async () => {
+    // 0 rows matched (tutor was never assigned to this class): fail loud instead
+    // of returning success and auditing class.unassign_tutor.
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    await expect(removeTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(NotFoundError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
   it('removeTutor removes the extra tutor persona when a dedicated mentor stops teaching entirely', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeMentor)
     vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateClassTutor
+      .mockReturnValueOnce(makeClient({ data: [{ id: 'ct-1' }], error: null }) as any) // deactivateClassTutor (row matched)
       .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateGlobalPersona
     await removeTutor(admin, { classId: 'class-1', tutorId: 'mentor-2' })
@@ -144,7 +152,7 @@ describe('class-tutor action-input helpers', () => {
       entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'ct-1' }], error: null }) as any)
     await removeTutorFromActionInput(admin, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       tutor_id: '550e8400-e29b-41d4-a716-446655440001',

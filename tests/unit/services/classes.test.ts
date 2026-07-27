@@ -30,7 +30,7 @@ import {
   validateRenameClassInput,
   validateClassIdInput,
 } from '@/lib/services/classes'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const admin = { id: 'admin-1', email: 'a@x.c', role: 'admin', status: 'active' } as any
 const tutor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
@@ -73,7 +73,7 @@ describe('class lifecycle is admin-only', () => {
 
   it('archiveClass/restoreClass audit class.archive/class.restore for an admin', async () => {
     vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'class-1' }], error: null }) as any)
     await archiveClass(admin, 'class-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -83,7 +83,7 @@ describe('class lifecycle is admin-only', () => {
     })
 
     vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'class-1' }], error: null }) as any)
     await restoreClass(admin, 'class-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -91,6 +91,21 @@ describe('class lifecycle is admin-only', () => {
       entity_type: 'class',
       entity_id: 'class-1',
     })
+  })
+
+  it('rename/archive against a missing class throws NotFound and does not audit (no false success)', async () => {
+    // The UPDATE matches 0 rows (stale/deleted id): the data layer .select()s the
+    // row, finds none, and throws NotFound - so auditPrivilegedAction never runs
+    // and the caller is not handed a phantom success for a mutation that never happened.
+    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    await expect(renameClass(admin, 'gone', 'New name')).rejects.toBeInstanceOf(NotFoundError)
+
+    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    await expect(archiveClass(admin, 'gone')).rejects.toBeInstanceOf(NotFoundError)
+
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 
@@ -175,7 +190,9 @@ describe('class action-input delegation', () => {
       { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: [{ id: '550e8400-e29b-41d4-a716-446655440000' }], error: null }) as any,
+    )
     await renameClassFromActionInput(admin, {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: ' Physics ',
@@ -191,7 +208,9 @@ describe('class action-input delegation', () => {
       { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: [{ id: '550e8400-e29b-41d4-a716-446655440000' }], error: null }) as any,
+    )
     await archiveClassFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440000' })
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'admin-1',
@@ -204,7 +223,9 @@ describe('class action-input delegation', () => {
       { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: [{ id: '550e8400-e29b-41d4-a716-446655440000' }], error: null }) as any,
+    )
     await restoreClassFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440000' })
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'admin-1',

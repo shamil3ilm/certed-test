@@ -74,12 +74,14 @@ export async function gradeSubmission(actor: Profile, input: GradeSubmissionInpu
     throw new ValidationError(`Mark can't exceed the maximum (${Number(assignment.max_marks)}).`)
   }
 
-  // Clearing a mark (null score) also clears graded_at/graded_by, so a row never
-  // sits in a "graded_at set but no score" half-state.
+  // Clearing a mark (null score) also clears feedback AND graded_at/graded_by, so
+  // a row never sits in a half-graded state - no orphaned feedback, and no
+  // "graded_at set but no score". Otherwise a crafted request could send an empty
+  // score with feedback text and leave feedback attached to an ungraded row.
   const cleared = input.score == null
   const graded = await updateGrade(input.submissionId, {
     score: input.score,
-    feedback: input.feedback,
+    feedback: cleared ? null : input.feedback,
     graded_at: cleared ? null : new Date().toISOString(),
     graded_by: cleared ? null : actor.id,
   })

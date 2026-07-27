@@ -29,6 +29,10 @@ type ManagerAttendancePageData = {
   kind: 'manager'
   date: string
   roster: { id: string; name: string; status: AttendanceStatus | null }[]
+  // Whether the date has ANY attendance rows - independent of the current roster.
+  // The clear control keys off this (not "is a current enrollee marked") so a
+  // session whose marked students were later unenrolled can still be cleared.
+  hasMarks: boolean
   sessions: SessionSummary[]
 }
 
@@ -85,6 +89,7 @@ export async function loadClassAttendancePageData(
       name: s.name,
       status: (byStudent.get(s.id) ?? null) as AttendanceStatus | null,
     })),
+    hasMarks: marks.length > 0,
     sessions,
   }
 }

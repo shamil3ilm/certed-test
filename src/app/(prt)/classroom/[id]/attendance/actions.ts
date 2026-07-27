@@ -1,9 +1,10 @@
 'use server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { actionFail, actionOk, toActionError, type ActionResult } from '@/lib/api/action-error'
 import { clearAttendanceSession, markAttendance, type MarkAttendanceInput } from '@/lib/services/attendance'
-import { ServiceError } from '@/lib/errors'
+import { PermissionError, ServiceError } from '@/lib/errors'
 
 /**
  * Marks a whole class for one session date in a single atomic write. Each
@@ -45,8 +46,14 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
     await clearAttendanceSession(me, classId, date)
     revalidatePath(`/classroom/${classId}/attendance`)
   } catch (e) {
-    // Swallow only an expected authorization denial (leaves the marks intact); let
-    // a genuine DB/service error surface instead of hiding it as "nothing happened".
-    if (!(e instanceof ServiceError)) throw e
+    // A permission denial leaves the marks intact silently - the control isn't
+    // shown to someone who can't manage this class, so this is defence in depth.
+    // Any OTHER ServiceError (e.g. an invalid/stale session_date) is a real,
+    // user-correctable failure: surface it as an inline banner instead of a
+    // silent no-op. A non-ServiceError is an unexpected fault - rethrow.
+    // redirect() throws NEXT_REDIRECT, so it must be the last thing in the branch.
+    if (e instanceof PermissionError) return
+    if (e instanceof ServiceError) redirect(`/classroom/${classId}/attendance?error=1`)
+    throw e
   }
 }

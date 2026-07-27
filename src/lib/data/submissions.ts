@@ -191,11 +191,15 @@ type SubmissionBrief = {
  */
 export async function selectActiveSubmissionsForStudentAsService(studentId: string): Promise<SubmissionBrief[]> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('submissions')
     .select('assignment_id, status, submitted_at, drive_link')
     .eq('student_id', studentId)
     .eq('is_active', true)
+  // Fail loud, like selectScoresForStudentAsService below: a transient DB error
+  // must not become a silently blank mentee overview ("no submissions") for a
+  // student who actually has them.
+  if (error) throw new Error(`menteeOverview.subs: ${error.message}`)
   return (data ?? []) as SubmissionBrief[]
 }
 

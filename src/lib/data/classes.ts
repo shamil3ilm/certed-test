@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertMutated } from '@/lib/data/mutation'
 
 /**
  * Table access for `classes`. No authorization here - the domain
@@ -75,16 +76,23 @@ export async function insertClass(name: string): Promise<ClassRow> {
   return data as ClassRow
 }
 
+/**
+ * These writes `.select('id')` and assert a row came back, so a rename/archive
+ * against a stale or already-deleted class id fails loudly with NotFound instead
+ * of matching 0 rows, returning no error, and letting the caller audit a
+ * mutation that never happened. Mirrors the `if not found` guard the assignment
+ * RPC uses (migration 0026).
+ */
 export async function updateClassName(id: string, name: string): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin.from('classes').update({ name }).eq('id', id)
-  if (error) throw new Error(`classes.rename: ${error.message}`)
+  const result = await admin.from('classes').update({ name }).eq('id', id).select('id')
+  assertMutated(result, 'classes.rename', 'Class not found.')
 }
 
 export async function updateClassStatus(id: string, status: ClassRow['status']): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin.from('classes').update({ status }).eq('id', id)
-  if (error) throw new Error(`classes.setStatus: ${error.message}`)
+  const result = await admin.from('classes').update({ status }).eq('id', id).select('id')
+  assertMutated(result, 'classes.setStatus', 'Class not found.')
 }
 
 /** A class's status alone, for callers that only need to know whether it is

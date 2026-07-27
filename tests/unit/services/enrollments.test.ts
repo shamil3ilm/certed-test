@@ -20,7 +20,7 @@ import {
   countEnrollmentsPerClass,
   validateEnrollmentParams,
 } from '@/lib/services/enrollments'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
 
 const tutor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const activeStudent = { id: 'stud-1', role: 'student', status: 'active' } as any
@@ -74,7 +74,7 @@ describe('removeStudent', () => {
 
   it('unenrolls and audits class.unenroll for a manager', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'e-1' }], error: null }) as any)
     await removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -82,6 +82,17 @@ describe('removeStudent', () => {
       entity_type: 'enrollment',
       entity_id: 'class-1',
     })
+  })
+
+  it('removing a non-enrolled pair throws NotFound and does not audit (no phantom unenroll)', async () => {
+    // The soft-remove matches 0 rows (student was never enrolled here): the data
+    // layer fails loud instead of returning success and auditing class.unenroll.
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    await expect(removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      NotFoundError,
+    )
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 
@@ -138,7 +149,7 @@ describe('enrollment action-input helpers', () => {
     })
 
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'e-1' }], error: null }) as any)
     await removeStudentFromActionInput(tutor, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       student_id: '550e8400-e29b-41d4-a716-446655440001',

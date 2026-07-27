@@ -190,6 +190,21 @@ describe('gradeSubmission', () => {
       entity_id: 'sub-1',
     })
   })
+
+  it('clearing a mark (null score) also nulls feedback/graded_at/graded_by - no half-state', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
+    vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    const admin = makeClient({ data: [{ id: 'sub-1' }], error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
+    // A crafted request could pair an empty score with feedback text; the cleared
+    // path must strip feedback too so no feedback lingers on an ungraded row.
+    await gradeSubmission(tutor, { submissionId: 'sub-1', score: null, feedback: 'left over' })
+    const builder = admin.from.mock.results[0].value
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ score: null, feedback: null, graded_at: null, graded_by: null }),
+    )
+  })
 })
 
 describe('getLatestGrade', () => {
