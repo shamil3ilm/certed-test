@@ -4,6 +4,24 @@ import { createClient, getPublicSupabaseEnvError } from '@/lib/supabase/client'
 
 const INVALID_CREDENTIALS_MESSAGE = 'Wrong email or password.'
 const OAUTH_SIGN_IN_MESSAGE = 'Could not start Google sign-in.'
+const SIGN_IN_FAILED_MESSAGE = 'Something went wrong signing you in. Please try again.'
+
+/**
+ * Runs a Supabase auth call and converts any THROWN error into a generic,
+ * user-safe message (the detail is logged, never shown). Supabase surfaces
+ * expected auth failures as a returned `{ error }` (the caller maps those to a
+ * friendly message); this guards the UNEXPECTED throws - a client/SDK init or
+ * network failure - that would otherwise reach the form's catch and render a raw
+ * internal message to the user.
+ */
+async function runAuth<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    console.error('[auth] unexpected sign-in error:', error instanceof Error ? error.message : error)
+    throw new Error(SIGN_IN_FAILED_MESSAGE)
+  }
+}
 // Shown to end users: deliberately generic. The specific misconfiguration (which
 // NEXT_PUBLIC_* value is missing, and that it must be a non-sensitive, build-time
 // variable) is written to the logs by logAuthConfigIssue() rather than leaked to
@@ -46,10 +64,12 @@ export function getBrowserAuthAvailability(): { ok: true } | { ok: false; messag
 export async function signInWithPasswordClient(email: string, password: string): Promise<void> {
   requireBrowserAuthConfig()
 
-  const { error } = await createClient().auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
-    password,
-  })
+  const { error } = await runAuth(() =>
+    createClient().auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    }),
+  )
 
   if (error) {
     throw new Error(INVALID_CREDENTIALS_MESSAGE)
@@ -59,10 +79,12 @@ export async function signInWithPasswordClient(email: string, password: string):
 export async function signInWithGoogleClient(): Promise<void> {
   requireBrowserAuthConfig()
 
-  const { error } = await createClient().auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${window.location.origin}/auth/callback` },
-  })
+  const { error } = await runAuth(() =>
+    createClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    }),
+  )
 
   if (error) {
     throw new Error(OAUTH_SIGN_IN_MESSAGE)

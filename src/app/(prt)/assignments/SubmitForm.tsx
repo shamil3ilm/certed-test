@@ -62,7 +62,9 @@ export function SubmitForm({ assignmentId, studentEmail }: { assignmentId: strin
 
       record(picked.url, picked.name)
     } catch (pickerError) {
-      const message = pickerError instanceof Error ? pickerError.message : 'Could not connect to Google Drive'
+      // Don't surface raw Google Drive SDK/token errors to the student; log the detail.
+      console.error('[drive] picker error:', pickerError)
+      const message = 'Could not connect to Google Drive'
       setError(message)
       toast(message, 'error')
     } finally {
