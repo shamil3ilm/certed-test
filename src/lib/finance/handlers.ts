@@ -84,11 +84,12 @@ export function voidHandler(kind: FinanceKind) {
   }
 }
 
-/** GET /api/{kind}s/[id]/pdf - render on demand. Access is OWNERSHIP-based, not
- *  role-based: renderDocPdf returns the document only to an admin or its own
- *  party (party_id === viewer.id). The transport guard is therefore "active
- *  signed-in user", not a fixed persona list, so future personas and capability
- *  overrides do not get blocked before the ownership check runs. */
+/** GET /api/{kind}s/[id]/pdf - render on demand. renderDocPdf returns the
+ *  document to a viewFinance holder (the capability that gates the ledger + CSV
+ *  export, admin by default and override-grantable) OR to its own party
+ *  (party_id === viewer.id). The transport guard is therefore "active signed-in
+ *  user", not a fixed persona list, so capability overrides are honoured by the
+ *  authorization check rather than blocked ahead of it. */
 export function pdfHandler(kind: FinanceKind) {
   return async function GET(_req: Request, ctx: { params: { id: string } }) {
     let me
