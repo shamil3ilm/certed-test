@@ -217,6 +217,7 @@ describe('loadDashboardViewData', () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isStudent: true }))
     await expect(loadDashboardViewData({ id: 'student-1', role: 'student' } as any, caps())).resolves.toEqual({
       kind: 'student',
+      now: expect.any(Number),
     })
   })
 

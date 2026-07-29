@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { computeTotals, lineAmount, formatMoney, SUPPORTED_CURRENCIES } from '@/lib/money'
+import { createClientId } from '@/lib/ui/client-id'
 import { requestJson } from '../../api-client'
 
 type Party = { id: string; name: string }
@@ -11,7 +12,7 @@ const ISSUE_FORM_FIELD_CLASS = 'mt-1 block w-full rounded border px-2 py-2'
 const LINE_INPUT_CLASS = 'w-full min-w-0 rounded border px-2 py-2'
 
 function createEmptyLine(): Line {
-  return { id: `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, subject: '', hours: '', rate: '' }
+  return { id: createClientId('line'), subject: '', hours: '', rate: '' }
 }
 
 function safeMoney(n: number, cur: string): string {

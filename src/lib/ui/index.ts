@@ -20,3 +20,4 @@ export { AlertBanner, Card, EmptyState, PageHeader, Panel, StatGrid, StatCard } 
 export { ListRow, RowChevron } from './list'
 export { FILTER_CONTROL, FilterField, FilterBar } from './forms'
 export { LegendDot, MiniBars } from './charts'
+export { createClientId } from './client-id'

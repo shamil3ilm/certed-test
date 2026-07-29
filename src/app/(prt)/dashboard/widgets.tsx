@@ -231,7 +231,7 @@ export async function SubmissionsToReviewWidget({ me }: { me: Profile }) {
 
 /** Student "due work" - active assignments they have not submitted yet, soonest
  *  due first with overdue flagged. Each links to the assignment in its class stream. */
-export async function DueWorkWidget({ me }: { me: Profile }) {
+export async function DueWorkWidget({ me, now }: { me: Profile; now: number }) {
   const classIds = await myClassIds(me)
   const [assignments, mySubs] = await Promise.all([
     classIds.length ? listAssignments({ classIds }) : Promise.resolve([]),
@@ -245,7 +245,6 @@ export async function DueWorkWidget({ me }: { me: Profile }) {
   // (late-status.ts, mentees.ts, the classwork page). Comparing the due date's UTC
   // slice against org-tz "today" was off by up to a day near the day boundary for
   // any non-UTC org, and could disagree with the classwork page on the same item.
-  const now = Date.now()
   return (
     <Panel title="Due work">
       {due.length === 0 ? (

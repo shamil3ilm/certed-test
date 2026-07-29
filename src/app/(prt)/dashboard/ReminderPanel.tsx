@@ -1,19 +1,21 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Reminder } from '@/lib/services/reminders'
 import { formatDate, formatDateTime, DISPLAY_TZ } from '@/lib/time/format'
 import { ARCHIVED_ROW } from '@/lib/ui'
+import { createClientId } from '@/lib/ui/client-id'
 import { useHydratedFlag } from '@/lib/ui/client-env'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
 import { createReminderAction, deleteReminderAction, markReminderSentAction } from './actions'
 
-function formatRemindAt(iso: string, tz?: string) {
+const NOW_REFRESH_MS = 60_000
+
+function formatRemindAt(iso: string, nowMs: number, tz?: string) {
   const date = new Date(iso)
-  const now = new Date()
-  const diff = date.getTime() - now.getTime()
+  const diff = date.getTime() - nowMs
   if (diff < 0) return { label: formatDateTime(iso, tz), overdue: true }
   const hours = Math.floor(diff / 3600000)
   if (hours < 24) return { label: `in ${hours}h`, overdue: false }
@@ -52,9 +54,15 @@ function ReminderPanelBody({
   const [pastReminders, setPastReminders] = useState(initialPastReminders)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const deviceLocal = useHydratedFlag()
   const { toast } = useUI()
   const router = useRouter()
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), NOW_REFRESH_MS)
+    return () => window.clearInterval(interval)
+  }, [])
 
   function handleAdd(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -67,7 +75,7 @@ function ReminderPanelBody({
     setReminders((current) => [
       ...current,
       {
-        id: `temp-${Date.now()}`,
+        id: createClientId('temp'),
         user_id: '',
         title,
         description: String(formData.get('description') ?? '').trim() || null,
@@ -196,7 +204,7 @@ function ReminderPanelBody({
       ) : (
         <ul className="mt-3 space-y-2">
           {sorted.map((reminder) => {
-            const { label, overdue } = formatRemindAt(reminder.remind_at, deviceLocal ? undefined : DISPLAY_TZ)
+            const { label, overdue } = formatRemindAt(reminder.remind_at, nowMs, deviceLocal ? undefined : DISPLAY_TZ)
             return (
               <li
                 key={reminder.id}

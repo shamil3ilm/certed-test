@@ -60,7 +60,7 @@ export default async function Dashboard() {
       )}
       {data.kind === 'mentor' && <MentorDashboard me={me} mentees={data.mentees} teaches={data.teaches} />}
       {data.kind === 'tutor' && <TutorDashboard me={me} />}
-      {data.kind === 'student' && <StudentDashboard me={me} />}
+      {data.kind === 'student' && <StudentDashboard me={me} now={data.now} />}
     </main>
   )
 }
@@ -274,12 +274,12 @@ function TutorDashboard({ me }: { me: Profile }) {
 
 /** Student home leads with what's owed: due work, then latest grade, attendance,
  *  and the latest class update. */
-function StudentDashboard({ me }: { me: Profile }) {
+function StudentDashboard({ me, now }: { me: Profile; now: number }) {
   return (
     <>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Suspense fallback={<WidgetSkeleton />}>
-          <DueWorkWidget me={me} />
+          <DueWorkWidget me={me} now={now} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <LatestGradeWidget studentId={me.id} />

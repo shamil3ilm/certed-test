@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 const Footer = () => {
   return (
     <footer className="border-t border-primary/20 bg-primary text-slate-100">
@@ -72,7 +74,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-12 border-t border-primary/20 pt-8 text-center text-sm text-slate-300/70">
-          &copy; {new Date().getFullYear()} Cert-Ed Academia. Serving students across India and GCC. All rights
+          &copy; {CURRENT_YEAR} Cert-Ed Academia. Serving students across India and GCC. All rights
           reserved.
         </div>
       </div>

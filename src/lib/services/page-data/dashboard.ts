@@ -36,9 +36,14 @@ export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee
  * with no mentees stays `tutor`; admin/sub_admin/student never take this view.
  */
 type MentorDashboardViewData = { kind: 'mentor'; mentees: DashboardMentee[]; teaches: boolean }
+type StudentDashboardViewData = { kind: 'student'; now: number }
 
 type DashboardViewData =
-  AdminDashboardViewData | SubAdminDashboardViewData | MentorDashboardViewData | { kind: 'tutor' } | { kind: 'student' }
+  | AdminDashboardViewData
+  | SubAdminDashboardViewData
+  | MentorDashboardViewData
+  | { kind: 'tutor' }
+  | StudentDashboardViewData
 
 export type AdminDashboardViewData = {
   kind: 'admin'
@@ -128,7 +133,7 @@ export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capab
 
   if (flags.isAdmin) return loadAdminDashboardViewData(me, caps)
   if (flags.isSubAdmin) return loadSubAdminDashboardViewData(caps)
-  if (flags.isStudent) return { kind: 'student' }
+  if (flags.isStudent) return { kind: 'student', now: Date.now() }
 
   // Teaching is persona-first, but a mentor account that was given tutor reach
   // must also show the teaching widgets while the membership still exists.

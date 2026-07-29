@@ -6,7 +6,7 @@ import { LocalTime } from './LocalTime'
 import { addCommentAction } from './comment-actions'
 import { useUI } from './Providers'
 import { assertActionOk } from './action-client'
-import { roleLabel, roleTone } from '@/lib/ui'
+import { createClientId, roleLabel, roleTone } from '@/lib/ui'
 
 export function CommentThread({
   entityType,
@@ -66,7 +66,7 @@ function CommentThreadBody({
   function send() {
     const value = text.trim()
     if (!value) return
-    const tempId = `temp-${new Date().getTime()}`
+    const tempId = createClientId('temp')
 
     setComments((current) => [
       ...current,

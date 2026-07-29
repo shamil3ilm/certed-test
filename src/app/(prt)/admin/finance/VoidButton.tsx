@@ -36,7 +36,7 @@ export function VoidButton({ endpoint }: { endpoint: string }) {
   }
 
   return (
-    <button disabled={busy} onClick={onClick} className="btn btn-sm btn-danger">
+    <button type="button" disabled={busy} onClick={onClick} className="btn btn-sm btn-danger">
       Void
     </button>
   )
