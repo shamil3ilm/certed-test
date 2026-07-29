@@ -74,8 +74,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-12 border-t border-primary/20 pt-8 text-center text-sm text-slate-300/70">
-          &copy; {CURRENT_YEAR} Cert-Ed Academia. Serving students across India and GCC. All rights
-          reserved.
+          &copy; {CURRENT_YEAR} Cert-Ed Academia. Serving students across India and GCC. All rights reserved.
         </div>
       </div>
     </footer>
