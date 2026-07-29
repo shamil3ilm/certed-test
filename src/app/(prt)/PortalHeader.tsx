@@ -24,7 +24,11 @@ export async function PortalHeader() {
         <div className="flex h-16 items-center justify-between gap-3 md:h-20">
           <div className="flex items-center gap-1">
             <MobileNav links={links} />
-            <Link href="/dashboard" className="flex shrink-0 items-center">
+            <Link
+              href="/dashboard"
+              aria-label="Cert-Ed Academia - go to dashboard"
+              className="flex shrink-0 items-center"
+            >
               <Image
                 src="/cert-ed-academia-online-tuition-logo.webp"
                 alt="Cert-Ed Academia"

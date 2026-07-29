@@ -118,7 +118,10 @@ html {
   border-collapse: collapse;
   font-size: 0.875rem;
 }
-.prt-scope table.data-table thead th {
+/* `:not(.sr-only)` so a visually-hidden header cell (e.g. an "Actions" column
+   label) keeps sr-only's 1px/zero-padding collapse instead of this rule
+   re-adding padding and inflating it into a horizontal-overflow sliver. */
+.prt-scope table.data-table thead th:not(.sr-only) {
   text-align: left;
   padding: 0.6rem 0.8rem;
   font-size: 0.7rem;
@@ -241,6 +244,18 @@ html {
 .prt-scope [role='button'] {
   cursor: pointer;
 }
+/* Keyboard focus: guarantee a visible focus ring on every interactive control
+   that doesn't already carry the .btn system's ring (plain links, summaries,
+   custom role=button). :focus-visible keeps it keyboard-only - no mouse-click
+   flash - so it's a pure a11y win. */
+.prt-scope a:not(.btn):focus-visible,
+.prt-scope button:not(.btn):focus-visible,
+.prt-scope [role='button']:not(.btn):focus-visible,
+.prt-scope summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
 
 /* FullCalendar - themed to the brand so its controls match the rest of the app. */
 .prt-scope .fc {
@@ -267,6 +282,14 @@ html {
     background-color 0.15s ease,
     border-color 0.15s ease,
     color 0.15s ease;
+}
+/* Touch targets: FullCalendar's view-toggle / nav buttons default to ~32px tall.
+   On small (touch) screens bump them to the 44px minimum tap target. */
+@media (max-width: 640px) {
+  .prt-scope .fc .fc-button {
+    min-height: 2.75rem;
+    padding-inline: 0.9rem;
+  }
 }
 /* Active view button (Month/Week) sits on the brand bg - keep its text white. */
 .prt-scope .fc .fc-button-primary:not(:disabled).fc-button-active,
