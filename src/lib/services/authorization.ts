@@ -21,7 +21,8 @@ async function resolveActorCapabilities(profileId: string): Promise<ResolvedCapa
   return resolveCapabilities({ personas, overrides })
 }
 
-async function actorHasCapability(profileId: string, capability: Capability): Promise<boolean> {
+/** Whether the profile holds the capability (baseline or override-granted). */
+export async function actorHasCapability(profileId: string, capability: Capability): Promise<boolean> {
   return (await resolveActorCapabilities(profileId)).allowed.has(capability)
 }
 

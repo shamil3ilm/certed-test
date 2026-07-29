@@ -146,9 +146,14 @@ export function exportHandler(kind: FinanceKind) {
       ? ['number', party, 'class', 'issue_date', 'currency', 'subtotal', 'discount', 'total', 'voided']
       : ['number', party, 'issue_date', 'currency', 'subtotal', 'discount', 'total', 'voided']
     const body = rows.map((r) => {
-      const cols: (string | number | boolean)[] = [r.number, csv(r.party_name)]
+      // Run EVERY string cell through csv() - not just the human-entered
+      // party/class names. number/issue_date/currency are system-generated today,
+      // but escaping them uniformly is cheap and removes any assumption that a
+      // future format change can't introduce a leading =/+/-/@ (formula injection)
+      // or a comma/quote/newline into those columns.
+      const cols: (string | number | boolean)[] = [csv(r.number), csv(r.party_name)]
       if (isReceipt) cols.push(csv(r.class_level ?? ''))
-      cols.push(r.issue_date, r.currency, r.subtotal, r.discount ?? '', r.total, r.voided)
+      cols.push(csv(r.issue_date), csv(r.currency), r.subtotal, r.discount ?? '', r.total, r.voided)
       return cols.join(',')
     })
     await auditPrivilegedAction(me, `${kind}.export`, kind, null)

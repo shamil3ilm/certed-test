@@ -57,7 +57,15 @@ async function issueDoc(
     lines,
   })
 
-  await writeAudit({ actor_id: actorId, action: `${kind}.issue`, entity_type: kind, entity_id: doc.id })
+  // Best-effort: the document is already committed (numbered + line items) by
+  // issueDocRecord above. If the audit insert threw, a 500 would send the admin
+  // to retry and issue a SECOND, duplicate-numbered document - a far worse
+  // outcome than a missing audit row. Log the gap and report success instead.
+  try {
+    await writeAudit({ actor_id: actorId, action: `${kind}.issue`, entity_type: kind, entity_id: doc.id })
+  } catch (auditError) {
+    console.error(`[finance] audit write failed for issued ${kind} ${doc.id}:`, auditError)
+  }
   return { id: doc.id, number: doc.number }
 }
 

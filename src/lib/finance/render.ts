@@ -29,20 +29,26 @@ function orgInfo(org: OrgSettings): OrgInfo {
 
 /**
  * Render a finance document to PDF bytes. Returns null if the caller isn't the
- * owner or an admin. The ownership check is explicit (in code) so access never
+ * owner or a finance viewer. The check is explicit (in code) so access never
  * depends on RLS alone - a bare `/api/{kind}s/[id]/pdf` request for someone
  * else's receipt/pay slip returns 404, matching the assignment-review pattern.
+ *
+ * Authorization is keyed on viewFinance (the same capability that gates the
+ * /admin/finance ledger and the CSV export), NOT the admin persona alone - so a
+ * user granted viewFinance by override can open the per-row PDF for any row they
+ * can already see, and the three finance surfaces stay in step. The party may
+ * always fetch their own document.
  */
 export async function renderDocPdf(
   kind: FinanceKind,
   id: string,
   viewer: { id: string; role?: string },
 ): Promise<{ pdf: Buffer; number: string } | null> {
-  const { loadPersonaFlags } = await import('@/lib/permission/personas')
+  const { actorHasCapability } = await import('@/lib/services/authorization')
   const doc = await getDoc(kind, id)
   if (!doc) return null
-  const { isAdmin } = await loadPersonaFlags(viewer.id)
-  if (!isAdmin && doc.party_id !== viewer.id) return null
+  const canViewFinance = await actorHasCapability(viewer.id, 'viewFinance')
+  if (!canViewFinance && doc.party_id !== viewer.id) return null
   const [lines, org] = await Promise.all([getDocLines(kind, id), getOrgSettings()])
   const build = kind === 'receipt' ? buildReceiptHtml : buildPayslipHtml
   const html = build(
