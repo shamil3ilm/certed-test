@@ -9,11 +9,14 @@ import { updateOwnAuthPassword } from '@/lib/data/auth-accounts'
 
 /** What a signed-in user may change about their OWN account. */
 
-/** Self-service: the signed-in user edits their own name / class. The write goes
- *  through the request's client, so RLS scopes it to their own row. */
+/** Self-service: the signed-in user edits their own name. The write goes through
+ *  the request's client, so RLS scopes it to their own row. The patch type is
+ *  deliberately narrowed to full_name only - class_level (grade) is admin-set, so
+ *  the service can't be handed it even if a future caller forwarded it (the RLS
+ *  own-row client would otherwise let a student rewrite their own class). */
 export async function updateOwnProfile(
   actor: Pick<Profile, 'id'>,
-  patch: { full_name?: string | null; class_level?: string | null },
+  patch: { full_name?: string | null },
 ): Promise<void> {
   await updateOwnProfileRow(actor.id, patch)
   await auditPrivilegedAction(actor, 'profile.update', 'profile', actor.id)

@@ -89,7 +89,12 @@ export async function archiveAnnouncement(actor: Profile, id: string): Promise<v
 }
 
 export async function restoreAnnouncement(actor: Profile, id: string): Promise<void> {
-  await requireManageable(actor, id)
+  const announcement = await requireManageable(actor, id)
+  // Restoring re-activates content on the class, so hold it to the same rule as
+  // createAnnouncement: no active content on an archived (soft-deleted) class.
+  // (editAnnouncement is deliberately not gated - editing an already-active post
+  // in place doesn't re-surface anything, matching the calendar in-place edits.)
+  if (announcement.class_id) await assertClassActive(announcement.class_id)
   await updateAnnouncement(id, { status: 'active' })
   await auditPrivilegedAction(actor, 'announcement.restore', 'announcement', id)
 }

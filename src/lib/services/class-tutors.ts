@@ -56,13 +56,32 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
   if ((await selectClassStatus(params.classId)) !== 'active') {
     throw new ValidationError('That class is archived - restore it before assigning tutors.')
   }
-  // A dedicated mentor may also teach. Grant the global tutor persona the first
-  // time such an account is assigned to a class so the capability model, nav,
-  // and class/timetable workflows stay in step with the teaching membership.
-  if (tutor.role === 'mentor') {
-    await upsertGlobalPersona(tutor.id, 'tutor')
-  }
+  // Write the class_tutor membership FIRST, then (for a dedicated mentor who may
+  // also teach) grant the global tutor persona that keeps the capability model,
+  // nav, and class/timetable workflows in step. Ordering + compensation mirror
+  // assignMentor: if the persona grant fails we roll back the membership we just
+  // wrote, rather than leaving a class row with no accompanying persona. The
+  // compensation runs in its own try/catch so a double failure surfaces BOTH
+  // errors distinctly instead of silently leaving an inconsistent pair.
   await upsertClassTutor(params.tutorId, params.classId)
+  if (tutor.role === 'mentor') {
+    try {
+      await upsertGlobalPersona(tutor.id, 'tutor')
+    } catch (error) {
+      try {
+        await deactivateClassTutor(params.classId, params.tutorId)
+      } catch (compensationError) {
+        const original = error instanceof Error ? error.message : String(error)
+        const comp = compensationError instanceof Error ? compensationError.message : String(compensationError)
+        throw new Error(
+          `class.assign_tutor left an orphaned class_tutor row for tutor ${params.tutorId} / class ` +
+            `${params.classId}: tutor-persona grant failed (${original}) AND its compensation failed (${comp}). ` +
+            `Remove this assignment manually or re-run it.`,
+        )
+      }
+      throw error
+    }
+  }
   await auditPrivilegedAction(actor, 'class.assign_tutor', 'class_tutor', params.classId)
 }
 

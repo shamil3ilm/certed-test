@@ -69,11 +69,13 @@ describe('addTutor / removeTutor are admin-only', () => {
 
   it('addTutor promotes a dedicated mentor to a tutor-capable teacher before assignment', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeMentor)
+    // Membership row is written BEFORE the persona grant (assignMentor-style
+    // ordering + compensation), so upsertClassTutor's client comes first.
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
       .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // upsertGlobalPersona reactivate
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertGlobalPersona insert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
     await addTutor(admin, { classId: 'class-1', tutorId: 'mentor-2' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
