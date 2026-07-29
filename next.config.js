@@ -31,6 +31,14 @@ const nextConfig = {
   },
   // Keep the headless-Chromium PDF deps out of the bundle (server-only, runtime).
   experimental: {
+    // The portal is entirely force-dynamic (always fresh server-side), but Next
+    // 14.2's client Router Cache still reuses a dynamic route for ~30s by default -
+    // so after an issue/void the /dashboard Revenue card showed a stale, cached
+    // copy on navigation. `dynamic: 0` disables that reuse, so any navigation to a
+    // dynamic route refetches fresh. This is the real fix for cross-route staleness
+    // (a route-handler/Server-Action revalidatePath can't refresh a route the user
+    // isn't on until its cache entry expires anyway).
+    staleTimes: { dynamic: 0 },
     serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
     // The PDF routes readFileSync() the brand fonts/logo from public/, which is
     // NOT bundled into serverless functions by default — trace them in so the
