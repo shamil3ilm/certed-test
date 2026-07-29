@@ -26,9 +26,11 @@ function formatRemindAt(iso: string, nowMs: number, tz?: string) {
 export function ReminderPanel({
   initialReminders,
   initialPastReminders = [],
+  now,
 }: {
   initialReminders: Reminder[]
   initialPastReminders?: Reminder[]
+  now: number
 }) {
   const serverSignature = [...initialReminders, ...initialPastReminders]
     .map((r) => `${r.id}:${r.is_sent ? '1' : '0'}`)
@@ -39,6 +41,7 @@ export function ReminderPanel({
       key={serverSignature}
       initialReminders={initialReminders}
       initialPastReminders={initialPastReminders}
+      now={now}
     />
   )
 }
@@ -46,15 +49,20 @@ export function ReminderPanel({
 function ReminderPanelBody({
   initialReminders,
   initialPastReminders,
+  now,
 }: {
   initialReminders: Reminder[]
   initialPastReminders: Reminder[]
+  now: number
 }) {
   const [reminders, setReminders] = useState(initialReminders)
   const [pastReminders, setPastReminders] = useState(initialPastReminders)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
-  const [nowMs, setNowMs] = useState(() => Date.now())
+  // Seed from the server-provided timestamp so SSR and the first client render
+  // agree (a client-side Date.now() here can straddle a minute/overdue boundary
+  // and trip a hydration mismatch); the interval below takes over after mount.
+  const [nowMs, setNowMs] = useState(now)
   const deviceLocal = useHydratedFlag()
   const { toast } = useUI()
   const router = useRouter()

@@ -190,7 +190,9 @@ export async function RecentUploadsWidget({ me }: { me: Profile }) {
  *  just admin, which was the only dashboard that surfaced the panel). */
 export async function RemindersWidget({ me }: { me: Profile }) {
   const [reminders, pastReminders] = await Promise.all([listMyReminders(me.id), listMyPastReminders(me.id)])
-  return <ReminderPanel initialReminders={reminders} initialPastReminders={pastReminders} />
+  // Compute "now" once on the server so the panel's relative-time labels render
+  // identically on SSR and hydration (see ReminderPanelBody).
+  return <ReminderPanel initialReminders={reminders} initialPastReminders={pastReminders} now={Date.now()} />
 }
 
 /** Tutor "submissions to review" - active, ungraded submissions across the tutor's

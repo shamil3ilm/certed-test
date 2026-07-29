@@ -154,6 +154,10 @@ export default async function FinancePage({
   // and hard-rule-backed, so an override can never surface a control the API 403s.
   const canManage = isAdminTier(me)
   const data = await loadAdminFinancePageData({ ...searchParams, canManage })
+  // Compute the default issue date on the server so the date input renders the
+  // same value on SSR and hydration (a client-side new Date() can differ across
+  // a midnight/timezone boundary and trip a hydration mismatch).
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <main className="mx-auto max-w-4xl space-y-10 p-4 sm:p-6 lg:p-8">
@@ -163,7 +167,12 @@ export default async function FinancePage({
           <>
             <h2 className="mt-4 font-medium">Issue fee receipt</h2>
             <div className="mt-2">
-              <IssueForm partyLabel="Student" parties={data.students} endpoint="/api/receipts" />
+              <IssueForm
+                partyLabel="Student"
+                parties={data.students}
+                endpoint="/api/receipts"
+                defaultIssueDate={today}
+              />
             </div>
           </>
         )}
@@ -175,7 +184,12 @@ export default async function FinancePage({
           <>
             <h2 className="font-medium">Issue pay slip</h2>
             <div className="mt-2">
-              <IssueForm partyLabel="Payee (tutor or mentor)" parties={data.tutors} endpoint="/api/payslips" />
+              <IssueForm
+                partyLabel="Payee (tutor or mentor)"
+                parties={data.tutors}
+                endpoint="/api/payslips"
+                defaultIssueDate={today}
+              />
             </div>
           </>
         )}

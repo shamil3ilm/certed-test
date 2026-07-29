@@ -27,14 +27,18 @@ export function IssueForm({
   partyLabel,
   parties,
   endpoint,
+  defaultIssueDate,
 }: {
   partyLabel: string
   parties: Party[]
   endpoint: string
+  defaultIssueDate: string
 }) {
   const router = useRouter()
   const [partyId, setPartyId] = useState('')
-  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10))
+  // Seeded from a server-computed date (see the finance page) so the input's
+  // value matches between SSR and hydration.
+  const [issueDate, setIssueDate] = useState(defaultIssueDate)
   const [currency, setCurrency] = useState('INR')
   const [discount, setDiscount] = useState('')
   const [lines, setLines] = useState<Line[]>([createEmptyLine()])

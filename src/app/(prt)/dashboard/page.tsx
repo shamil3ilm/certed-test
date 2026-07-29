@@ -238,7 +238,7 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
         <Panel title="Upcoming">
           <Upcoming events={data.upcoming} />
         </Panel>
-        <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} />
+        <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={Date.now()} />
       </section>
     </>
   )
