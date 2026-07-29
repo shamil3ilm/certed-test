@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ValidationError } from '@/lib/errors'
 
 /**
  * Shared cross-field time-order check for schemas carrying start_time + end_time
@@ -26,5 +27,25 @@ export function refineTimeOrder(
   }
   if (v.start_time != null && v.end_time != null && v.end_time <= v.start_time) {
     ctx.addIssue({ code: 'custom', message: 'end_time must be after start_time', path: ['end_time'] })
+  }
+}
+
+/**
+ * Service-layer counterpart to refineTimeOrder for PARTIAL updates. A schema can
+ * only see the patch, not the stored row, so a PATCH carrying just one of
+ * start/end can't be validated against the other. Callers resolve the EFFECTIVE
+ * pair (patch value merged over the existing row) and pass it here.
+ *
+ * Matters most for calendar_events, which has NO DB time-order CHECK: without
+ * this, a crafted { end_time } that inverts the interval would persist a
+ * negative-duration event. Throws ValidationError (a clean 400) on an invalid
+ * pair, same rules as refineTimeOrder.
+ */
+export function assertTimeOrder(start: string | null | undefined, end: string | null | undefined): void {
+  if (end != null && start == null) {
+    throw new ValidationError('end_time requires a start_time')
+  }
+  if (start != null && end != null && end <= start) {
+    throw new ValidationError('end_time must be after start_time')
   }
 }

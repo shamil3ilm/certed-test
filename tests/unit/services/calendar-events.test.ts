@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn(), assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
-import { canWriteClass } from '@/lib/permission'
+import { canWriteClass, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -148,6 +148,28 @@ describe('updateEvent', () => {
       makeClient({ data: { id: 'slot-9', class_id: 'other-class' }, error: null }) as any,
     ) // selectSlotById
     await expect(updateEvent(tutor, 'evt-1', { slot_id: 'slot-9' } as any)).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects moving an event into an archived class, without writing or auditing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any) // getEvent
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true).mockResolvedValueOnce(true) // source + destination
+    vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
+    await expect(updateEvent(tutor, 'evt-1', { class_id: 'other-class' } as any)).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a partial PATCH that inverts the effective start/end (negative-duration event)', async () => {
+    // Stored event starts at 10:00; a crafted { end_time: '08:00' } (no start_time in
+    // the patch) can't be caught by the schema, so updateEvent validates the MERGED
+    // pair (patch over existing) - calendar_events has no DB time-order CHECK.
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, start_time: '10:00', end_time: '11:00' }, error: null }) as any,
+    ) // getEvent
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    await expect(updateEvent(tutor, 'evt-1', { end_time: '08:00' } as any)).rejects.toBeInstanceOf(ValidationError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 

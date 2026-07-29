@@ -22,6 +22,7 @@ vi.mock('@/lib/auth/class-scope', () => ({
 }))
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
 const created = {
@@ -42,6 +43,7 @@ vi.mock('@/lib/services/timetable-slots', async (importOriginal) => {
 })
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { GET, POST } from '@/app/api/timetable/route'
 
@@ -78,6 +80,8 @@ beforeEach(() => {
   vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
   vi.mocked(loadPersonaFlags).mockResolvedValue(flags({ isTutor: true }))
   vi.mocked(createClient).mockResolvedValue(makeClient({ data: created, error: null }) as any)
+  // selectClassStatus (assertClassActive) reads the class via the service-role client.
+  vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: { status: 'active' }, error: null }) as any)
 })
 
 describe('POST /api/timetable', () => {

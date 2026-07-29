@@ -15,7 +15,8 @@ import {
   type UpdateEventInput,
 } from '@/lib/validation/calendar-event'
 import { parseOrThrow } from '@/lib/validation/parse'
-import { canWriteClass } from '@/lib/permission'
+import { assertTimeOrder } from '@/lib/validation/time-order'
+import { canWriteClass, assertClassActive } from '@/lib/permission'
 import { selectSlotById } from '@/lib/data/timetable-slots'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
@@ -75,6 +76,7 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
     throw new PermissionError('Not authorized to create this event.')
   }
   if (input.slot_id) await assertSlotInClass(input.slot_id, input.class_id ?? null)
+  if (input.class_id) await assertClassActive(input.class_id)
   const created = await insertEvent({
     title: input.title,
     description: input.description ?? null,
@@ -112,6 +114,11 @@ export async function updateEvent(actor: Profile, id: string, patch: UpdateEvent
   if (patch.class_id !== undefined && moved && !(await canWriteClass(actor, patch.class_id))) {
     throw new PermissionError('Not authorized to move this event to that class.')
   }
+  // Moving an event INTO a class must respect the archived-class rule, exactly like
+  // creating one there - a move must not place content onto a hidden class. (A move
+  // to a global/null event has no class to check; editing an event that STAYS put
+  // is allowed, matching the app's create-only archived guard.)
+  if (moved && patch.class_id) await assertClassActive(patch.class_id)
   // Keep any slot reference within the event's own class. Re-check when either the
   // slot or the class changes - moving an event must not leave it pointing at the
   // source class's slot.
@@ -121,6 +128,14 @@ export async function updateEvent(actor: Profile, id: string, patch: UpdateEvent
     const effClass = patch.class_id !== undefined ? patch.class_id : existing.class_id
     if (effSlot) await assertSlotInClass(effSlot, effClass)
   }
+  // calendar_events has NO DB time-order CHECK, and a partial patch can carry just
+  // one of start/end - which the schema can't validate against the stored row.
+  // Validate the EFFECTIVE (merged) pair so a crafted { end_time } that inverts
+  // the interval is rejected, not silently persisted as a negative-duration event.
+  assertTimeOrder(
+    patch.start_time !== undefined ? patch.start_time : existing.start_time,
+    patch.end_time !== undefined ? patch.end_time : existing.end_time,
+  )
   const updated = await updateEventRow(id, patch)
   await auditPrivilegedAction(actor, moved ? 'event.move' : 'event.update', 'calendar_event', id)
   return updated

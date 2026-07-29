@@ -14,7 +14,8 @@ import {
   type UpdateSlotInput,
 } from '@/lib/validation/timetable-slot'
 import { parseOrThrow } from '@/lib/validation/parse'
-import { canWriteClass } from '@/lib/permission'
+import { assertTimeOrder } from '@/lib/validation/time-order'
+import { canWriteClass, assertClassActive } from '@/lib/permission'
 import { isActiveClassTutor } from '@/lib/data/class-membership'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -68,6 +69,7 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
     throw new PermissionError('Not authorized for this class.')
   }
   if (input.tutor_id) await assertClassTutor(input.tutor_id, input.class_id)
+  await assertClassActive(input.class_id)
 
   const created = await insertSlot({
     class_id: input.class_id,
@@ -95,6 +97,13 @@ export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotIn
     throw new PermissionError('Not authorized for this class.')
   }
   if (patch.tutor_id) await assertClassTutor(patch.tutor_id, existing.class_id)
+  // A partial patch that carries only one of start/end can invert the interval;
+  // validate the EFFECTIVE pair for a clean 400 rather than tripping the DB CHECK
+  // (0004) as an opaque 500. (Mirrors updateEvent, whose table has no such CHECK.)
+  assertTimeOrder(
+    patch.start_time !== undefined ? patch.start_time : existing.start_time,
+    patch.end_time !== undefined ? patch.end_time : existing.end_time,
+  )
 
   const updated = await updateSlotRowInDb(id, patch)
   await auditPrivilegedAction(actor, patch.tutor_id ? 'timetable.reassign' : 'timetable.update', 'timetable_slot', id)
