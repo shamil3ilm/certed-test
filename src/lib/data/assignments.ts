@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertMutated } from '@/lib/data/mutation'
 
 /**
  * Table access for `assignments`. No authorization here - the domain
@@ -92,14 +93,14 @@ export async function insertAssignment(row: AssignmentInsert): Promise<Assignmen
 
 export async function updateAssignmentStatus(id: string, status: AssignmentRow['status']): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('assignments').update({ status }).eq('id', id)
-  if (error) throw new Error(`assignments.setStatus: ${error.message}`)
+  const result = await supabase.from('assignments').update({ status }).eq('id', id).select('id')
+  assertMutated(result, 'assignments.setStatus', 'Assignment not found')
 }
 
 export async function updateAssignment(id: string, patch: AssignmentPatch): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('assignments').update(patch).eq('id', id)
-  if (error) throw new Error(`assignments.update: ${error.message}`)
+  const result = await supabase.from('assignments').update(patch).eq('id', id).select('id')
+  assertMutated(result, 'assignments.update', 'Assignment not found')
 }
 
 export type AssignmentBrief = { id: string; title: string; class_id: string; due_date: string }

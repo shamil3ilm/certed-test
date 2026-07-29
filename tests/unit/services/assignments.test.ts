@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn(), assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { canManageClass } from '@/lib/permission'
+import { canManageClass, assertClassActive } from '@/lib/permission'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
@@ -77,6 +77,16 @@ describe('createAssignment', () => {
     const builder = client.from.mock.results[0].value
     expect(builder.insert).toHaveBeenCalledWith(expect.objectContaining({ created_by: 'tutor-1' }))
   })
+
+  it('rejects creating content on an archived class, without writing or auditing', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
+    await expect(
+      createAssignment(actor, { class_id: 'class-1', title: 'HW', description: null, due_date: 't' }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(createClient).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
 })
 
 describe('createAssignment API-input helpers', () => {
@@ -141,7 +151,7 @@ describe('archiveAssignment / editAssignment', () => {
   it('archive audits assignment.archive, restore audits assignment.restore', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
     await archiveAssignment(actor, 'a-1', 'archived')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -152,7 +162,7 @@ describe('archiveAssignment / editAssignment', () => {
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
     await archiveAssignment(actor, 'a-1', 'active')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -165,7 +175,7 @@ describe('archiveAssignment / editAssignment', () => {
   it('edit audits assignment.edit', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
     await editAssignment(actor, 'a-1', { title: 'New' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -285,7 +295,7 @@ describe('assignment action-input helpers', () => {
   it('delegates archive/edit action input through the service boundary', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
     await archiveAssignmentFromActionInput(actor, {
       id: '550e8400-e29b-41d4-a716-446655440000',
       status: 'archived',
@@ -299,7 +309,7 @@ describe('assignment action-input helpers', () => {
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
     await editAssignmentFromActionInput(actor, {
       id: '550e8400-e29b-41d4-a716-446655440000',
       title: ' Homework ',

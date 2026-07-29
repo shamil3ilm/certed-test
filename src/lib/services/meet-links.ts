@@ -8,7 +8,7 @@ import {
   setMeetLinkActive,
   type MeetLinkRow,
 } from '@/lib/data/meet-links'
-import { canManageScope } from '@/lib/permission'
+import { canManageScope, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { linkUrl } from '@/lib/validation/url'
@@ -88,6 +88,7 @@ export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput)
   if (!(await canManageScope(actor, input.class_id))) {
     throw new PermissionError('Not allowed to post a meet link to this class')
   }
+  if (input.class_id) await assertClassActive(input.class_id)
   const created = await insertMeetLink({
     class_id: input.class_id,
     title: input.title,

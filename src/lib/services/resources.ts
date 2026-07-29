@@ -8,7 +8,7 @@ import {
   type ResourceRow,
 } from '@/lib/data/resources'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageClass } from '@/lib/permission'
+import { canManageClass, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireManageableResource } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
@@ -100,6 +100,7 @@ export async function createLinkResource(actor: Profile, input: CreateLinkResour
   if (!(await canManageClass(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class')
   }
+  await assertClassActive(input.class_id)
   const created = await insertResource({
     class_id: input.class_id,
     title: input.title,

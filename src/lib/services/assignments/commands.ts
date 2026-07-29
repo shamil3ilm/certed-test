@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageClass } from '@/lib/permission'
+import { canManageClass, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
@@ -38,6 +38,7 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
   if (!(await canManageClass(actor, input.class_id))) {
     throw new PermissionError('Not allowed to create an assignment for this class.')
   }
+  await assertClassActive(input.class_id)
   const created = await insertAssignment({
     class_id: input.class_id,
     title: input.title,

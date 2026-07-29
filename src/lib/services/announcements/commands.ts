@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageScope } from '@/lib/permission'
+import { canManageScope, assertClassActive } from '@/lib/permission'
 import { getClassMembers } from '@/lib/services/classes'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -60,6 +60,7 @@ export async function createAnnouncement(actor: Profile, input: CreateAnnounceme
   if (!(await canManageScope(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class')
   }
+  if (input.class_id) await assertClassActive(input.class_id)
   // Set status explicitly rather than leaning on the DB default, so mock mode
   // (which doesn't apply column defaults) also creates an active announcement.
   const created = await insertAnnouncement({
