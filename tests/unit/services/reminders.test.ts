@@ -6,12 +6,13 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 import { createClient } from '@/lib/supabase/server'
 import {
   createReminderFromActionInput,
+  editReminderFromActionInput,
   listMyReminders,
   listMyPastReminders,
   markReminderSent,
   validateCreateReminderInput,
 } from '@/lib/services/reminders'
-import { ValidationError } from '@/lib/errors'
+import { PermissionError, ValidationError } from '@/lib/errors'
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -98,5 +99,43 @@ describe('createReminderFromActionInput', () => {
     })
     expect(created.title).toBe('Revision')
     expect(created.description).toBe('Bring notebook')
+  })
+})
+
+describe('editReminderFromActionInput', () => {
+  const validId = '550e8400-e29b-41d4-a716-446655440000'
+
+  it('updates title/note/time after an ownership check', async () => {
+    const ownerClient = makeClient({ data: { user_id: 'user-1' }, error: null })
+    const updateClient = makeClient({ data: null, error: null })
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(ownerClient as any)
+      .mockResolvedValueOnce(updateClient as any)
+    await editReminderFromActionInput('user-1', {
+      id: validId,
+      title: ' Revision 2 ',
+      description: ' Bring notebook ',
+      remind_at: '2026-07-21T10:00:00.000Z',
+    })
+    const builder = updateClient.from.mock.results[0].value
+    expect(builder.update).toHaveBeenCalledWith({
+      title: 'Revision 2',
+      description: 'Bring notebook',
+      remind_at: '2026-07-21T10:00:00.000Z',
+    })
+    expect(builder.eq).toHaveBeenCalledWith('id', validId)
+  })
+
+  it('rejects editing a reminder the caller does not own, without an update', async () => {
+    const ownerClient = makeClient({ data: { user_id: 'someone-else' }, error: null })
+    vi.mocked(createClient).mockResolvedValueOnce(ownerClient as any)
+    await expect(
+      editReminderFromActionInput('user-1', {
+        id: validId,
+        title: 'x',
+        description: null,
+        remind_at: '2026-07-21T10:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(PermissionError)
   })
 })

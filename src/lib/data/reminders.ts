@@ -70,6 +70,15 @@ export async function insertReminder(row: {
   return data as ReminderRow
 }
 
+export async function updateReminderRow(
+  id: string,
+  patch: { title: string; description: string | null; remind_at: string },
+): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('reminders').update(patch).eq('id', id)
+  if (error) throw new Error(`reminders.update: ${error.message}`)
+}
+
 export async function deleteReminderRow(id: string): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('reminders').delete().eq('id', id)

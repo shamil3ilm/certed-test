@@ -5,10 +5,11 @@ import {
   selectReminderOwner,
   selectPendingForUser,
   selectSentForUser,
+  updateReminderRow,
   type ReminderRow,
 } from '@/lib/data/reminders'
 import { PermissionError, ValidationError } from '@/lib/errors'
-import { createReminderSchema } from '@/lib/validation/reminder'
+import { createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
 
 export type Reminder = ReminderRow
 
@@ -17,6 +18,8 @@ type CreateReminderActionInput = {
   description?: FormDataEntryValue | null
   remind_at?: FormDataEntryValue | null
 }
+
+type EditReminderActionInput = CreateReminderActionInput & { id?: FormDataEntryValue | null }
 
 export function validateCreateReminderInput(input: CreateReminderActionInput) {
   const parsed = createReminderSchema.safeParse({
@@ -66,11 +69,38 @@ export async function createReminderFromActionInput(
   return createReminder(userId, parsed.title, parsed.description ?? null, parsed.remind_at)
 }
 
+export function validateEditReminderInput(input: EditReminderActionInput) {
+  const parsed = editReminderSchema.safeParse({
+    id: input.id,
+    title: input.title,
+    description: String(input.description ?? '').trim() || undefined,
+    remind_at: input.remind_at,
+  })
+
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid reminder data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
+  }
+
+  return parsed.data
+}
+
 async function assertReminderOwner(actorId: string, reminderId: string): Promise<void> {
   const ownerId = await selectReminderOwner(reminderId)
   if (!ownerId || ownerId !== actorId) {
     throw new PermissionError('You can only modify your own reminders.')
   }
+}
+
+/** Edit a reminder's title / note / time. Ownership-checked like delete (RLS
+ *  protects production; the explicit check keeps mock mode honest too). */
+export async function editReminderFromActionInput(actorId: string, input: EditReminderActionInput): Promise<void> {
+  const parsed = validateEditReminderInput(input)
+  await assertReminderOwner(actorId, parsed.id)
+  await updateReminderRow(parsed.id, {
+    title: parsed.title,
+    description: parsed.description ?? null,
+    remind_at: parsed.remind_at,
+  })
 }
 
 /** Delete a reminder by id. RLS protects production; this explicit ownership

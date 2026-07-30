@@ -7,3 +7,7 @@ export const createReminderSchema = z.object({
   // server-action POST could send anything, so require real ISO-8601 here.
   remind_at: z.string().datetime(),
 })
+
+export const editReminderSchema = createReminderSchema.extend({
+  id: z.string().uuid(),
+})

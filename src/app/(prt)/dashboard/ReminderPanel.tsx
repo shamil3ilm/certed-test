@@ -9,9 +9,18 @@ import { createClientId } from '@/lib/ui/client-id'
 import { useHydratedFlag } from '@/lib/ui/client-env'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
-import { createReminderAction, deleteReminderAction, markReminderSentAction } from './actions'
+import { createReminderAction, deleteReminderAction, editReminderAction, markReminderSentAction } from './actions'
 
 const NOW_REFRESH_MS = 60_000
+
+/** ISO instant -> a datetime-local input value ("YYYY-MM-DDTHH:mm") in the
+ *  viewer's own device time, matching how the input reads and writes it. */
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 function formatRemindAt(iso: string, nowMs: number, tz?: string) {
   const date = new Date(iso)
@@ -59,6 +68,7 @@ function ReminderPanelBody({
   const [pastReminders, setPastReminders] = useState(initialPastReminders)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Reminder | null>(null)
   // Seed from the server-provided timestamp so SSR and the first client render
   // agree (a client-side Date.now() here can straddle a minute/overdue boundary
   // and trip a hydration mismatch); the interval below takes over after mount.
@@ -87,6 +97,29 @@ function ReminderPanelBody({
     if (Number.isNaN(remindAtDate.getTime())) return
     const remindAtIso = remindAtDate.toISOString()
     formData.set('remind_at', remindAtIso)
+    const description = String(formData.get('description') ?? '').trim() || null
+
+    // Edit mode: update the existing reminder in place instead of appending.
+    if (editing) {
+      const target = editing
+      formData.set('id', target.id)
+      const snapshot = reminders
+      setReminders((current) =>
+        current.map((r) => (r.id === target.id ? { ...r, title, description, remind_at: remindAtIso } : r)),
+      )
+      setEditing(null)
+      setOpen(false)
+      startTransition(async () => {
+        try {
+          assertActionOk(await editReminderAction(formData), 'Could not update reminder')
+          router.refresh()
+        } catch {
+          setReminders(snapshot)
+          toast('Could not update reminder', 'error')
+        }
+      })
+      return
+    }
 
     const snapshot = reminders
     setReminders((current) => [
@@ -95,7 +128,7 @@ function ReminderPanelBody({
         id: createClientId('temp'),
         user_id: '',
         title,
-        description: String(formData.get('description') ?? '').trim() || null,
+        description,
         remind_at: remindAtIso,
         is_sent: false,
         created_at: new Date().toISOString(),
@@ -164,7 +197,10 @@ function ReminderPanelBody({
         </h2>
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => {
+            setEditing(null)
+            setOpen((value) => !value)
+          }}
           aria-expanded={open}
           aria-controls="reminder-add-form"
           className="min-h-10 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-primary hover:bg-primary/5 hover:text-primary"
@@ -176,6 +212,7 @@ function ReminderPanelBody({
       {open && (
         <form
           id="reminder-add-form"
+          key={editing?.id ?? 'new'}
           onSubmit={handleAdd}
           className="mt-3 space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3"
         >
@@ -184,6 +221,7 @@ function ReminderPanelBody({
             <input
               name="title"
               required
+              defaultValue={editing?.title ?? ''}
               placeholder="Reminder title..."
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
@@ -192,6 +230,7 @@ function ReminderPanelBody({
             <span className="mb-1 block text-xs font-medium text-slate-600">Note</span>
             <input
               name="description"
+              defaultValue={editing?.description ?? ''}
               placeholder="Note (optional)"
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none"
             />
@@ -202,14 +241,22 @@ function ReminderPanelBody({
               name="remind_at"
               type="datetime-local"
               required
+              defaultValue={editing ? toDatetimeLocalValue(editing.remind_at) : ''}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
             />
           </label>
           <div className="flex gap-2">
             <button type="submit" disabled={isPending} className="btn btn-primary btn-sm flex-1">
-              Save
+              {editing ? 'Update' : 'Save'}
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost btn-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setEditing(null)
+              }}
+              className="btn btn-ghost btn-sm"
+            >
               Cancel
             </button>
           </div>
@@ -242,6 +289,18 @@ function ReminderPanelBody({
                     {label}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(reminder)
+                    setOpen(true)
+                  }}
+                  disabled={isPending}
+                  aria-label="Edit reminder"
+                  className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                >
+                  Edit
+                </button>
                 <button
                   type="button"
                   onClick={() => handleMarkDone(reminder)}

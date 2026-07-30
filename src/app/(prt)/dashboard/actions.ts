@@ -2,7 +2,12 @@
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { requireCapability } from '@/lib/auth/require-role'
-import { createReminderFromActionInput, deleteReminder, markReminderSent } from '@/lib/services/reminders'
+import {
+  createReminderFromActionInput,
+  deleteReminder,
+  editReminderFromActionInput,
+  markReminderSent,
+} from '@/lib/services/reminders'
 
 // Reminders are a dashboard feature (personal + own-scoped by RLS), so these
 // guard on viewDashboard - the same capability that gates the dashboard page and
@@ -13,6 +18,22 @@ export async function createReminderAction(formData: FormData): Promise<ActionSt
   const me = await requireCapability('viewDashboard')
   try {
     await createReminderFromActionInput(me.id, {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      remind_at: formData.get('remind_at'),
+    })
+    revalidatePath('/dashboard')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
+}
+
+export async function editReminderAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('viewDashboard')
+  try {
+    await editReminderFromActionInput(me.id, {
+      id: formData.get('id'),
       title: formData.get('title'),
       description: formData.get('description'),
       remind_at: formData.get('remind_at'),
