@@ -47,10 +47,9 @@ export function MessageComposer({ conversationId }: { conversationId: string }) 
       </p>
       <form onSubmit={onSubmit} className="flex items-end gap-2">
         <label className="flex-1">
-          <span className="sr-only">Message</span>
+          <span className="mb-1 block text-xs font-medium text-slate-500">Message</span>
           <textarea
             name="body"
-            aria-label="Message"
             required
             rows={2}
             value={body}

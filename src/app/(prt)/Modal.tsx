@@ -32,7 +32,7 @@ export function Modal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className={`max-h-[80vh] w-full ${maxW} overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl focus:outline-none`}
+        className={`max-h-[calc(100dvh-2rem)] w-full ${maxW} overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl focus:outline-none`}
         onClick={(e) => e.stopPropagation()}
       >
         {title !== undefined && (

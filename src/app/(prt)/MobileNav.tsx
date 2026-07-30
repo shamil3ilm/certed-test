@@ -36,7 +36,7 @@ export function MobileNav({ links }: { links: NavItem[] }) {
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
-            className="absolute left-0 top-0 flex h-dvh w-64 flex-col bg-white p-4 shadow-xl focus:outline-none"
+            className="absolute left-0 top-0 flex h-dvh w-[min(16rem,calc(100vw-1rem))] flex-col bg-white p-4 shadow-xl focus:outline-none"
           >
             <div className="flex items-center justify-between">
               {/* eslint-disable-next-line @next/next/no-img-element */}

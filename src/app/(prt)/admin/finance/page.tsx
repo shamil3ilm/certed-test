@@ -24,7 +24,7 @@ function DocTable({
 }: FinanceLedgerView & { canManage: boolean }) {
   return (
     <div id={kind} className="mt-5 scroll-mt-24">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {/* h2 (not h3) so a viewer without the issue-forms above still gets an
             unbroken h1 -> h2 outline rather than an h1 -> h3 skip. */}
         <h2 className="text-sm font-medium text-slate-500">{title}</h2>
@@ -110,11 +110,11 @@ function DocTable({
       </div>
 
       {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
           <span>
             Page {page} of {totalPages} - {total} total
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {page > 1 && (
               <Link href={financeUrl(kind, { ...filters, page: page - 1 }, other)} className="btn btn-sm btn-soft">
                 Previous

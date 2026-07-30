@@ -74,7 +74,8 @@ export function SubmitForm({ assignmentId, studentEmail }: { assignmentId: strin
 
   const pasteForm = (
     <form onSubmit={onSubmit} className="mt-1.5 space-y-1.5">
-      <div className="flex flex-wrap items-center gap-2">
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-slate-500">Google Drive submission link</span>
         <input
           type="url"
           value={url}
@@ -82,8 +83,10 @@ export function SubmitForm({ assignmentId, studentEmail }: { assignmentId: strin
           placeholder="Paste your Google Drive link..."
           required
           disabled={isPending}
-          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+          className="min-w-0 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
         />
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={isPending} className="btn btn-primary btn-sm">
           {isPending ? 'Submitting...' : 'Submit link'}
         </button>
@@ -138,7 +141,11 @@ export function SubmitForm({ assignmentId, studentEmail }: { assignmentId: strin
         Leave it in your Drive until the term ends.
       </p>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

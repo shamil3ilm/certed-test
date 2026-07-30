@@ -106,6 +106,7 @@ function MeetCard({
             type="button"
             onClick={handleDelete}
             disabled={isDeleting}
+            aria-label={`Remove meeting link ${link.title}`}
             className="-m-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
             title="Delete link"
           >

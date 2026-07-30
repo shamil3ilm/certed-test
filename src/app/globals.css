@@ -290,6 +290,25 @@ html {
     min-height: 2.75rem;
     padding-inline: 0.9rem;
   }
+  .prt-scope .fc .fc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .prt-scope .fc .fc-toolbar-chunk {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  .prt-scope .fc .fc-toolbar-title {
+    text-align: center;
+    font-size: 1rem;
+  }
+  .prt-scope .fc .fc-list-event-title,
+  .prt-scope .fc .fc-event-title {
+    white-space: normal;
+  }
 }
 /* Active view button (Month/Week) sits on the brand bg - keep its text white. */
 .prt-scope .fc .fc-button-primary:not(:disabled).fc-button-active,

@@ -10,7 +10,10 @@ function NewClass() {
   return (
     <details className="relative">
       <summary className="btn btn-primary btn-sm cursor-pointer list-none">+ New class</summary>
-      <form action={createClassAction} className={cx(CARD, 'absolute right-0 z-10 mt-2 w-64 space-y-2 p-3 shadow-md')}>
+      <form
+        action={createClassAction}
+        className={cx(CARD, 'absolute right-0 z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] space-y-2 p-3 shadow-md')}
+      >
         <Field label="Class name">
           <Input name="name" required placeholder="e.g. Grade 10 Mathematics" />
         </Field>
