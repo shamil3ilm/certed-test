@@ -4,11 +4,13 @@ import { useState, useTransition } from 'react'
 import { CARD, cx } from '@/lib/ui'
 import { Field, Input, Select, Textarea } from '../form'
 import { assertActionOk } from '../action-client'
+import { useUI } from '../Providers'
 import { createMeetLinkAction } from './actions'
 
 type ClassRow = { id: string; name: string }
 
 export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGlobal: boolean }) {
+  const { toast } = useUI()
   const [isPending, startTransition] = useTransition()
   const [classId, setClassId] = useState(classes[0]?.id ?? '')
   const single = classes.length === 1 && !canGlobal
@@ -35,6 +37,7 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
         setTitle('')
         setUrl('')
         setDescription('')
+        toast('Meet link shared', 'success')
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : 'Something went wrong')
       }

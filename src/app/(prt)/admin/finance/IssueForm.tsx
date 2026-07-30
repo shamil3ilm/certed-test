@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { computeTotals, lineAmount, formatMoney, SUPPORTED_CURRENCIES } from '@/lib/money'
 import { createClientId } from '@/lib/ui/client-id'
 import { requestJson } from '../../api-client'
+import { useUI } from '../../Providers'
 
 type Party = { id: string; name: string }
 type Line = { id: string; subject: string; hours: string; rate: string }
@@ -35,6 +36,8 @@ export function IssueForm({
   defaultIssueDate: string
 }) {
   const router = useRouter()
+  const { toast } = useUI()
+  const isReceipt = endpoint.includes('receipt')
   const [partyId, setPartyId] = useState('')
   // Seeded from a server-computed date (see the finance page) so the input's
   // value matches between SSR and hydration.
@@ -101,6 +104,7 @@ export function IssueForm({
       setPartyId('')
       setDiscount('')
       setLines([createEmptyLine()])
+      toast(isReceipt ? 'Receipt issued' : 'Pay slip issued', 'success')
       startRefreshTransition(() => {
         router.refresh()
       })

@@ -20,7 +20,7 @@ export function GradeForm({
   feedback: string | null
 }) {
   const router = useRouter()
-  const { toast } = useUI()
+  const { confirm, toast } = useUI()
   const [busy, setBusy] = useState(false)
   const [scoreValue, setScoreValue] = useState(score != null ? String(Number(score)) : '')
   const [feedbackValue, setFeedbackValue] = useState(feedback ?? '')
@@ -68,6 +68,17 @@ export function GradeForm({
   // student's resubmission; clearing it lets them submit again. This makes the
   // "ask your tutor to reopen it" instruction an actual, discoverable control.
   async function onReopen() {
+    // Destructive: reopening clears the student's mark AND feedback so they can
+    // resubmit. Confirm first - the app confirms far lighter actions (archiving a
+    // post), so wiping a grade shouldn't be a single unguarded click.
+    const confirmed = await confirm({
+      title: 'Reopen for resubmission?',
+      message:
+        "This clears the current mark and feedback so the student can submit again. You'll need to mark it afresh.",
+      confirmLabel: 'Reopen',
+      variant: 'danger',
+    })
+    if (!confirmed) return
     setScoreValue('')
     setFeedbackValue('')
     await saveGrade('', '', 'Reopened for resubmission', 'Could not reopen the submission')

@@ -5,11 +5,13 @@ import { checkDriveLink } from '@/lib/drive-link'
 import { CARD, cx } from '@/lib/ui'
 import { Field, Input, Select } from '../form'
 import { assertActionOk } from '../action-client'
+import { useUI } from '../Providers'
 import { createLinkResourceAction } from './actions'
 
 type ClassRow = { id: string; name: string }
 
 export function UploadForm({ classes }: { classes: ClassRow[] }) {
+  const { toast } = useUI()
   const [isPending, startTransition] = useTransition()
   const [title, setTitle] = useState('')
   const [classId, setClassId] = useState(classes[0]?.id ?? '')
@@ -33,6 +35,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
         assertActionOk(await createLinkResourceAction(formData), 'Something went wrong')
         setTitle('')
         setUrl('')
+        toast('Resource shared', 'success')
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : 'Something went wrong')
       }
