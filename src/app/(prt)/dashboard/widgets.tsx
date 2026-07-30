@@ -15,6 +15,11 @@ import { Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { ReminderPanel } from './ReminderPanel'
 
+type ClassScopedWidgetData = {
+  classIds: string[]
+  timeZone: string
+}
+
 const WIDGET_ROW_LINK =
   'group flex min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-2 text-slate-800 transition hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20'
 const WIDGET_ROW_META = 'shrink-0 text-xs text-slate-400 transition group-hover:text-primary/70'
@@ -27,10 +32,20 @@ export function WidgetSkeleton() {
 }
 
 /** "Today's class(es)" - student or tutor, scoped to their own classes. */
-export async function TodaysClassesWidget({ me, title }: { me: Profile; title: string }) {
-  const [classIds, tz] = await Promise.all([myClassIds(me), getInstituteTimeZone()])
+export async function TodaysClassesWidget({
+  me,
+  title,
+  data,
+}: {
+  me: Profile
+  title: string
+  data?: ClassScopedWidgetData
+}) {
+  const { classIds, timeZone } = data
+    ? data
+    : { classIds: await myClassIds(me), timeZone: await getInstituteTimeZone() }
   const slots = classIds.length
-    ? await listSlots({ classIds, dayOfWeek: todayDayOfWeekInZone(tz), activeOnly: true })
+    ? await listSlots({ classIds, dayOfWeek: todayDayOfWeekInZone(timeZone), activeOnly: true })
     : []
   return (
     <Panel title={title}>
@@ -90,9 +105,15 @@ export async function LatestGradeWidget({ studentId }: { studentId: string }) {
     )
   }
   const assignment = await getAssignment(sub.assignment_id)
+  // Link to the student-visible classwork stream, NOT /assignments/[id] - that
+  // page is viewGrading-gated, so a student clicking it just bounces back to the
+  // dashboard. The class stream is where a student actually sees their feedback.
+  const feedbackHref = assignment
+    ? `/classroom/${assignment.class_id}/classwork#assignment-${sub.assignment_id}`
+    : '/classroom'
   return (
     <Panel title="Latest grade">
-      <Link href={`/assignments/${sub.assignment_id}`} className="group block">
+      <Link href={feedbackHref} className="group block">
         <p className="text-3xl font-bold text-slate-800 transition group-hover:text-primary">
           {sub.score}
           {assignment?.max_marks != null ? ` / ${Number(assignment.max_marks)}` : ''}
@@ -104,8 +125,14 @@ export async function LatestGradeWidget({ studentId }: { studentId: string }) {
   )
 }
 
-export async function LatestAnnouncementWidget({ me }: { me: Profile }) {
-  const classIds = await myClassIds(me)
+export async function LatestAnnouncementWidget({
+  me,
+  data,
+}: {
+  me: Profile
+  data?: Pick<ClassScopedWidgetData, 'classIds'>
+}) {
+  const classIds = data?.classIds ?? (await myClassIds(me))
   const a = await getLatestAnnouncementForClasses(classIds)
   return (
     <Panel title="Latest announcement">
@@ -130,12 +157,14 @@ export async function LatestAnnouncementWidget({ me }: { me: Profile }) {
 }
 
 /** Today's taught classes that don't have any attendance rows yet for today. */
-export async function PendingAttendanceWidget({ me }: { me: Profile }) {
-  const [classIds, tz] = await Promise.all([myClassIds(me), getInstituteTimeZone()])
+export async function PendingAttendanceWidget({ me, data }: { me: Profile; data?: ClassScopedWidgetData }) {
+  const { classIds, timeZone } = data
+    ? data
+    : { classIds: await myClassIds(me), timeZone: await getInstituteTimeZone() }
   const todaySlots = classIds.length
-    ? await listSlots({ classIds, dayOfWeek: todayDayOfWeekInZone(tz), activeOnly: true })
+    ? await listSlots({ classIds, dayOfWeek: todayDayOfWeekInZone(timeZone), activeOnly: true })
     : []
-  const today = todayInZone(tz)
+  const today = todayInZone(timeZone)
   const todayClassIds = [...new Set(todaySlots.map((s) => s.class_id))]
   const markedIds = await classIdsMarkedOn(todayClassIds, today)
   const pending = todaySlots.filter((s) => !markedIds.has(s.class_id))
@@ -162,8 +191,14 @@ export async function PendingAttendanceWidget({ me }: { me: Profile }) {
   )
 }
 
-export async function RecentUploadsWidget({ me }: { me: Profile }) {
-  const classIds = await myClassIds(me)
+export async function RecentUploadsWidget({
+  me,
+  data,
+}: {
+  me: Profile
+  data?: Pick<ClassScopedWidgetData, 'classIds'>
+}) {
+  const classIds = data?.classIds ?? (await myClassIds(me))
   const resources = await listRecentResourcesForClasses(classIds, 5)
   return (
     <Panel title="Recent uploads">
@@ -195,8 +230,14 @@ export async function RemindersWidget({ me, now }: { me: Profile; now: number })
 
 /** Tutor "submissions to review" - active, ungraded submissions across the tutor's
  *  classes, oldest surfaced, with a link into the grading queue. */
-export async function SubmissionsToReviewWidget({ me }: { me: Profile }) {
-  const classIds = await myClassIds(me)
+export async function SubmissionsToReviewWidget({
+  me,
+  data,
+}: {
+  me: Profile
+  data?: Pick<ClassScopedWidgetData, 'classIds'>
+}) {
+  const classIds = data?.classIds ?? (await myClassIds(me))
   // Keep the widget in step with /grading: archived assignments must not leave
   // stale "to review" work behind on the dashboard.
   const assignments = classIds.length ? await listAssignments({ classIds, activeOnly: true }) : []
@@ -231,8 +272,16 @@ export async function SubmissionsToReviewWidget({ me }: { me: Profile }) {
 
 /** Student "due work" - active assignments they have not submitted yet, soonest
  *  due first with overdue flagged. Each links to the assignment in its class stream. */
-export async function DueWorkWidget({ me, now }: { me: Profile; now: number }) {
-  const classIds = await myClassIds(me)
+export async function DueWorkWidget({
+  me,
+  now,
+  data,
+}: {
+  me: Profile
+  now: number
+  data?: Pick<ClassScopedWidgetData, 'classIds'>
+}) {
+  const classIds = data?.classIds ?? (await myClassIds(me))
   const [assignments, mySubs] = await Promise.all([
     classIds.length ? listAssignments({ classIds }) : Promise.resolve([]),
     listMyActiveSubmissions(me.id),
