@@ -13,7 +13,7 @@ import {
  * access goes through src/lib/data/notifications - this module holds no queries.
  */
 
-type NotificationKind = 'message' | 'grade' | 'announcement'
+type NotificationKind = 'message' | 'grade' | 'announcement' | 'assignment'
 
 /** A notification as the app consumes it (the stored row, kind narrowed). */
 export type Notification = Omit<NotificationRow, 'kind'> & { kind: NotificationKind }

@@ -10,6 +10,7 @@ const KIND_META: Record<string, { label: string; className: string }> = {
   message: { label: 'Message', className: 'bg-sky-50 text-sky-700' },
   grade: { label: 'Grade', className: 'bg-emerald-50 text-emerald-700' },
   announcement: { label: 'Announcement', className: 'bg-amber-50 text-amber-700' },
+  assignment: { label: 'Assignment', className: 'bg-violet-50 text-violet-700' },
 }
 
 export default async function NotificationsPage() {

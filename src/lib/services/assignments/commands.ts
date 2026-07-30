@@ -2,6 +2,8 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { getClassMembers } from '@/lib/services/classes'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import {
@@ -51,7 +53,31 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
     created_by: actor.id,
   })
   await auditPrivilegedAction(actor, 'assignment.create', 'assignment', created.id)
+  await notifyClassOfAssignment(created)
   return created
+}
+
+/**
+ * Tell a class's students that new work was posted - previously they only found
+ * out by visiting Classwork. Best-effort by design (mirrors the announcement
+ * post): the assignment is already committed, so a notification failure must
+ * never fail creation.
+ */
+async function notifyClassOfAssignment(assignment: Assignment): Promise<void> {
+  try {
+    const members = await getClassMembers(assignment.class_id)
+    await notifyBestEffort(
+      members.students.map((s) => s.id),
+      {
+        kind: 'assignment',
+        title: `New assignment: ${assignment.title}`,
+        body: assignment.description ? assignment.description.slice(0, 140) : null,
+        link: `/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`,
+      },
+    )
+  } catch {
+    // best-effort - never fail creating the assignment
+  }
 }
 
 export async function createAssignmentFromApiInput(
