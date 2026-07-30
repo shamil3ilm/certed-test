@@ -35,18 +35,20 @@ export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee
  * (true for the tutor-who-mentors, false for the dedicated mentor). A plain tutor
  * with no mentees stays `tutor`; admin/sub_admin/student never take this view.
  */
-type MentorDashboardViewData = { kind: 'mentor'; mentees: DashboardMentee[]; teaches: boolean }
+type MentorDashboardViewData = { kind: 'mentor'; mentees: DashboardMentee[]; teaches: boolean; now: number }
 type StudentDashboardViewData = { kind: 'student'; now: number }
+type TutorDashboardViewData = { kind: 'tutor'; now: number }
 
 type DashboardViewData =
   | AdminDashboardViewData
   | SubAdminDashboardViewData
   | MentorDashboardViewData
-  | { kind: 'tutor' }
+  | TutorDashboardViewData
   | StudentDashboardViewData
 
 export type AdminDashboardViewData = {
   kind: 'admin'
+  now: number
   upcoming: CalendarEvent[]
   reminders: Reminder[]
   pastReminders: Reminder[]
@@ -59,6 +61,7 @@ export type AdminDashboardViewData = {
 
 export type SubAdminDashboardViewData = {
   kind: 'sub_admin'
+  now: number
   canViewUsers: boolean
   students: number
   tutors: number
@@ -105,6 +108,7 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
 
   return {
     kind: 'admin',
+    now: Date.now(),
     upcoming,
     reminders,
     pastReminders,
@@ -121,6 +125,7 @@ async function loadSubAdminDashboardViewData(caps: ReadonlySet<Capability>): Pro
   const counts = canViewUsers ? await countPeople() : null
   return {
     kind: 'sub_admin',
+    now: Date.now(),
     canViewUsers,
     students: counts?.students ?? 0,
     tutors: counts?.tutors ?? 0,
@@ -129,11 +134,12 @@ async function loadSubAdminDashboardViewData(caps: ReadonlySet<Capability>): Pro
 }
 
 export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capability>): Promise<DashboardViewData> {
+  const now = Date.now()
   const flags = await loadPersonaFlags(me.id)
 
   if (flags.isAdmin) return loadAdminDashboardViewData(me, caps)
   if (flags.isSubAdmin) return loadSubAdminDashboardViewData(caps)
-  if (flags.isStudent) return { kind: 'student', now: Date.now() }
+  if (flags.isStudent) return { kind: 'student', now }
 
   // Teaching is persona-first, but a mentor account that was given tutor reach
   // must also show the teaching widgets while the membership still exists.
@@ -145,8 +151,8 @@ export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capab
   // removed) has authority but zero mentees; MentorDashboard renders that fine
   // (empty mentees panel + reminders), so don't fall through to the throw and 500
   // the landing page for a valid, default account state.
-  if (flags.hasMentorAuthority || mentees.length > 0) return { kind: 'mentor', mentees, teaches }
-  if (teaches) return { kind: 'tutor' }
+  if (flags.hasMentorAuthority || mentees.length > 0) return { kind: 'mentor', mentees, teaches, now }
+  if (teaches) return { kind: 'tutor', now }
 
   throw new Error(`dashboard.identity_unmapped: profile ${me.id} has no supported dashboard persona`)
 }

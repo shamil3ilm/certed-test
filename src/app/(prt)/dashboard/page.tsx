@@ -58,8 +58,10 @@ export default async function Dashboard() {
           canManageMentorships={actor.capabilities.allowed.has('manageMentorships')}
         />
       )}
-      {data.kind === 'mentor' && <MentorDashboard me={me} mentees={data.mentees} teaches={data.teaches} />}
-      {data.kind === 'tutor' && <TutorDashboard me={me} />}
+      {data.kind === 'mentor' && (
+        <MentorDashboard me={me} mentees={data.mentees} teaches={data.teaches} now={data.now} />
+      )}
+      {data.kind === 'tutor' && <TutorDashboard me={me} now={data.now} />}
       {data.kind === 'student' && <StudentDashboard me={me} now={data.now} />}
     </main>
   )
@@ -68,17 +70,27 @@ export default async function Dashboard() {
 /** The mentor view. Leads with the mentees (the pastoral work); the teaching
  *  widgets follow only when this mentor also teaches (a tutor who mentors). A
  *  dedicated mentor account teaches nothing, so it sees the mentees alone. */
-function MentorDashboard({ me, mentees, teaches }: { me: Profile; mentees: DashboardMentee[]; teaches: boolean }) {
+function MentorDashboard({
+  me,
+  mentees,
+  teaches,
+  now,
+}: {
+  me: Profile
+  mentees: DashboardMentee[]
+  teaches: boolean
+  now: number
+}) {
   return (
     <>
       <MenteesPanel mentees={mentees} />
       {teaches ? (
-        <TutorDashboard me={me} />
+        <TutorDashboard me={me} now={now} />
       ) : (
         // A dedicated mentor (no teaching widgets) still gets personal reminders.
         <section className="mt-6">
           <Suspense fallback={<WidgetSkeleton />}>
-            <RemindersWidget me={me} />
+            <RemindersWidget me={me} now={now} />
           </Suspense>
         </section>
       )}
@@ -238,7 +250,7 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
         <Panel title="Upcoming">
           <Upcoming events={data.upcoming} />
         </Panel>
-        <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={Date.now()} />
+        <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={data.now} />
       </section>
     </>
   )
@@ -246,7 +258,7 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
 
 /** Tutor home leads with the work to do: today's classes, attendance to mark,
  *  submissions to review, then the latest class updates. */
-function TutorDashboard({ me }: { me: Profile }) {
+function TutorDashboard({ me, now }: { me: Profile; now: number }) {
   return (
     <>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -265,7 +277,7 @@ function TutorDashboard({ me }: { me: Profile }) {
       </section>
       <section className="mt-6">
         <Suspense fallback={<WidgetSkeleton />}>
-          <RemindersWidget me={me} />
+          <RemindersWidget me={me} now={now} />
         </Suspense>
       </section>
     </>
@@ -293,7 +305,7 @@ function StudentDashboard({ me, now }: { me: Profile; now: number }) {
       </section>
       <section className="mt-6">
         <Suspense fallback={<WidgetSkeleton />}>
-          <RemindersWidget me={me} />
+          <RemindersWidget me={me} now={now} />
         </Suspense>
       </section>
     </>

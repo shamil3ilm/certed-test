@@ -188,11 +188,9 @@ export async function RecentUploadsWidget({ me }: { me: Profile }) {
 /** Personal reminders panel for any dashboard - reminders are own-scoped and the
  *  create/delete actions are viewDashboard-gated, so every persona gets them (not
  *  just admin, which was the only dashboard that surfaced the panel). */
-export async function RemindersWidget({ me }: { me: Profile }) {
+export async function RemindersWidget({ me, now }: { me: Profile; now: number }) {
   const [reminders, pastReminders] = await Promise.all([listMyReminders(me.id), listMyPastReminders(me.id)])
-  // Compute "now" once on the server so the panel's relative-time labels render
-  // identically on SSR and hydration (see ReminderPanelBody).
-  return <ReminderPanel initialReminders={reminders} initialPastReminders={pastReminders} now={Date.now()} />
+  return <ReminderPanel initialReminders={reminders} initialPastReminders={pastReminders} now={now} />
 }
 
 /** Tutor "submissions to review" - active, ungraded submissions across the tutor's

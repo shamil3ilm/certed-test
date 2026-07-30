@@ -79,6 +79,7 @@ describe('loadDashboardViewData', () => {
       loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps('viewUsers', 'viewFinance')),
     ).resolves.toEqual({
       kind: 'admin',
+      now: expect.any(Number),
       upcoming: [{ id: 'e1', title: 'Exam', event_date: '2026-07-16', kind: 'exam' }],
       reminders: [{ id: 'r1' }],
       pastReminders: [{ id: 'r2' }],
@@ -104,6 +105,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps())).resolves.toEqual({
       kind: 'admin',
+      now: expect.any(Number),
       upcoming: [],
       reminders: [],
       pastReminders: [],
@@ -123,6 +125,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'sub-1', role: 'sub_admin' } as any, caps('viewUsers'))).resolves.toEqual({
       kind: 'sub_admin',
+      now: expect.any(Number),
       canViewUsers: true,
       students: 9,
       tutors: 4,
@@ -135,6 +138,7 @@ describe('loadDashboardViewData', () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isSubAdmin: true }))
     await expect(loadDashboardViewData({ id: 'sub-1', role: 'sub_admin' } as any, caps())).resolves.toEqual({
       kind: 'sub_admin',
+      now: expect.any(Number),
       canViewUsers: false,
       students: 0,
       tutors: 0,
@@ -149,6 +153,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'tutor-1', role: 'tutor' } as any, caps())).resolves.toEqual({
       kind: 'tutor',
+      now: expect.any(Number),
     })
     expect(countPeople).not.toHaveBeenCalled()
   })
@@ -160,6 +165,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'mentor-1', role: 'tutor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
+      now: expect.any(Number),
       mentees: [{ id: 's-1', name: 'Sara' }],
       teaches: true, // a tutor who mentors keeps the teaching widgets
     })
@@ -177,6 +183,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'maya-mentor', role: 'mentor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
+      now: expect.any(Number),
       mentees: [
         { id: 's-1', name: 'Sara' },
         { id: 's-2', name: 'Sam' },
@@ -195,6 +202,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'new-mentor', role: 'mentor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
+      now: expect.any(Number),
       mentees: [],
       teaches: false,
     })
@@ -208,6 +216,7 @@ describe('loadDashboardViewData', () => {
 
     await expect(loadDashboardViewData({ id: 'mentor-1', role: 'mentor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
+      now: expect.any(Number),
       mentees: [{ id: 's-1', name: 'Sara' }],
       teaches: true,
     })
