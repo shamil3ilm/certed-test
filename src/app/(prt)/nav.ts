@@ -14,6 +14,7 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/admin/users', label: 'Users', capability: 'viewUsers' },
   { href: '/admin/finance', label: 'Finance', capability: 'viewFinance' },
   { href: '/admin/history', label: 'History', capability: 'viewHistory' },
+  { href: '/admin/messaging', label: 'Messaging access', capability: 'manageUsers' },
 ]
 
 /**
