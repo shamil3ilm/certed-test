@@ -137,7 +137,10 @@ export async function archiveResourceFromActionInput(actor: Profile, input: Reso
 /** Undoes archiveResource - the "kept on record" promise in the archive
  *  confirmation dialog previously had no matching UI action. */
 export async function restoreResource(actor: Profile, id: string): Promise<void> {
-  await requireManageableResource(actor, id, getResource)
+  const resource = await requireManageableResource(actor, id, getResource)
+  // Restoring re-activates content on the class - same rule as create/upload: no
+  // active material on an archived (soft-deleted) class.
+  await assertClassActive(resource.class_id)
   await updateResourceStatus(id, 'active')
   await auditPrivilegedAction(actor, 'resource.restore', 'resource', id)
 }

@@ -5,7 +5,7 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn(), assertClassActive:
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { canManageClass } from '@/lib/permission'
+import { canManageClass, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import {
@@ -161,6 +161,14 @@ describe('restoreResource', () => {
       entity_type: 'resource',
       entity_id: 'res-1',
     })
+  })
+
+  it('refuses to restore a resource onto an archived class, without reactivating or auditing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any) // getResource
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
+    await expect(restoreResource(actor, 'res-1')).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 

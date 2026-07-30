@@ -195,6 +195,14 @@ describe('archiveAssignment / editAssignment', () => {
     })
   })
 
+  it('refuses to restore an assignment onto an archived class, without writing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any) // requireManageable
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
+    await expect(archiveAssignment(actor, 'a-1', 'active')).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
   it('edit audits assignment.edit', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)

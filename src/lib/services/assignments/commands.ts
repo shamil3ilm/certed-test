@@ -102,7 +102,11 @@ async function requireManageable(actor: Profile, id: string): Promise<Assignment
 /** Soft archive / restore (reversible). */
 export async function archiveAssignment(actor: Profile, id: string, status: 'active' | 'archived'): Promise<void> {
   throttleWrite('assignment', actor.id, 'assignment')
-  await requireManageable(actor, id)
+  const assignment = await requireManageable(actor, id)
+  // Restoring (status 'active') re-activates content, so hold it to the same rule
+  // as createAssignment: no active assignment on an archived (soft-deleted) class.
+  // Archiving is always allowed.
+  if (status === 'active') await assertClassActive(assignment.class_id)
   await updateAssignmentStatus(id, status)
   await auditPrivilegedAction(actor, `assignment.${status === 'active' ? 'restore' : 'archive'}`, 'assignment', id)
 }
