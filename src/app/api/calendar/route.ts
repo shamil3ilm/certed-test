@@ -5,6 +5,7 @@ import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { listSlots } from '@/lib/services/timetable-slots'
 import { listEvents } from '@/lib/services/calendar-events'
 import { listAssignments } from '@/lib/services/assignments'
+import { listMeetLinks } from '@/lib/services/meet-links'
 import { expandSlots, zonedDayStartMs, nextCalendarDate, type ExpandableSlot } from '@/lib/time/expand-slots'
 import { mergeCalendar } from '@/lib/calendar/merge'
 
@@ -48,10 +49,11 @@ export async function GET(request: Request) {
     const windowStartIso = new Date(windowStartMs).toISOString()
     const windowEndIso = new Date(windowEndMs).toISOString()
 
-    const [slots, events, assignments] = await Promise.all([
+    const [slots, events, assignments, meetLinks] = await Promise.all([
       listSlots({ activeOnly: true }),
       listEvents({ from, to }),
       listAssignments({ dueFrom: windowStartIso, dueTo: windowEndIso, activeOnly: true }),
+      listMeetLinks(),
     ])
 
     const expandable: ExpandableSlot[] = slots.map((s) => ({
@@ -73,6 +75,17 @@ export async function GET(request: Request) {
       })
       .map((a) => ({ id: a.id, title: a.title, due_date: a.due_date, class_id: a.class_id }))
 
+    // Scheduled meet links whose start falls in the window (RLS already scoped the
+    // list to what this actor may see). Unscheduled/always-available links have no
+    // calendar position, so they are skipped.
+    const meetsInRange = meetLinks
+      .filter((m) => m.scheduled_at != null)
+      .filter((m) => {
+        const ms = Date.parse(m.scheduled_at as string)
+        return ms >= windowStartMs && ms < windowEndMs
+      })
+      .map((m) => ({ id: m.id, title: m.title, scheduled_at: m.scheduled_at as string, class_id: m.class_id }))
+
     const items = mergeCalendar({
       slotOccurrences,
       slotMeta,
@@ -87,6 +100,7 @@ export async function GET(request: Request) {
         slot_id: e.slot_id,
       })),
       assignments: dueInRange,
+      meets: meetsInRange,
       anchorTz,
     })
 

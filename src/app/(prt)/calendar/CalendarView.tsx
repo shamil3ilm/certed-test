@@ -18,7 +18,7 @@ type Opt = { id: string; name: string }
 
 type CalendarItem = {
   id: string
-  source: 'slot' | 'event' | 'assignment'
+  source: 'slot' | 'event' | 'assignment' | 'meet'
   title: string
   start: string
   end: string | null
@@ -43,6 +43,7 @@ const COLORS: Record<string, string> = {
   slot: BRAND_COLORS.primary,
   event: '#16a34a',
   assignment: '#dc2626',
+  meet: '#7c3aed',
 }
 
 const KINDS = ['event', 'holiday', 'cancellation', 'reschedule'] as const
@@ -105,6 +106,7 @@ export function CalendarView({
         <LegendDot color={COLORS.slot} label="Class" />
         <LegendDot color={COLORS.event} label="Event / holiday" />
         <LegendDot color={COLORS.assignment} label="Deadline" />
+        <LegendDot color={COLORS.meet} label="Meet" />
       </div>
       <p className="mb-2 text-xs text-slate-500" data-tz={deviceTz ?? undefined}>
         Times shown in your timezone: <span className="font-medium">{deviceTz ?? '...'}</span>

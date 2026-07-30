@@ -25,6 +25,7 @@ const input: MergeInput = {
     },
   ],
   assignments: [{ id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', class_id: 'c-1' }],
+  meets: [],
   anchorTz: 'Asia/Kolkata',
 }
 
@@ -34,6 +35,19 @@ describe('mergeCalendar', () => {
     const sources = new Set(items.map((i) => i.source))
     expect(sources).toEqual(new Set(['slot', 'event', 'assignment']))
     expect(items).toHaveLength(4)
+  })
+
+  it('maps a scheduled meet link to a timed "Meet:" item', () => {
+    const withMeet: MergeInput = {
+      ...input,
+      meets: [{ id: 'm-1', title: 'Doubt session', scheduled_at: '2026-07-08T09:00:00.000Z', class_id: 'c-1' }],
+    }
+    const meet = mergeCalendar(withMeet).find((i) => i.source === 'meet')!
+    expect(meet.id).toBe('meet-m-1')
+    expect(meet.title).toBe('Meet: Doubt session')
+    expect(meet.start).toBe('2026-07-08T09:00:00.000Z')
+    expect(meet.allDay).toBe(false)
+    expect(meet.kind).toBe('meet')
   })
 
   it('maps a slot occurrence to a timed item with subject + location', () => {

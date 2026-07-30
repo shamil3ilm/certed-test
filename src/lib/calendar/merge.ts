@@ -26,7 +26,7 @@ function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): stri
   return new Date(guess).toISOString()
 }
 
-type CalendarSource = 'slot' | 'event' | 'assignment'
+type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet'
 
 export type CalendarItem = {
   id: string // source-prefixed, stable
@@ -36,7 +36,7 @@ export type CalendarItem = {
   end: string | null
   allDay: boolean
   classId: string | null
-  kind: CalendarEventKind | 'timetable' | 'deadline'
+  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet'
   location?: string | null
 }
 
@@ -54,6 +54,8 @@ export type MergeInput = {
     slot_id?: string | null
   }>
   assignments: Array<{ id: string; title: string; due_date: string; class_id: string }>
+  /** Scheduled meet links (scheduled_at already an absolute UTC instant). */
+  meets: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
   anchorTz: string
 }
 
@@ -125,6 +127,19 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       allDay: false,
       classId: a.class_id,
       kind: 'deadline',
+    })
+  }
+
+  for (const m of input.meets) {
+    items.push({
+      id: `meet-${m.id}`,
+      source: 'meet',
+      title: `Meet: ${m.title}`,
+      start: m.scheduled_at, // already an absolute UTC instant
+      end: null,
+      allDay: false,
+      classId: m.class_id,
+      kind: 'meet',
     })
   }
 

@@ -45,6 +45,11 @@ const listAssignments = vi.fn(async (..._a: any[]) => [
 ])
 vi.mock('@/lib/services/assignments', () => ({ listAssignments: (opts?: unknown) => listAssignments(opts) }))
 
+const listMeetLinks = vi.fn(async (..._a: any[]) => [
+  { id: 'm-1', class_id: 'c-1', title: 'Doubt session', scheduled_at: '2026-07-08T09:00:00.000Z', active: true },
+])
+vi.mock('@/lib/services/meet-links', () => ({ listMeetLinks: (...a: unknown[]) => listMeetLinks(...a) }))
+
 import { GET } from '@/app/api/calendar/route'
 
 const req = (qs: string) => new Request(`http://t/api/calendar${qs}`)
@@ -71,13 +76,13 @@ describe('GET /api/calendar', () => {
     expect(res.status).toBe(401)
   })
 
-  it('merges all three sources within the range', async () => {
+  it('merges all four sources within the range (slots, events, deadlines, meets)', async () => {
     const res = await GET(req('?from=2026-07-06&to=2026-07-21'))
     const json = await res.json()
     expect(res.status).toBe(200)
     expect(json.success).toBe(true)
     const sources = new Set(json.data.items.map((i: any) => i.source))
-    expect(sources).toEqual(new Set(['slot', 'event', 'assignment']))
+    expect(sources).toEqual(new Set(['slot', 'event', 'assignment', 'meet']))
     // anchor TZ echoed for the client to label/render with
     expect(json.data.anchorTz).toBe('Asia/Kolkata')
   })
