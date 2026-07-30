@@ -33,6 +33,10 @@ export type OrgSettingsRow = {
   timezone: string
   receipt_prefix: string
   payslip_prefix: string
+  /** Admin-configured messaging matrix ({ "a|b": true }). Absent/null before the
+   *  0034 migration runs - callers treat that as an empty matrix (direct contacts
+   *  only), so the code is safe to ship ahead of the schema change. */
+  messaging_matrix: Record<string, boolean> | null
 }
 
 export async function selectOrgSettings(): Promise<OrgSettingsRow> {
@@ -40,6 +44,14 @@ export async function selectOrgSettings(): Promise<OrgSettingsRow> {
   const { data, error } = await admin.from('org_settings').select('*').single()
   if (error) throw new Error(`org_settings: ${error.message}`)
   return data as OrgSettingsRow
+}
+
+/** Persist the messaging matrix onto the singleton org_settings row (admin-gated
+ *  at the service layer). Updates every row - there is only ever one. */
+export async function updateMessagingMatrix(matrix: Record<string, boolean>): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('org_settings').update({ messaging_matrix: matrix }).not('id', 'is', null)
+  if (error) throw new Error(`org_settings.updateMessagingMatrix: ${error.message}`)
 }
 
 /**

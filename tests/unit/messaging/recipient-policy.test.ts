@@ -2,17 +2,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+vi.mock('@/lib/data/personas', () => ({ selectActiveProfileIdsByPersona: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/services/finance/org-settings', () => ({
+  getOrgSettings: vi.fn(async () => ({ messaging_matrix: null })),
+}))
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { selectActiveProfileIdsByPersona } from '@/lib/data/personas'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
+import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { canMessage, listMessageableContacts } from '@/lib/messaging/recipient-policy'
 
-const FLAGS = (o: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isMentor' | 'isStudent', boolean>>) =>
+const FLAGS = (
+  o: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isMentor' | 'hasMentorAuthority' | 'isStudent', boolean>>,
+) =>
   ({
     personas: [],
     isAdmin: false,
@@ -21,6 +29,7 @@ const FLAGS = (o: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isMento
     isManager: false,
     isStudent: false,
     isMentor: false,
+    hasMentorAuthority: false,
     ...o,
   }) as any
 
@@ -32,6 +41,8 @@ function tableClient(byTable: Record<string, unknown[]>) {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(studentIdsOfMentor).mockResolvedValue([])
+  vi.mocked(selectActiveProfileIdsByPersona).mockResolvedValue([])
+  vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: null } as any)
 })
 
 describe('recipientPolicy', () => {
@@ -62,7 +73,7 @@ describe('recipientPolicy', () => {
   })
 
   it('mentor may message their mentees and the tutors of their mentees’ classes', async () => {
-    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true }))
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true, hasMentorAuthority: true }))
     vi.mocked(studentIdsOfMentor).mockResolvedValue(['mentee-1'])
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
@@ -93,6 +104,22 @@ describe('recipientPolicy', () => {
     expect(await canMessage(actor, 'another-student')).toBe(false)
   })
 
+  it('an admin-enabled persona pair widens messaging globally (student <-> admin)', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isStudent: true }))
+    // Admin turned ON the student<->admin pair; default direct contacts are empty here.
+    vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: { 'admin|student': true } } as any)
+    vi.mocked(createAdminClient).mockReturnValue(
+      tableClient({ enrollments: [], class_tutors: [], mentorships: [] }) as any,
+    )
+    vi.mocked(selectActiveProfileIdsByPersona).mockImplementation(async (persona) =>
+      persona === 'admin' ? ['the-admin'] : [],
+    )
+    const actor = { id: 'stu-1' } as any
+    expect(await canMessage(actor, 'the-admin')).toBe(true)
+    // A pair that was NOT enabled stays closed.
+    expect(await canMessage(actor, 'another-student')).toBe(false)
+  })
+
   it('a persona with none of the messaging branches reaches nobody', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({})) // e.g. a future guardian
     vi.mocked(createAdminClient).mockReturnValue(tableClient({}) as any)
@@ -101,7 +128,7 @@ describe('recipientPolicy', () => {
   })
 
   it('listMessageableContacts name-resolves and sorts the eligible set', async () => {
-    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true }))
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true, hasMentorAuthority: true }))
     vi.mocked(studentIdsOfMentor).mockResolvedValue(['s-2', 's-1'])
     vi.mocked(createAdminClient).mockReturnValue(tableClient({}) as any)
     vi.mocked(getProfileNamesByIds).mockResolvedValue(

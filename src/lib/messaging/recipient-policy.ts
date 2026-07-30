@@ -8,10 +8,13 @@ import {
   selectActiveStudentIdsByClassIds,
   selectActiveTutorIdsByClassIds,
 } from '@/lib/data/class-membership'
+import { selectActiveProfileIdsByPersona } from '@/lib/data/personas'
 import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
+import { getOrgSettings } from '@/lib/services/finance/org-settings'
+import { MESSAGING_PERSONAS, matrixAllows, parseMessagingMatrix, personasFromFlags } from '@/lib/messaging/matrix'
 
 export type Contact = { id: string; name: string }
 
@@ -62,7 +65,7 @@ async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
     }
   }
 
-  if (flags.isMentor) {
+  if (flags.hasMentorAuthority) {
     // mentor <-> student: this mentor's active mentees.
     const menteeIds = await studentIdsOfMentor(actor.id)
     for (const id of menteeIds) ids.add(id)
@@ -72,6 +75,20 @@ async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
       const classIds = [...new Set(await selectActiveClassIdsForStudents(menteeIds))]
       if (classIds.length) for (const id of await selectActiveTutorIdsByClassIds(classIds)) ids.add(id)
     }
+  }
+
+  // Admin-configured widening, ADDITIVE on top of the direct-contact edges above:
+  // for every enabled persona pair the actor may also message everyone holding the
+  // paired persona globally (selectActiveProfileIdsByPersona already filters to active
+  // accounts). The empty matrix - the default - adds nothing, so scope stays
+  // "direct contacts only" until an admin opts in.
+  const matrix = parseMessagingMatrix((await getOrgSettings()).messaging_matrix)
+  if (matrix.size) {
+    const targets = new Set<string>()
+    for (const a of personasFromFlags(flags)) {
+      for (const b of MESSAGING_PERSONAS) if (matrixAllows(matrix, a, b)) targets.add(b)
+    }
+    for (const persona of targets) for (const id of await selectActiveProfileIdsByPersona(persona)) ids.add(id)
   }
 
   ids.delete(actor.id)

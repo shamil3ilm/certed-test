@@ -41,6 +41,7 @@ export function buildSeed(): MockDb {
         timezone: 'Asia/Kolkata',
         receipt_prefix: 'CEA-R',
         payslip_prefix: 'CEA-P',
+        messaging_matrix: {},
       },
     ],
     profiles: [

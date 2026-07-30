@@ -278,6 +278,15 @@ export async function selectActiveAdminTierIds(): Promise<string[]> {
   return ((data ?? []) as { id: string }[]).map((r) => r.id)
 }
 
+/** Active profiles with the given role - the holder set for a messaging-matrix
+ *  persona (admin/sub_admin/tutor/mentor/student map 1:1 to profiles.role). */
+export async function selectActiveProfileIdsByRole(role: string): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('profiles').select('id').eq('role', role).eq('status', 'active')
+  if (error) throw new Error(`profiles.activeIdsByRole: ${error.message}`)
+  return ((data ?? []) as { id: string }[]).map((r) => r.id)
+}
+
 /**
  * The signed-in user's own profile, via the RLS client and the self-read policy.
  *
