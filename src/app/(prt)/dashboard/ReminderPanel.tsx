@@ -79,6 +79,15 @@ function ReminderPanelBody({
     const remindAt = String(formData.get('remind_at') ?? '').trim()
     if (!title || !remindAt) return
 
+    // The datetime-local input yields "2026-12-30T09:00" (no seconds, no zone),
+    // but the server requires strict ISO-8601 (z.string().datetime()). Convert and
+    // write it back onto the SUBMITTED formData - not just the optimistic object
+    // below - or creation always fails validation and reverts.
+    const remindAtDate = new Date(remindAt)
+    if (Number.isNaN(remindAtDate.getTime())) return
+    const remindAtIso = remindAtDate.toISOString()
+    formData.set('remind_at', remindAtIso)
+
     const snapshot = reminders
     setReminders((current) => [
       ...current,
@@ -87,7 +96,7 @@ function ReminderPanelBody({
         user_id: '',
         title,
         description: String(formData.get('description') ?? '').trim() || null,
-        remind_at: new Date(remindAt).toISOString(),
+        remind_at: remindAtIso,
         is_sent: false,
         created_at: new Date().toISOString(),
       },
