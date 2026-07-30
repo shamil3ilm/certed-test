@@ -5,18 +5,21 @@ vi.mock('@/lib/permission', () => ({ canManageScope: vi.fn(), assertClassActive:
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { canManageScope } from '@/lib/permission'
+import { canManageScope, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import {
   createMeetLink,
   createMeetLinkFromActionInput,
   deleteMeetLink,
+  editMeetLinkFromActionInput,
   restoreMeetLink,
   listMeetLinksForClasses,
   validateCreateMeetLinkInput,
 } from '@/lib/services/meet-links'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+
+const VALID_ID = '550e8400-e29b-41d4-a716-446655440000'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const linkRow = {
@@ -25,6 +28,7 @@ const linkRow = {
   title: 'Class call',
   url: 'https://meet.example/x',
   description: null,
+  scheduled_at: null,
   active: true,
   created_by: 'tutor-1',
   created_at: 't',
@@ -74,6 +78,7 @@ describe('validateCreateMeetLinkInput', () => {
       title: 'Academy call',
       url: 'https://meet.example/global',
       description: 'Notes',
+      scheduled_at: null,
     })
   })
 
@@ -168,6 +173,54 @@ describe('restoreMeetLink', () => {
       entity_type: 'meet_link',
       entity_id: 'link-1',
     })
+  })
+
+  it('refuses to restore a link onto an archived class, without reactivating', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
+    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
+    await expect(restoreMeetLink(actor, 'link-1')).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+})
+
+describe('editMeetLinkFromActionInput', () => {
+  it('updates and audits meet.edit for a manager', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...linkRow, id: VALID_ID }, error: null }) as any,
+    ) // getMeetLink
+    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // updateMeetLink
+    await editMeetLinkFromActionInput(actor, {
+      id: VALID_ID,
+      title: 'New title',
+      url: 'https://meet.example/y',
+      description: '',
+      scheduled_at: '2026-08-01T10:00:00.000Z',
+    })
+    expect(writeAudit).toHaveBeenCalledWith({
+      actor_id: 'tutor-1',
+      action: 'meet.edit',
+      entity_type: 'meet_link',
+      entity_id: VALID_ID,
+    })
+  })
+
+  it('rejects a non-manager without updating or auditing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...linkRow, id: VALID_ID }, error: null }) as any,
+    )
+    vi.mocked(canManageScope).mockResolvedValueOnce(false)
+    await expect(
+      editMeetLinkFromActionInput(actor, {
+        id: VALID_ID,
+        title: 'x',
+        url: 'https://meet.example/y',
+        description: '',
+        scheduled_at: '',
+      }),
+    ).rejects.toBeInstanceOf(PermissionError)
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 

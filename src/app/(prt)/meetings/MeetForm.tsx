@@ -17,6 +17,7 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [description, setDescription] = useState('')
+  const [scheduledAt, setScheduledAt] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   function handleSubmit(event: React.FormEvent) {
@@ -25,11 +26,22 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
 
     if (!title.trim() || !url.trim()) return
 
+    // Convert the optional datetime-local value to a strict ISO instant HERE (the
+    // server requires ISO); an empty field submits as '' -> a null, always-available
+    // link. Guard an unparseable value rather than sending garbage.
+    let scheduledIso = ''
+    if (scheduledAt) {
+      const date = new Date(scheduledAt)
+      if (Number.isNaN(date.getTime())) return
+      scheduledIso = date.toISOString()
+    }
+
     const formData = new FormData()
     formData.append('classId', classId)
     formData.append('title', title.trim())
     formData.append('url', url.trim())
     formData.append('description', description.trim())
+    formData.append('scheduled_at', scheduledIso)
 
     startTransition(async () => {
       try {
@@ -37,6 +49,7 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
         setTitle('')
         setUrl('')
         setDescription('')
+        setScheduledAt('')
         toast('Meet link shared', 'success')
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : 'Something went wrong')
@@ -82,6 +95,10 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
           placeholder="https://meet.google.com/..."
           required
         />
+      </Field>
+
+      <Field label="Scheduled time (optional)" hint="Leave blank for an always-available link. Locks after it ends.">
+        <Input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
       </Field>
 
       <Field label="Description (optional)">

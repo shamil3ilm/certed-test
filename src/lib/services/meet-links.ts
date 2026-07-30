@@ -6,6 +6,7 @@ import {
   selectMeetLinks,
   selectNewestForClasses,
   setMeetLinkActive,
+  updateMeetLink,
   type MeetLinkRow,
 } from '@/lib/data/meet-links'
 import { canManageScope, assertClassActive } from '@/lib/permission'
@@ -47,13 +48,19 @@ type CreateMeetLinkInput = {
   title: string
   url: string
   description?: string | null
+  scheduled_at?: string | null
 }
+
+// The client (MeetForm) converts its datetime-local value to a strict ISO instant
+// before submitting; an empty field arrives as null (an always-available link).
+const scheduledAtField = z.string().datetime().nullable()
 
 const createMeetLinkInputSchema = z.object({
   class_id: z.string().uuid().nullable(),
   title: z.string().trim().min(1).max(200),
   url: linkUrl,
   description: z.string().trim().max(1000).optional(),
+  scheduled_at: scheduledAtField,
 })
 
 type CreateMeetLinkActionInput = {
@@ -61,6 +68,7 @@ type CreateMeetLinkActionInput = {
   title?: FormDataEntryValue | null
   url?: FormDataEntryValue | null
   description?: FormDataEntryValue | null
+  scheduled_at?: FormDataEntryValue | null
 }
 
 export function validateCreateMeetLinkInput(input: CreateMeetLinkActionInput): CreateMeetLinkInput {
@@ -71,13 +79,14 @@ export function validateCreateMeetLinkInput(input: CreateMeetLinkActionInput): C
     title: input.title,
     url: input.url,
     description: input.description,
+    scheduled_at: String(input.scheduled_at ?? '').trim() || null,
   })
 
   if (!parsed.success) {
     throw new ValidationError(`Invalid meet link data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
 
-  return parsed.data
+  return { ...parsed.data, scheduled_at: parsed.data.scheduled_at }
 }
 
 /**
@@ -94,11 +103,55 @@ export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput)
     title: input.title,
     url: input.url,
     description: input.description ?? null,
+    scheduled_at: input.scheduled_at ?? null,
     created_by: actor.id,
     active: true,
   })
   await auditPrivilegedAction(actor, 'meet.create', 'meet_link', created.id)
   return created
+}
+
+type EditMeetLinkActionInput = {
+  id?: FormDataEntryValue | null
+  title?: FormDataEntryValue | null
+  url?: FormDataEntryValue | null
+  description?: FormDataEntryValue | null
+  scheduled_at?: FormDataEntryValue | null
+}
+
+const editMeetLinkInputSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().trim().min(1).max(200),
+  url: linkUrl,
+  description: z.string().trim().max(1000).optional(),
+  scheduled_at: scheduledAtField,
+})
+
+/** Edit a meet link's title / url / description / scheduled time. Gated on
+ *  managing the link's own class (or academy-wide for an admin), like delete. */
+export async function editMeetLinkFromActionInput(actor: Profile, input: EditMeetLinkActionInput): Promise<void> {
+  const parsed = editMeetLinkInputSchema.safeParse({
+    id: String(input.id ?? ''),
+    title: input.title,
+    url: input.url,
+    description: input.description,
+    scheduled_at: String(input.scheduled_at ?? '').trim() || null,
+  })
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid meet link data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
+  }
+  const link = await getMeetLink(parsed.data.id)
+  if (!link) throw new NotFoundError('Meet link not found')
+  if (!(await canManageScope(actor, link.class_id))) {
+    throw new PermissionError('Not authorized for this meet link')
+  }
+  await updateMeetLink(parsed.data.id, {
+    title: parsed.data.title,
+    url: parsed.data.url,
+    description: parsed.data.description ?? null,
+    scheduled_at: parsed.data.scheduled_at,
+  })
+  await auditPrivilegedAction(actor, 'meet.edit', 'meet_link', parsed.data.id)
 }
 
 export async function createMeetLinkFromActionInput(
@@ -131,6 +184,9 @@ export async function restoreMeetLink(actor: Profile, id: string): Promise<void>
   if (!(await canManageScope(actor, link.class_id))) {
     throw new PermissionError('Not authorized for this meet link')
   }
+  // Re-activating is placing content back on the class - hold it to the same rule
+  // as create: no active content on an archived (soft-deleted) class.
+  if (link.class_id) await assertClassActive(link.class_id)
   await setMeetLinkActive(id, true)
   await auditPrivilegedAction(actor, 'meet.restore', 'meet_link', id)
 }

@@ -5,7 +5,12 @@ import { redirect } from 'next/navigation'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { ServiceError } from '@/lib/errors'
 import { requireCapability } from '@/lib/auth/require-role'
-import { createMeetLinkFromActionInput, deleteMeetLink, restoreMeetLink } from '@/lib/services/meet-links'
+import {
+  createMeetLinkFromActionInput,
+  deleteMeetLink,
+  editMeetLinkFromActionInput,
+  restoreMeetLink,
+} from '@/lib/services/meet-links'
 
 export async function createMeetLinkAction(formData: FormData): Promise<ActionStatusResult> {
   const me = await requireCapability('manageClassContent')
@@ -15,6 +20,24 @@ export async function createMeetLinkAction(formData: FormData): Promise<ActionSt
       title: formData.get('title'),
       url: formData.get('url'),
       description: formData.get('description'),
+      scheduled_at: formData.get('scheduled_at'),
+    })
+    revalidatePath('/classroom', 'layout')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
+}
+
+export async function editMeetLinkAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await editMeetLinkFromActionInput(me, {
+      id: formData.get('id'),
+      title: formData.get('title'),
+      url: formData.get('url'),
+      description: formData.get('description'),
+      scheduled_at: formData.get('scheduled_at'),
     })
     revalidatePath('/classroom', 'layout')
     return actionDone()

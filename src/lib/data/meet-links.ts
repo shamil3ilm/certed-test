@@ -18,6 +18,8 @@ export type MeetLinkRow = {
   title: string
   url: string
   description: string | null
+  /** Optional scheduled start (ISO); null = always-available link. */
+  scheduled_at: string | null
   active: boolean
   created_by: string | null
   created_at: string
@@ -82,6 +84,15 @@ export async function insertMeetLink(row: MeetLinkInsert): Promise<MeetLinkRow> 
 
 /** Soft remove/restore: the row is kept on record either way, which is what the
  *  removal confirmation dialog promises. */
+export async function updateMeetLink(
+  id: string,
+  patch: { title: string; url: string; description: string | null; scheduled_at: string | null },
+): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('meet_links').update(patch).eq('id', id)
+  if (error) throw new Error(`meetLinks.update: ${error.message}`)
+}
+
 export async function setMeetLinkActive(id: string, active: boolean): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('meet_links').update({ active }).eq('id', id)

@@ -450,6 +450,7 @@ export function buildSeed(): MockDb {
         title: 'Weekly Mathematics Class',
         url: 'https://meet.google.com/abc-defg-hij',
         description: 'Every Monday morning standard tuition session.',
+        scheduled_at: null,
         active: true,
         created_by: IDS.tutor,
         created_at: NOW,
