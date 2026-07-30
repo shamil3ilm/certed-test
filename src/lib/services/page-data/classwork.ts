@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAssignments, type Assignment } from '@/lib/services/assignments'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
@@ -47,12 +48,11 @@ export function classworkPageUrl(page: number, search?: string): string {
 
 /** Loads and shapes the classwork page so the page only renders forms + lists. */
 export async function loadClassworkPageData(
-  me: Pick<Profile, 'id' | 'role'>,
+  me: Profile,
   course: { id: string; name: string },
   searchParams?: ClassworkSearchParams,
 ): Promise<ClassworkPageData> {
-  const { isManager, isStudent } = await loadPersonaFlags(me.id)
-  const canManage = isManager
+  const [{ isStudent }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
   const classList = [{ id: course.id, name: course.name }]
   const materialsPage = Math.max(1, Number(searchParams?.matPage ?? '1') || 1)
   const materialsQuery = searchParams?.matQ?.trim() || undefined
@@ -79,7 +79,16 @@ export async function loadClassworkPageData(
     list.push(prior)
     historyByAssignment.set(prior.assignment_id, list)
   }
-  const visibleAssignments = assignments.filter((a) => canManage || a.status === 'active')
+  const visibleAssignments = assignments.filter(
+    (a) =>
+      canManage ||
+      a.status === 'active' ||
+      // Keep an archived assignment visible to a student who has work on it, so
+      // their submission, mark and feedback don't vanish when a tutor archives it
+      // (the classwork page renders it read-only - no resubmit/withdraw).
+      subByAssignment.has(a.id) ||
+      historyByAssignment.has(a.id),
+  )
 
   const [commentsBySub, resourceComments] = await Promise.all([
     isStudent

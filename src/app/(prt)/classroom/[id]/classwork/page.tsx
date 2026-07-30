@@ -115,7 +115,7 @@ export default async function ClassworkPage({
                 </div>
               )}
 
-              {data.isStudent && assignment.status === 'active' && (
+              {data.isStudent && (assignment.status === 'active' || submission || submissionHistory.length > 0) && (
                 <div className="mt-3 border-t border-slate-100 pt-3">
                   {submission ? (
                     <div className="text-sm">
@@ -131,9 +131,11 @@ export default async function ClassworkPage({
                           {submission.status === 'late' ? 'Submitted late' : 'On time'}
                         </span>{' '}
                         (<LocalTime iso={submission.submitted_at} />)
-                        {submission.score == null && <> - resubmit below to replace, or withdraw it.</>}
+                        {submission.score == null && assignment.status === 'active' && (
+                          <> - resubmit below to replace, or withdraw it.</>
+                        )}
                       </p>
-                      {submission.score == null && (
+                      {submission.score == null && assignment.status === 'active' && (
                         <div className="mt-1">
                           <WithdrawButton submissionId={submission.id} />
                         </div>
@@ -149,7 +151,7 @@ export default async function ClassworkPage({
                           )}
                         </p>
                       )}
-                      {submission.drive_link && (
+                      {submission.drive_link && submission.drive_link !== '#' && (
                         <a
                           href={submission.drive_link}
                           target="_blank"
@@ -167,7 +169,7 @@ export default async function ClassworkPage({
                   {submissionHistory.length > 0 && (
                     <details className="mt-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-xs">
                       <summary className="cursor-pointer font-medium text-slate-500">
-                        {submissionHistory.length} previous version{submissionHistory.length > 1 ? 's' : ''}
+                        {submissionHistory.length} earlier submission{submissionHistory.length > 1 ? 's' : ''}
                       </summary>
                       <ul className="mt-2 space-y-1">
                         {submissionHistory.map((prior) => (
@@ -191,7 +193,11 @@ export default async function ClassworkPage({
                       </ul>
                     </details>
                   )}
-                  {submission && submission.score != null ? (
+                  {assignment.status !== 'active' ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      This assignment has been archived by your tutor - your submission and mark above are read-only.
+                    </p>
+                  ) : submission && submission.score != null ? (
                     <p className="mt-2 text-xs text-slate-500">
                       Graded - ask your tutor to use the Reopen for resubmission button if you need to submit again.
                     </p>

@@ -8,14 +8,18 @@ const isoDate = z.string().datetime()
 
 export const createAssignmentSchema = z.object({
   class_id: z.string().uuid(),
-  title: z.string().min(1).max(200),
-  description: z.string().max(5000).optional(),
+  // Trim before length checks so a whitespace-only title ("   ") collapses to ""
+  // and is rejected, matching the edit path (which already trims). Otherwise it
+  // passes min(1) and renders an empty heading.
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(5000).optional(),
   due_date: isoDate, // absolute ISO instant (client converts its local input to UTC)
   attachment_drive_link: linkUrl.optional(),
-  topic: z.string().max(60).optional(),
-  // Capped at the DB column precision numeric(6,2) -> max 9999.99, so an oversized
-  // value is rejected with a clear message instead of a Postgres overflow.
-  max_marks: z.number().nonnegative().max(9999.99).optional(),
+  topic: z.string().trim().max(60).optional(),
+  // Positive, not just non-negative: a max of 0 is never meaningful (the only
+  // acceptable mark would be 0), and it can't form a percentage on the report
+  // card. Capped at the DB column precision numeric(6,2) -> max 9999.99.
+  max_marks: z.number().positive().max(9999.99).optional(),
 })
 
 /** A tutor's mark + optional feedback on one submission. A null score un-grades it. */
