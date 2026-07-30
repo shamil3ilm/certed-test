@@ -77,4 +77,38 @@ describe('getReportCardData', () => {
       marks: [],
     })
   })
+
+  it('reports the average to one decimal (no rounding 99.6% up to 100%) and counts non-percentage items', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: true } as any)
+    vi.mocked(getProfileById).mockResolvedValueOnce({
+      id: 'student-1',
+      role: 'student',
+      status: 'active',
+      email: 'student@test.com',
+    } as any)
+    // 249/250 = 99.6% (must NOT round to 100). The zero-max item can't yield a
+    // percentage, so it's excluded from the average but counted in excludedNoPercent.
+    vi.mocked(selectScoresForStudentAsService).mockResolvedValueOnce([
+      { assignment_id: 'a1', score: 249 },
+      { assignment_id: 'a2', score: 0 },
+    ] as any)
+    vi.mocked(selectStatusesForStudentAsService).mockResolvedValueOnce([] as any)
+    vi.mocked(selectActiveClassIdsForStudent).mockResolvedValueOnce([] as any)
+    vi.mocked(selectAssignmentsByIdsAsService).mockResolvedValueOnce([
+      { id: 'a1', class_id: 'c1', title: 'Final exam', topic: null, max_marks: 250 },
+      { id: 'a2', class_id: 'c1', title: 'Participation', topic: null, max_marks: 0 },
+    ] as any)
+    vi.mocked(selectClassNamesByIdsAsService).mockResolvedValueOnce([{ id: 'c1', name: 'Math' }] as any)
+
+    const data = await getReportCardData(
+      {
+        profile: { id: 'admin-1', role: 'admin', status: 'active' } as any,
+        accessState: 'active',
+        capabilities: { allowed: new Set(['viewMentees']), denied: new Set(), sourceByCapability: new Map() },
+      } as any,
+      'student-1',
+    )
+
+    expect(data?.average).toEqual({ percent: 99.6, gradedCount: 1, excludedNoPercent: 1 })
+  })
 })

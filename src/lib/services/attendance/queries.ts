@@ -2,6 +2,7 @@ import 'server-only'
 import { summarizeAttendance, type AttendanceSummary } from '@/lib/attendance/summary'
 import {
   countStatusesForStudent,
+  RECENT_CLASS_MARKS_CAP,
   selectForClassDate,
   selectMarkedClassIds,
   selectRecentForClass,
@@ -62,8 +63,13 @@ export async function listSessionSummariesForClass(classId: string, limit = 30):
   for (const r of marks) {
     byDate.set(r.session_date, [...(byDate.get(r.session_date) ?? []), r])
   }
-  return [...byDate.entries()]
-    .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
-    .slice(0, limit)
-    .map(([session_date, dateMarks]) => ({ session_date, ...summarizeAttendance(dateMarks) }))
+  let dates = [...byDate.entries()].sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+  // If the row cap was hit, the OLDEST date in the window may be split across the
+  // cutoff - part of its roster sits beyond the cap - so summarising it would
+  // report that session's rate on a partial roster. Drop it (keeping at least one
+  // date) so every summary reflects a complete session.
+  if (marks.length >= RECENT_CLASS_MARKS_CAP && dates.length > 1) {
+    dates = dates.slice(0, -1)
+  }
+  return dates.slice(0, limit).map(([session_date, dateMarks]) => ({ session_date, ...summarizeAttendance(dateMarks) }))
 }

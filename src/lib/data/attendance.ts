@@ -110,9 +110,13 @@ export async function countStatusesForStudent(studentId: string, classId?: strin
   }
 }
 
+/** Row cap on the marks pulled for session-summary grouping. Roughly years of
+ *  daily sessions; exported so the caller can tell when a result was truncated. */
+export const RECENT_CLASS_MARKS_CAP = 2000
+
 /** Recent marks for a class, newest first, bounded before the caller groups
  *  them by date. 2000 marks is roughly years of daily sessions. */
-export async function selectRecentForClass(classId: string, limit = 2000): Promise<AttendanceRow[]> {
+export async function selectRecentForClass(classId: string, limit = RECENT_CLASS_MARKS_CAP): Promise<AttendanceRow[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('attendance')

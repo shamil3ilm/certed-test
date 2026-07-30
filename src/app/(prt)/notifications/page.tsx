@@ -1,5 +1,5 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
-import { listMyNotifications } from '@/lib/services/notifications'
+import { countUnreadNotifications, listMyNotifications } from '@/lib/services/notifications'
 import { PageHeader, EmptyState, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { markAllNotificationsReadAction } from './actions'
@@ -14,8 +14,12 @@ const KIND_META: Record<string, { label: string; className: string }> = {
 
 export default async function NotificationsPage() {
   const me = await requireActiveProfile()
-  const items = await listMyNotifications(me.id, 50)
-  const hasUnread = items.some((n) => !n.read_at)
+  // Gate "Mark all read" on the TRUE unread count, not just the visible 50 - the
+  // action clears all unread (RLS-scoped), so with >50 notifications whose newest
+  // 50 are read but older ones aren't, the header badge would otherwise show a
+  // count the page gave no way to clear.
+  const [items, unreadCount] = await Promise.all([listMyNotifications(me.id, 50), countUnreadNotifications(me.id)])
+  const hasUnread = unreadCount > 0
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">

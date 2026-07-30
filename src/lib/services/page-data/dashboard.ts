@@ -92,19 +92,19 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
     canViewFinance ? financeTotals('payslip') : Promise.resolve(null),
   ])
 
-  const topClassIds = [...enrollCounts.entries()]
+  // Filter to ACTIVE classes BEFORE ranking + slicing. Archived classes still
+  // carry enrolment rows, so slicing the top-6 first and dropping archived after
+  // would shrink the chart below 6 bars and hide active classes ranked 7th+ (an
+  // all-archived top-6 rendered an empty chart while active classes existed).
+  const countedClasses = await listClassesByIds([...enrollCounts.keys()])
+  const activeById = new Map(
+    countedClasses.filter((course) => course.status === 'active').map((course) => [course.id, course.name]),
+  )
+  const perClass = [...enrollCounts.entries()]
+    .filter(([classId]) => activeById.has(classId))
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
-    .map(([classId]) => classId)
-  const topClasses = await listClassesByIds(topClassIds)
-  const classById = new Map(topClasses.map((course) => [course.id, course]))
-  const perClass = topClassIds
-    .map((classId) => {
-      const course = classById.get(classId)
-      if (!course || course.status !== 'active') return null
-      return { label: course.name, value: enrollCounts.get(classId) ?? 0 }
-    })
-    .filter((row): row is { label: string; value: number } => row !== null)
+    .map(([classId, value]) => ({ label: activeById.get(classId) ?? 'Class', value }))
 
   return {
     kind: 'admin',

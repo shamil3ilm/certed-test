@@ -94,6 +94,39 @@ describe('loadDashboardViewData', () => {
     })
   })
 
+  it('excludes archived classes from the per-class chart BEFORE the top-6 slice', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isAdmin: true }))
+    vi.mocked(listEvents).mockResolvedValueOnce([] as any)
+    vi.mocked(listMyReminders).mockResolvedValueOnce([] as any)
+    vi.mocked(listMyPastReminders).mockResolvedValueOnce([] as any)
+    vi.mocked(countPeople).mockResolvedValueOnce({ students: 0, tutors: 0, pending: 0 } as any)
+    vi.mocked(countActiveClasses).mockResolvedValueOnce(2 as any)
+    // The archived class has the HIGHEST enrolment count: if it were sliced into
+    // the top-6 before filtering, it would consume a bar and hide an active class.
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([
+      { id: 'arch', name: 'Old class', status: 'archived' },
+      { id: 'c1', name: 'Math', status: 'active' },
+      { id: 'c3', name: 'English', status: 'active' },
+    ] as any)
+    vi.mocked(countEnrollmentsPerClass).mockResolvedValueOnce(
+      new Map([
+        ['arch', 99],
+        ['c1', 22],
+        ['c3', 17],
+      ]) as any,
+    )
+
+    await expect(
+      loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps('viewUsers')),
+    ).resolves.toMatchObject({
+      kind: 'admin',
+      perClass: [
+        { label: 'Math', value: 22 },
+        { label: 'English', value: 17 },
+      ],
+    })
+  })
+
   it('omits admin user and finance aggregates when those capabilities are denied', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isAdmin: true }))
     vi.mocked(listEvents).mockResolvedValueOnce([] as any)

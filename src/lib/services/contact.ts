@@ -41,10 +41,15 @@ export async function relayContactSubmission(
   }
 
   if (!opts.scriptUrl) {
+    // Known deploy misconfiguration (GOOGLE_SCRIPT_URL unset), not a runtime
+    // crash. Log it so operators see the cause, and degrade to a friendly
+    // "temporarily unavailable" (503) rather than a bare 500 that reads as a bug
+    // to the visitor and pollutes the 5xx error budget.
+    console.error('[contact] GOOGLE_SCRIPT_URL is not configured; contact submissions cannot be relayed.')
     return {
       success: false,
-      status: 500,
-      error: 'Server configuration error.',
+      status: 503,
+      error: 'Sorry, the contact form is temporarily unavailable. Please try again later or email us directly.',
       code: ERROR_CODES.internalError,
     }
   }

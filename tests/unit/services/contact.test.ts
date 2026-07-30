@@ -18,13 +18,13 @@ describe('relayContactSubmission', () => {
     })
   })
 
-  it('rejects when the relay URL is missing', async () => {
+  it('degrades gracefully (503) when the relay URL is missing, rather than a bare 500', async () => {
     await expect(
       relayContactSubmission({ name: 'Asha', email: 'asha@test.com', phone: '', message: 'Hello' }),
     ).resolves.toEqual({
       success: false,
-      status: 500,
-      error: 'Server configuration error.',
+      status: 503,
+      error: 'Sorry, the contact form is temporarily unavailable. Please try again later or email us directly.',
       code: ERROR_CODES.internalError,
     })
   })

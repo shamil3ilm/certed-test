@@ -22,7 +22,7 @@ type ReportMark = {
 export type ReportCardData = {
   student: Profile
   marks: ReportMark[]
-  average: { percent: number; gradedCount: number; excludedNoMax: number } | null
+  average: { percent: number; gradedCount: number; excludedNoPercent: number } | null
   attendance: AttendanceSummary
 }
 
@@ -104,10 +104,11 @@ export async function getReportCardData(actor: ActorContext, studentId: string):
     )
 
   // POINTS-WEIGHTED average: total marks earned / total marks possible, over the
-  // graded items that carry a maximum. This weights a 50-mark exam more than a
-  // 5-mark quiz (an unweighted mean of per-item percentages did not). Graded items
-  // with no maximum can't contribute a percentage, so they're excluded - but that
-  // count is surfaced (excludedNoMax) instead of silently dropped.
+  // graded items that carry a positive maximum. This weights a 50-mark exam more
+  // than a 5-mark quiz (an unweighted mean of per-item percentages did not).
+  // Graded items with no maximum OR a zero maximum can't yield a percentage
+  // (no/zero denominator), so they're excluded - but that count is surfaced
+  // (excludedNoPercent) instead of silently dropped.
   //
   // The per-item clamp guards a state that is still reachable today. Grading
   // rejects a score above the assignment's max, but editing an assignment may
@@ -121,9 +122,11 @@ export async function getReportCardData(actor: ActorContext, studentId: string):
   const average =
     weightable.length && totalMax > 0
       ? {
-          percent: Math.round((totalScore / totalMax) * 100),
+          // One decimal place, not a whole number: rounding 99.6% up to 100% on a
+          // document a parent reads as fact would falsely claim a perfect score.
+          percent: Math.round((totalScore / totalMax) * 1000) / 10,
           gradedCount: weightable.length,
-          excludedNoMax: marks.length - weightable.length,
+          excludedNoPercent: marks.length - weightable.length,
         }
       : null
 
