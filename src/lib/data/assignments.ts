@@ -22,6 +22,7 @@ export type AssignmentRow = {
   attachment_drive_link: string | null
   topic: string | null
   max_marks: number | null
+  enforce_deadline: boolean
   created_by: string | null
   status: 'active' | 'archived'
   created_at: string
@@ -43,6 +44,7 @@ type AssignmentInsert = {
   attachment_drive_link: string | null
   topic: string | null
   max_marks: number | null
+  enforce_deadline: boolean
   status: AssignmentRow['status']
   created_by: string | null
 }
@@ -54,6 +56,7 @@ export type AssignmentPatch = Partial<{
   attachment_drive_link: string | null
   topic: string | null
   max_marks: number | null
+  enforce_deadline: boolean
 }>
 
 /**

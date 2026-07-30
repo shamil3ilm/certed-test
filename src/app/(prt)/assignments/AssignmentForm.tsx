@@ -20,6 +20,7 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
   const [topic, setTopic] = useState('')
   const [maxMarks, setMaxMarks] = useState('')
   const [due, setDue] = useState('')
+  const [enforceDeadline, setEnforceDeadline] = useState(false)
   const [busy, setBusy] = useState(false)
 
   async function onSubmit(event: React.FormEvent) {
@@ -40,6 +41,7 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
           attachment_drive_link: brief.trim() || undefined,
           topic: topic.trim() || undefined,
           max_marks: maxMarks ? Number(maxMarks) : undefined,
+          enforce_deadline: enforceDeadline,
         }),
       })
 
@@ -49,6 +51,7 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
       setTopic('')
       setMaxMarks('')
       setDue('')
+      setEnforceDeadline(false)
       toast('Assignment created', 'success')
       router.refresh()
     } catch (error) {
@@ -112,6 +115,15 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
       <Field label="Due">
         <Input type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} required />
       </Field>
+      <label className="flex items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={enforceDeadline}
+          onChange={(event) => setEnforceDeadline(event.target.checked)}
+          className="h-4 w-4 accent-primary"
+        />
+        Close submissions after the due date (block late work)
+      </label>
       <button type="submit" disabled={busy} className="btn btn-primary">
         {busy ? 'Creating...' : 'Create'}
       </button>

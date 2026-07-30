@@ -17,6 +17,8 @@ type ClassworkAssignmentView = {
   submissionComments: Comment[]
   /** The student's own prior (replaced) versions for this assignment, newest first. */
   submissionHistory: Submission[]
+  /** A hard-deadline assignment whose due instant has passed: submissions closed. */
+  deadlineClosed: boolean
 }
 
 type ClassworkResourceView = {
@@ -53,6 +55,11 @@ export async function loadClassworkPageData(
   searchParams?: ClassworkSearchParams,
 ): Promise<ClassworkPageData> {
   const [{ isStudent }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
+  // Student and tutor/manager are mutually exclusive by construction - a student
+  // can't be made a class tutor (addTutor requires role tutor|mentor) and a tutor
+  // can't be enrolled (enrolStudent requires role student) - so a student never
+  // manages a class. No hybrid student+manager to guard against.
+  const isStudentView = isStudent
   const classList = [{ id: course.id, name: course.name }]
   const materialsPage = Math.max(1, Number(searchParams?.matPage ?? '1') || 1)
   const materialsQuery = searchParams?.matQ?.trim() || undefined
@@ -68,8 +75,8 @@ export async function loadClassworkPageData(
       ? listResourcesPage(course.id, { page: 1, pageSize: ARCHIVED_PAGE_SIZE, status: 'archived' })
       : Promise.resolve({ items: [], total: 0 }),
     listAssignments({ classId: course.id }),
-    isStudent ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
-    isStudent ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
+    isStudentView ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
+    isStudentView ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
   ])
 
   const subByAssignment = new Map(mySubs.map((s) => [s.assignment_id, s]))
@@ -91,7 +98,7 @@ export async function loadClassworkPageData(
   )
 
   const [commentsBySub, resourceComments] = await Promise.all([
-    isStudent
+    isStudentView
       ? listCommentsForEntities(
           'submission',
           mySubs.map((s) => s.id),
@@ -103,10 +110,11 @@ export async function loadClassworkPageData(
     ),
   ])
 
+  const nowMs = Date.now()
   return {
     canManage,
-    isStudent,
-    now: Date.now(),
+    isStudent: isStudentView,
+    now: nowMs,
     classList,
     materialsPage,
     materialsQuery,
@@ -119,6 +127,7 @@ export async function loadClassworkPageData(
         submission,
         submissionComments: submission ? (commentsBySub.get(submission.id) ?? []) : [],
         submissionHistory: historyByAssignment.get(assignment.id) ?? [],
+        deadlineClosed: assignment.enforce_deadline && Date.parse(assignment.due_date) < nowMs,
       }
     }),
     resourceViews: resourcesPage.items.map((resource) => ({

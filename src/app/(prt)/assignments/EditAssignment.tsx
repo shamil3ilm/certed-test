@@ -23,6 +23,7 @@ export function EditAssignment({
     attachment_drive_link: string | null
     topic: string | null
     max_marks: number | null
+    enforce_deadline: boolean
   }
 }) {
   const [open, setOpen] = useState(false)
@@ -32,6 +33,7 @@ export function EditAssignment({
   const [brief, setBrief] = useState(assignment.attachment_drive_link ?? '')
   const [topic, setTopic] = useState(assignment.topic ?? '')
   const [maxMarks, setMaxMarks] = useState(assignment.max_marks != null ? String(assignment.max_marks) : '')
+  const [enforceDeadline, setEnforceDeadline] = useState(assignment.enforce_deadline)
   const [isPending, startTransition] = useTransition()
   const { toast } = useUI()
 
@@ -46,6 +48,7 @@ export function EditAssignment({
     setBrief(assignment.attachment_drive_link ?? '')
     setTopic(assignment.topic ?? '')
     setMaxMarks(assignment.max_marks != null ? String(assignment.max_marks) : '')
+    setEnforceDeadline(assignment.enforce_deadline)
     setOpen(true)
   }
 
@@ -61,6 +64,7 @@ export function EditAssignment({
     formData.set('attachment_drive_link', brief.trim())
     formData.set('topic', topic.trim())
     formData.set('max_marks', maxMarks.trim())
+    formData.set('enforce_deadline', enforceDeadline ? 'on' : '')
 
     startTransition(async () => {
       try {
@@ -113,6 +117,15 @@ export function EditAssignment({
           placeholder="https://drive.google.com/..."
         />
       </Field>
+      <label className="flex items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={enforceDeadline}
+          onChange={(event) => setEnforceDeadline(event.target.checked)}
+          className="h-4 w-4 accent-primary"
+        />
+        Close submissions after the due date (block late work)
+      </label>
       <div className="flex gap-2">
         <button type="submit" disabled={isPending} className="btn btn-sm btn-primary">
           {isPending ? 'Saving...' : 'Save'}

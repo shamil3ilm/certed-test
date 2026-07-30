@@ -97,6 +97,31 @@ describe('recordSubmission', () => {
       PermissionError,
     )
   })
+
+  it('blocks a submission after a hard deadline has passed, without hitting the RPC', async () => {
+    vi.mocked(getAssignment).mockResolvedValueOnce({
+      ...activeAssignment,
+      enforce_deadline: true,
+      due_date: '2000-01-01T00:00:00.000Z', // past
+    } as any)
+    await expect(recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
+  it('still accepts a late submission when the deadline is NOT enforced (default)', async () => {
+    vi.mocked(getAssignment).mockResolvedValueOnce({
+      ...activeAssignment,
+      enforce_deadline: false,
+      due_date: '2000-01-01T00:00:00.000Z', // past, but soft
+    } as any)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: null, error: null }, { data: submissionRow, error: null }) as any,
+    )
+    const created = await recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })
+    expect(created.id).toBe('sub-1')
+  })
 })
 
 describe('recordSubmission action-input helpers', () => {

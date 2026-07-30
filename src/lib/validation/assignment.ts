@@ -20,6 +20,9 @@ export const createAssignmentSchema = z.object({
   // acceptable mark would be 0), and it can't form a percentage on the report
   // card. Capped at the DB column precision numeric(6,2) -> max 9999.99.
   max_marks: z.number().positive().max(9999.99).optional(),
+  // Hard deadline: when true, submissions close after due_date (enforced in
+  // recordSubmission). Optional/absent -> false (always-accept-late, the default).
+  enforce_deadline: z.boolean().optional(),
 })
 
 /** A tutor's mark + optional feedback on one submission. A null score un-grades it. */

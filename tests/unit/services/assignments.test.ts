@@ -131,6 +131,7 @@ describe('createAssignment API-input helpers', () => {
       attachment_drive_link: 'https://example.com/brief',
       topic: 'Chapter 1',
       max_marks: 100,
+      enforce_deadline: false,
     })
   })
 
@@ -281,6 +282,7 @@ describe('assignment action-input helpers', () => {
         attachment_drive_link: 'https://example.com/brief',
         topic: null,
         max_marks: null,
+        enforce_deadline: false,
       },
     })
   })

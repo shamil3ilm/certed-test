@@ -49,6 +49,7 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
     attachment_drive_link: input.attachment_drive_link ?? null,
     topic: input.topic ?? null,
     max_marks: input.max_marks ?? null,
+    enforce_deadline: input.enforce_deadline ?? false,
     status: 'active',
     created_by: actor.id,
   })
@@ -140,6 +141,11 @@ export async function editAssignment(actor: Profile, id: string, patch: Assignme
       topic: field('topic'),
       max_marks: field('max_marks'),
     })
+    // enforce_deadline is orthogonal to lateness, so it isn't part of the
+    // reclassify RPC - apply it directly so a same-edit toggle still takes effect.
+    if (patch.enforce_deadline !== undefined) {
+      await updateAssignment(id, { enforce_deadline: patch.enforce_deadline })
+    }
   } else {
     await updateAssignment(id, patch)
   }

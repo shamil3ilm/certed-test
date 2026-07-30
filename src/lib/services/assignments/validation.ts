@@ -13,6 +13,7 @@ export type CreateAssignmentInput = {
   attachment_drive_link?: string | null
   topic?: string | null
   max_marks?: number | null
+  enforce_deadline?: boolean
 }
 
 export type CreateAssignmentApiInput = {
@@ -23,6 +24,7 @@ export type CreateAssignmentApiInput = {
   attachment_drive_link?: unknown
   topic?: unknown
   max_marks?: unknown
+  enforce_deadline?: unknown
 }
 
 const assignmentIdSchema = z.string().uuid()
@@ -35,6 +37,14 @@ const editAssignmentActionSchema = z.object({
   attachment_drive_link: z.string().trim(),
   topic: z.string().trim().max(60),
 })
+
+/** A checkbox form value ("on"/"true"/absent) -> boolean. */
+function parseCheckbox(value: FormDataEntryValue | null | undefined): boolean {
+  const v = String(value ?? '')
+    .trim()
+    .toLowerCase()
+  return v === 'on' || v === 'true' || v === '1'
+}
 
 export type ArchiveAssignmentActionInput = {
   id?: FormDataEntryValue | null
@@ -49,6 +59,7 @@ export type EditAssignmentActionInput = {
   attachment_drive_link?: FormDataEntryValue | null
   topic?: FormDataEntryValue | null
   max_marks?: FormDataEntryValue | null
+  enforce_deadline?: FormDataEntryValue | null
 }
 
 export function validateArchiveAssignmentInput(input: ArchiveAssignmentActionInput): {
@@ -78,6 +89,7 @@ export function validateCreateAssignmentInput(input: CreateAssignmentApiInput): 
     attachment_drive_link: parsed.data.attachment_drive_link ?? null,
     topic: parsed.data.topic ?? null,
     max_marks: parsed.data.max_marks ?? null,
+    enforce_deadline: parsed.data.enforce_deadline ?? false,
   }
 }
 
@@ -90,6 +102,7 @@ export function validateEditAssignmentInput(input: EditAssignmentActionInput): {
     attachment_drive_link: string | null
     topic: string | null
     max_marks: number | null
+    enforce_deadline: boolean
   }
 } {
   const parsed = editAssignmentActionSchema.safeParse({
@@ -125,6 +138,7 @@ export function validateEditAssignmentInput(input: EditAssignmentActionInput): {
       attachment_drive_link: brief || null,
       topic: parsed.data.topic || null,
       max_marks,
+      enforce_deadline: parseCheckbox(input.enforce_deadline),
     },
   }
 }

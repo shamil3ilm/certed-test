@@ -63,6 +63,13 @@ export async function recordSubmission(actor: Profile, input: RecordSubmissionIn
   const assignment = await getAssignment(input.assignment_id)
   if (!assignment || assignment.status !== 'active') throw new NotFoundError('Assignment not found')
 
+  // Hard deadline: when the tutor enabled it, no new submission or resubmission is
+  // accepted once the due instant has passed. Default assignments (enforce_deadline
+  // false) still accept late work, flagged 'late'.
+  if (assignment.enforce_deadline && Date.parse(assignment.due_date) < Date.now()) {
+    throw new ValidationError('This assignment is closed - its deadline has passed.')
+  }
+
   const { data, error } = await callReplaceOwnSubmission({
     assignmentId: assignment.id,
     driveLink: input.drive_link,
