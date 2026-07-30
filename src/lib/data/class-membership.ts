@@ -45,6 +45,20 @@ export async function selectActiveClassIdsForStudent(studentId: string): Promise
   return ((data ?? []) as MembershipRef[]).map((r) => r.class_id)
 }
 
+/** Distinct active class ids across the given students (batch of the single-student
+ *  version) - resolves a mentor's mentees' classes when finding messaging contacts. */
+export async function selectActiveClassIdsForStudents(studentIds: string[]): Promise<string[]> {
+  if (studentIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('enrollments')
+    .select('class_id')
+    .in('student_id', studentIds)
+    .eq('active', true)
+  if (error) throw new Error(`classMembership.classIdsForStudents: ${error.message}`)
+  return [...new Set(((data ?? []) as MembershipRef[]).map((r) => r.class_id))]
+}
+
 /** One `class_id` per active teaching assignment across the given classes -
  *  the caller tallies them into per-class tutor counts. */
 export async function selectActiveTutorRefsByClassIds(classIds: string[]): Promise<MembershipRef[]> {

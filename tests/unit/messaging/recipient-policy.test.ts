@@ -35,66 +35,61 @@ beforeEach(() => {
 })
 
 describe('recipientPolicy', () => {
-  it('admin may message any active profile except themselves', async () => {
+  it('admins and sub-admins reach nobody by default (no admin DMs)', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(tableClient({ profiles: [{ id: 'x' }, { id: 'y' }] }) as any)
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isAdmin: true }))
-    vi.mocked(createAdminClient).mockReturnValue(
-      tableClient({ profiles: [{ id: 'admin-1' }, { id: 'stu-1' }, { id: 'tut-1' }] }) as any,
-    )
-    expect(await canMessage({ id: 'admin-1' } as any, 'stu-1')).toBe(true)
-    expect(await canMessage({ id: 'admin-1' } as any, 'admin-1')).toBe(false) // never self
-  })
-
-  it('sub_admin may message active users including admin-tier staff for escalation', async () => {
+    expect(await canMessage({ id: 'admin-1' } as any, 'anyone')).toBe(false)
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isSubAdmin: true }))
-    vi.mocked(createAdminClient).mockReturnValue(
-      tableClient({
-        profiles: [
-          { id: 'sa-1', role: 'sub_admin' },
-          { id: 'the-admin', role: 'admin' },
-          { id: 'a-tutor', role: 'tutor' },
-          { id: 'a-mentor', role: 'mentor' },
-          { id: 'a-student', role: 'student' },
-        ],
-      }) as any,
-    )
-    const actor = { id: 'sa-1' } as any
-    expect(await canMessage(actor, 'a-tutor')).toBe(true)
-    expect(await canMessage(actor, 'a-student')).toBe(true)
-    expect(await canMessage(actor, 'a-mentor')).toBe(true)
-    expect(await canMessage(actor, 'the-admin')).toBe(true)
-    expect(await canMessage(actor, 'sa-1')).toBe(false) // never self
+    expect(await canMessage({ id: 'sa-1' } as any, 'anyone')).toBe(false)
   })
 
-  it('tutor may message students in classes they teach and their mentees, not a stranger', async () => {
+  it('tutor may message their class students and those students’ mentors, not a stranger', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isTutor: true }))
-    vi.mocked(studentIdsOfMentor).mockResolvedValue(['mentee-1'])
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
-        class_tutors: [{ class_id: 'c-1' }],
-        enrollments: [{ student_id: 'stu-in-class' }],
+        class_tutors: [{ class_id: 'c-1' }], // classes this tutor teaches
+        enrollments: [{ student_id: 'stu-in-class' }], // students in those classes
+        mentorships: [{ student_id: 'stu-in-class', mentor_id: 'their-mentor' }], // reverse mentor<->tutor edge
+        profiles: [{ id: 'their-mentor' }], // active-status filter for the mentor
       }) as any,
     )
     const actor = { id: 'tut-1' } as any
     expect(await canMessage(actor, 'stu-in-class')).toBe(true)
+    expect(await canMessage(actor, 'their-mentor')).toBe(true)
+    expect(await canMessage(actor, 'random-stranger')).toBe(false)
+    // A pure tutor (not also a mentor) does NOT reach mentees they don't teach.
+    expect(await canMessage(actor, 'some-mentee')).toBe(false)
+  })
+
+  it('mentor may message their mentees and the tutors of their mentees’ classes', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true }))
+    vi.mocked(studentIdsOfMentor).mockResolvedValue(['mentee-1'])
+    vi.mocked(createAdminClient).mockReturnValue(
+      tableClient({
+        enrollments: [{ class_id: 'c-9' }], // classes the mentees are enrolled in
+        class_tutors: [{ tutor_id: 'mentee-tutor' }], // tutors of those classes
+      }) as any,
+    )
+    const actor = { id: 'mentor-1' } as any
     expect(await canMessage(actor, 'mentee-1')).toBe(true)
+    expect(await canMessage(actor, 'mentee-tutor')).toBe(true)
     expect(await canMessage(actor, 'random-stranger')).toBe(false)
   })
 
-  it('student may message their class tutors, their mentors, and admin-tier staff', async () => {
+  it('student may message their class tutors and their mentors, but NOT admins or other students', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isStudent: true }))
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
-        enrollments: [{ class_id: 'c-1' }],
-        class_tutors: [{ tutor_id: 'my-tutor' }],
-        mentorships: [{ mentor_id: 'my-mentor' }],
-        // Serves both the staff lookup and the mentor active-status check.
-        profiles: [{ id: 'the-admin' }, { id: 'the-subadmin' }, { id: 'my-mentor' }],
+        enrollments: [{ class_id: 'c-1' }], // classes this student is in
+        class_tutors: [{ tutor_id: 'my-tutor' }], // tutors of those classes
+        mentorships: [{ mentor_id: 'my-mentor' }], // this student's mentors
+        profiles: [{ id: 'my-mentor' }], // active-status filter for the mentor
       }) as any,
     )
     const actor = { id: 'stu-1' } as any
     expect(await canMessage(actor, 'my-tutor')).toBe(true)
     expect(await canMessage(actor, 'my-mentor')).toBe(true)
-    expect(await canMessage(actor, 'the-admin')).toBe(true)
+    expect(await canMessage(actor, 'the-admin')).toBe(false) // admins out of scope now
     expect(await canMessage(actor, 'another-student')).toBe(false)
   })
 

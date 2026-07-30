@@ -1,13 +1,14 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { selectActiveAdminTierIds, selectActiveIdsAmong, selectActiveProfileIds } from '@/lib/data/profiles'
+import { selectActiveIdsAmong } from '@/lib/data/profiles'
 import {
   selectActiveClassIdsForStudent,
+  selectActiveClassIdsForStudents,
   selectActiveClassIdsForTutor,
   selectActiveStudentIdsByClassIds,
   selectActiveTutorIdsByClassIds,
 } from '@/lib/data/class-membership'
-import { selectActiveMentorIdsForStudent } from '@/lib/data/mentorships'
+import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
@@ -15,64 +16,63 @@ import { getProfileNamesByIds } from '@/lib/services/users'
 export type Contact = { id: string; name: string }
 
 /**
- * The set of profile ids `actor` may START a conversation with, by persona.
- * This is the single place messaging eligibility lives, so a NEW persona plugs
- * in by adding a branch here - never a schema change.
+ * The set of profile ids `actor` may START a conversation with. This is the
+ * single place messaging eligibility lives.
  *
- *   admin     -> anyone (any active profile)
- *   sub_admin -> the users they manage (tutors + students)
- *   tutor     -> students in classes they teach + their mentees
- *   mentor    -> their mentees
- *   student   -> the tutors of their classes + their mentors + admins/sub_admins
+ * DEFAULT POLICY - DIRECT CONTACTS ONLY. Messaging is an UNDIRECTED relationship
+ * graph: a 1:1 thread re-checks eligibility on every send (see
+ * assertStillMessageable), so both ends must be able to reach each other or a
+ * reply would be blocked. The edges are therefore symmetric by construction:
  *
- * A persona with none of these flags (e.g. a future guardian) reaches nobody
- * until its branch is added.
+ *   student <-> tutor   student enrolled in a class the tutor teaches
+ *   student <-> mentor  a mentorship link
+ *   mentor  <-> tutor   the tutor teaches a class one of the mentor's mentees is in
+ *
+ * Admins and sub-admins are intentionally OUT of scope for now - no admin DMs by
+ * default, in or out. (Admin-configurable widening of this graph is layered on
+ * top separately.) A persona with none of these relationships reaches nobody.
  */
 async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
   const flags = await loadPersonaFlags(actor.id)
   const ids = new Set<string>()
 
-  if (flags.isAdmin) {
-    for (const id of await selectActiveProfileIds()) ids.add(id)
-    ids.delete(actor.id)
-    return ids
-  }
+  if (flags.isStudent) {
+    // student <-> tutor: the tutors of the classes this student is enrolled in.
+    const classIds = [...new Set(await selectActiveClassIdsForStudent(actor.id))]
+    if (classIds.length) for (const id of await selectActiveTutorIdsByClassIds(classIds)) ids.add(id)
 
-  if (flags.isSubAdmin) {
-    // Sub-admins need the people they manage PLUS an escalation path to admin
-    // tier and peer sub-admins inside the in-app messaging system. Use all
-    // active profiles rather than a positive role list so future non-admin
-    // personas become reachable automatically.
-    for (const id of await selectActiveProfileIds()) ids.add(id)
-    ids.delete(actor.id)
-    return ids
+    // student <-> mentor: a mentorship row deliberately SURVIVES the mentor's
+    // revocation (restoring the account rebuilds their scoped personas), so filter
+    // to mentors whose account is still active rather than assume the graph pruned.
+    const mentorIds = await selectActiveMentorIdsForStudent(actor.id)
+    if (mentorIds.length) for (const id of await selectActiveIdsAmong(mentorIds)) ids.add(id)
   }
 
   if (flags.isTutor) {
+    // tutor <-> student: students in the classes this tutor teaches.
     const classIds = [...new Set(await selectActiveClassIdsForTutor(actor.id))]
-    for (const id of await selectActiveStudentIdsByClassIds(classIds)) ids.add(id)
+    const studentIds = classIds.length ? await selectActiveStudentIdsByClassIds(classIds) : []
+    for (const id of studentIds) ids.add(id)
+
+    // tutor <-> mentor: the (still-active) mentors of those students - the reverse
+    // of the mentor<->tutor edge, so a mentor and the mentee's tutor can converse.
+    if (studentIds.length) {
+      const mentorIds = (await selectActiveMentorshipsForStudents(studentIds)).map((r) => r.mentor_id)
+      if (mentorIds.length) for (const id of await selectActiveIdsAmong(mentorIds)) ids.add(id)
+    }
   }
 
-  // tutor + mentor authority both include the actor's mentees.
-  if (flags.isTutor || flags.isMentor) {
-    for (const id of await studentIdsOfMentor(actor.id)) ids.add(id)
+  if (flags.isMentor) {
+    // mentor <-> student: this mentor's active mentees.
+    const menteeIds = await studentIdsOfMentor(actor.id)
+    for (const id of menteeIds) ids.add(id)
+
+    // mentor <-> tutor: the tutors of the classes those mentees are enrolled in.
+    if (menteeIds.length) {
+      const classIds = [...new Set(await selectActiveClassIdsForStudents(menteeIds))]
+      if (classIds.length) for (const id of await selectActiveTutorIdsByClassIds(classIds)) ids.add(id)
+    }
   }
-
-  if (flags.isStudent) {
-    const classIds = [...new Set(await selectActiveClassIdsForStudent(actor.id))]
-    for (const id of await selectActiveTutorIdsByClassIds(classIds)) ids.add(id)
-
-    // A mentorship row deliberately SURVIVES the mentor's revocation (so restoring
-    // the account rebuilds their scoped personas), so reachability has to check the
-    // mentor's account status rather than assume the graph was pruned.
-    const mentorIds = await selectActiveMentorIdsForStudent(actor.id)
-    for (const id of await selectActiveIdsAmong(mentorIds)) ids.add(id)
-  }
-
-  // The academy's active staff (admins + sub-admins) are reachable by every
-  // teaching/learning persona, so a tutor or mentor can raise something with an
-  // admin - not merely be messaged by one. (admin/sub_admin returned earlier.)
-  for (const id of await selectActiveAdminTierIds()) ids.add(id)
 
   ids.delete(actor.id)
   return ids
