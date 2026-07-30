@@ -4,6 +4,22 @@ import { useSyncExternalStore } from 'react'
 
 const noopSubscribe = () => () => {}
 
+// Some engines still report deprecated IANA aliases (notably Asia/Calcutta for
+// Asia/Kolkata) from resolvedOptions(). They name the SAME zone, but showing the
+// legacy alias next to the academy's configured Asia/Kolkata reads as an
+// inconsistency - canonicalize the common ones so the label matches.
+const TZ_ALIASES: Record<string, string> = {
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'Asia/Dacca': 'Asia/Dhaka',
+}
+
+function canonicalTimeZone(tz: string): string {
+  return TZ_ALIASES[tz] ?? tz
+}
+
 export function useHydratedFlag() {
   return useSyncExternalStore(
     noopSubscribe,
@@ -15,7 +31,7 @@ export function useHydratedFlag() {
 export function useBrowserTimeZone(fallback = 'UTC') {
   return useSyncExternalStore(
     noopSubscribe,
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone || fallback,
+    () => canonicalTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || fallback),
     () => null,
   )
 }

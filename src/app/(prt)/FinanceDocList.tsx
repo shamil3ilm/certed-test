@@ -39,6 +39,13 @@ export async function FinanceDocList({
         <StatCard label={totalLabel} value={totalByCurrency(docs)} tone="primary" />
       </section>
 
+      {docs.some((d) => d.voided) && (
+        <p className="mt-3 text-xs text-slate-400">
+          Documents marked <span className="font-medium text-slate-500">void</span> are kept for your records but are
+          not included in your {totalLabel.toLowerCase()}.
+        </p>
+      )}
+
       <ul className="mt-6 space-y-3">
         {docs.map((d) => (
           <li key={d.id}>
