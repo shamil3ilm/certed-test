@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import type { Comment, CommentEntity } from '@/lib/services/comments'
 import { LocalTime } from './LocalTime'
-import { addCommentAction } from './comment-actions'
+import { addCommentAction, deleteCommentAction } from './comment-actions'
 import { useUI } from './Providers'
 import { assertActionOk } from './action-client'
 import { createClientId, roleLabel, roleTone } from '@/lib/ui'
@@ -53,10 +53,13 @@ function CommentThreadBody({
   const [open, setOpen] = useState(initialComments.length > 0)
   const [isPending, startTransition] = useTransition()
   const [status, setStatus] = useState('')
+  const textRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { toast } = useUI()
 
+  // Clear the scroll timer only on unmount. Keeping this effect cleanup-only
+  // avoids the render-time reset pattern this component used to rely on.
   useEffect(() => {
     return () => {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
@@ -64,7 +67,8 @@ function CommentThreadBody({
   }, [])
 
   function send() {
-    const value = text.trim()
+    const liveValue = textRef.current?.value ?? text
+    const value = liveValue.trim()
     if (!value) return
     const tempId = createClientId('temp')
 
@@ -114,6 +118,24 @@ function CommentThreadBody({
     send()
   }
 
+  function handleDelete(comment: Comment) {
+    if (typeof window !== 'undefined' && !window.confirm('Delete this comment?')) return
+    const snapshot = comments
+    setComments((current) => current.filter((c) => c.id !== comment.id))
+    const formData = new FormData()
+    formData.set('id', comment.id)
+    startTransition(async () => {
+      try {
+        assertActionOk(await deleteCommentAction(formData), 'Could not delete the comment')
+        setStatus('Comment deleted.')
+      } catch {
+        setComments(snapshot)
+        setStatus('')
+        toast('Could not delete the comment', 'error')
+      }
+    })
+  }
+
   return (
     <div className="mt-3 border-t border-slate-100 pt-3">
       <p role="status" aria-live="polite" className="sr-only">
@@ -158,6 +180,16 @@ function CommentThreadBody({
                   >
                     {comment.content}
                   </div>
+                  {isMine && !comment.id.startsWith('temp-') && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(comment)}
+                      disabled={isPending}
+                      className="mt-0.5 text-[10px] text-slate-400 transition-colors hover:text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -166,8 +198,9 @@ function CommentThreadBody({
 
           <form onSubmit={handleSubmit} className="flex gap-2 pt-1">
             <label className="min-w-0 flex-1">
-              <span className="sr-only">{placeholder}</span>
+              <span className="mb-1 block text-xs font-medium text-slate-500">Comment</span>
               <textarea
+                ref={textRef}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={(event) => {

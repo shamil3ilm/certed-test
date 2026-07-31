@@ -4,6 +4,7 @@ import { loadClassPeopleViewData } from '@/lib/services/page-data/class-people'
 import { AlertBanner, Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
+import { MessageUserButton } from '../../../messages/MessageUserButton'
 import {
   renameClassAction,
   archiveClassAction,
@@ -75,19 +76,24 @@ export default async function ClassPeoplePage({
 
       {!data.canManage && data.myMentors.length > 0 && (
         <Card className="flex items-center gap-3 p-4">
-          <Avatar name={data.myMentors[0].name} role="mentor" />
-          <p className="text-sm text-slate-600">
-            Your mentor:{' '}
-            {data.myMentors.map((m, i) => (
-              <span key={m.email}>
-                {i > 0 && ', '}
-                <a href={`mailto:${m.email}`} className="font-semibold text-primary hover:underline">
-                  {m.name}
-                </a>
-              </span>
+          <div className="flex -space-x-2">
+            {data.myMentors.map((m) => (
+              <Avatar key={m.id} name={m.name} role="mentor" />
             ))}
-            <span className="block text-xs text-slate-400">Your point of contact - email them or ask in class.</span>
-          </p>
+          </div>
+          <div className="min-w-0 text-sm text-slate-600">
+            <p>Your mentor{data.myMentors.length > 1 ? 's' : ''} - your point of contact:</p>
+            <ul className="mt-1.5 space-y-1.5">
+              {data.myMentors.map((m) => (
+                <li key={m.id} className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-700">{m.name}</span>
+                  <MessageUserButton recipientId={m.id} className="btn btn-sm btn-soft">
+                    Message
+                  </MessageUserButton>
+                </li>
+              ))}
+            </ul>
+          </div>
         </Card>
       )}
 

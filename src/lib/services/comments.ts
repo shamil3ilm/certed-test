@@ -1,5 +1,12 @@
-import { insertComment, selectForEntities, type CommentEntity, type CommentRow } from '@/lib/data/comments'
-import { ValidationError, RateLimitError } from '@/lib/errors'
+import {
+  insertComment,
+  deleteCommentRow,
+  selectForEntities,
+  type CommentEntity,
+  type CommentRow,
+} from '@/lib/data/comments'
+import { ValidationError, RateLimitError, NotFoundError } from '@/lib/errors'
+import { validateUuidField } from '@/lib/validation/id'
 import { getProfilesByIds } from '@/lib/services/users'
 import { assertCanComment } from '@/lib/services/comment-auth'
 import { addCommentSchema } from '@/lib/validation/comment'
@@ -89,4 +96,12 @@ export async function createCommentFromActionInput(author: Profile, input: Creat
   // (mirrors its read rule), not merely hold viewClasses. See assertCanComment.
   await assertCanComment(author, parsed.entity_type, parsed.entity_id)
   return createComment(parsed.entity_type, parsed.entity_id, author.id, parsed.content)
+}
+
+/** Delete a comment. RLS (comments_delete) scopes the delete to the author (or an
+ *  admin) via the request client, so this needs no extra actor check - a 0-row
+ *  result means the caller isn't the owner, or it's already gone. */
+export async function deleteCommentFromActionInput(input: { id?: FormDataEntryValue | null }): Promise<void> {
+  const id = validateUuidField(input.id, 'Missing comment.')
+  if ((await deleteCommentRow(id)) === 0) throw new NotFoundError('Comment not found.')
 }

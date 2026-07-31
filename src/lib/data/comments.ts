@@ -46,3 +46,13 @@ export async function insertComment(row: {
   if (error) throw new Error(`comments.create: ${error.message}`)
   return data as CommentRow
 }
+
+/** Delete a comment by id. RLS (comments_delete) gates it to the author or an
+ *  admin, so a non-owner delete matches 0 rows - the caller distinguishes that
+ *  from a real delete via the returned count. */
+export async function deleteCommentRow(id: string): Promise<number> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('comments').delete().eq('id', id).select('id')
+  if (error) throw new Error(`comments.delete: ${error.message}`)
+  return (data ?? []).length
+}

@@ -47,6 +47,13 @@ export default async function ClassStreamPage({
           <AlertBanner>That change couldn&apos;t be saved. Please check the details and try again.</AlertBanner>
         )}
 
+        {data.isArchived && data.canManage && (
+          <AlertBanner>
+            This class is archived. Existing posts and links remain visible, but new class content is disabled until the
+            class is restored.
+          </AlertBanner>
+        )}
+
         <FilterBar clearHref="?" showClear={Boolean(data.streamQ)} applyLabel="Search">
           <FilterField label="Search posts" className="min-w-0 flex-1 sm:max-w-xs">
             <input
@@ -59,7 +66,7 @@ export default async function ClassStreamPage({
           </FilterField>
         </FilterBar>
 
-        {data.canManage && (
+        {data.canManageContent && (
           <form action={createAnnouncementAction} className={cx(CARD, 'space-y-2 p-4')}>
             <h3 className="font-medium text-slate-900">Post an announcement</h3>
             <input type="hidden" name="stream_class_id" value={course.id} />
@@ -103,7 +110,7 @@ export default async function ClassStreamPage({
                     <LocalTime iso={a.created_at} />
                   </p>
                 </div>
-                {data.canManage && (data.isAdmin || a.class_id === course.id) && (
+                {data.canManageContent && (data.isAdmin || a.class_id === course.id) && (
                   <div className="flex shrink-0 gap-2">
                     <EscapableDetails
                       className="relative text-xs"
@@ -194,7 +201,7 @@ export default async function ClassStreamPage({
 
       <section className="space-y-4">
         <SectionLabel>Class meet</SectionLabel>
-        {data.canManage && <MeetForm classes={data.classList} canGlobal={data.isAdmin} />}
+        {data.canManageContent && <MeetForm classes={data.classList} canGlobal={data.isAdmin} />}
         <MeetList
           meetLinks={data.meetLinks}
           initialComments={data.commentsByMeet}

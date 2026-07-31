@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getClassMembers, mentorsByStudent, type ClassMember, type MentorContact } from '@/lib/services/classes'
 import { listActiveByRole, listActiveTeacherCandidates } from '@/lib/services/users'
@@ -22,12 +23,8 @@ function toMemberSubtitle(mentors?: MentorContact[]): string | undefined {
 }
 
 /** Loads and shapes the classroom people view so the page only renders. */
-export async function loadClassPeopleViewData(
-  me: Pick<Profile, 'id' | 'role'>,
-  courseId: string,
-): Promise<ClassPeopleViewData> {
-  const { isAdmin, isManager } = await loadPersonaFlags(me.id)
-  const canManage = isManager
+export async function loadClassPeopleViewData(me: Profile, courseId: string): Promise<ClassPeopleViewData> {
+  const [{ isAdmin }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, courseId)])
   const { tutors, students } = await getClassMembers(courseId)
 
   const [mentorMap, allTutors, allStudents, myMentorMap] = await Promise.all([

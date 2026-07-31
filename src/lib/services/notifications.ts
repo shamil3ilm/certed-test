@@ -1,5 +1,7 @@
 import 'server-only'
+import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
+import { getClassMembers } from '@/lib/services/classes'
 import {
   insertNotifications,
   selectRecentNotifications,
@@ -13,7 +15,7 @@ import {
  * access goes through src/lib/data/notifications - this module holds no queries.
  */
 
-type NotificationKind = 'message' | 'grade' | 'announcement' | 'assignment'
+type NotificationKind = 'message' | 'grade' | 'announcement' | 'assignment' | 'submission'
 
 /** A notification as the app consumes it (the stored row, kind narrowed). */
 export type Notification = Omit<NotificationRow, 'kind'> & { kind: NotificationKind }
@@ -53,14 +55,37 @@ export async function notifyBestEffort(profileIds: string[], input: NotifyInput)
   }
 }
 
+/**
+ * Best-effort notification to ONE role of a class (its tutors or its students):
+ * resolves the membership and notifies that role, swallowing any failure. The
+ * callers are core workflows (posting an announcement/assignment, turning in
+ * work) that must never fail because of a notification, so this owns both the
+ * membership fetch and the never-throw contract in one place.
+ */
+export async function notifyClassRoleBestEffort(
+  classId: string,
+  role: 'students' | 'tutors',
+  input: NotifyInput,
+): Promise<void> {
+  try {
+    const members = await getClassMembers(classId)
+    await notifyBestEffort(
+      members[role].map((m) => m.id),
+      input,
+    )
+  } catch {
+    // best-effort - never fail the caller's core action
+  }
+}
+
 export async function listMyNotifications(profileId: string, limit = 30): Promise<Notification[]> {
   return (await selectRecentNotifications(profileId, limit)) as Notification[]
 }
 
 /** Unread count for the header badge (bounded - see UNREAD_BADGE_CAP). */
-export async function countUnreadNotifications(profileId: string): Promise<number> {
+export const countUnreadNotifications = cache(async (profileId: string): Promise<number> => {
   return (await selectUnreadNotificationIds(profileId, UNREAD_BADGE_CAP)).length
-}
+})
 
 /** Mark all of the caller's unread notifications read (self-scoped by RLS). */
 export async function markAllNotificationsRead(actor: Profile): Promise<void> {

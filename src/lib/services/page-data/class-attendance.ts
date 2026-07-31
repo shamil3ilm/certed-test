@@ -1,5 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
-import { loadPersonaFlags } from '@/lib/permission/personas'
+import { parsePageParam, totalPages } from '@/lib/pagination'
+import { canManageClass } from '@/lib/permission'
 import {
   listAttendanceForClassDate,
   listAttendanceForStudentPage,
@@ -49,15 +50,14 @@ export function attendanceSessionDate(candidate: string | undefined, instituteTz
 }
 
 export async function loadClassAttendancePageData(
-  me: Pick<Profile, 'id' | 'role'>,
+  me: Profile,
   courseId: string,
   searchParams?: AttendanceSearchParams,
 ): Promise<ClassAttendancePageData> {
-  const { isManager } = await loadPersonaFlags(me.id)
-  const canManage = isManager
+  const canManage = await canManageClass(me, courseId)
 
   if (!canManage) {
-    const recPage = Math.max(1, Number(searchParams?.recPage ?? '1') || 1)
+    const recPage = parsePageParam(searchParams?.recPage)
     const [summary, recordPage] = await Promise.all([
       summarizeAttendanceForStudent(me.id, courseId),
       listAttendanceForStudentPage(me.id, { page: recPage, pageSize: RECORD_PAGE_SIZE, classId: courseId }),
@@ -67,7 +67,7 @@ export async function loadClassAttendancePageData(
       kind: 'student',
       recPage,
       recTotal: recordPage.total,
-      recTotalPages: Math.max(1, Math.ceil(recordPage.total / RECORD_PAGE_SIZE)),
+      recTotalPages: totalPages(recordPage.total, RECORD_PAGE_SIZE),
       summary,
       rows: recordPage.items,
     }

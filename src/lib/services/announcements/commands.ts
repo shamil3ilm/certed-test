@@ -1,8 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageScope, assertClassActive } from '@/lib/permission'
-import { getClassMembers } from '@/lib/services/classes'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError } from '@/lib/errors'
 import { insertAnnouncement, updateAnnouncement } from '@/lib/data/announcements'
@@ -40,20 +39,12 @@ async function requireManageable(actor: Profile, id: string): Promise<Announceme
  */
 async function notifyClassOfPost(announcement: Announcement): Promise<void> {
   if (!announcement.class_id) return
-  try {
-    const members = await getClassMembers(announcement.class_id)
-    await notifyBestEffort(
-      members.students.map((s) => s.id),
-      {
-        kind: 'announcement',
-        title: `New announcement: ${announcement.title}`,
-        body: announcement.message.slice(0, 140),
-        link: `/classroom/${announcement.class_id}`,
-      },
-    )
-  } catch {
-    // best-effort - never fail posting the announcement
-  }
+  await notifyClassRoleBestEffort(announcement.class_id, 'students', {
+    kind: 'announcement',
+    title: `New announcement: ${announcement.title}`,
+    body: announcement.message.slice(0, 140),
+    link: `/classroom/${announcement.class_id}`,
+  })
 }
 
 export async function createAnnouncement(actor: Profile, input: CreateAnnouncementInput): Promise<Announcement> {

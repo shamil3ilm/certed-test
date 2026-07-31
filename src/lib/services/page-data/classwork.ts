@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAssignments, type Assignment } from '@/lib/services/assignments'
@@ -28,7 +29,9 @@ type ClassworkResourceView = {
 
 type ClassworkPageData = {
   canManage: boolean
+  canManageContent: boolean
   isStudent: boolean
+  isArchived: boolean
   now: number
   classList: { id: string; name: string }[]
   materialsPage: number
@@ -51,17 +54,19 @@ export function classworkPageUrl(page: number, search?: string): string {
 /** Loads and shapes the classwork page so the page only renders forms + lists. */
 export async function loadClassworkPageData(
   me: Profile,
-  course: { id: string; name: string },
+  course: { id: string; name: string; status: 'active' | 'archived' },
   searchParams?: ClassworkSearchParams,
 ): Promise<ClassworkPageData> {
   const [{ isStudent }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
+  const isArchived = course.status === 'archived'
+  const canManageContent = canManage && !isArchived
   // Student and tutor/manager are mutually exclusive by construction - a student
   // can't be made a class tutor (addTutor requires role tutor|mentor) and a tutor
   // can't be enrolled (enrolStudent requires role student) - so a student never
   // manages a class. No hybrid student+manager to guard against.
   const isStudentView = isStudent
   const classList = [{ id: course.id, name: course.name }]
-  const materialsPage = Math.max(1, Number(searchParams?.matPage ?? '1') || 1)
+  const materialsPage = parsePageParam(searchParams?.matPage)
   const materialsQuery = searchParams?.matQ?.trim() || undefined
 
   const [resourcesPage, archivedPage, assignments, mySubs, myPriorSubs] = await Promise.all([
@@ -78,6 +83,21 @@ export async function loadClassworkPageData(
     isStudentView ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
     isStudentView ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
   ])
+
+  // An out-of-range ?matPage= (stale/shared/hand-edited URL) would otherwise show a
+  // blank materials list with no empty-state and no pager. Clamp to the last real
+  // page and refetch so the user lands on content with a working pager instead.
+  const materialsTotalPages = totalPages(resourcesPage.total, MATERIALS_PAGE_SIZE)
+  const effMaterialsPage = Math.min(materialsPage, materialsTotalPages)
+  const materials =
+    effMaterialsPage === materialsPage
+      ? resourcesPage
+      : await listResourcesPage(course.id, {
+          page: effMaterialsPage,
+          pageSize: MATERIALS_PAGE_SIZE,
+          status: 'active',
+          search: materialsQuery,
+        })
 
   const subByAssignment = new Map(mySubs.map((s) => [s.assignment_id, s]))
   const historyByAssignment = new Map<string, Submission[]>()
@@ -106,20 +126,22 @@ export async function loadClassworkPageData(
       : Promise.resolve(new Map<string, Comment[]>()),
     listCommentsForEntities(
       'resource',
-      resourcesPage.items.map((r) => r.id),
+      materials.items.map((r) => r.id),
     ),
   ])
 
   const nowMs = Date.now()
   return {
     canManage,
+    canManageContent,
     isStudent: isStudentView,
+    isArchived,
     now: nowMs,
     classList,
-    materialsPage,
+    materialsPage: effMaterialsPage,
     materialsQuery,
-    materialsTotal: resourcesPage.total,
-    materialsTotalPages: Math.max(1, Math.ceil(resourcesPage.total / MATERIALS_PAGE_SIZE)),
+    materialsTotal: materials.total,
+    materialsTotalPages,
     assignmentViews: visibleAssignments.map((assignment) => {
       const submission = subByAssignment.get(assignment.id)
       return {
@@ -130,7 +152,7 @@ export async function loadClassworkPageData(
         deadlineClosed: assignment.enforce_deadline && Date.parse(assignment.due_date) < nowMs,
       }
     }),
-    resourceViews: resourcesPage.items.map((resource) => ({
+    resourceViews: materials.items.map((resource) => ({
       resource,
       comments: resourceComments.get(resource.id) ?? [],
     })),

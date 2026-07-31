@@ -40,7 +40,7 @@ export type ClassSummary = ClassRow & {
 
 export type ClassMember = { id: string; rowId: string; name: string; email: string; role: string }
 export type ClassMembers = { tutors: ClassMember[]; students: ClassMember[] }
-export type MentorContact = { name: string; email: string }
+export type MentorContact = { id: string; name: string; email: string }
 
 export async function listClasses(): Promise<ClassRow[]> {
   return selectAllClasses()
@@ -64,16 +64,20 @@ export const getClass = selectClassById
  * (e.g. a future guardian/finance persona) sees none - membership is never
  * inferred from the absence of another persona.
  */
-export const myClassIds = cache(async (profile: Profile): Promise<string[]> => {
-  const { isAdmin, isTutor, isStudent } = await loadPersonaFlags(profile.id)
+const myClassIdsByProfileId = cache(async (profileId: string): Promise<string[]> => {
+  const { isAdmin, isTutor, isStudent } = await loadPersonaFlags(profileId)
   if (isAdmin) return selectAllClassIds()
 
   const [taught, enrolled] = await Promise.all([
-    isTutor ? selectActiveClassIdsForTutor(profile.id) : Promise.resolve([]),
-    isStudent ? selectActiveClassIdsForStudent(profile.id) : Promise.resolve([]),
+    isTutor ? selectActiveClassIdsForTutor(profileId) : Promise.resolve([]),
+    isStudent ? selectActiveClassIdsForStudent(profileId) : Promise.resolve([]),
   ])
   return [...new Set([...taught, ...enrolled])]
 })
+
+export async function myClassIds(profile: Profile): Promise<string[]> {
+  return myClassIdsByProfileId(profile.id)
+}
 
 const tally = (rows: MembershipRef[]): Map<string, number> => {
   const counts = new Map<string, number>()
@@ -118,9 +122,13 @@ export async function getClassMembers(classId: string): Promise<ClassMembers> {
       role: p?.role ?? 'student',
     }
   }
+  // Sort by name: the DB row order is unspecified (the membership queries have no
+  // ORDER BY), so an unsorted roster reshuffles between loads and disagrees with
+  // the alphabetical add-a-teacher / enrol pickers on the same page.
+  const byName = (a: ClassMember, b: ClassMember) => a.name.localeCompare(b.name)
   return {
-    tutors: tutorRows.map((r) => toMember(r.tutor_id, r.id)),
-    students: studentRows.map((r) => toMember(r.student_id, r.id)),
+    tutors: tutorRows.map((r) => toMember(r.tutor_id, r.id)).sort(byName),
+    students: studentRows.map((r) => toMember(r.student_id, r.id)).sort(byName),
   }
 }
 
@@ -137,7 +145,7 @@ export async function mentorsByStudent(studentIds: string[]): Promise<Map<string
   if (mentorIds.length === 0) return out
   const profiles = await getProfilesByIds(mentorIds)
   const byId = new Map(
-    [...profiles].map(([id, p]) => [id, { name: p.full_name ?? p.email, email: p.email } as MentorContact]),
+    [...profiles].map(([id, p]) => [id, { id, name: p.full_name ?? p.email, email: p.email } as MentorContact]),
   )
   for (const pair of pairs) {
     const contact = byId.get(pair.mentor_id)

@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { requireCapability } from '@/lib/auth/require-role'
-import { createCommentFromActionInput } from '@/lib/services/comments'
+import { createCommentFromActionInput, deleteCommentFromActionInput } from '@/lib/services/comments'
 
 /** Post a comment on any commentable entity. viewClasses admits class participants
  *  (admin/tutor/student); the service then authorizes against the specific parent
@@ -15,6 +15,20 @@ export async function addCommentAction(formData: FormData): Promise<ActionStatus
       entity_id: formData.get('entity_id'),
       content: formData.get('content'),
     })
+    revalidatePath('/classroom', 'layout')
+    revalidatePath('/assignments', 'layout')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
+}
+
+/** Delete a comment. RLS scopes the delete to the author (or an admin), so the
+ *  viewClasses gate here is just the coarse "is a class participant" check. */
+export async function deleteCommentAction(formData: FormData): Promise<ActionStatusResult> {
+  await requireCapability('viewClasses')
+  try {
+    await deleteCommentFromActionInput({ id: formData.get('id') })
     revalidatePath('/classroom', 'layout')
     revalidatePath('/assignments', 'layout')
     return actionDone()

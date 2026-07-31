@@ -1,16 +1,15 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { getAssignment } from '@/lib/services/assignments'
+import { getAssignment, type Assignment } from '@/lib/services/assignments'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { submissionInputSchema } from '@/lib/assignments/submit-schema'
 import { callReplaceOwnSubmission, markInactiveForStudent } from '@/lib/data/submissions'
-import { z } from 'zod'
+import { validateUuidField } from '@/lib/validation/id'
 import { getSubmission, type Submission } from './queries'
 
 /** What a STUDENT does with their own work: submit/resubmit, and withdraw while
  *  it is still ungraded. Tutor marking lives in ./grading. */
-
-const submissionIdSchema = z.string().uuid()
 
 export type RecordSubmissionInput = {
   assignment_id: string
@@ -76,7 +75,24 @@ export async function recordSubmission(actor: Profile, input: RecordSubmissionIn
     fileName: input.file_name ?? null,
   })
   if (error) throw mapReplaceSubmissionError(error.message)
+
+  // Tell the class's tutors that work was turned in - previously a tutor only
+  // discovered a submission by opening the grading queue. Mirrors the student
+  // new-assignment notification. Best-effort: the submission is already
+  // committed, so a notification failure must never fail the turn-in.
+  await notifyClassTutorsOfSubmission(assignment, actor)
+
   return data as Submission
+}
+
+/** Best-effort: notify a class's tutors that a student turned work in. */
+async function notifyClassTutorsOfSubmission(assignment: Assignment, student: Profile): Promise<void> {
+  await notifyClassRoleBestEffort(assignment.class_id, 'tutors', {
+    kind: 'submission',
+    title: `New submission: ${assignment.title}`,
+    body: `${student.full_name ?? student.email} turned in their work.`,
+    link: `/assignments/${assignment.id}`,
+  })
 }
 
 export async function recordSubmissionFromActionInput(
@@ -87,9 +103,7 @@ export async function recordSubmissionFromActionInput(
 }
 
 function validateSubmissionIdInput(input: { submission_id?: FormDataEntryValue | null }): string {
-  const parsed = submissionIdSchema.safeParse(String(input.submission_id ?? '').trim())
-  if (!parsed.success) throw new ValidationError('Missing submission.')
-  return parsed.data
+  return validateUuidField(input.submission_id, 'Missing submission.')
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   restoreResourceAction,
 } from '../../../assignments/manage-actions'
 import { UploadForm } from '../../../resources/UploadForm'
+import { EditResource } from '../../../resources/EditResource'
 import { CommentThread } from '../../../CommentThread'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { SubmitButton } from '../../../form'
@@ -45,7 +46,13 @@ export default async function ClassworkPage({
       )}
       <section className="space-y-4">
         <SectionLabel>Assignments</SectionLabel>
-        {data.canManage && <AssignmentForm classes={data.classList} />}
+        {data.isArchived && data.canManage && (
+          <AlertBanner>
+            This class is archived. Existing assignments and materials remain visible, but classwork changes are
+            disabled until the class is restored.
+          </AlertBanner>
+        )}
+        {data.canManageContent && <AssignmentForm classes={data.classList} />}
 
         <ul className="space-y-3">
           {data.assignmentViews.map(
@@ -97,7 +104,7 @@ export default async function ClassworkPage({
                   </div>
                 </div>
 
-                {data.canManage && (
+                {data.canManageContent && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Link href={`/assignments/${assignment.id}`} className="btn btn-sm btn-soft">
                       View submissions
@@ -205,7 +212,8 @@ export default async function ClassworkPage({
                       </p>
                     ) : submission && submission.score != null ? (
                       <p className="mt-2 text-xs text-slate-500">
-                        Graded - ask your tutor to use the Reopen for resubmission button if you need to submit again.
+                        Graded. Need to submit again? Ask your tutor in the comments below - only they can reopen it for
+                        resubmission.
                       </p>
                     ) : deadlineClosed ? (
                       <p className="mt-2 text-xs text-slate-500">
@@ -233,7 +241,7 @@ export default async function ClassworkPage({
 
       <section className="space-y-4">
         <SectionLabel>Materials</SectionLabel>
-        {data.canManage && <UploadForm classes={data.classList} />}
+        {data.canManageContent && <UploadForm classes={data.classList} />}
 
         <FilterBar clearHref="?" showClear={Boolean(data.materialsQuery)} applyLabel="Search">
           <FilterField label="Search materials" className="min-w-0 flex-1 sm:max-w-xs">
@@ -274,7 +282,10 @@ export default async function ClassworkPage({
                 >
                   Open Link
                 </a>
-                {data.canManage && (
+              </div>
+              {data.canManageContent && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <EditResource resource={resource} />
                   <form action={deleteResourceAction}>
                     <input type="hidden" name="id" value={resource.id} />
                     <input type="hidden" name="class_id" value={course.id} />
@@ -287,8 +298,8 @@ export default async function ClassworkPage({
                       Remove
                     </ConfirmSubmit>
                   </form>
-                )}
-              </div>
+                </div>
+              )}
               <CommentThread
                 entityType="resource"
                 entityId={resource.id}

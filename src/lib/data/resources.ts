@@ -82,6 +82,13 @@ export async function updateResourceStatus(id: string, status: ResourceRow['stat
   if (error) throw new Error(`resources.${status === 'active' ? 'restore' : 'archive'}: ${error.message}`)
 }
 
+/** Edit a material's own fields (title / link). Status is changed separately. */
+export async function updateResource(id: string, patch: { title: string; drive_link: string }): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('resources').update(patch).eq('id', id)
+  if (error) throw new Error(`resources.edit: ${error.message}`)
+}
+
 /**
  * A resource's class, SERVICE-ROLE. Used by the comment authorization check,
  * which must be able to tell "this row does not exist" from "you may not see

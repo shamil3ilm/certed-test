@@ -4,6 +4,7 @@ import {
   selectRecentForClasses,
   selectResourceById,
   selectResourcePage,
+  updateResource,
   updateResourceStatus,
   type ResourceRow,
 } from '@/lib/data/resources'
@@ -13,6 +14,8 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireManageableResource } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { linkUrl } from '@/lib/validation/url'
+import { titleField } from '@/lib/validation/fields'
+import { validateUuidField } from '@/lib/validation/id'
 import { z } from 'zod'
 
 export type Resource = ResourceRow
@@ -51,11 +54,9 @@ type CreateLinkResourceInput = {
   drive_link: string
 }
 
-const resourceIdSchema = z.string().uuid()
-
 const createLinkResourceInputSchema = z.object({
   class_id: z.string().uuid(),
-  title: z.string().trim().min(1).max(200),
+  title: titleField,
   drive_link: linkUrl,
 })
 
@@ -84,11 +85,7 @@ type ResourceIdActionInput = {
 }
 
 export function validateResourceIdInput(input: ResourceIdActionInput): string {
-  const parsed = resourceIdSchema.safeParse(String(input.id ?? ''))
-  if (!parsed.success) {
-    throw new ValidationError('Invalid resource id')
-  }
-  return parsed.data
+  return validateUuidField(input.id, 'Invalid resource id')
 }
 
 /**
@@ -117,6 +114,48 @@ export async function createLinkResourceFromActionInput(
   input: CreateLinkResourceActionInput,
 ): Promise<Resource> {
   return createLinkResource(actor, validateCreateLinkResourceInput(input))
+}
+
+type EditLinkResourceInput = { id: string; title: string; drive_link: string }
+
+const editLinkResourceInputSchema = z.object({
+  id: z.string().uuid(),
+  title: titleField,
+  drive_link: linkUrl,
+})
+
+type EditLinkResourceActionInput = {
+  id?: FormDataEntryValue | null
+  title?: FormDataEntryValue | null
+  url?: FormDataEntryValue | null
+}
+
+export function validateEditLinkResourceInput(input: EditLinkResourceActionInput): EditLinkResourceInput {
+  const parsed = editLinkResourceInputSchema.safeParse({
+    id: String(input.id ?? ''),
+    title: input.title,
+    drive_link: input.url,
+  })
+  if (!parsed.success) {
+    throw new ValidationError('Invalid material data')
+  }
+  return parsed.data
+}
+
+/**
+ * Edit a material's title and link. Enforces canManageClass on the resource's
+ * own class (via requireManageableResource) and audits - the same authorization
+ * as archive/restore. Editing metadata isn't gated on class-active, matching how
+ * assignments and announcements can be edited after their class is archived.
+ */
+export async function editResource(actor: Profile, input: EditLinkResourceInput): Promise<void> {
+  await requireManageableResource(actor, input.id, getResource)
+  await updateResource(input.id, { title: input.title, drive_link: input.drive_link })
+  await auditPrivilegedAction(actor, 'resource.edit', 'resource', input.id)
+}
+
+export async function editResourceFromActionInput(actor: Profile, input: EditLinkResourceActionInput): Promise<void> {
+  return editResource(actor, validateEditLinkResourceInput(input))
 }
 
 /**

@@ -70,6 +70,9 @@ export default async function ClassroomPage({ searchParams }: { searchParams?: {
   const isStudent = flags.isStudent
   const isTeacher = flags.isTutor
 
+  // Student and tutor are mutually exclusive (role is fixed and single; a student
+  // is never granted a tutor persona and vice-versa), so there is no learner+teacher
+  // hybrid to caption for.
   const subtitle = isAdmin
     ? 'All classes across the academy.'
     : isStudent

@@ -1,5 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
-import { canAccessClass } from '@/lib/permission'
+import { canManageClass } from '@/lib/permission'
 import { getAssignment } from '@/lib/services/assignments'
 import { getClass } from '@/lib/services/classes'
 import { listCommentsForEntities } from '@/lib/services/comments'
@@ -25,7 +25,7 @@ export async function loadAssignmentDetailPageData(
   if (!assignment) return null
 
   const [allowed, course, submissions, superseded] = await Promise.all([
-    canAccessClass(actor, assignment.class_id),
+    canManageClass(actor, assignment.class_id),
     getClass(assignment.class_id),
     listSubmissionsForAssignment(assignmentId),
     listSupersededSubmissions(assignmentId),
