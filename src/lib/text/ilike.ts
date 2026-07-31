@@ -10,5 +10,14 @@ export function escapeIlike(s: string): string {
  *  ( , ( ) " backslash ) so a term like "Smith, John" can't split into extra
  *  filter conditions and parentheses can't inject nested and/or logic. */
 export function escapeOrIlike(s: string): string {
-  return escapeIlike(s.replace(/[,()"\\]/g, ' '))
+  // Strip the .or() grammar chars to spaces, then collapse/trim the whitespace
+  // so a term made only of those chars (e.g. "()") doesn't survive as "  " and
+  // match posts containing double-spaces - it collapses to an empty pattern
+  // (no effective filter) instead.
+  return escapeIlike(
+    s
+      .replace(/[,()"\\]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
 }

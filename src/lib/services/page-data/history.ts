@@ -1,4 +1,5 @@
 import { listAuditPage } from '@/lib/data/audit'
+import { parsePageParam, totalPages } from '@/lib/pagination'
 import { getProfilesByIds, searchProfileIds } from '@/lib/services/users'
 
 const PAGE_SIZE = 25
@@ -72,7 +73,7 @@ export async function loadHistoryPageData(searchParams: {
   actor?: string
 }): Promise<HistoryPageData> {
   const filters: HistoryFilters = {
-    page: Math.max(1, Number(searchParams.page) || 1),
+    page: parsePageParam(searchParams.page),
     action: searchParams.action?.trim() || undefined,
     actor: searchParams.actor?.trim() || undefined,
   }
@@ -105,6 +106,6 @@ export async function loadHistoryPageData(searchParams: {
     filters,
     rows,
     total,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    totalPages: totalPages(total, PAGE_SIZE),
   }
 }

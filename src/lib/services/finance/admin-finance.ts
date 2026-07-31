@@ -1,4 +1,5 @@
 import { formatMoney } from '@/lib/money'
+import { parsePageParam, totalPages } from '@/lib/pagination'
 import { listActiveByRole, listActiveMentorCandidates } from '@/lib/services/users'
 import { listDocsPage, type FinanceDoc } from '@/lib/services/finance/finance-docs'
 
@@ -48,12 +49,12 @@ function toFilters(searchParams: {
 }): { receiptFilters: FinanceFilters; payslipFilters: FinanceFilters } {
   return {
     receiptFilters: {
-      page: Math.max(1, Number(searchParams.rPage) || 1),
+      page: parsePageParam(searchParams.rPage),
       q: searchParams.rq?.trim() || undefined,
       status: parseStatus(searchParams.rstatus),
     },
     payslipFilters: {
-      page: Math.max(1, Number(searchParams.pPage) || 1),
+      page: parsePageParam(searchParams.pPage),
       q: searchParams.pq?.trim() || undefined,
       status: parseStatus(searchParams.pstatus),
     },
@@ -82,7 +83,7 @@ function toLedgerView(
     kind,
     page: filters.page,
     total: page.total,
-    totalPages: Math.max(1, Math.ceil(page.total / PAGE_SIZE)),
+    totalPages: totalPages(page.total, PAGE_SIZE),
     rows: toRows(page.items),
     filters,
     other,

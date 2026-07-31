@@ -1,5 +1,6 @@
 import { ValidationError } from '@/lib/errors'
 import { createAnnouncementSchema } from '@/lib/validation/announcement'
+import { titleField } from '@/lib/validation/fields'
 import { z } from 'zod'
 
 /** Raw form values -> trusted inputs. Pure: no IO, no authorization. */
@@ -12,7 +13,7 @@ export type CreateAnnouncementInput = {
 
 const editAnnouncementInputSchema = z.object({
   id: z.string().uuid(),
-  title: z.string().trim().min(1).max(200),
+  title: titleField,
   message: z.string().trim().min(1).max(5000),
 })
 

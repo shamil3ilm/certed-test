@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { parsePageParam } from '@/lib/pagination'
 import { isAdminTier } from '@/lib/capabilities'
 import { activeTeachingProfileIds } from '@/lib/services/class-tutors'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
@@ -85,7 +86,7 @@ function parseFilters(searchParams: {
 }): UsersPageFilters {
   return {
     tab: (USER_TABS.find((t) => t.key === searchParams.tab)?.key ?? 'students') as UsersTab,
-    page: Math.max(1, Number(searchParams.page) || 1),
+    page: parsePageParam(searchParams.page),
     q: searchParams.q?.trim() || undefined,
     status: STATUS_OPTIONS.includes(searchParams.status as UsersStatus)
       ? (searchParams.status as UsersStatus)

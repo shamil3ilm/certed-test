@@ -175,13 +175,14 @@ export async function selectRegistrationFields(email: string): Promise<Registrat
   return (data as RegistrationFieldsRow) ?? null
 }
 
-/** Bind an auth user to the profile and consume the setup code. The `is null`
- *  guard makes concurrent claims safe; returns false if already claimed. */
+/** Bind an auth user to the profile, promote the invite to `active`, and consume
+ *  the setup code in one statement. The `is null` guard makes concurrent claims
+ *  safe; returns false if already claimed. */
 export async function bindAuthUserToProfile(profileId: string, authUserId: string): Promise<boolean> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('profiles')
-    .update({ auth_user_id: authUserId, setup_code_hash: null, setup_code_expires_at: null })
+    .update({ auth_user_id: authUserId, status: 'active', setup_code_hash: null, setup_code_expires_at: null })
     .eq('id', profileId)
     .is('auth_user_id', null)
     .select('id')
@@ -255,35 +256,12 @@ export async function bindMockAuthUserId(profileId: string, authUserId: string):
  * decision - it is never returned to the caller as a directory.
  */
 
-/** Every active profile id. */
-export async function selectActiveProfileIds(): Promise<string[]> {
-  const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('id').eq('status', 'active')
-  return ((data ?? []) as { id: string }[]).map((r) => r.id)
-}
-
 /** Which of the given ids are still active accounts. Needed because some graphs
  *  (mentorships) deliberately outlive an account's revocation. */
 export async function selectActiveIdsAmong(ids: string[]): Promise<string[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
   const { data } = await admin.from('profiles').select('id').in('id', ids).eq('status', 'active')
-  return ((data ?? []) as { id: string }[]).map((r) => r.id)
-}
-
-/** Active admin-tier staff ids (admin + sub_admin). */
-export async function selectActiveAdminTierIds(): Promise<string[]> {
-  const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('id').in('role', ['admin', 'sub_admin']).eq('status', 'active')
-  return ((data ?? []) as { id: string }[]).map((r) => r.id)
-}
-
-/** Active profiles with the given role - the holder set for a messaging-matrix
- *  persona (admin/sub_admin/tutor/mentor/student map 1:1 to profiles.role). */
-export async function selectActiveProfileIdsByRole(role: string): Promise<string[]> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.from('profiles').select('id').eq('role', role).eq('status', 'active')
-  if (error) throw new Error(`profiles.activeIdsByRole: ${error.message}`)
   return ((data ?? []) as { id: string }[]).map((r) => r.id)
 }
 

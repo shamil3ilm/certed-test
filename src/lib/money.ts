@@ -2,7 +2,6 @@
 // validator both read this - one source of truth so they can't drift and let an
 // un-renderable currency string reach Intl.NumberFormat).
 export const SUPPORTED_CURRENCIES = ['INR', 'AED', 'SAR', 'QAR', 'OMR', 'KWD', 'BHD', 'USD'] as const
-export type Currency = (typeof SUPPORTED_CURRENCIES)[number]
 
 // Currency minor units (decimal places). Most currencies use 2; the GCC/Arab
 // 3-decimal currencies (fils) and the 0-decimal ones (yen/won) must be handled

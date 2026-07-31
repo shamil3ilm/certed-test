@@ -1,5 +1,6 @@
 import { ValidationError } from '@/lib/errors'
 import { createClassSchema } from '@/lib/validation/class'
+import { validateUuidField } from '@/lib/validation/id'
 import { z } from 'zod'
 
 /** Turning raw form values into trusted inputs. Pure - no IO, no authorization. */
@@ -37,9 +38,5 @@ export function validateRenameClassInput(input: RenameClassActionInput): { id: s
 }
 
 export function validateClassIdInput(input: ClassIdActionInput): string {
-  const parsed = classIdSchema.safeParse(String(input.id ?? ''))
-  if (!parsed.success) {
-    throw new ValidationError('Invalid class id')
-  }
-  return parsed.data
+  return validateUuidField(input.id, 'Invalid class id')
 }

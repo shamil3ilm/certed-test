@@ -37,7 +37,6 @@ import {
 const FINANCE_DENIED = 'You are not allowed to manage finance documents.'
 
 export type { FinanceDoc, FinanceKind, FinanceLine, FinanceTotal, IssueFinanceDocInput }
-export type { NewFinanceDoc } from '@/lib/data/finance-docs'
 type PaginatedFinanceDocs = { items: FinanceDoc[]; total: number }
 
 const financeDocIdSchema = z.string().uuid()

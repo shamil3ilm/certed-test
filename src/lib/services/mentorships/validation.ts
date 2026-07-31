@@ -1,10 +1,10 @@
 import { ValidationError } from '@/lib/errors'
+import { validateUuidField } from '@/lib/validation/id'
 import { z } from 'zod'
 
 /** Raw form values -> trusted inputs. Pure: no IO, no authorization. */
 
 export type MentorshipParams = { mentorId: string; studentId: string }
-const mentorshipIdSchema = z.string().uuid()
 const mentorshipParamsSchema = z.object({
   mentorId: z.string().uuid(),
   studentId: z.string().uuid(),
@@ -31,9 +31,5 @@ export function validateAssignMentorInput(input: AssignMentorActionInput): Mento
 }
 
 export function validateRemoveMentorInput(input: RemoveMentorActionInput): string {
-  const parsed = mentorshipIdSchema.safeParse(String(input.id ?? ''))
-  if (!parsed.success) {
-    throw new ValidationError('Invalid mentorship id')
-  }
-  return parsed.data
+  return validateUuidField(input.id, 'Invalid mentorship id')
 }

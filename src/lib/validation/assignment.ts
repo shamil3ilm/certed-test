@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { titleField } from '@/lib/validation/fields'
 import { linkUrl } from './url'
 
 // Strict ISO-8601 instant (the client sends new Date(...).toISOString()). Rejects
@@ -11,7 +12,7 @@ export const createAssignmentSchema = z.object({
   // Trim before length checks so a whitespace-only title ("   ") collapses to ""
   // and is rejected, matching the edit path (which already trims). Otherwise it
   // passes min(1) and renders an empty heading.
-  title: z.string().trim().min(1).max(200),
+  title: titleField,
   description: z.string().trim().max(5000).optional(),
   due_date: isoDate, // absolute ISO instant (client converts its local input to UTC)
   attachment_drive_link: linkUrl.optional(),

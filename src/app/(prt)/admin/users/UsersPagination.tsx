@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { totalPages as pageCount } from '@/lib/pagination'
 import { USERS_PAGE_SIZE, usersUrl, type UsersTab } from '@/lib/services/page-data/admin-users'
 
 /** Page-through for the users list. Renders nothing when everything fits on one
@@ -20,7 +21,7 @@ export function UsersPagination({
   sortBy?: string
   sortOrder?: string
 }) {
-  const totalPages = Math.max(1, Math.ceil(total / USERS_PAGE_SIZE))
+  const totalPages = pageCount(total, USERS_PAGE_SIZE)
   if (totalPages <= 1) return null
   return (
     <div className="mt-4 flex items-center justify-between text-sm text-slate-500">

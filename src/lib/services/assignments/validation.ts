@@ -1,6 +1,7 @@
 import { ValidationError } from '@/lib/errors'
 import { createAssignmentSchema } from '@/lib/validation/assignment'
 import { linkUrl } from '@/lib/validation/url'
+import { titleField } from '@/lib/validation/fields'
 import { z } from 'zod'
 
 /** Raw API/form values -> trusted inputs. Pure: no IO, no authorization. */
@@ -31,7 +32,7 @@ const assignmentIdSchema = z.string().uuid()
 const assignmentStatusSchema = z.enum(['active', 'archived'])
 const editAssignmentActionSchema = z.object({
   id: z.string().uuid(),
-  title: z.string().trim().min(1).max(200),
+  title: titleField,
   description: z.string().trim().max(5000),
   due_date: z.string().datetime(),
   attachment_drive_link: z.string().trim(),
