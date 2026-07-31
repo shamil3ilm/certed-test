@@ -170,6 +170,9 @@ function createMockClient(uid: string | null): SupabaseClient {
     rpc: (fn: string, args: Args = {}) => rpc(uid, fn, args),
     auth: {
       getUser: async () => ({ data: { user: me ? { id: uid, email: me.email } : null }, error: null }),
+      // Mirrors supabase-js getClaims(): { data: { claims } | null }. sub === the
+      // auth uid, matching what getActorContext reads.
+      getClaims: async () => ({ data: me ? { claims: { sub: uid, email: me.email } } : null, error: null }),
       // OAuth paths are bypassed by the dev login in mock mode; provide harmless no-ops.
       exchangeCodeForSession: async () => ({ data: { user: null, session: null }, error: null }),
       signInWithOAuth: async () => ({ data: { provider: 'google', url: '/login' }, error: null }),
