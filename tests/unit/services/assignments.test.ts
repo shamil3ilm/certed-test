@@ -5,15 +5,13 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn(), assertClassActive:
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
-vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn(async () => ({ students: [], tutors: [] })) }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyClassRoleBestEffort: vi.fn() }))
 
 import { canManageClass, assertClassActive } from '@/lib/permission'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
-import { getClassMembers } from '@/lib/services/classes'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import {
   createAssignment,
   createAssignmentFromApiInput,
@@ -78,10 +76,10 @@ describe('createAssignment', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...assignmentRow, description: 'Read ch.4' }, error: null }) as any,
     )
-    vi.mocked(getClassMembers).mockResolvedValueOnce({ students: [{ id: 's-1' }, { id: 's-2' }], tutors: [] } as any)
     await createAssignment(actor, { class_id: 'class-1', title: 'HW', description: 'Read ch.4', due_date: 't' })
-    expect(notifyBestEffort).toHaveBeenCalledWith(
-      ['s-1', 's-2'],
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      'students',
       expect.objectContaining({
         kind: 'assignment',
         title: 'New assignment: HW',

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/services/classes', () => ({ listClasses: vi.fn(), listClassesByIds: vi.fn(), myClassIds: vi.fn() }))
+vi.mock('@/lib/services/classes', () => ({ listClasses: vi.fn(), listClassesByIds: vi.fn() }))
+vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForTutor: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ listActiveTeacherCandidates: vi.fn() }))
 
 import type { Capability } from '@/lib/capabilities'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'
-import { listClasses, listClassesByIds, myClassIds } from '@/lib/services/classes'
+import { listClasses, listClassesByIds } from '@/lib/services/classes'
+import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listActiveTeacherCandidates } from '@/lib/services/users'
 
@@ -44,9 +46,10 @@ describe('loadCalendarPageData', () => {
   })
 
   it('loads only the tutor-owned active classes for a manager without the admin tier', async () => {
-    // A tutor - OR anyone granted manageCalendar by override - manages own classes.
+    // A tutor manager sees only classes they actively teach, not classes they
+    // merely attend via another persona.
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isTutor: true } as any)
-    vi.mocked(myClassIds).mockResolvedValueOnce(['c1', 'c3'] as any)
+    vi.mocked(selectActiveClassIdsForTutor).mockResolvedValueOnce(['c1', 'c3'] as any)
     vi.mocked(listClassesByIds).mockResolvedValueOnce([
       { id: 'c1', name: 'Math', status: 'active' },
       { id: 'c3', name: 'History', status: 'archived' },

@@ -13,6 +13,8 @@ import {
   createLinkResourceFromActionInput,
   archiveResource,
   archiveResourceFromActionInput,
+  editResource,
+  validateEditLinkResourceInput,
   restoreResource,
   restoreResourceFromActionInput,
   listResourcesPage,
@@ -56,6 +58,56 @@ describe('createLinkResource', () => {
       entity_type: 'resource',
       entity_id: 'res-1',
     })
+  })
+})
+
+describe('editResource', () => {
+  const patch = { id: 'res-1', title: 'Updated notes', drive_link: 'https://y' }
+
+  it('throws NotFoundError for a missing id, without a permission check or audit', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    await expect(editResource(actor, patch)).rejects.toBeInstanceOf(NotFoundError)
+    expect(canManageClass).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-manager without writing or auditing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
+    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+    await expect(editResource(actor, patch)).rejects.toBeInstanceOf(PermissionError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('edits and audits for a manager', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    await editResource(actor, patch)
+    expect(writeAudit).toHaveBeenCalledWith({
+      actor_id: 'tutor-1',
+      action: 'resource.edit',
+      entity_type: 'resource',
+      entity_id: 'res-1',
+    })
+  })
+})
+
+describe('validateEditLinkResourceInput', () => {
+  it('accepts a valid id + title + url', () => {
+    const parsed = validateEditLinkResourceInput({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'Notes',
+      url: 'https://drive.google.com/x',
+    })
+    expect(parsed.title).toBe('Notes')
+    expect(parsed.drive_link).toBe('https://drive.google.com/x')
+  })
+
+  it('rejects a bad id or blank title', () => {
+    expect(() => validateEditLinkResourceInput({ id: 'nope', title: 'x', url: 'https://x' })).toThrow(ValidationError)
+    expect(() =>
+      validateEditLinkResourceInput({ id: '550e8400-e29b-41d4-a716-446655440000', title: '  ', url: 'https://x' }),
+    ).toThrow(ValidationError)
   })
 })
 

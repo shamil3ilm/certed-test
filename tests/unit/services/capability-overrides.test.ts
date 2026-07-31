@@ -55,8 +55,17 @@ describe('setCapabilityOverride', () => {
     vi.mocked(createAdminClient).mockReturnValue(
       makeClient({ data: { id: 'ovr-1', capability: 'viewGrading', effect: 'allow' }, error: null }) as any,
     )
+    vi.mocked(getProfileById).mockResolvedValue({ id: 'u1', status: 'active' } as any)
     await setCapabilityOverride(admin, { profileId: 'u1', capability: 'viewGrading', effect: 'allow' })
     expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'capability_override.create' }))
+  })
+
+  it('rejects setting a capability on a disabled or missing user', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: null }) as any)
+    vi.mocked(getProfileById).mockResolvedValue({ id: 'u1', status: 'disabled' } as any)
+    await expect(
+      setCapabilityOverride(admin, { profileId: 'u1', capability: 'viewGrading', effect: 'allow' }),
+    ).rejects.toBeInstanceOf(ValidationError)
   })
 })
 

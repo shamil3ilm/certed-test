@@ -6,50 +6,69 @@ import { loginAs } from './support'
 // non-participant must not read someone else's thread). Runs against the
 // production build in MOCK mode (seed reset before the run). Recipient policy +
 // service-layer rules are unit-tested; these exercise the wired pages.
+//
+// Actor is a TUTOR, not an admin: the recipient policy scopes DMs to direct
+// contacts (tutor <-> the students they teach), and admins are intentionally out
+// of scope by default. Tarun teaches Sara and Sam, so they are his valid recipients.
 
-test('MESSAGING -- admin composes a direct message, opens the thread, and finds it in the inbox', async ({ page }) => {
-  await loginAs(page, 'admin@mock.test')
+test('MESSAGING -- a tutor composes a direct message, opens the thread, and finds it in the inbox', async ({
+  page,
+}) => {
+  await loginAs(page, 'tutor@mock.test')
 
-  // Compose a new direct conversation with the tutor via the "New message" form.
+  // Compose a new direct conversation with one of the tutor's students.
   await page.goto('/messages')
-  await page.selectOption('select[name=recipient_ids]', { label: 'Tarun Tutor' })
+  await page.selectOption('select[name=recipient_ids]', { label: 'Sara Student' })
   await page.fill('input[name=body]', 'E2E direct hello')
-  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  // The composer syncs its selection state on hydration; wait for Start to enable
+  // (guards a hydration race where selectOption fires before React attaches).
+  const start = page.getByRole('button', { name: 'Start', exact: true })
+  await expect(start).toBeEnabled()
+  await start.click()
 
   // Redirected into the thread, the message we just sent is rendered.
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
   const convId = page.url().split('/messages/')[1].split(/[/?#]/)[0]
-  await expect(page.getByText('E2E direct hello')).toBeVisible()
+  // .first(): the suite shares one mock DB, so an identical body can exist from a
+  // prior test/retry; we only need to confirm this thread rendered the message.
+  await expect(page.getByText('E2E direct hello').first()).toBeVisible()
 
   // The conversation is now listed in the inbox, titled with the other party.
   await page.goto('/messages')
   const row = page.locator(`a[href="/messages/${convId}"]`)
   await expect(row).toBeVisible()
-  await expect(row).toContainText('Tarun Tutor')
+  await expect(row).toContainText('Sara Student')
 })
 
-test('MESSAGING -- admin starts a group thread auto-titled from its participants', async ({ page }) => {
-  await loginAs(page, 'admin@mock.test')
+test('MESSAGING -- a tutor starts a group thread auto-titled from its participants', async ({ page }) => {
+  await loginAs(page, 'tutor@mock.test')
 
   // Selecting more than one recipient starts a group conversation.
   await page.goto('/messages')
-  await page.selectOption('select[name=recipient_ids]', [{ label: 'Tarun Tutor' }, { label: 'Sam Student' }])
+  await page.selectOption('select[name=recipient_ids]', [{ label: 'Sara Student' }, { label: 'Sam Student' }])
   await page.fill('input[name=body]', 'E2E group kickoff')
-  await page.getByRole('button', { name: 'Start group' }).click()
+  // With two recipients the button label becomes "Start group"; waiting for it to
+  // be enabled also waits for the selection to sync after hydration.
+  const startGroup = page.getByRole('button', { name: 'Start group' })
+  await expect(startGroup).toBeEnabled()
+  await startGroup.click()
 
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
-  await expect(page.getByText('E2E group kickoff')).toBeVisible()
+  await expect(page.getByText('E2E group kickoff').first()).toBeVisible()
   // The thread is titled by the other participants (no explicit group title set).
-  await expect(page.getByRole('heading', { name: /Tarun Tutor/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Sara Student/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: /Sam Student/ })).toBeVisible()
 })
 
 test('MESSAGING -- a non-participant cannot read a thread they are not in', async ({ page }) => {
-  // Admin opens a conversation with Sam Student; Sara Student is not a participant.
-  await loginAs(page, 'admin@mock.test')
+  // The tutor opens a conversation with Sam Student; Sara Student - another of the
+  // tutor's students, but NOT a participant of this thread - must not read it.
+  await loginAs(page, 'tutor@mock.test')
   await page.goto('/messages')
   await page.selectOption('select[name=recipient_ids]', { label: 'Sam Student' })
-  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  const start = page.getByRole('button', { name: 'Start', exact: true })
+  await expect(start).toBeEnabled()
+  await start.click()
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
   const convId = page.url().split('/messages/')[1].split(/[/?#]/)[0]
 

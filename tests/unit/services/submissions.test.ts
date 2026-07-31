@@ -6,8 +6,10 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
+vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
+import { getClassMembers } from '@/lib/services/classes'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
@@ -86,6 +88,30 @@ describe('recordSubmission', () => {
     const created = await recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })
     expect(created.id).toBe('sub-1')
     expect(vi.mocked(createClient).mock.results).toHaveLength(1)
+  })
+
+  it('notifies the class tutors after a successful submission', async () => {
+    vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
+    vi.mocked(getClassMembers).mockResolvedValueOnce({
+      tutors: [{ id: 'teach-1', name: 'Tutor', email: 't@x.c' }],
+      students: [],
+    } as any)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null }, { data: submissionRow, error: null }) as any)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // notification insert
+    const created = await recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })
+    expect(created.id).toBe('sub-1')
+    expect(getClassMembers).toHaveBeenCalledWith('class-1')
+  })
+
+  it('still records the submission when the tutor notification fails (best-effort)', async () => {
+    vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
+    vi.mocked(getClassMembers).mockRejectedValueOnce(new Error('members lookup failed'))
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: null, error: null }, { data: submissionRow, error: null }) as any,
+    )
+    const created = await recordSubmission(student, { assignment_id: 'a-1', drive_link: 'https://x' })
+    expect(created.id).toBe('sub-1')
   })
 
   it('maps RPC enrollment failures to PermissionError', async () => {

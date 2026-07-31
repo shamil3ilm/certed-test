@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/permission', () => ({ canAccessClass: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ getClass: vi.fn() }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
@@ -10,7 +10,7 @@ vi.mock('@/lib/services/submissions', () => ({
 }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 
-import { canAccessClass } from '@/lib/permission'
+import { canManageClass } from '@/lib/permission'
 import { getAssignment } from '@/lib/services/assignments'
 import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { getClass } from '@/lib/services/classes'
@@ -26,12 +26,12 @@ describe('loadAssignmentDetailPageData', () => {
 
     await expect(loadAssignmentDetailPageData({ id: 'tutor-1', role: 'tutor' } as any, 'a-1')).resolves.toBeNull()
 
-    expect(canAccessClass).not.toHaveBeenCalled()
+    expect(canManageClass).not.toHaveBeenCalled()
   })
 
   it('returns null when the actor cannot access the assignment class', async () => {
     vi.mocked(getAssignment).mockResolvedValueOnce({ id: 'a-1', class_id: 'class-1' } as any)
-    vi.mocked(canAccessClass).mockResolvedValueOnce(false)
+    vi.mocked(canManageClass).mockResolvedValueOnce(false)
     vi.mocked(getClass).mockResolvedValueOnce({ id: 'class-1', name: 'Math' } as any)
     vi.mocked(listSubmissionsForAssignment).mockResolvedValueOnce([] as any)
     vi.mocked(listSupersededSubmissions).mockResolvedValueOnce([] as any)
@@ -44,7 +44,7 @@ describe('loadAssignmentDetailPageData', () => {
 
   it('loads course, submissions, names, and grouped comments for an accessible assignment', async () => {
     vi.mocked(getAssignment).mockResolvedValueOnce({ id: 'a-1', class_id: 'class-1', title: 'Essay' } as any)
-    vi.mocked(canAccessClass).mockResolvedValueOnce(true)
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getClass).mockResolvedValueOnce({ id: 'class-1', name: 'Math' } as any)
     vi.mocked(listSubmissionsForAssignment).mockResolvedValueOnce([
       { id: 'sub-1', student_id: 'student-1' },

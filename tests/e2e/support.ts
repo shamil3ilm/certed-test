@@ -36,9 +36,23 @@ export async function submitAndReload(page: Page, click: () => Promise<void>) {
  */
 export async function loginAs(page: Page, email: string, opts: { clearCookies?: boolean } = {}) {
   if (opts.clearCookies) await page.context().clearCookies()
-  await page.goto('/login')
-  await page.fill('input[name=email]', email)
-  await page.fill('input[name=password]', 'cert-ed')
+
+  async function openLoginPage() {
+    await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    if (!page.url().includes('/login')) {
+      await page.goto('/api/dev/logout', { waitUntil: 'domcontentloaded' }).catch(() => null)
+      if (opts.clearCookies) await page.context().clearCookies()
+      await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    }
+  }
+
+  await openLoginPage()
+
+  const emailInput = page.locator('input[name=email]')
+  const passwordInput = page.locator('input[name=password]')
+  await emailInput.waitFor({ state: 'visible', timeout: 15000 })
+  await emailInput.fill(email)
+  await passwordInput.fill('cert-ed')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL('**/dashboard')
 }

@@ -79,7 +79,7 @@ describe('loadClassStreamViewData', () => {
 
     const result = await loadClassStreamViewData(
       { id: 'admin-1', role: 'admin', email: 'admin@test.com', full_name: 'Admin' } as any,
-      { id: 'class-1', name: 'Math' },
+      { id: 'class-1', name: 'Math', status: 'active' },
       { streamPage: '2', streamQ: ' exam ' },
     )
 
@@ -89,6 +89,8 @@ describe('loadClassStreamViewData', () => {
       status: 'active',
       search: 'exam',
     })
+    expect(result.canManageContent).toBe(true)
+    expect(result.isArchived).toBe(false)
     expect(result.streamTotalPages).toBe(2)
     expect(result.archivedAnnouncements).toHaveLength(2)
     expect(result.meetLinks).toEqual([{ id: 'm1', class_id: 'class-1', title: 'Live class meet', active: true }])
@@ -111,13 +113,32 @@ describe('loadClassStreamViewData', () => {
 
     const result = await loadClassStreamViewData(
       { id: 'student-1', role: 'student', email: 'student@test.com', full_name: 'Student' } as any,
-      { id: 'class-1', name: 'Math' },
+      { id: 'class-1', name: 'Math', status: 'active' },
       {},
     )
 
     expect(listAnnouncementsForClassPage).toHaveBeenCalledTimes(1)
     expect(result.canManage).toBe(false)
+    expect(result.canManageContent).toBe(false)
     expect(result.archivedAnnouncements).toEqual([])
     expect(result.archivedMeetLinks).toEqual([])
+  })
+
+  it('keeps archived classes readable while disabling manager write actions', async () => {
+    vi.mocked(listAnnouncementsForClassPage)
+      .mockResolvedValueOnce({ items: [], total: 0 } as any)
+      .mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(listMeetLinks).mockResolvedValueOnce([] as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValueOnce(new Map() as any)
+
+    const result = await loadClassStreamViewData(
+      { id: 'admin-1', role: 'admin', email: 'admin@test.com', full_name: 'Admin' } as any,
+      { id: 'class-1', name: 'Math', status: 'archived' },
+      {},
+    )
+
+    expect(result.canManage).toBe(true)
+    expect(result.canManageContent).toBe(false)
+    expect(result.isArchived).toBe(true)
   })
 })

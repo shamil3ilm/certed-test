@@ -3,12 +3,15 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
+vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getClassMembers } from '@/lib/services/classes'
 import {
   notify,
   notifyBestEffort,
+  notifyClassRoleBestEffort,
   countUnreadNotifications,
   markAllNotificationsRead,
 } from '@/lib/services/notifications'
@@ -35,6 +38,32 @@ describe('notify', () => {
   it('notifyBestEffort swallows an insert error rather than throwing into the caller', async () => {
     vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: { message: 'boom' } }) as any)
     await expect(notifyBestEffort(['a'], { kind: 'message', title: 'x' })).resolves.toBeUndefined()
+  })
+})
+
+describe('notifyClassRoleBestEffort', () => {
+  it('notifies just the chosen role from the class membership', async () => {
+    vi.mocked(getClassMembers).mockResolvedValue({
+      tutors: [{ id: 't-1' }, { id: 't-2' }],
+      students: [{ id: 's-1' }],
+    } as any)
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notifyClassRoleBestEffort('class-1', 'tutors', { kind: 'submission', title: 'New submission' })
+    expect(getClassMembers).toHaveBeenCalledWith('class-1')
+    const builder = client.from.mock.results[0].value
+    expect(builder.insert).toHaveBeenCalledWith([
+      expect.objectContaining({ profile_id: 't-1', kind: 'submission' }),
+      expect.objectContaining({ profile_id: 't-2' }),
+    ])
+  })
+
+  it('swallows a membership-lookup failure (best-effort - never fails the caller)', async () => {
+    vi.mocked(getClassMembers).mockRejectedValue(new Error('boom'))
+    await expect(
+      notifyClassRoleBestEffort('class-1', 'students', { kind: 'announcement', title: 'x' }),
+    ).resolves.toBeUndefined()
+    expect(createAdminClient).not.toHaveBeenCalled()
   })
 })
 

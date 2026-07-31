@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({
   loadActivePersonas: vi.fn(),
   hasPersona: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock('@/lib/services/submissions', () => ({
 }))
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
+import { canManageClass } from '@/lib/permission'
 import { listAssignments } from '@/lib/services/assignments'
 import { loadClassworkPageData, classworkPageUrl } from '@/lib/services/page-data/classwork'
 import { listCommentsForEntities } from '@/lib/services/comments'
@@ -42,6 +44,7 @@ beforeEach(() => {
       isMentor: false,
     } as any
   })
+  vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
 })
 
 describe('classworkPageUrl', () => {
@@ -81,11 +84,13 @@ describe('loadClassworkPageData', () => {
 
     const result = await loadClassworkPageData(
       { id: 'student-1', role: 'student' } as any,
-      { id: 'class-1', name: 'Math' },
+      { id: 'class-1', name: 'Math', status: 'active' },
       { matPage: '2', matQ: ' notes ' },
     )
 
     expect(result.canManage).toBe(false)
+    expect(result.canManageContent).toBe(false)
+    expect(result.isArchived).toBe(false)
     expect(result.materialsPage).toBe(2)
     expect(result.materialsQuery).toBe('notes')
     expect(result.materialsTotalPages).toBe(2)
@@ -117,12 +122,40 @@ describe('loadClassworkPageData', () => {
 
     const result = await loadClassworkPageData(
       { id: 'tutor-1', role: 'tutor' } as any,
-      { id: 'class-1', name: 'Math' },
+      { id: 'class-1', name: 'Math', status: 'active' },
       {},
     )
 
     expect(result.canManage).toBe(true)
+    expect(result.canManageContent).toBe(true)
     expect(result.archivedResources).toEqual([{ id: 'r2', title: 'Archived Notes' }])
     expect(listMyActiveSubmissions).not.toHaveBeenCalled()
+  })
+
+  it('keeps archived classwork readable while disabling manager write actions', async () => {
+    const resourcePageResponses = [
+      { items: [{ id: 'r1', title: 'Notes', created_at: '2026-07-15T00:00:00.000Z' }], total: 1 },
+      { items: [{ id: 'r2', title: 'Archived Notes' }], total: 1 },
+    ]
+    let resourcePageCallCount = 0
+    vi.mocked(listResourcesPage).mockImplementation(() =>
+      Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any),
+    )
+    vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
+    vi.mocked(listCommentsForEntities)
+      .mockResolvedValueOnce(new Map() as any)
+      .mockResolvedValueOnce(new Map([['r1', []]]) as any)
+
+    const result = await loadClassworkPageData(
+      { id: 'tutor-1', role: 'tutor' } as any,
+      { id: 'class-1', name: 'Math', status: 'archived' },
+      {},
+    )
+
+    expect(result.canManage).toBe(true)
+    expect(result.canManageContent).toBe(false)
+    expect(result.isArchived).toBe(true)
+    expect(result.resourceViews).toHaveLength(1)
+    expect(result.archivedResources).toEqual([{ id: 'r2', title: 'Archived Notes' }])
   })
 })

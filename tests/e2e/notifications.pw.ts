@@ -2,18 +2,24 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './support'
 
 // End-to-end: an event (a new message) generates a notification the recipient sees.
+// A tutor messages one of their students (a valid recipient edge); admins are out
+// of scope for DMs by default, so the sender here is the tutor.
 test('NOTIFICATIONS -- a student is notified of a new message', async ({ page }) => {
-  await loginAs(page, 'admin@mock.test')
+  await loginAs(page, 'tutor@mock.test')
   await page.goto('/messages')
   await page.selectOption('select[name=recipient_ids]', { label: 'Sara Student' })
   await page.fill('input[name=body]', 'Please check your homework')
-  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  const start = page.getByRole('button', { name: 'Start', exact: true })
+  await expect(start).toBeEnabled()
+  await start.click()
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
 
-  // The excluded student logs in and finds the notification in their feed.
+  // The student logs in and finds the notification in their feed.
   await loginAs(page, 'student@mock.test', { clearCookies: true })
   await page.goto('/notifications')
-  await expect(page.getByText(/New message from/)).toBeVisible()
+  // Earlier tests in the suite may have messaged this student too, so assert at
+  // least one "New message from ..." notification is present rather than exactly one.
+  await expect(page.getByText(/New message from/).first()).toBeVisible()
 
   // Mark-all-read clears the list's unread state.
   await page.getByRole('button', { name: 'Mark all read' }).click()

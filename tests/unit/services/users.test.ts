@@ -107,7 +107,7 @@ describe('addUser', () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail: no existing
       .mockReturnValueOnce(
-        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'active' }, error: null }) as any,
+        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'pending' }, error: null }) as any,
       ) // profile upsert
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: deactivate others
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: upsert global
@@ -126,13 +126,13 @@ describe('addUser', () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail
       .mockReturnValueOnce(
-        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'active' }, error: null }) as any,
+        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'pending' }, error: null }) as any,
       ) // profile upsert
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivate others
       .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // reactivate global (update)
       .mockReturnValueOnce(
         makeClient({
-          data: { id: 'new-1', auth_user_id: null, email: 'new@x.c', role: 'tutor', status: 'active' },
+          data: { id: 'new-1', auth_user_id: null, email: 'new@x.c', role: 'tutor', status: 'pending' },
           error: null,
         }) as any,
       ) // rollback: getProfileById confirms the account is still unregistered (auth_user_id null)
@@ -216,7 +216,7 @@ describe('user action-input helpers', () => {
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail
       .mockReturnValueOnce(
         makeClient({
-          data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'active' },
+          data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'pending' },
           error: null,
         }) as any,
       ) // profile upsert
@@ -549,7 +549,7 @@ describe('self-service settings writes', () => {
 })
 
 describe('completePasswordRegistration', () => {
-  it('returns a uniform invalid error when no active registration target exists', async () => {
+  it('returns a uniform invalid error when no pending registration target exists', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await expect(
       completePasswordRegistration({ email: 'missing@x.c', code: '12345678', password: 'password123' }),
@@ -565,7 +565,7 @@ describe('completePasswordRegistration', () => {
         data: {
           id: 'profile-1',
           auth_user_id: null,
-          status: 'active',
+          status: 'pending',
           setup_code_hash: 'hash',
           setup_code_expires_at: '2099-01-01T00:00:00.000Z',
         },
@@ -589,7 +589,7 @@ describe('completePasswordRegistration', () => {
           data: {
             id: 'profile-1',
             auth_user_id: null,
-            status: 'active',
+            status: 'pending',
             setup_code_hash: 'hash',
             setup_code_expires_at: '2099-01-01T00:00:00.000Z',
           },
@@ -598,6 +598,7 @@ describe('completePasswordRegistration', () => {
       )
       .mockReturnValueOnce({ auth: { admin: { createUser, deleteUser: vi.fn() } } } as any)
       .mockReturnValueOnce(makeClient({ data: { id: 'profile-1' }, error: null }) as any)
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
 
     await expect(
       completePasswordRegistration({ email: 'Student@x.c', code: 'valid-code', password: 'password123' }),
@@ -621,7 +622,7 @@ describe('completePasswordRegistration', () => {
           data: {
             id: 'profile-1',
             auth_user_id: null,
-            status: 'active',
+            status: 'pending',
             setup_code_hash: 'hash',
             setup_code_expires_at: '2099-01-01T00:00:00.000Z',
           },
@@ -651,7 +652,7 @@ describe('completePasswordRegistration', () => {
           data: {
             id: 'profile-1',
             auth_user_id: null,
-            status: 'active',
+            status: 'pending',
             setup_code_hash: 'hash',
             setup_code_expires_at: '2099-01-01T00:00:00.000Z',
           },

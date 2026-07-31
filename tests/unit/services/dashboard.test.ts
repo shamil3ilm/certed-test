@@ -152,6 +152,33 @@ describe('loadDashboardViewData', () => {
     expect(financeTotals).not.toHaveBeenCalled()
   })
 
+  it('keeps the finance card data reachable for an admin with finance access even when the ledger is empty', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isAdmin: true }))
+    vi.mocked(listEvents).mockResolvedValueOnce([] as any)
+    vi.mocked(listMyReminders).mockResolvedValueOnce([] as any)
+    vi.mocked(listMyPastReminders).mockResolvedValueOnce([] as any)
+    vi.mocked(countPeople).mockResolvedValueOnce(null as any)
+    vi.mocked(countActiveClasses).mockResolvedValueOnce(0 as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
+    vi.mocked(countEnrollmentsPerClass).mockResolvedValueOnce(new Map() as any)
+    vi.mocked(financeTotals)
+      .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce([] as any)
+
+    await expect(loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps('viewFinance'))).resolves.toEqual({
+      kind: 'admin',
+      now: expect.any(Number),
+      upcoming: [],
+      reminders: [],
+      pastReminders: [],
+      peopleCounts: null,
+      activeClassCount: 0,
+      perClass: [],
+      revenueLabel: 'INR:0',
+      payoutLabel: 'INR:0',
+    })
+  })
+
   it('loads the sub-admin dashboard counts only', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isSubAdmin: true }))
     vi.mocked(countPeople).mockResolvedValueOnce({ students: 9, tutors: 4, pending: 2 } as any)
@@ -263,11 +290,12 @@ describe('loadDashboardViewData', () => {
     })
   })
 
-  it('throws for an unmapped persona state instead of silently showing the student dashboard', async () => {
+  it('returns the generic dashboard view for an unmapped persona state', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({}))
-    await expect(loadDashboardViewData({ id: 'mystery-1', role: 'student' } as any, caps())).rejects.toThrow(
-      'dashboard.identity_unmapped',
-    )
+    await expect(loadDashboardViewData({ id: 'mystery-1', role: 'student' } as any, caps())).resolves.toEqual({
+      kind: 'generic',
+      now: expect.any(Number),
+    })
   })
 })
 

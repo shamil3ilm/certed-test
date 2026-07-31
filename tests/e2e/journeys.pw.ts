@@ -38,9 +38,19 @@ test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', 
     has: page.getByRole('button', { name: 'Issue', exact: true }),
   })
   await rec.locator('select').first().selectOption({ label: 'Sara Student' })
-  await rec.getByPlaceholder('Subject').fill('Physics tuition')
-  await rec.getByPlaceholder('Hours').fill('8')
-  await rec.getByPlaceholder('Rate/hr').fill('600')
+  // The line-item inputs are label-based (aria-label), not placeholder-based.
+  await rec
+    .getByLabel(/Subject for line/)
+    .first()
+    .fill('Physics tuition')
+  await rec
+    .getByLabel(/Hours for line/)
+    .first()
+    .fill('8')
+  await rec
+    .getByLabel(/Rate per hour for line/)
+    .first()
+    .fill('600')
   await rec.getByRole('button', { name: 'Issue', exact: true }).click()
   await expect(page.getByText(/4,800/).first()).toBeVisible()
   await page.waitForLoadState('networkidle').catch(() => null) // let IssueForm's location.reload() settle

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({
   loadActivePersonas: vi.fn(),
   hasPersona: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('@/lib/time/format', () => ({ isCalendarDate: vi.fn(), todayInZone: vi.f
 vi.mock('@/lib/services/finance/org-settings', () => ({ getInstituteTimeZone: vi.fn(async () => 'Asia/Kolkata') }))
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
+import { canManageClass } from '@/lib/permission'
 import {
   listAttendanceForClassDate,
   listAttendanceForStudentPage,
@@ -52,6 +54,7 @@ beforeEach(() => {
       isMentor: false,
     } as any
   })
+  vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
 })
 
 describe('attendanceRecordPageUrl', () => {
