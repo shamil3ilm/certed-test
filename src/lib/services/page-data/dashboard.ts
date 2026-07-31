@@ -38,6 +38,7 @@ export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee
 type MentorDashboardViewData = { kind: 'mentor'; mentees: DashboardMentee[]; teaches: boolean; now: number }
 type StudentDashboardViewData = { kind: 'student'; now: number }
 type TutorDashboardViewData = { kind: 'tutor'; now: number }
+type GenericDashboardViewData = { kind: 'generic'; now: number }
 
 type DashboardViewData =
   | AdminDashboardViewData
@@ -45,6 +46,7 @@ type DashboardViewData =
   | MentorDashboardViewData
   | TutorDashboardViewData
   | StudentDashboardViewData
+  | GenericDashboardViewData
 
 export type AdminDashboardViewData = {
   kind: 'admin'
@@ -115,8 +117,8 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
     peopleCounts,
     activeClassCount,
     perClass,
-    revenueLabel: receiptTotals ? formatMoneyTotals(receiptTotals) : null,
-    payoutLabel: payslipTotals ? formatMoneyTotals(payslipTotals) : null,
+    revenueLabel: canViewFinance ? formatMoneyTotals(receiptTotals ?? []) : null,
+    payoutLabel: canViewFinance ? formatMoneyTotals(payslipTotals ?? []) : null,
   }
 }
 
@@ -139,7 +141,6 @@ export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capab
 
   if (flags.isAdmin) return loadAdminDashboardViewData(me, caps)
   if (flags.isSubAdmin) return loadSubAdminDashboardViewData(caps)
-  if (flags.isStudent) return { kind: 'student', now }
 
   // Teaching is persona-first, but a mentor account that was given tutor reach
   // must also show the teaching widgets while the membership still exists.
@@ -153,6 +154,7 @@ export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capab
   // the landing page for a valid, default account state.
   if (flags.hasMentorAuthority || mentees.length > 0) return { kind: 'mentor', mentees, teaches, now }
   if (teaches) return { kind: 'tutor', now }
+  if (flags.isStudent) return { kind: 'student', now }
 
-  throw new Error(`dashboard.identity_unmapped: profile ${me.id} has no supported dashboard persona`)
+  return { kind: 'generic', now }
 }

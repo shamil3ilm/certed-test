@@ -5,9 +5,9 @@ import { useSyncExternalStore } from 'react'
 const noopSubscribe = () => () => {}
 
 // Some engines still report deprecated IANA aliases (notably Asia/Calcutta for
-// Asia/Kolkata) from resolvedOptions(). They name the SAME zone, but showing the
-// legacy alias next to the academy's configured Asia/Kolkata reads as an
-// inconsistency - canonicalize the common ones so the label matches.
+// Asia/Kolkata) from resolvedOptions(). They name the same zone, but showing an
+// older alias next to the academy's configured Asia/Kolkata reads as an
+// inconsistency, so canonicalize the common ones so the label matches.
 const TZ_ALIASES: Record<string, string> = {
   'Asia/Calcutta': 'Asia/Kolkata',
   'Asia/Rangoon': 'Asia/Yangon',

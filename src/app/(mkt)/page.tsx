@@ -46,7 +46,7 @@ export default function Home() {
           </div>
 
           <div className="flex w-full flex-1 justify-center md:justify-end">
-            <div className="relative aspect-square w-full max-w-[600px] md:aspect-[4/3] lg:aspect-square">
+            <div className="pointer-events-none relative aspect-square w-full max-w-[600px] md:aspect-[4/3] lg:aspect-square">
               <Image
                 src="/child-online-learning-cbse-icse-student-india-gcc.webp"
                 alt="Child attending one-to-one online tuition and writing notes on tablet"

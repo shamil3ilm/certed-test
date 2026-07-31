@@ -276,7 +276,17 @@ function ReminderPanelBody({
                   overdue ? 'border-red-200 bg-red-50' : 'border-slate-100 bg-slate-50'
                 }`}
               >
-                <span className={`mt-0.5 text-sm ${overdue ? 'text-red-500' : 'text-primary'}`}>Clock</span>
+                <svg
+                  className={`mt-0.5 h-4 w-4 shrink-0 ${overdue ? 'text-red-500' : 'text-primary'}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+                </svg>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{reminder.title}</p>
                   {reminder.description && (

@@ -91,6 +91,9 @@ export async function AttendanceRateWidget({ studentId }: { studentId: string })
           </p>
         </>
       )}
+      <Link href="/classroom" className={WIDGET_CTA_LINK}>
+        Open classes &rarr;
+      </Link>
     </Panel>
   )
 }
@@ -150,6 +153,9 @@ export async function LatestAnnouncementWidget({
         <>
           <p className="font-medium text-slate-800">{a.title}</p>
           <p className="mt-1 line-clamp-2 text-sm text-slate-500">{a.message}</p>
+          <Link href="/classroom" className={WIDGET_CTA_LINK}>
+            Open classes &rarr;
+          </Link>
         </>
       )}
     </Panel>

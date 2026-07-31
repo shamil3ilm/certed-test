@@ -1,7 +1,10 @@
+import Link from 'next/link'
 import { Suspense } from 'react'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
 import type { Profile } from '@/lib/auth/profile'
+import { myClassIds } from '@/lib/services/classes'
+import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import {
   type AdminDashboardViewData,
   type DashboardMentee,
@@ -59,10 +62,28 @@ export default async function Dashboard() {
         />
       )}
       {data.kind === 'mentor' && (
-        <MentorDashboard me={me} mentees={data.mentees} teaches={data.teaches} now={data.now} />
+        <MentorDashboard
+          me={me}
+          mentees={data.mentees}
+          teaches={data.teaches}
+          now={data.now}
+          canViewMentees={actor.capabilities.allowed.has('viewMentees')}
+          canViewClasses={actor.capabilities.allowed.has('viewClasses')}
+          canViewGrading={actor.capabilities.allowed.has('viewGrading')}
+        />
       )}
-      {data.kind === 'tutor' && <TutorDashboard me={me} now={data.now} />}
-      {data.kind === 'student' && <StudentDashboard me={me} now={data.now} />}
+      {data.kind === 'tutor' && (
+        <TutorDashboard
+          me={me}
+          now={data.now}
+          canViewClasses={actor.capabilities.allowed.has('viewClasses')}
+          canViewGrading={actor.capabilities.allowed.has('viewGrading')}
+        />
+      )}
+      {data.kind === 'student' && (
+        <StudentDashboard me={me} now={data.now} canViewClasses={actor.capabilities.allowed.has('viewClasses')} />
+      )}
+      {data.kind === 'generic' && <GenericDashboard me={me} now={data.now} />}
     </main>
   )
 }
@@ -75,17 +96,23 @@ function MentorDashboard({
   mentees,
   teaches,
   now,
+  canViewMentees,
+  canViewClasses,
+  canViewGrading,
 }: {
   me: Profile
   mentees: DashboardMentee[]
   teaches: boolean
   now: number
+  canViewMentees: boolean
+  canViewClasses: boolean
+  canViewGrading: boolean
 }) {
   return (
     <>
-      <MenteesPanel mentees={mentees} />
+      {canViewMentees && <MenteesPanel mentees={mentees} />}
       {teaches ? (
-        <TutorDashboard me={me} now={now} />
+        <TutorDashboard me={me} now={now} canViewClasses={canViewClasses} canViewGrading={canViewGrading} />
       ) : (
         // A dedicated mentor (no teaching widgets) still gets personal reminders.
         <section className="mt-6">
@@ -189,9 +216,9 @@ function SubAdminDashboard({
                   : 'Add, edit or revoke students and tutors.'}
           </p>
         </div>
-        <a href="/admin/users" className="btn btn-primary shrink-0">
+        <Link href="/admin/users" className="btn btn-primary shrink-0">
           {canManageUsers ? 'Manage users' : 'View users'}
-        </a>
+        </Link>
       </Card>
     </>
   )
@@ -246,6 +273,9 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Students per class">
           <MiniBars data={data.perClass} />
+          <Link href="/classroom" className="btn btn-sm btn-soft mt-3 min-h-10 px-3 py-2 text-sm font-semibold">
+            Open classes &rarr;
+          </Link>
         </Panel>
         <Panel title="Upcoming">
           <Upcoming events={data.upcoming} />
@@ -258,22 +288,64 @@ function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
 
 /** Tutor home leads with the work to do: today's classes, attendance to mark,
  *  submissions to review, then the latest class updates. */
-function TutorDashboard({ me, now }: { me: Profile; now: number }) {
+function CapabilityNotice({ message }: { message: string }) {
+  return (
+    <Card className="mt-6 p-5">
+      <h2 className="text-sm font-semibold text-slate-800">Dashboard access is limited</h2>
+      <p className="mt-1 text-sm text-slate-500">{message}</p>
+    </Card>
+  )
+}
+
+function TutorDashboard({
+  me,
+  now,
+  canViewClasses,
+  canViewGrading,
+}: {
+  me: Profile
+  now: number
+  canViewClasses: boolean
+  canViewGrading: boolean
+}) {
+  if (!canViewClasses && !canViewGrading) {
+    return (
+      <section className="mt-6">
+        <CapabilityNotice message="Class and grading widgets are hidden because this account does not currently have those features enabled." />
+        <section className="mt-6">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <RemindersWidget me={me} now={now} />
+          </Suspense>
+        </section>
+      </section>
+    )
+  }
+
+  const sharedDataPromise = Promise.all([myClassIds(me), getInstituteTimeZone()])
+
   return (
     <>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Suspense fallback={<WidgetSkeleton />}>
-          <TodaysClassesWidget me={me} title="Today's classes" />
-        </Suspense>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <PendingAttendanceWidget me={me} />
-        </Suspense>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <SubmissionsToReviewWidget me={me} />
-        </Suspense>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <RecentUploadsWidget me={me} />
-        </Suspense>
+        {canViewClasses && (
+          <Suspense fallback={<WidgetSkeleton />}>
+            <TutorTodaysClasses me={me} title="Today's classes" sharedDataPromise={sharedDataPromise} />
+          </Suspense>
+        )}
+        {canViewClasses && (
+          <Suspense fallback={<WidgetSkeleton />}>
+            <TutorPendingAttendance me={me} sharedDataPromise={sharedDataPromise} />
+          </Suspense>
+        )}
+        {canViewGrading && (
+          <Suspense fallback={<WidgetSkeleton />}>
+            <TutorSubmissionsToReview me={me} sharedDataPromise={sharedDataPromise} />
+          </Suspense>
+        )}
+        {canViewClasses && (
+          <Suspense fallback={<WidgetSkeleton />}>
+            <TutorRecentUploads me={me} sharedDataPromise={sharedDataPromise} />
+          </Suspense>
+        )}
       </section>
       <section className="mt-6">
         <Suspense fallback={<WidgetSkeleton />}>
@@ -286,12 +358,27 @@ function TutorDashboard({ me, now }: { me: Profile; now: number }) {
 
 /** Student home leads with what's owed: due work, then latest grade, attendance,
  *  and the latest class update. */
-function StudentDashboard({ me, now }: { me: Profile; now: number }) {
+function StudentDashboard({ me, now, canViewClasses }: { me: Profile; now: number; canViewClasses: boolean }) {
+  if (!canViewClasses) {
+    return (
+      <section className="mt-6">
+        <CapabilityNotice message="Class widgets are hidden because this account does not currently have class access enabled." />
+        <section className="mt-6">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <RemindersWidget me={me} now={now} />
+          </Suspense>
+        </section>
+      </section>
+    )
+  }
+
+  const classIdsPromise = myClassIds(me)
+
   return (
     <>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Suspense fallback={<WidgetSkeleton />}>
-          <DueWorkWidget me={me} now={now} />
+          <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <LatestGradeWidget studentId={me.id} />
@@ -300,7 +387,7 @@ function StudentDashboard({ me, now }: { me: Profile; now: number }) {
           <AttendanceRateWidget studentId={me.id} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
-          <LatestAnnouncementWidget me={me} />
+          <StudentLatestAnnouncement me={me} classIdsPromise={classIdsPromise} />
         </Suspense>
       </section>
       <section className="mt-6">
@@ -310,6 +397,85 @@ function StudentDashboard({ me, now }: { me: Profile; now: number }) {
       </section>
     </>
   )
+}
+
+function GenericDashboard({ me, now }: { me: Profile; now: number }) {
+  return (
+    <>
+      <section className="mt-6">
+        <CapabilityNotice message="This account is active, but it does not yet have a persona-specific dashboard. Personal reminders remain available while feature access is being configured." />
+      </section>
+      <section className="mt-6">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <RemindersWidget me={me} now={now} />
+        </Suspense>
+      </section>
+    </>
+  )
+}
+
+async function TutorTodaysClasses({
+  me,
+  title,
+  sharedDataPromise,
+}: {
+  me: Profile
+  title: string
+  sharedDataPromise: Promise<[string[], string]>
+}) {
+  const [classIds, timeZone] = await sharedDataPromise
+  return <TodaysClassesWidget me={me} title={title} data={{ classIds, timeZone }} />
+}
+
+async function TutorPendingAttendance({
+  me,
+  sharedDataPromise,
+}: {
+  me: Profile
+  sharedDataPromise: Promise<[string[], string]>
+}) {
+  const [classIds, timeZone] = await sharedDataPromise
+  return <PendingAttendanceWidget me={me} data={{ classIds, timeZone }} />
+}
+
+async function TutorRecentUploads({
+  me,
+  sharedDataPromise,
+}: {
+  me: Profile
+  sharedDataPromise: Promise<[string[], string]>
+}) {
+  const [classIds] = await sharedDataPromise
+  return <RecentUploadsWidget me={me} data={{ classIds }} />
+}
+
+async function TutorSubmissionsToReview({
+  me,
+  sharedDataPromise,
+}: {
+  me: Profile
+  sharedDataPromise: Promise<[string[], string]>
+}) {
+  const [classIds] = await sharedDataPromise
+  return <SubmissionsToReviewWidget me={me} data={{ classIds }} />
+}
+
+async function StudentDueWork({
+  me,
+  now,
+  classIdsPromise,
+}: {
+  me: Profile
+  now: number
+  classIdsPromise: Promise<string[]>
+}) {
+  const classIds = await classIdsPromise
+  return <DueWorkWidget me={me} now={now} data={{ classIds }} />
+}
+
+async function StudentLatestAnnouncement({ me, classIdsPromise }: { me: Profile; classIdsPromise: Promise<string[]> }) {
+  const classIds = await classIdsPromise
+  return <LatestAnnouncementWidget me={me} data={{ classIds }} />
 }
 
 function Upcoming({ events }: { events: CalendarEvent[] }) {

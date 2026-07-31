@@ -1,6 +1,7 @@
 'use server'
 import { requireCapability } from '@/lib/auth/require-role'
 import { activeTeachingProfileIds } from '@/lib/services/class-tutors'
+import { financeUrl } from '@/lib/services/finance/admin-finance'
 import { listProfilesByFilter } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
@@ -27,7 +28,13 @@ export async function loadStudentsModal() {
   // viewUsers-only grantee (via override) can load the tile it's shown.
   await requireCapability('viewUsers')
   const students = await listProfilesByFilter({ role: 'student', status: 'active' })
-  return { items: students.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.class_level ?? p.email })) }
+  return {
+    items: students.map((p) => ({
+      primary: p.full_name ?? p.email,
+      secondary: p.class_level ?? p.email,
+      href: `/students/${p.id}`,
+    })),
+  }
 }
 
 export async function loadTutorsModal() {
@@ -38,6 +45,7 @@ export async function loadTutorsModal() {
     items: staff.map((p) => ({
       primary: p.full_name ?? p.email,
       secondary: `${staffRoleLabel({ role: p.role, teaches: teachingStaffIds.has(p.id) })} - ${p.email}`,
+      href: `/admin/users?tab=tutors&q=${encodeURIComponent(p.email)}`,
     })),
   }
 }
@@ -45,7 +53,13 @@ export async function loadTutorsModal() {
 export async function loadPendingModal() {
   await requireCapability('viewUsers')
   const pending = await listProfilesByFilter({ status: 'pending' })
-  return { items: pending.map((p) => ({ primary: p.full_name ?? p.email, secondary: p.email })) }
+  return {
+    items: pending.map((p) => ({
+      primary: p.full_name ?? p.email,
+      secondary: p.email,
+      href: `/admin/users?status=pending&q=${encodeURIComponent(p.email)}`,
+    })),
+  }
 }
 
 export async function loadActiveClassesModal() {
@@ -78,12 +92,20 @@ export async function loadFinanceModal() {
       {
         heading: 'Revenue - receipts',
         total: formatMoneyTotals(receiptTotals),
-        items: liveReceipts.map((r) => ({ primary: r.number, secondary: formatMoney(Number(r.total), r.currency) })),
+        items: liveReceipts.map((r) => ({
+          primary: r.number,
+          secondary: formatMoney(Number(r.total), r.currency),
+          href: financeUrl('receipts', { page: 1, q: r.number }, { page: 1 }),
+        })),
       },
       {
         heading: 'Payouts - pay slips',
         total: formatMoneyTotals(payslipTotals),
-        items: livePayslips.map((p) => ({ primary: p.number, secondary: formatMoney(Number(p.total), p.currency) })),
+        items: livePayslips.map((p) => ({
+          primary: p.number,
+          secondary: formatMoney(Number(p.total), p.currency),
+          href: financeUrl('payslips', { page: 1, q: p.number }, { page: 1 }),
+        })),
       },
     ],
   }
