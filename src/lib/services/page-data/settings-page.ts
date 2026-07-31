@@ -64,7 +64,8 @@ export async function loadSettingsPageData(
   }
 
   const flags = await loadPersonaFlags(actor.id)
-  const showStudentClass = flags.isStudent
+  const showStudentClass =
+    flags.isStudent && !flags.isAdmin && !flags.isSubAdmin && !flags.isTutor && !flags.hasMentorAuthority
 
   return {
     alerts,

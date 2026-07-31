@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { selectActiveIdsAmong } from '@/lib/data/profiles'
 
 /**
  * Data layer for `persona_assignments` - table access only. WHICH persona a role
@@ -158,6 +159,21 @@ type PersonaAssignmentRow = {
   scope_type: string | null
   scope_id: string | null
   status: string
+}
+
+/** Active profile ids holding the given persona at ANY scope. Used by additive
+ *  messaging-matrix widening, which must follow the same live persona model as
+ *  route access rather than the stored profiles.role identity. */
+export async function selectActiveProfileIdsByPersona(personaName: string): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('persona_assignments')
+    .select('profile_id')
+    .eq('persona_name', personaName)
+    .eq('status', 'active')
+  if (error) throw new Error(`data.personas.activeIdsByPersona: ${error.message}`)
+  const profileIds = [...new Set(((data ?? []) as { profile_id: string }[]).map((row) => row.profile_id))]
+  return selectActiveIdsAmong(profileIds)
 }
 
 /** A profile's ACTIVE persona assignments, every scope. Service-role: persona

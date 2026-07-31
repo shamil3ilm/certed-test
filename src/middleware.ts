@@ -13,6 +13,7 @@ const PUBLIC_APP_PATHS = [
   '/api/dev/login', // dev-only mock sign-in (no-op unless MOCK_MODE)
   '/api/dev/logout',
   '/api/cron', // Vercel Cron keepalive; the route enforces its own CRON_SECRET (fails closed)
+  '/api/health', // public keep-warm target for an external uptime pinger (no secret, trivial DB read)
 ]
 
 export async function middleware(request: NextRequest) {

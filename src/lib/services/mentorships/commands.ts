@@ -59,7 +59,10 @@ export async function assignMentor(actor: Profile, params: MentorshipParams): Pr
   await requireActorCapability(actor.id, 'manageMentorships', 'You are not allowed to manage mentors.')
   await assertAssignableMentor(params.mentorId)
   const student = await getProfileById(params.studentId)
-  if (!student || student.role !== 'student') throw new ValidationError('student_id must be a student')
+  // Active-only, matching enrolStudent - don't create a mentorship (and the scoped
+  // persona that grants data access) over a disabled/revoked student.
+  if (!student || student.role !== 'student' || student.status !== 'active')
+    throw new ValidationError('student_id must be an active student')
 
   await upsertMentorship(params.mentorId, params.studentId)
   try {

@@ -56,9 +56,11 @@ async function requireManageableTarget(actor: Profile, id: string): Promise<Prof
 export type AddUserResult = { profile: Profile; code: string }
 
 /** Allowlist a user by email. Stamps a hashed one-time setup code so they can
- *  self-register a password. Mentor assignment (for a new student) is a
- *  separate call - see services/mentorships.ts's assignMentor - kept apart
- *  so each service function does exactly one thing. */
+ *  self-register a password. New invites stay `pending` until the account is
+ *  actually claimed, so active-user counts and pickers only reflect live logins.
+ *  Mentor assignment (for a new student) is a separate call - see
+ *  services/mentorships.ts's assignMentor - kept apart so each service
+ *  function does exactly one thing. */
 export async function addUser(actor: Profile, input: AddUserInput): Promise<AddUserResult> {
   // A Sub Admin can only create tutor/student accounts - never the admin tier.
   if (!(await canManageTarget(actor, input.role))) {
@@ -74,7 +76,7 @@ export async function addUser(actor: Profile, input: AddUserInput): Promise<AddU
     full_name: input.full_name ?? null,
     role: input.role,
     class_level: input.class_level ?? null,
-    status: 'active',
+    status: 'pending',
     setup_code_hash: hashSetupCode(code),
     setup_code_expires_at: setupCodeExpiry(),
   })

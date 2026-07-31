@@ -36,7 +36,7 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
     code: ERROR_CODES.invalidInput,
   } as const
   const target = await getRegistrationTarget(input.email)
-  if (!target || target.status !== 'active' || target.auth_user_id) return invalid
+  if (!target || target.status !== 'pending' || target.auth_user_id) return invalid
   if (!setupCodeValid(input.code, target.setup_code_hash, target.setup_code_expires_at)) return invalid
 
   const created = await createAuthUser(input.email, input.password)

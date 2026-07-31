@@ -14,6 +14,7 @@ import {
 } from '@/lib/data/capability-overrides'
 import { requireAdminPersona } from '@/lib/permission/personas'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { getProfileById } from '@/lib/services/users'
 import { ValidationError } from '@/lib/errors'
 
 // Global overrides cannot widen capabilities whose real boundary is a specific
@@ -74,6 +75,14 @@ async function createCapabilityOverride(
   const reason = input.reason?.trim() || null
   if (REASON_REQUIRED_CAPABILITIES.has(capability) && !reason) {
     throw new ValidationError('A reason is required to override this capability.')
+  }
+
+  // Active-only target, matching enrolStudent/addTutor/assignMentor: don't plant a
+  // capability grant on a missing or disabled account (an 'allow' would sit dormant
+  // and silently activate on restore).
+  const target = await getProfileById(input.profileId)
+  if (!target || target.status !== 'active') {
+    throw new ValidationError('You can only change capabilities for an active user.')
   }
 
   const row = await insertOverride({

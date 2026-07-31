@@ -59,15 +59,20 @@ export const getActorContext = cache(async (): Promise<ActorContext> => {
   }
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims() verifies the session JWT LOCALLY when the project uses asymmetric
+  // signing keys - no network round-trip to the Auth server - and falls back to
+  // getUser() for symmetric keys, so it is never slower than a direct getUser call.
+  // The middleware (updateSession) has already refreshed the session cookie for
+  // this request, so no token refresh is needed here; we only need to establish
+  // the verified identity, which is exactly what getClaims returns.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub ?? null
 
-  if (!user) {
+  if (!userId) {
     return { userId: null, profile: null, personas: [], capabilities: NO_CAPABILITIES, accessState: 'unauthenticated' }
   }
 
-  const profile = await selectOwnProfileByAuthUserId(user.id)
+  const profile = await selectOwnProfileByAuthUserId(userId)
 
   // Personas are keyed by profile.id (persona_assignments.profile_id), not auth.uid().
   let personas: PersonaAssignment[] = []
@@ -92,7 +97,7 @@ export const getActorContext = cache(async (): Promise<ActorContext> => {
   }
 
   return {
-    userId: user.id,
+    userId,
     profile,
     personas,
     capabilities: resolveCapabilities({ personas, overrides }),
