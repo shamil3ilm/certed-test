@@ -55,7 +55,7 @@ export type MergeInput = {
   }>
   assignments: Array<{ id: string; title: string; due_date: string; class_id: string }>
   /** Scheduled meet links (scheduled_at already an absolute UTC instant). */
-  meets: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
+  meets?: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
   anchorTz: string
 }
 
@@ -130,7 +130,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     })
   }
 
-  for (const m of input.meets) {
+  for (const m of input.meets ?? []) {
     items.push({
       id: `meet-${m.id}`,
       source: 'meet',

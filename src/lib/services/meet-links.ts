@@ -13,6 +13,7 @@ import { canManageScope, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { linkUrl } from '@/lib/validation/url'
+import { titleField } from '@/lib/validation/fields'
 import { z } from 'zod'
 
 export type MeetLink = MeetLinkRow
@@ -57,7 +58,7 @@ const scheduledAtField = z.string().datetime().nullable()
 
 const createMeetLinkInputSchema = z.object({
   class_id: z.string().uuid().nullable(),
-  title: z.string().trim().min(1).max(200),
+  title: titleField,
   url: linkUrl,
   description: z.string().trim().max(1000).optional(),
   scheduled_at: scheduledAtField,
@@ -121,7 +122,7 @@ type EditMeetLinkActionInput = {
 
 const editMeetLinkInputSchema = z.object({
   id: z.string().uuid(),
-  title: z.string().trim().min(1).max(200),
+  title: titleField,
   url: linkUrl,
   description: z.string().trim().max(1000).optional(),
   scheduled_at: scheduledAtField,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { assertActionOk } from '../action-client'
 import { startConversationAction } from './actions'
@@ -12,21 +12,38 @@ import type { Contact } from '@/lib/messaging/recipient-policy'
 export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
   const router = useRouter()
   const { toast } = useUI()
+  const recipientRef = useRef<HTMLSelectElement>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
 
+  function syncSelectedFromDom() {
+    const input = recipientRef.current
+    if (!input) return
+    setSelected(Array.from(input.selectedOptions, (option) => option.value))
+  }
+
+  useEffect(() => {
+    syncSelectedFromDom()
+  }, [])
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
-    if (selected.length === 0 || busy) return
+    if (busy) return
+
+    const formData = new FormData(event.currentTarget as HTMLFormElement)
+    const recipientIds = formData.getAll('recipient_ids').map(String).filter(Boolean)
+    const openingMessage = String(formData.get('body') ?? '').trim()
+    if (recipientIds.length === 0) return
+
     setBusy(true)
 
-    const formData = new FormData()
-    for (const id of selected) formData.append('recipient_ids', id)
-    if (body.trim()) formData.set('body', body.trim())
-
     try {
-      const data = assertActionOk(await startConversationAction(formData), 'Could not start the conversation') as {
+      const submitData = new FormData()
+      for (const id of recipientIds) submitData.append('recipient_ids', id)
+      if (openingMessage) submitData.set('body', openingMessage)
+
+      const data = assertActionOk(await startConversationAction(submitData), 'Could not start the conversation') as {
         id: string
       }
       router.push(`/messages/${data.id}`) // success -> navigate; component unmounts
@@ -41,12 +58,14 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
       <label className="block text-xs font-medium text-slate-500">
         To <span className="text-slate-400">(pick one for a direct message, or several for a group)</span>
         <select
+          ref={recipientRef}
           name="recipient_ids"
           multiple
           required
           size={Math.min(Math.max(contacts.length, 3), 6)}
           value={selected}
-          onChange={(event) => setSelected(Array.from(event.target.selectedOptions, (o) => o.value))}
+          onChange={syncSelectedFromDom}
+          onInput={syncSelectedFromDom}
           className="mt-1 block w-full rounded border px-2 py-1 text-sm"
         >
           {contacts.map((c) => (
@@ -62,6 +81,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
           <input
             name="body"
             aria-label="Opening message"
+            placeholder="Write your message..."
             value={body}
             onChange={(event) => setBody(event.target.value)}
             className="w-full rounded border px-2 py-1 text-sm"

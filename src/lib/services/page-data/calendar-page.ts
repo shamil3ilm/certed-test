@@ -1,6 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import type { Capability } from '@/lib/capabilities'
-import { listClasses, listClassesByIds, myClassIds } from '@/lib/services/classes'
+import { listClasses, listClassesByIds } from '@/lib/services/classes'
+import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listActiveTeacherCandidates } from '@/lib/services/users'
 
@@ -19,8 +20,13 @@ type CalendarPageData = {
  * hard rule (never override-granted), so it still reflects the true admin tier.
  */
 export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<Capability>): Promise<CalendarPageData> {
-  const canManage = caps.has('manageCalendar')
+  const flags = await loadPersonaFlags(profile.id)
   const isAdmin = caps.has('manageAdminTier')
+  // The current write layer for slots/events is still structural: admin or tutor
+  // authority over a class, not a generic override-granted management persona.
+  // Keep the management UI aligned with the live write paths so the page never
+  // advertises controls this actor cannot actually use yet.
+  const canManage = caps.has('manageCalendar') && (isAdmin || flags.isTutor)
 
   if (!canManage) {
     return { canManage, isAdmin, classes: [], tutors: [] }
@@ -38,8 +44,7 @@ export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<C
     }
   }
 
-  const { isTutor } = await loadPersonaFlags(profile.id)
-  const myClasses = isTutor ? await listClassesByIds(await myClassIds(profile)) : []
+  const myClasses = await listClassesByIds(await selectActiveClassIdsForTutor(profile.id))
   return {
     canManage,
     isAdmin,

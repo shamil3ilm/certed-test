@@ -1,9 +1,13 @@
+import dynamic from 'next/dynamic'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'
 import { CalendarView } from './CalendarView'
-import { TimetableManager } from './TimetableManager'
 import { PageHeader } from '@/lib/ui'
+
+const TimetableManager = dynamic(() => import('./TimetableManager').then((mod) => mod.TimetableManager), {
+  loading: () => <div className="mt-6 h-64 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />,
+})
 
 export default async function CalendarPage() {
   // viewCalendar (admin/tutor/student) - matches the nav. The prior active-only

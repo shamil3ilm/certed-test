@@ -129,6 +129,9 @@ export function CalendarView({
             }
             footerToolbar={isMobile ? { center: 'listWeek,dayGridMonth' } : undefined}
             buttonText={{ dayGridMonth: 'Month', timeGridWeek: 'Week', listWeek: 'Agenda', today: 'Today' }}
+            // Accessible names for the icon-only prev/next nav buttons (FullCalendar
+            // renders them as chevrons with no text); $0 becomes the active view unit.
+            buttonHints={{ prev: 'Previous $0', next: 'Next $0', today: 'This $0' }}
             dayMaxEventRows={3}
             height="auto"
             events={fetchEvents}

@@ -196,7 +196,8 @@ export async function updateConversationLastMessage(
   patch: { last_message_at: string; last_message_body: string; last_message_sender_id: string },
 ): Promise<void> {
   const admin = createAdminClient()
-  await admin.from('conversations').update(patch).eq('id', conversationId)
+  const { error } = await admin.from('conversations').update(patch).eq('id', conversationId)
+  if (error) throw new Error(`data.messages.updateConversationLastMessage: ${error.message}`)
 }
 
 /** A window of messages, newest first. Requests `limit + 1` so the caller can tell
@@ -221,16 +222,26 @@ export async function selectMessageWindow(
 /** The existing 1:1 conversation between two profiles, if any. */
 export async function findDirectConversationId(a: string, b: string): Promise<string | null> {
   const admin = createAdminClient()
-  const { data: aParts } = await admin.from('conversation_participants').select('conversation_id').eq('profile_id', a)
+  const { data: aParts, error: aError } = await admin
+    .from('conversation_participants')
+    .select('conversation_id')
+    .eq('profile_id', a)
+  if (aError) throw new Error(`data.messages.findDirectConversationId.a: ${aError.message}`)
   const aIds = ((aParts ?? []) as { conversation_id: string }[]).map((r) => r.conversation_id)
   if (aIds.length === 0) return null
-  const { data: bParts } = await admin
+  const { data: bParts, error: bError } = await admin
     .from('conversation_participants')
     .select('conversation_id')
     .eq('profile_id', b)
     .in('conversation_id', aIds)
+  if (bError) throw new Error(`data.messages.findDirectConversationId.b: ${bError.message}`)
   const shared = ((bParts ?? []) as { conversation_id: string }[]).map((r) => r.conversation_id)
   if (shared.length === 0) return null
-  const { data: convs } = await admin.from('conversations').select('id').in('id', shared).eq('kind', 'direct')
+  const { data: convs, error: convError } = await admin
+    .from('conversations')
+    .select('id')
+    .in('id', shared)
+    .eq('kind', 'direct')
+  if (convError) throw new Error(`data.messages.findDirectConversationId.conversations: ${convError.message}`)
   return ((convs ?? []) as { id: string }[])[0]?.id ?? null
 }

@@ -79,9 +79,9 @@ async function eligibleRecipientIds(actor: Profile): Promise<Set<string>> {
 
   // Admin-configured widening, ADDITIVE on top of the direct-contact edges above:
   // for every enabled persona pair the actor may also message everyone holding the
-  // paired persona globally (selectActiveProfileIdsByPersona already filters to active
-  // accounts). The empty matrix - the default - adds nothing, so scope stays
-  // "direct contacts only" until an admin opts in.
+  // paired persona at any active scope, but only while the target profile itself
+  // is still active. The empty matrix - the default - adds nothing, so scope
+  // stays "direct contacts only" until an admin opts in.
   const matrix = parseMessagingMatrix((await getOrgSettings()).messaging_matrix)
   if (matrix.size) {
     const targets = new Set<string>()
