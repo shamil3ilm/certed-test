@@ -142,7 +142,7 @@ CREATE FUNCTION public.current_profile_id() RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select id from profiles where auth_user_id = auth.uid()
+  select id from profiles where auth_user_id = auth.uid() and status = 'active'
 $$;
 
 
@@ -250,6 +250,11 @@ CREATE FUNCTION public.is_enrolled(p_class_id uuid) RETURNS boolean
   select exists(
     select 1 from enrollments e
     join profiles p on p.id = e.student_id
+    join persona_assignments pa
+      on pa.profile_id = e.student_id
+     and pa.persona_name = 'student'::persona_name
+     and pa.scope_type = 'global'::persona_scope_type
+     and pa.status = 'active'
     where p.auth_user_id = auth.uid() and p.status = 'active'
       and e.class_id = p_class_id and e.active
   )
@@ -451,6 +456,11 @@ CREATE FUNCTION public.mentors_student(p_student_id uuid) RETURNS boolean
   select exists(
     select 1 from mentorships m
     join profiles p on p.id = m.mentor_id
+    join persona_assignments pa
+      on pa.profile_id = m.mentor_id
+     and pa.persona_name = 'mentor'::persona_name
+     and pa.scope_type = 'student'::persona_scope_type
+     and pa.status = 'active'
     where p.auth_user_id = auth.uid() and p.status = 'active'
       and m.student_id = p_student_id and m.active
   )
@@ -603,6 +613,11 @@ CREATE FUNCTION public.teaches_class(p_class_id uuid) RETURNS boolean
   select exists(
     select 1 from class_tutors ct
     join profiles p on p.id = ct.tutor_id
+    join persona_assignments pa
+      on pa.profile_id = ct.tutor_id
+     and pa.persona_name = 'tutor'::persona_name
+     and pa.scope_type = 'global'::persona_scope_type
+     and pa.status = 'active'
     where p.auth_user_id = auth.uid() and p.status = 'active'
       and ct.class_id = p_class_id and ct.active
   )
@@ -2695,7 +2710,7 @@ CREATE POLICY submissions_read ON public.submissions FOR SELECT USING ((public.i
 -- Name: submissions submissions_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR public.is_self_active(student_id))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
+CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR (public.is_self_active(student_id) AND is_active = true AND score IS NULL AND graded_at IS NULL))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
 
 
 --
@@ -2851,7 +2866,8 @@ GRANT UPDATE(full_name) ON TABLE public.profiles TO authenticated;
 -- Name: COLUMN profiles.class_level; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(class_level) ON TABLE public.profiles TO authenticated;
+-- GRANT UPDATE(class_level) removed per migration 0033: class_level is admin-controlled
+-- (a self-grant let a student PATCH their own grade via the Data API). Self-update is full_name only.
 
 
 --
