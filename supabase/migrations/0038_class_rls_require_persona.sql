@@ -35,7 +35,7 @@ where ct.active and p.status = 'active'
 
 -- 1b. Backfill: create the global tutor persona for active tutors who have none.
 insert into persona_assignments (profile_id, persona_name, scope_type, scope_id, status)
-select distinct ct.tutor_id, 'tutor'::persona_name, 'global'::persona_scope_type, null, 'active'
+select distinct ct.tutor_id, 'tutor'::persona_name, 'global'::persona_scope_type, null::uuid, 'active'
 from class_tutors ct
 join profiles p on p.id = ct.tutor_id
 where ct.active and p.status = 'active'
@@ -59,7 +59,7 @@ where e.active and p.status = 'active'
 
 -- 2b. Backfill: create the global student persona for active enrolled students who have none.
 insert into persona_assignments (profile_id, persona_name, scope_type, scope_id, status)
-select distinct e.student_id, 'student'::persona_name, 'global'::persona_scope_type, null, 'active'
+select distinct e.student_id, 'student'::persona_name, 'global'::persona_scope_type, null::uuid, 'active'
 from enrollments e
 join profiles p on p.id = e.student_id
 where e.active and p.status = 'active'
