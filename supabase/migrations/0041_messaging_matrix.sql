@@ -1,4 +1,4 @@
--- 0034_messaging_matrix.sql
+-- 0041_messaging_matrix.sql
 -- Admin-configurable messaging matrix: which persona pairs may message each other
 -- GLOBALLY, layered additively on top of the fixed direct-contact default. Stored
 -- as a JSONB object of canonical sorted keys -> true, e.g. { "admin|student": true }.
