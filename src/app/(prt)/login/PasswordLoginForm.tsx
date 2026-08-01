@@ -55,6 +55,11 @@ export function PasswordLoginForm() {
           onChange={(event) => setPassword(event.target.value)}
         />
       </Field>
+      <div className="text-right">
+        <a href="/login/forgot" className="text-xs font-medium text-primary hover:underline">
+          Forgot password?
+        </a>
+      </div>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
       <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">

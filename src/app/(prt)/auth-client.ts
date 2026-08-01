@@ -90,3 +90,38 @@ export async function signInWithGoogleClient(): Promise<void> {
     throw new Error(OAUTH_SIGN_IN_MESSAGE)
   }
 }
+
+const RESET_REQUEST_MESSAGE = 'Could not send the reset email. Please try again in a few minutes.'
+const PASSWORD_UPDATE_MESSAGE = 'Could not update your password. Your reset link may have expired - request a new one.'
+
+/**
+ * Sends a password-reset email. Deliberately succeeds whether or not the address
+ * has an account (Supabase does not reveal existence, and the UI shows the same
+ * "check your inbox" message either way), so this never lets someone enumerate
+ * registered emails. The link lands on /auth/callback, which exchanges it for a
+ * short recovery session and forwards to /login/reset to set a new password.
+ */
+export async function requestPasswordResetClient(email: string): Promise<void> {
+  requireBrowserAuthConfig()
+
+  const { error } = await runAuth(() =>
+    createClient().auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/login/reset')}`,
+    }),
+  )
+
+  if (error) {
+    throw new Error(RESET_REQUEST_MESSAGE)
+  }
+}
+
+/** Sets a new password for the user in the current (recovery) session. */
+export async function updatePasswordClient(password: string): Promise<void> {
+  requireBrowserAuthConfig()
+
+  const { error } = await runAuth(() => createClient().auth.updateUser({ password }))
+
+  if (error) {
+    throw new Error(PASSWORD_UPDATE_MESSAGE)
+  }
+}
