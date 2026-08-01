@@ -13,6 +13,7 @@ import { canManageClass, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireManageableResource } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
+import { throttleWrite } from '@/lib/security/throttle'
 import { linkUrl } from '@/lib/validation/url'
 import { titleField } from '@/lib/validation/fields'
 import { validateUuidField } from '@/lib/validation/id'
@@ -94,6 +95,7 @@ export function validateResourceIdInput(input: ResourceIdActionInput): string {
  * the insert without going through this check.
  */
 export async function createLinkResource(actor: Profile, input: CreateLinkResourceInput): Promise<Resource> {
+  throttleWrite('resource', actor.id, 'resource')
   if (!(await canManageClass(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class')
   }
@@ -149,6 +151,7 @@ export function validateEditLinkResourceInput(input: EditLinkResourceActionInput
  * assignments and announcements can be edited after their class is archived.
  */
 export async function editResource(actor: Profile, input: EditLinkResourceInput): Promise<void> {
+  throttleWrite('resource', actor.id, 'resource')
   await requireManageableResource(actor, input.id, getResource)
   await updateResource(input.id, { title: input.title, drive_link: input.drive_link })
   await auditPrivilegedAction(actor, 'resource.edit', 'resource', input.id)
@@ -164,6 +167,7 @@ export async function editResourceFromActionInput(actor: Profile, input: EditLin
  * audit entry.
  */
 export async function archiveResource(actor: Profile, id: string): Promise<void> {
+  throttleWrite('resource', actor.id, 'resource')
   await requireManageableResource(actor, id, getResource)
   await updateResourceStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'resource.delete', 'resource', id)
@@ -176,6 +180,7 @@ export async function archiveResourceFromActionInput(actor: Profile, input: Reso
 /** Undoes archiveResource - the "kept on record" promise in the archive
  *  confirmation dialog previously had no matching UI action. */
 export async function restoreResource(actor: Profile, id: string): Promise<void> {
+  throttleWrite('resource', actor.id, 'resource')
   const resource = await requireManageableResource(actor, id, getResource)
   // Restoring re-activates content on the class - same rule as create/upload: no
   // active material on an archived (soft-deleted) class.

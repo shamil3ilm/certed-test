@@ -102,6 +102,15 @@ export async function canMessage(actor: Profile, recipientId: string): Promise<b
   return ids.has(recipientId)
 }
 
+/** Which of `recipientIds` the actor may NOT message. Resolves the eligible set
+ *  ONCE (canMessage recomputes it every call, so checking a whole recipient list
+ *  with it is an N+1 over the 5-9 queries the resolution costs). */
+export async function unmessageableRecipients(actor: Profile, recipientIds: string[]): Promise<string[]> {
+  if (recipientIds.length === 0) return []
+  const ids = await eligibleRecipientIds(actor)
+  return recipientIds.filter((id) => !id || id === actor.id || !ids.has(id))
+}
+
 /** The allowed recipient list for `actor`'s composer, name-resolved and sorted. */
 export async function listMessageableContacts(actor: Profile): Promise<Contact[]> {
   const ids = [...(await eligibleRecipientIds(actor))]

@@ -115,6 +115,11 @@ type SetCapabilityOverrideInput = {
  */
 export async function setCapabilityOverride(actor: Profile, input: SetCapabilityOverrideInput): Promise<void> {
   await requireAdminPersona(actor)
+  // Enforce server-side what the editor page only hides: no admin edits their OWN
+  // permissions (a crafted POST would otherwise bypass the hidden-UI convenience).
+  if (input.profileId === actor.id) {
+    throw new ValidationError('You cannot change your own permissions.')
+  }
   if (!isCapability(input.capability)) throw new ValidationError('Unknown capability.')
   if (HARD_CAPABILITIES.has(input.capability)) {
     throw new ValidationError('That capability is a hard platform rule and cannot be overridden.')

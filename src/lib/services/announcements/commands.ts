@@ -4,6 +4,7 @@ import { canManageScope, assertClassActive } from '@/lib/permission'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError } from '@/lib/errors'
+import { throttleWrite } from '@/lib/security/throttle'
 import { insertAnnouncement, updateAnnouncement } from '@/lib/data/announcements'
 import { getAnnouncement, type Announcement } from './queries'
 import {
@@ -48,6 +49,7 @@ async function notifyClassOfPost(announcement: Announcement): Promise<void> {
 }
 
 export async function createAnnouncement(actor: Profile, input: CreateAnnouncementInput): Promise<Announcement> {
+  throttleWrite('announcement', actor.id, 'announcement')
   if (!(await canManageScope(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class')
   }
@@ -74,12 +76,14 @@ export async function createAnnouncementFromActionInput(
 }
 
 export async function archiveAnnouncement(actor: Profile, id: string): Promise<void> {
+  throttleWrite('announcement', actor.id, 'announcement')
   await requireManageable(actor, id)
   await updateAnnouncement(id, { status: 'archived' })
   await auditPrivilegedAction(actor, 'announcement.archive', 'announcement', id)
 }
 
 export async function restoreAnnouncement(actor: Profile, id: string): Promise<void> {
+  throttleWrite('announcement', actor.id, 'announcement')
   const announcement = await requireManageable(actor, id)
   // Restoring re-activates content on the class, so hold it to the same rule as
   // createAnnouncement: no active content on an archived (soft-deleted) class.
@@ -95,6 +99,7 @@ export async function editAnnouncement(
   id: string,
   patch: { title: string; message: string },
 ): Promise<void> {
+  throttleWrite('announcement', actor.id, 'announcement')
   await requireManageable(actor, id)
   await updateAnnouncement(id, patch)
   await auditPrivilegedAction(actor, 'announcement.edit', 'announcement', id)

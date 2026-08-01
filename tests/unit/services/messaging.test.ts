@@ -4,12 +4,12 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(async () => new Map()) }))
-vi.mock('@/lib/messaging/recipient-policy', () => ({ canMessage: vi.fn() }))
+vi.mock('@/lib/messaging/recipient-policy', () => ({ canMessage: vi.fn(), unmessageableRecipients: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
-import { canMessage } from '@/lib/messaging/recipient-policy'
+import { canMessage, unmessageableRecipients } from '@/lib/messaging/recipient-policy'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
@@ -69,7 +69,7 @@ beforeEach(() => {
 
 describe('createConversation', () => {
   it('rejects when a recipient is not messageable by the actor', async () => {
-    vi.mocked(canMessage).mockResolvedValueOnce(false)
+    vi.mocked(unmessageableRecipients).mockResolvedValueOnce(['stranger'])
     await expect(createConversation(actor, { recipientIds: ['stranger'] })).rejects.toBeInstanceOf(PermissionError)
     expect(createAdminClient).not.toHaveBeenCalled()
   })
@@ -81,11 +81,11 @@ describe('createConversation', () => {
   it('throttles a burst of new conversations with RateLimitError', async () => {
     vi.mocked(rateLimit).mockReturnValueOnce({ ok: false, remaining: 0, retryAfterSec: 5 })
     await expect(createConversation(actor, { recipientIds: ['r1'] })).rejects.toBeInstanceOf(RateLimitError)
-    expect(canMessage).not.toHaveBeenCalled() // shed before recipient checks / DB
+    expect(unmessageableRecipients).not.toHaveBeenCalled() // shed before recipient checks / DB
   })
 
   it('dedupes to an existing 1:1 conversation instead of creating a new one', async () => {
-    vi.mocked(canMessage).mockResolvedValueOnce(true)
+    vi.mocked(unmessageableRecipients).mockResolvedValueOnce([])
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
         conversation_participants: [{ conversation_id: 'conv-existing' }],
@@ -97,7 +97,7 @@ describe('createConversation', () => {
   })
 
   it('creates a group conversation (no 1:1 dedupe) for multiple allowed recipients', async () => {
-    vi.mocked(canMessage).mockResolvedValue(true) // every recipient is messageable
+    vi.mocked(unmessageableRecipients).mockResolvedValue([]) // every recipient is messageable
     vi.mocked(createAdminClient).mockReturnValue(
       multiTableClient({
         conversations: [{ id: 'g1', kind: 'group', title: 'Study group', created_by: 'actor-1' }],
@@ -111,7 +111,7 @@ describe('createConversation', () => {
   })
 
   it('cleans up a newly inserted conversation when participant insertion fails', async () => {
-    vi.mocked(canMessage).mockResolvedValue(true)
+    vi.mocked(unmessageableRecipients).mockResolvedValue([])
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(
         multiTableClient({
@@ -199,7 +199,7 @@ describe('sendMessage', () => {
 
 describe('startConversation', () => {
   it('rolls back a newly created group conversation when the opening send fails', async () => {
-    vi.mocked(canMessage).mockResolvedValue(true)
+    vi.mocked(unmessageableRecipients).mockResolvedValue([])
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(
         multiTableClient({

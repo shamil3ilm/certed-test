@@ -12,6 +12,7 @@ import {
 import { canManageScope, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+import { throttleWrite } from '@/lib/security/throttle'
 import { linkUrl } from '@/lib/validation/url'
 import { titleField } from '@/lib/validation/fields'
 import { z } from 'zod'
@@ -95,6 +96,7 @@ export function validateCreateMeetLinkInput(input: CreateMeetLinkActionInput): C
  * admin-only. Enforces canManageScope and writes a `meet.create` audit entry.
  */
 export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput): Promise<MeetLink> {
+  throttleWrite('meet', actor.id, 'meeting link')
   if (!(await canManageScope(actor, input.class_id))) {
     throw new PermissionError('Not allowed to post a meet link to this class')
   }
@@ -131,6 +133,7 @@ const editMeetLinkInputSchema = z.object({
 /** Edit a meet link's title / url / description / scheduled time. Gated on
  *  managing the link's own class (or academy-wide for an admin), like delete. */
 export async function editMeetLinkFromActionInput(actor: Profile, input: EditMeetLinkActionInput): Promise<void> {
+  throttleWrite('meet', actor.id, 'meeting link')
   const parsed = editMeetLinkInputSchema.safeParse({
     id: String(input.id ?? ''),
     title: input.title,
@@ -168,6 +171,7 @@ export async function createMeetLinkFromActionInput(
  * (also a new behavior addition - see createMeetLink).
  */
 export async function deleteMeetLink(actor: Profile, id: string): Promise<void> {
+  throttleWrite('meet', actor.id, 'meeting link')
   const link = await getMeetLink(id)
   if (!link) throw new NotFoundError('Meet link not found')
   if (!(await canManageScope(actor, link.class_id))) {
@@ -180,6 +184,7 @@ export async function deleteMeetLink(actor: Profile, id: string): Promise<void> 
 /** Undoes deleteMeetLink - the "kept on record" promise in the removal
  *  confirmation dialog previously had no matching UI action. */
 export async function restoreMeetLink(actor: Profile, id: string): Promise<void> {
+  throttleWrite('meet', actor.id, 'meeting link')
   const link = await getMeetLink(id)
   if (!link) throw new NotFoundError('Meet link not found')
   if (!(await canManageScope(actor, link.class_id))) {

@@ -2,7 +2,7 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { PermissionError, ValidationError, RateLimitError } from '@/lib/errors'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { canMessage } from '@/lib/messaging/recipient-policy'
+import { unmessageableRecipients } from '@/lib/messaging/recipient-policy'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
@@ -55,10 +55,11 @@ export async function createConversation(actor: Profile, input: CreateConversati
     throw new RateLimitError('You are starting conversations too quickly. Please wait a moment.')
   }
 
-  for (const recipientId of recipientIds) {
-    if (!(await canMessage(actor, recipientId))) {
-      throw new PermissionError('You are not allowed to message one of those recipients.')
-    }
+  // Resolve eligibility ONCE for the whole list, not per-recipient (canMessage
+  // recomputes the actor's eligible set on every call - an N+1 over its 5-9 queries
+  // when starting a group of up to MAX_RECIPIENTS people).
+  if ((await unmessageableRecipients(actor, recipientIds)).length > 0) {
+    throw new PermissionError('You are not allowed to message one of those recipients.')
   }
 
   const kind: ConversationKind = recipientIds.length === 1 ? 'direct' : 'group'
