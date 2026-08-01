@@ -6,8 +6,8 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import {
-  countProfiles,
   deleteUnregisteredProfile as deleteUnregisteredProfileRow,
+  revokeProfileGuarded,
   selectProfileRole,
   updateProfile,
   upsertAllowlistedProfile,
@@ -36,14 +36,6 @@ async function canManageTarget(actor: Profile, targetRole: string): Promise<bool
   const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
   if (isAdmin) return true
   return isSubAdmin && SUB_ADMIN_MANAGEABLE.has(targetRole)
-}
-
-/** True if this profile is the only remaining active Super Admin (must not be removed/demoted). */
-async function isLastActiveAdmin(profileId: string): Promise<boolean> {
-  const target = await getProfileById(profileId)
-  if (!target || target.role !== 'admin' || target.status !== 'active') return false
-  const activeAdmins = await countProfiles({ role: 'admin', status: 'active' })
-  return activeAdmins <= 1
 }
 
 async function requireManageableTarget(actor: Profile, id: string): Promise<Profile> {
@@ -124,8 +116,13 @@ export async function revokeUser(actor: Profile, id: string): Promise<void> {
   await requireManageableTarget(actor, id)
   // Never let an admin revoke themselves or the last remaining active Super Admin.
   if (id === actor.id) throw new ValidationError('You cannot revoke your own account.')
-  if (await isLastActiveAdmin(id)) throw new ValidationError('Cannot revoke the last active admin.')
-  await updateProfile(id, { status: 'disabled' })
+  // Atomic: the last-active-admin check and the status flip run as ONE step
+  // under an advisory lock in the DB (revokeProfileGuarded), so two concurrent
+  // revokes of two different admins cannot both slip past a stale count and
+  // empty the tier - a check-then-act here could not close that race.
+  const outcome = await revokeProfileGuarded(id)
+  if (outcome === 'not_found') throw new NotFoundError('User not found')
+  if (outcome === 'last_admin') throw new ValidationError('Cannot revoke the last active admin.')
   try {
     // Deactivating every persona (all scopes) is what actually cuts access: canMentor
     // and the mentee-data paths key off the scoped mentor persona, not the mentorship

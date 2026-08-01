@@ -230,8 +230,7 @@ describe('user action-input helpers', () => {
 
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // isLastActiveAdmin short-circuits
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // profile update for status
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
     await revokeUserFromActionInput(superAdmin, { id: targetTutorId })
     expect(writeAudit).toHaveBeenLastCalledWith({
@@ -294,16 +293,21 @@ describe('revokeUser', () => {
   it('cannot revoke the last active admin', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: otherAdmin, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: otherAdmin, error: null }) as any) // isLastActiveAdmin: getProfileById
-      .mockReturnValueOnce(countClient(1) as any) // isLastActiveAdmin: countProfiles
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'last_admin', error: null }) as any) // revokeProfileGuarded RPC
     await expect(revokeUser(superAdmin, otherAdmin.id)).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('maps a concurrent-delete race (RPC not_found) to NotFoundError', async () => {
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget: still present
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'not_found', error: null }) as any) // revokeProfileGuarded: gone by now
+    await expect(revokeUser(superAdmin, targetTutor.id)).rejects.toBeInstanceOf(NotFoundError)
   })
 
   it('revokes and audits user.revoke for a valid target', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // isLastActiveAdmin short-circuits (not admin)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // profile update for status
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
     await revokeUser(superAdmin, targetTutor.id)
     expect(writeAudit).toHaveBeenCalledWith({
@@ -317,8 +321,7 @@ describe('revokeUser', () => {
   it('restores the profile status if persona deactivation fails during revoke', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // isLastActiveAdmin short-circuit
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disable profile
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
       .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // disable personas
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback profile active
 

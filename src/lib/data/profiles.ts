@@ -208,6 +208,23 @@ export async function updateProfile(
   if (error) throw new Error(`data.profiles.update: ${error.message}`)
 }
 
+export type RevokeProfileOutcome = 'ok' | 'not_found' | 'last_admin'
+
+/**
+ * Atomically flip a profile to `disabled` under the last-active-admin guard.
+ * The active-admin count and the status flip run as ONE step inside
+ * revoke_profile_guarded (advisory lock, 0042), closing the check-then-act race
+ * where two concurrent revokes of two different admins each read a stale count
+ * and together empty the admin tier. `last_admin` means the flip was refused
+ * because the target is the only remaining active Super Admin.
+ */
+export async function revokeProfileGuarded(id: string): Promise<RevokeProfileOutcome> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('revoke_profile_guarded', { p_target: id })
+  if (error) throw new Error(`data.profiles.revokeGuarded: ${error.message}`)
+  return data as RevokeProfileOutcome
+}
+
 /** Self-service patch through the REQUEST's client, so RLS scopes the write to
  *  the caller's own row rather than trusting the id alone. */
 export async function updateOwnProfile(
