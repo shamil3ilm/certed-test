@@ -158,8 +158,13 @@ export async function selectActiveProfilesByRoles(
   query = roles.length === 1 ? query.eq('role', roles[0]) : query.in('role', roles)
   const search = opts?.search?.trim()
   if (search) {
+    // escapeOrIlike strips the .or()-grammar characters; a term made only of them
+    // (e.g. "()") escapes to "", whose `%%` pattern would match everyone. Only
+    // filter on a non-empty needle so such a term browses rather than match-all.
     const needle = escapeOrIlike(search)
-    query = query.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`)
+    if (needle) {
+      query = query.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`)
+    }
   }
   query = query.order('full_name')
   if (opts?.limit != null) query = query.limit(opts.limit)

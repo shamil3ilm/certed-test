@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/money', () => ({ formatMoney: vi.fn((amount: number, currency: string) => `${currency}:${amount}`) }))
 vi.mock('@/lib/services/users', () => ({ listActiveByRole: vi.fn(), listActiveMentorCandidates: vi.fn() }))
-vi.mock('@/lib/services/finance/finance-docs', () => ({ listDocsPage: vi.fn() }))
+vi.mock('@/lib/services/finance/finance-docs', () => ({ listDocsPage: vi.fn(), FINANCE_DENIED: 'denied' }))
+vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 
 import { listDocsPage } from '@/lib/services/finance/finance-docs'
-import { loadAdminFinancePageData, financeUrl } from '@/lib/services/finance/admin-finance'
+import { loadAdminFinancePageData, financeUrl, searchFinanceStudents } from '@/lib/services/finance/admin-finance'
 import { listActiveByRole, listActiveMentorCandidates } from '@/lib/services/users'
+import { requireActorCapability } from '@/lib/services/authorization'
+import { PermissionError } from '@/lib/errors'
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -19,8 +22,7 @@ describe('financeUrl', () => {
 })
 
 describe('loadAdminFinancePageData', () => {
-  it('parses filters and shapes party lists plus document rows', async () => {
-    vi.mocked(listActiveByRole).mockResolvedValueOnce([{ id: 's1', name: 'Sara Student' }] as any)
+  it('parses filters, loads pay-slip payees, and shapes document rows', async () => {
     vi.mocked(listActiveMentorCandidates).mockResolvedValueOnce([{ id: 't1', name: 'tutor@test.com' }] as any)
     vi.mocked(listDocsPage)
       .mockResolvedValueOnce({
@@ -54,7 +56,8 @@ describe('loadAdminFinancePageData', () => {
       search: 'tutor',
       status: 'voided',
     })
-    expect(result.students).toEqual([{ id: 's1', name: 'Sara Student' }])
+    // Students are searched on demand (searchFinanceStudents), never eagerly loaded.
+    expect(listActiveByRole).not.toHaveBeenCalled()
     expect(result.tutors).toEqual([{ id: 't1', name: 'tutor@test.com' }])
     expect(result.receipts.rows).toEqual([
       { id: 'r1', number: 'R-001', name: 'Sara Student', totalLabel: 'INR:1200', voided: false },
@@ -67,7 +70,6 @@ describe('loadAdminFinancePageData', () => {
   })
 
   it('normalizes invalid or blank filters to defaults', async () => {
-    vi.mocked(listActiveByRole).mockResolvedValueOnce([] as any)
     vi.mocked(listActiveMentorCandidates).mockResolvedValueOnce([] as any)
     vi.mocked(listDocsPage)
       .mockResolvedValueOnce({ items: [], total: 0 } as any)
@@ -95,5 +97,34 @@ describe('loadAdminFinancePageData', () => {
       search: undefined,
       status: undefined,
     })
+  })
+})
+
+describe('searchFinanceStudents', () => {
+  it('refuses a caller without manageAdminTier, and never reaches the roster', async () => {
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(searchFinanceStudents('not-admin', 'sara')).rejects.toBeInstanceOf(PermissionError)
+    expect(listActiveByRole).not.toHaveBeenCalled()
+  })
+
+  it('searches the student roster bounded and trimmed for an admin', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined as any)
+    vi.mocked(listActiveByRole).mockResolvedValueOnce([{ id: 's1', name: 'Sara Student' }] as any)
+
+    const rows = await searchFinanceStudents('admin-1', '  sara ')
+
+    // Gated on the hard-rule finance capability, not viewFinance.
+    expect(requireActorCapability).toHaveBeenCalledWith('admin-1', 'manageAdminTier', 'denied')
+    expect(listActiveByRole).toHaveBeenCalledWith('student', { search: 'sara', limit: 10 })
+    expect(rows).toEqual([{ id: 's1', name: 'Sara Student' }])
+  })
+
+  it('short-circuits a too-short term to an empty list without querying the roster', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined as any)
+
+    const rows = await searchFinanceStudents('admin-1', ' a ')
+
+    expect(rows).toEqual([])
+    expect(listActiveByRole).not.toHaveBeenCalled()
   })
 })

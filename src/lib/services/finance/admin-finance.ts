@@ -1,9 +1,14 @@
 import { formatMoney } from '@/lib/money'
 import { parsePageParam, totalPages } from '@/lib/pagination'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { listActiveByRole, listActiveMentorCandidates } from '@/lib/services/users'
-import { listDocsPage, type FinanceDoc } from '@/lib/services/finance/finance-docs'
+import { FINANCE_DENIED, listDocsPage, type FinanceDoc } from '@/lib/services/finance/finance-docs'
 
 const PAGE_SIZE = 20
+/** The receipt party typeahead returns at most this many matches per query, and
+ *  only searches once the term is long enough to be selective. */
+const PARTY_SEARCH_LIMIT = 10
+const PARTY_SEARCH_MIN_CHARS = 2
 
 export type FinanceStatus = 'active' | 'voided'
 export type FinanceFilters = { page: number; q?: string; status?: FinanceStatus }
@@ -29,10 +34,26 @@ export type FinanceLedgerView = {
 }
 
 export type AdminFinancePageData = {
-  students: FinancePageParty[]
   tutors: FinancePageParty[]
   receipts: FinanceLedgerView
   payslips: FinanceLedgerView
+}
+
+/**
+ * Typeahead source for the receipt IssueForm's student picker.
+ *
+ * Gated on manageAdminTier - the SAME hard-rule capability the finance mutations
+ * use (finance-docs.ts), NOT viewFinance. viewFinance is override-grantable, so
+ * gating the roster search on it would let an override-granted viewer enumerate
+ * the active-student PII list that the issue API (requireRoleApi(['admin']))
+ * refuses. Bounded by PARTY_SEARCH_LIMIT and a minimum term length so a crafted
+ * call can neither dump the whole roster nor probe it one blank query at a time.
+ */
+export async function searchFinanceStudents(actorId: string, search: string): Promise<FinancePageParty[]> {
+  await requireActorCapability(actorId, 'manageAdminTier', FINANCE_DENIED)
+  const term = search.trim()
+  if (term.length < PARTY_SEARCH_MIN_CHARS) return []
+  return listActiveByRole('student', { search: term, limit: PARTY_SEARCH_LIMIT })
 }
 
 function parseStatus(v?: string): FinanceStatus | undefined {
@@ -115,8 +136,11 @@ export async function loadAdminFinancePageData(searchParams: {
 }): Promise<AdminFinancePageData> {
   const { receiptFilters, payslipFilters } = toFilters(searchParams)
   const canManage = Boolean(searchParams.canManage)
-  const [students, tutors, receiptsPage, payslipsPage] = await Promise.all([
-    canManage ? listActiveByRole('student') : Promise.resolve([]),
+  // Students are NOT eagerly loaded: the receipt picker searches on demand via
+  // searchFinanceStudents, so the page never ships the whole active-student
+  // roster. Pay-slip payees (tutors + dedicated mentors) stay eager - that list
+  // is the small staff roster, not the student body.
+  const [tutors, receiptsPage, payslipsPage] = await Promise.all([
     canManage ? listActiveMentorCandidates() : Promise.resolve([]),
     listDocsPage('receipt', {
       page: receiptFilters.page,
@@ -133,8 +157,6 @@ export async function loadAdminFinancePageData(searchParams: {
   ])
 
   return {
-    students,
-    // Pay-slip payees: tutors plus dedicated (non-tutor) mentors.
     tutors,
     receipts: toLedgerView('Receipts', 'receipts', receiptsPage, receiptFilters, payslipFilters),
     payslips: toLedgerView('Pay slips', 'payslips', payslipsPage, payslipFilters, receiptFilters),

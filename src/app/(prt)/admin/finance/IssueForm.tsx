@@ -4,8 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { computeTotals, lineAmount, formatMoney, SUPPORTED_CURRENCIES } from '@/lib/money'
 import { createClientId } from '@/lib/ui/client-id'
+import type { ActionResult } from '@/lib/api/action-error'
 import { requestJson } from '../../api-client'
 import { useUI } from '../../Providers'
+import { AsyncPartyPicker } from './AsyncPartyPicker'
 
 type Party = { id: string; name: string }
 type Line = { id: string; subject: string; hours: string; rate: string }
@@ -27,11 +29,17 @@ function safeMoney(n: number, cur: string): string {
 export function IssueForm({
   partyLabel,
   parties,
+  searchParties,
   endpoint,
   defaultIssueDate,
 }: {
   partyLabel: string
-  parties: Party[]
+  /** Eager candidate list (pay-slip payees). Omitted when `searchParties` drives
+   *  an on-demand typeahead instead (the receipt student picker). */
+  parties?: Party[]
+  /** Gated async search; when present the party picker is a typeahead rather than
+   *  a preloaded <select>, so the full roster is never shipped to the client. */
+  searchParties?: (query: string) => Promise<ActionResult<Party[]>>
   endpoint: string
   defaultIssueDate: string
 }) {
@@ -39,6 +47,9 @@ export function IssueForm({
   const { toast } = useUI()
   const isReceipt = endpoint.includes('receipt')
   const [partyId, setPartyId] = useState('')
+  // The chosen party's display name, only needed in async mode (the eager <select>
+  // derives its label from `parties`). partyId stays the single committed value.
+  const [partyName, setPartyName] = useState('')
   // Seeded from a server-computed date (see the finance page) so the input's
   // value matches between SSR and hydration.
   const [issueDate, setIssueDate] = useState(defaultIssueDate)
@@ -63,7 +74,12 @@ export function IssueForm({
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!partyId) return
+    if (!partyId) {
+      // Async mode has no native <select required>, so give the same nudge the
+      // eager select's browser validation used to, instead of a silent no-op.
+      setError(`Select a ${partyLabel.toLowerCase()}`)
+      return
+    }
 
     const validLines = lines.filter((line) => line.subject && Number(line.hours) > 0 && Number(line.rate) >= 0)
     if (!validLines.length) {
@@ -102,6 +118,7 @@ export function IssueForm({
       })
 
       setPartyId('')
+      setPartyName('')
       setDiscount('')
       setLines([createEmptyLine()])
       toast(isReceipt ? 'Receipt issued' : 'Pay slip issued', 'success')
@@ -118,22 +135,38 @@ export function IssueForm({
   return (
     <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="min-w-0 text-sm">
-          {partyLabel}
-          <select
-            value={partyId}
-            onChange={(event) => setPartyId(event.target.value)}
-            required
-            className={ISSUE_FORM_FIELD_CLASS}
-          >
-            <option value="">Select...</option>
-            {parties.map((party) => (
-              <option key={party.id} value={party.id}>
-                {party.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {searchParties ? (
+          <AsyncPartyPicker
+            label={partyLabel}
+            selectedName={partyName}
+            onSearch={searchParties}
+            onPick={(party) => {
+              setPartyId(party.id)
+              setPartyName(party.name)
+            }}
+            onClear={() => {
+              setPartyId('')
+              setPartyName('')
+            }}
+          />
+        ) : (
+          <label className="min-w-0 text-sm">
+            {partyLabel}
+            <select
+              value={partyId}
+              onChange={(event) => setPartyId(event.target.value)}
+              required
+              className={ISSUE_FORM_FIELD_CLASS}
+            >
+              <option value="">Select...</option>
+              {(parties ?? []).map((party) => (
+                <option key={party.id} value={party.id}>
+                  {party.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="text-sm">
           Date
           <input

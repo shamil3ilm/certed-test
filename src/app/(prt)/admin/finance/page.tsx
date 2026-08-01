@@ -8,6 +8,7 @@ import {
   type FinanceLedgerView,
 } from '@/lib/services/finance/admin-finance'
 import { IssueForm } from './IssueForm'
+import { searchFinanceStudentsAction } from './actions'
 import { VoidButton } from './VoidButton'
 import { PageHeader, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
 
@@ -169,7 +170,7 @@ export default async function FinancePage({
             <div className="mt-2">
               <IssueForm
                 partyLabel="Student"
-                parties={data.students}
+                searchParties={searchFinanceStudentsAction}
                 endpoint="/api/receipts"
                 defaultIssueDate={today}
               />

@@ -34,7 +34,7 @@ import {
  * the transport-level gate, making this defence in depth rather than a move.
  */
 
-const FINANCE_DENIED = 'You are not allowed to manage finance documents.'
+export const FINANCE_DENIED = 'You are not allowed to manage finance documents.'
 
 export type { FinanceDoc, FinanceKind, FinanceLine, FinanceTotal, IssueFinanceDocInput }
 type PaginatedFinanceDocs = { items: FinanceDoc[]; total: number }
