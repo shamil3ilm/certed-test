@@ -20,6 +20,20 @@ describe('nav dead-route guardrail', () => {
     expect(items.length).toBeGreaterThan(0)
   })
 
+  it('labels the mentees link generically for oversight-only actors (no mentor authority)', () => {
+    expect(navFor(allCaps, { hasMentorAuthority: false }).find((item) => item.href === '/students')?.label).toBe(
+      'Mentees',
+    )
+    // Default (no context) is also the generic oversight label.
+    expect(navFor(allCaps).find((item) => item.href === '/students')?.label).toBe('Mentees')
+  })
+
+  it('personalizes the mentees label for an actual mentor', () => {
+    expect(navFor(allCaps, { hasMentorAuthority: true }).find((item) => item.href === '/students')?.label).toBe(
+      'My mentees',
+    )
+  })
+
   it.each(navFor(allCaps))('nav item "$label" ($href) maps to a real page.tsx', ({ href }) => {
     const pagePath = path.join(process.cwd(), 'src', 'app', '(prt)', href, 'page.tsx')
     expect(existsSync(pagePath), `${href} -> ${pagePath} does not exist`).toBe(true)

@@ -5,7 +5,7 @@ import { selectActiveAssignmentsByClassIdsAsService, type AssignmentBrief } from
 import { selectActiveSubmissionsForStudentAsService } from '@/lib/data/submissions'
 import { getProfileById } from '@/lib/services/users'
 import { canMentor } from '@/lib/permission'
-import { isAdminTier } from '@/lib/capabilities'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileNamesByIds } from '@/lib/services/users'
 
@@ -42,7 +42,7 @@ type MenteeOverview = {
 
 type MenteeListItem = { id: string; name: string }
 type MenteeListView = {
-  isAdmin: boolean
+  isOversight: boolean
   title: string
   description: string
   items: MenteeListItem[]
@@ -50,17 +50,21 @@ type MenteeListView = {
 
 /** Builds the mentee list for admin/mentor list pages so the page only renders. */
 export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
-  // Identity check on the hard rule manageAdminTier (never override-granted), so
-  // the Profile overload here already equals the resolved answer - no threading needed.
-  const isAdmin = isAdminTier(me)
-  const ids = isAdmin
+  // Key on mentor AUTHORITY, not admin-tier. viewMentees (which admits you here) is
+  // override-grantable, so a role-based isAdminTier check would show an overseer who
+  // was granted viewMentees (e.g. a sub_admin) an empty "My mentees" list. Anyone
+  // WITHOUT their own mentor persona is an overseer -> the academy-wide roster;
+  // someone who personally mentors sees only their own mentees.
+  const { hasMentorAuthority } = await loadPersonaFlags(me.id)
+  const isOversight = !hasMentorAuthority
+  const ids = isOversight
     ? [...new Set((await listMentorships()).map((link) => link.student_id))]
     : await studentIdsOfMentor(me.id)
   const names = await getProfileNamesByIds(ids)
   return {
-    isAdmin,
-    title: isAdmin ? 'Mentees' : 'My mentees',
-    description: isAdmin
+    isOversight,
+    title: isOversight ? 'Mentees' : 'My mentees',
+    description: isOversight
       ? 'Students currently linked through mentor assignments across the academy.'
       : 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
     items: ids.map((id) => ({ id, name: names.get(id) ?? id })),

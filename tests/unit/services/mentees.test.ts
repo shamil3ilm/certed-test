@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canMentor: vi.fn() }))
-vi.mock('@/lib/capabilities', () => ({ isAdminTier: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/services/users', async () => {
@@ -11,7 +11,7 @@ vi.mock('@/lib/services/users', async () => {
 })
 
 import { canMentor } from '@/lib/permission'
-import { isAdminTier } from '@/lib/capabilities'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileById } from '@/lib/services/users'
 import { getProfileNamesByIds } from '@/lib/services/users'
@@ -61,8 +61,8 @@ describe('getMenteeOverview', () => {
 })
 
 describe('getMenteeListView', () => {
-  it('builds the admin mentee list from all mentorship links', async () => {
-    vi.mocked(isAdminTier).mockReturnValueOnce(true as any)
+  it('builds the oversight roster (all mentorship links) for a viewer without mentor authority', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: false } as any)
     vi.mocked(listMentorships).mockResolvedValueOnce([
       { student_id: 'stud-1' },
       { student_id: 'stud-2' },
@@ -76,7 +76,7 @@ describe('getMenteeListView', () => {
     )
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
-      isAdmin: true,
+      isOversight: true,
       title: 'Mentees',
       description: 'Students currently linked through mentor assignments across the academy.',
       items: [
@@ -86,13 +86,13 @@ describe('getMenteeListView', () => {
     })
   })
 
-  it('builds the mentor-specific mentee list from the caller student ids', async () => {
-    vi.mocked(isAdminTier).mockReturnValueOnce(false as any)
+  it('builds the personal mentee list from the caller student ids for an actual mentor', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: true } as any)
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['stud-1'] as any)
     vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['stud-1', 'Stu Dent']]) as any)
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
-      isAdmin: false,
+      isOversight: false,
       title: 'My mentees',
       description: 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
       items: [{ id: 'stud-1', name: 'Stu Dent' }],

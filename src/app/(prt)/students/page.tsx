@@ -25,7 +25,7 @@ export default async function StudentsPage() {
         ))}
         {data.items.length === 0 && (
           <EmptyState as="li">
-            {data.isAdmin
+            {data.isOversight
               ? 'No mentor assignments exist yet.'
               : 'No mentees assigned to you yet. Ask an admin to assign mentees.'}
           </EmptyState>

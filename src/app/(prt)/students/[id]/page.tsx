@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Avatar, Badge, Card, EmptyState, PageHeader, SectionLabel } from '@/lib/ui'
@@ -12,6 +13,9 @@ export default async function MenteePage({ params }: { params: { id: string } })
   const me = await requireCapability('viewMentees')
   const data = await loadMenteeDetailPageData(me, params.id)
   if (!data) notFound()
+  // Personal-mentor framing only when the viewer actually mentors (holds the mentor
+  // persona); admins/override overseers get the neutral oversight framing.
+  const { hasMentorAuthority } = await loadPersonaFlags(me.id)
 
   const { student, classes, submissions, overdue } = data.overview
 
@@ -26,7 +30,11 @@ export default async function MenteePage({ params }: { params: { id: string } })
 
       <PageHeader
         title={data.name}
-        description="Your mentee - their progress across all classes, so you can look after them like a class tutor."
+        description={
+          hasMentorAuthority
+            ? 'Your mentee - their progress across all classes, so you can look after them like a class tutor.'
+            : 'Their progress across all classes - an overview for oversight.'
+        }
       />
 
       <div className="mb-5 flex items-center gap-3">
