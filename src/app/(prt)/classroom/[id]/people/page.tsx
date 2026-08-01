@@ -63,10 +63,10 @@ export default async function ClassPeoplePage({
   searchParams,
 }: {
   params: { id: string }
-  searchParams?: { error?: string }
+  searchParams?: { error?: string; enrolQ?: string }
 }) {
   const { me, course } = await requireClassAccess(params.id)
-  const data = await loadClassPeopleViewData(me, course.id)
+  const data = await loadClassPeopleViewData(me, course.id, searchParams?.enrolQ)
 
   return (
     <div className="space-y-8">
@@ -173,25 +173,55 @@ export default async function ClassPeoplePage({
 
       <section className="space-y-3">
         <SectionLabel count={data.students.length}>Students</SectionLabel>
-        {data.canManage && data.addableStudents.length > 0 && (
-          <form action={enrolStudentAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
-            <input type="hidden" name="class_id" value={course.id} />
-            <Field label="Enrol a student" className="min-w-0 flex-1 sm:max-w-xs">
-              <Select name="student_id" required defaultValue="">
-                <option value="" disabled>
-                  Select student...
-                </option>
-                {data.addableStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <SubmitButton className="btn-sm btn-soft" pendingLabel="Enrolling...">
-              Enrol
-            </SubmitButton>
-          </form>
+        {data.canManage && (data.addableStudents.length > 0 || data.enrolSearch || data.studentsCapped) && (
+          <div className={cx(CARD, 'space-y-3 p-3')}>
+            {/* GET form: server-side search so the picker never ships the whole
+                student roster. Narrows the enrol list below via ?enrolQ=. */}
+            <form className="flex flex-wrap items-end gap-2">
+              <Field label="Find a student to enrol" className="min-w-0 flex-1 sm:max-w-xs">
+                <Input
+                  type="search"
+                  name="enrolQ"
+                  defaultValue={data.enrolSearch}
+                  placeholder="Search by name or email..."
+                />
+              </Field>
+              <button type="submit" className="btn btn-sm btn-soft">
+                Search
+              </button>
+            </form>
+            {data.addableStudents.length > 0 ? (
+              <form action={enrolStudentAction} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="class_id" value={course.id} />
+                <Field label="Enrol a student" className="min-w-0 flex-1 sm:max-w-xs">
+                  <Select name="student_id" required defaultValue="">
+                    <option value="" disabled>
+                      Select student...
+                    </option>
+                    {data.addableStudents.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <SubmitButton className="btn-sm btn-soft" pendingLabel="Enrolling...">
+                  Enrol
+                </SubmitButton>
+              </form>
+            ) : (
+              <p className="text-sm text-slate-500">
+                {data.enrolSearch
+                  ? `No students to enrol match "${data.enrolSearch}".`
+                  : 'Every listed student is already enrolled - search to find others.'}
+              </p>
+            )}
+            {data.studentsCapped && (
+              <p className="text-xs text-slate-400">
+                More students exist than are shown here - search by name or email to find them.
+              </p>
+            )}
+          </div>
         )}
         <ul className="space-y-2">
           {data.students.map((s) => (

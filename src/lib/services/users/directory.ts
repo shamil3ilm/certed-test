@@ -93,9 +93,13 @@ export async function getProfileById(id: string): Promise<Profile | null> {
 }
 
 /** Active people of one role (id + display name), for class-management pickers.
- *  Callers gate with canManageClass first. */
-export async function listActiveByRole(role: 'tutor' | 'student'): Promise<{ id: string; name: string }[]> {
-  const rows = await selectActiveProfilesByRoles([role])
+ *  Callers gate with canManageClass first. `opts.search`/`opts.limit` bound a
+ *  large roster (students) to a server-side search page. */
+export async function listActiveByRole(
+  role: 'tutor' | 'student',
+  opts?: { search?: string; limit?: number },
+): Promise<{ id: string; name: string }[]> {
+  const rows = await selectActiveProfilesByRoles([role], opts)
   return rows.map((p) => ({ id: p.id, name: displayName(p) }))
 }
 

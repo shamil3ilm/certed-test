@@ -62,6 +62,30 @@ describe('loadClassPeopleViewData', () => {
     expect(result.addableTutors).toEqual([{ id: 't2', name: 'Tara Tutor' }])
     expect(result.addableStudents).toEqual([{ id: 's2', name: 'Sam Student' }])
     expect(result.myMentors).toEqual([])
+    // No search term, and a short list is not capped.
+    expect(result.enrolSearch).toBe('')
+    expect(result.studentsCapped).toBe(false)
+    expect(listActiveByRole).toHaveBeenCalledWith('student', { search: '', limit: 50 })
+  })
+
+  it('bounds the enrol picker: trims the search, passes it through, and flags a capped page', async () => {
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
+      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
+    ] as any)
+    vi.mocked(hasPersona).mockImplementation((_, name) => name === 'admin')
+    vi.mocked(getClassMembers).mockResolvedValueOnce({ tutors: [], students: [] } as any)
+    vi.mocked(mentorsByStudent).mockResolvedValueOnce(new Map() as any)
+    vi.mocked(listActiveTeacherCandidates).mockResolvedValueOnce([] as any)
+    // A full page of matches (>= the picker cap of 50) means more students exist.
+    const fullPage = Array.from({ length: 50 }, (_, i) => ({ id: `s${i}`, name: `Student ${i}` }))
+    vi.mocked(listActiveByRole).mockResolvedValueOnce(fullPage as any)
+
+    const result = await loadClassPeopleViewData({ id: 'admin-1', role: 'admin' } as any, 'class-1', '  sara ')
+
+    expect(listActiveByRole).toHaveBeenCalledWith('student', { search: 'sara', limit: 50 })
+    expect(result.enrolSearch).toBe('sara')
+    expect(result.studentsCapped).toBe(true)
+    expect(result.addableStudents).toHaveLength(50) // none enrolled -> all addable
   })
 
   it('loads only the signed-in student mentor contacts for a student view', async () => {

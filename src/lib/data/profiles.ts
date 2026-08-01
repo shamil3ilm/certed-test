@@ -144,12 +144,26 @@ export async function selectProfileRole(id: string): Promise<Profile['role'] | n
   return (data as { role?: Profile['role'] } | null)?.role ?? null
 }
 
-/** Active people of the given roles, name-ordered - for management pickers. */
-export async function selectActiveProfilesByRoles(roles: string[]): Promise<NamedProfileRow[]> {
+/** Active people of the given roles, name-ordered - for management pickers.
+ *  `search` narrows by name/email (ilike) and `limit` bounds the row count, so a
+ *  large-role picker (all students) can drive server-side search instead of
+ *  shipping the whole roster. Both default off, preserving the small staff
+ *  pickers' full-list behavior. */
+export async function selectActiveProfilesByRoles(
+  roles: string[],
+  opts?: { search?: string; limit?: number },
+): Promise<NamedProfileRow[]> {
   const admin = createAdminClient()
   let query = admin.from('profiles').select('id, full_name, email').eq('status', 'active')
   query = roles.length === 1 ? query.eq('role', roles[0]) : query.in('role', roles)
-  const { data } = await query.order('full_name')
+  const search = opts?.search?.trim()
+  if (search) {
+    const needle = escapeOrIlike(search)
+    query = query.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`)
+  }
+  query = query.order('full_name')
+  if (opts?.limit != null) query = query.limit(opts.limit)
+  const { data } = await query
   return (data ?? []) as NamedProfileRow[]
 }
 
