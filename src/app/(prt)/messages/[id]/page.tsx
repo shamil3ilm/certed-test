@@ -7,7 +7,7 @@ import { MarkRead } from '../MarkRead'
 import { MessageComposer } from './MessageComposer'
 import { leaveConversationAction } from '../actions'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
-import { EmptyState, PageHeader } from '@/lib/ui'
+import { Avatar, Badge, Card, EmptyState, PageHeader } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function ThreadPage({
@@ -59,6 +59,32 @@ export default async function ThreadPage({
           </form>
         )}
       </div>
+
+      {data.conversation.kind === 'group' && (
+        <Card className="mt-4 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="warning">Group conversation</Badge>
+            <span className="text-xs text-slate-400">Everyone here can read new replies.</span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {data.participants.map((participant) => {
+              const mine = participant.id === me.id
+              return (
+                <div
+                  key={participant.id}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <Avatar name={participant.name} size="sm" />
+                  <span className="text-sm font-medium text-slate-700">
+                    {participant.name}
+                    {mine ? ' (You)' : ''}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       <div className="mt-4 space-y-2">
         {data.hasEarlier && data.earlierCursor && (

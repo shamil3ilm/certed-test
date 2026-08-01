@@ -45,7 +45,7 @@ export function MessageComposer({ conversationId }: { conversationId: string }) 
       <p role="status" aria-live="polite" className="sr-only">
         {status}
       </p>
-      <form onSubmit={onSubmit} className="flex items-end gap-2">
+      <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <label className="flex-1">
           <span className="mb-1 block text-xs font-medium text-slate-500">Message</span>
           <textarea
@@ -58,7 +58,7 @@ export function MessageComposer({ conversationId }: { conversationId: string }) 
             className="min-h-[2.75rem] w-full resize-y rounded border px-2 py-2 text-sm"
           />
         </label>
-        <button type="submit" disabled={busy} className="btn btn-sm btn-primary">
+        <button type="submit" disabled={busy} className="btn btn-sm btn-primary w-full sm:w-auto">
           {busy ? 'Sending...' : 'Send'}
         </button>
       </form>

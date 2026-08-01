@@ -1,5 +1,12 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './support'
+
+async function pickRecipient(page: Page, name: string) {
+  const search = page.getByRole('searchbox', { name: 'To (pick one for a direct message, or several for a group)' })
+  await search.fill(name)
+  await page.getByRole('button', { name: new RegExp(`${name}.*(Selected|Tap to add)`) }).click()
+  await search.fill('')
+}
 
 // End-to-end: an event (a new message) generates a notification the recipient sees.
 // A tutor messages one of their students (a valid recipient edge); admins are out
@@ -7,8 +14,8 @@ import { loginAs } from './support'
 test('NOTIFICATIONS -- a student is notified of a new message', async ({ page }) => {
   await loginAs(page, 'tutor@mock.test')
   await page.goto('/messages')
-  await page.selectOption('select[name=recipient_ids]', { label: 'Sara Student' })
-  await page.fill('input[name=body]', 'Please check your homework')
+  await pickRecipient(page, 'Sara Student')
+  await page.getByRole('textbox', { name: 'Opening message' }).fill('Please check your homework')
   const start = page.getByRole('button', { name: 'Start', exact: true })
   await expect(start).toBeEnabled()
   await start.click()

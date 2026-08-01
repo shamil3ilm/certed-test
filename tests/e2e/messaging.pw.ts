@@ -1,5 +1,14 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './support'
+
+async function pickRecipients(page: Page, names: string[]) {
+  const search = page.getByRole('searchbox', { name: 'To (pick one for a direct message, or several for a group)' })
+  for (const name of names) {
+    await search.fill(name)
+    await page.getByRole('button', { name: new RegExp(`${name}.*(Selected|Tap to add)`) }).click()
+  }
+  await search.fill('')
+}
 
 // End-to-end coverage for the in-app messaging UI: the composer -> thread ->
 // inbox flow (direct and group), and the /messages/[id] access boundary (a
@@ -18,10 +27,8 @@ test('MESSAGING -- a tutor composes a direct message, opens the thread, and find
 
   // Compose a new direct conversation with one of the tutor's students.
   await page.goto('/messages')
-  await page.selectOption('select[name=recipient_ids]', { label: 'Sara Student' })
-  await page.fill('input[name=body]', 'E2E direct hello')
-  // The composer syncs its selection state on hydration; wait for Start to enable
-  // (guards a hydration race where selectOption fires before React attaches).
+  await pickRecipients(page, ['Sara Student'])
+  await page.getByRole('textbox', { name: 'Opening message' }).fill('E2E direct hello')
   const start = page.getByRole('button', { name: 'Start', exact: true })
   await expect(start).toBeEnabled()
   await start.click()
@@ -45,10 +52,8 @@ test('MESSAGING -- a tutor starts a group thread auto-titled from its participan
 
   // Selecting more than one recipient starts a group conversation.
   await page.goto('/messages')
-  await page.selectOption('select[name=recipient_ids]', [{ label: 'Sara Student' }, { label: 'Sam Student' }])
-  await page.fill('input[name=body]', 'E2E group kickoff')
-  // With two recipients the button label becomes "Start group"; waiting for it to
-  // be enabled also waits for the selection to sync after hydration.
+  await pickRecipients(page, ['Sara Student', 'Sam Student'])
+  await page.getByRole('textbox', { name: 'Opening message' }).fill('E2E group kickoff')
   const startGroup = page.getByRole('button', { name: 'Start group' })
   await expect(startGroup).toBeEnabled()
   await startGroup.click()
@@ -65,7 +70,7 @@ test('MESSAGING -- a non-participant cannot read a thread they are not in', asyn
   // tutor's students, but NOT a participant of this thread - must not read it.
   await loginAs(page, 'tutor@mock.test')
   await page.goto('/messages')
-  await page.selectOption('select[name=recipient_ids]', { label: 'Sam Student' })
+  await pickRecipients(page, ['Sam Student'])
   const start = page.getByRole('button', { name: 'Start', exact: true })
   await expect(start).toBeEnabled()
   await start.click()
