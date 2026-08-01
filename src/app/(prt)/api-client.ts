@@ -2,6 +2,19 @@
 
 import type { ApiResponse } from '@/lib/api/response'
 
+// A page that is navigating away cancels its in-flight fetches, and those reject
+// exactly like a real failure ("TypeError: Failed to fetch"). Track unload so a
+// benign cancellation is not logged as a network error (it briefly showed up as a
+// console error whenever a user left /calendar mid-request).
+let navigatingAway = false
+if (typeof window !== 'undefined') {
+  const markLeaving = () => {
+    navigatingAway = true
+  }
+  window.addEventListener('pagehide', markLeaving)
+  window.addEventListener('beforeunload', markLeaving)
+}
+
 export async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const method = init?.method ?? 'GET'
 
@@ -9,7 +22,12 @@ export async function requestJson<T>(input: RequestInfo | URL, init?: RequestIni
   try {
     response = await fetch(input, init)
   } catch (networkError) {
-    // A fetch rejection (offline / DNS / CORS) would otherwise surface a raw
+    // An intentional cancellation - the page is unloading/navigating, or the caller
+    // aborted the request - is not a failure worth logging; reject it quietly.
+    if (navigatingAway || init?.signal?.aborted) {
+      throw new Error(`${method} request cancelled`)
+    }
+    // A genuine fetch rejection (offline / DNS / CORS) would otherwise surface a raw
     // "TypeError: Failed to fetch" to the user. Keep the detail in the console;
     // callers render this generic message. API/validation errors below still
     // pass through, since those come from the server's already-masked envelope.
