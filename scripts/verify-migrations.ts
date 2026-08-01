@@ -8,10 +8,13 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// Canonical name matches the runtime admin client (SUPABASE_SECRET_KEY, see
+// src/lib/env.ts). Fall back to the older SUPABASE_SERVICE_ROLE_KEY so existing
+// setups keep working.
+const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Error: Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+  console.error('Error: Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY')
   process.exit(1)
 }
 
