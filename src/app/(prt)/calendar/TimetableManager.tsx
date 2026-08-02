@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { CARD, cx } from '@/lib/ui'
+import { CARD, cx, pillButtonClass } from '@/lib/ui'
 import { api } from './timetable/api'
 import { EventForm } from './timetable/EventForm'
 import { EventRow } from './timetable/EventRow'
@@ -45,11 +45,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
             type="button"
             onClick={() => setTab(currentTab)}
             aria-pressed={tab === currentTab}
-            className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-              tab === currentTab
-                ? 'bg-primary text-white shadow-sm'
-                : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
+            className={pillButtonClass(tab === currentTab, 'soft')}
           >
             {currentTab === 'slot' ? 'Weekly slots' : 'Events'}
           </button>

@@ -10,8 +10,9 @@ const TimetableManager = dynamic(() => import('./TimetableManager').then((mod) =
 })
 
 export default async function CalendarPage() {
-  // viewCalendar (admin/tutor/student) - matches the nav. The prior active-only
-  // check let a sub_admin (no viewCalendar) reach this page by direct URL.
+  // viewCalendar is held by every persona baseline (admin/sub_admin/tutor/mentor/
+  // student), so the calendar is available to all active users; the guard still
+  // enforces an active account and keeps the page in step with the nav.
   const me = await requireCapability('viewCalendar')
 
   // Resolved capabilities (persona baseline + overrides) drive the management
@@ -22,7 +23,14 @@ export default async function CalendarPage() {
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6">
       <PageHeader title="Calendar" />
-      <CalendarView canManage={data.canManage} classes={data.classes} isAdmin={data.isAdmin} />
+      <CalendarView
+        canManageCalendar={data.canManage}
+        canManageContent={actor.capabilities.allowed.has('manageClassContent')}
+        canCreateReminder={actor.capabilities.allowed.has('viewDashboard')}
+        classes={data.classes}
+        tutors={data.tutors}
+        isAdmin={data.isAdmin}
+      />
       {data.canManage && <TimetableManager classes={data.classes} tutors={data.tutors} isAdmin={data.isAdmin} />}
     </main>
   )

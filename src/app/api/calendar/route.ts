@@ -39,11 +39,10 @@ export async function GET(request: Request) {
     // The request is a range of ORG-LOCAL calendar days [from, to], INCLUSIVE of
     // the whole `to` day. Anchor the window at institute-timezone midnight (not
     // UTC midnight) and make its exclusive end the start of the day AFTER `to`,
-    // so all three feeds agree on exactly which occurrences fall in range. This
-    // fixes two prior inconsistencies: events used an inclusive .lte('event_date')
-    // while slots/deadlines used an exclusive UTC-midnight `to` (the final day
-    // rendered events but no classes/deadlines), and the UTC-midnight bound
-    // shifted the whole window by the offset for any non-UTC org.
+    // so all three feeds (events, slots, deadlines) agree on exactly which
+    // occurrences fall in range. A UTC-midnight bound would shift the whole
+    // window by the offset for any non-UTC org and leave the final day showing
+    // some feeds but not others.
     const windowStartMs = zonedDayStartMs(from, anchorTz)
     const windowEndMs = zonedDayStartMs(nextCalendarDate(to), anchorTz)
     const windowStartIso = new Date(windowStartMs).toISOString()

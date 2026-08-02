@@ -7,75 +7,110 @@ import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
 import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
-import { requestJson } from '../api-client'
-import { Modal } from '../Modal'
-import { useUI } from '../Providers'
-import { BRAND_COLORS } from '@/lib/brand/tokens'
+import { CARD, cx } from '@/lib/ui'
 import { useBrowserTimeZone, useMediaQuery } from '@/lib/ui/client-env'
-import { CARD, LegendDot, cx } from '@/lib/ui'
+import { requestJson } from '../api-client'
+import { useUI } from '../Providers'
+import { CalendarToolbar } from './CalendarToolbar'
+import { CalendarComposerModal } from './CalendarComposerModal'
+import { COLORS, VIEW_CONFIG, calendarDateInZone, calendarUrl, compareCalendarItems } from './calendar-config'
+import { EventDetailModal } from './EventDetailModal'
+import type {
+  CalendarItem,
+  CalendarMode,
+  CalendarPayload,
+  CalendarSpan,
+  ComposerTab,
+  EventDetail,
+  Opt,
+} from './calendar-types'
 
-type Opt = { id: string; name: string }
-
-type CalendarItem = {
-  id: string
-  source: 'slot' | 'event' | 'assignment' | 'meet'
-  title: string
-  start: string
-  end: string | null
-  allDay: boolean
-  classId: string | null
-  kind: string
-  location?: string | null
+type FullCalendarSortEvent = {
+  id?: string | number | null
+  title?: string | null
+  startStr?: string | null
+  endStr?: string | null
+  allDay?: boolean | null
+  extendedProps?: {
+    source?: CalendarItem['source']
+    classId?: string | null
+    kind?: string | null
+  } | null
 }
 
-type CalendarPayload = { items: CalendarItem[] }
-type EventDetail = {
-  title: string
-  start: string | null
-  end: string | null
-  allDay: boolean
-  source: string
-  kind: string
-}
-type DayItem = { title: string; kind: string }
+function toSortableCalendarItem(value: unknown): CalendarItem {
+  const candidate = (value ?? {}) as FullCalendarSortEvent
 
-const COLORS: Record<string, string> = {
-  slot: BRAND_COLORS.primary,
-  event: '#16a34a',
-  assignment: '#dc2626',
-  meet: '#7c3aed',
-}
-
-const KINDS = ['event', 'holiday', 'cancellation', 'reschedule'] as const
-
-function dayItemKey(item: DayItem, fallbackIndex: number): string {
-  return `${item.kind}:${item.title}:${fallbackIndex}`
-}
-
-function calendarUrl(from: string, to: string) {
-  const params = new URLSearchParams({ from, to })
-  return `/api/calendar?${params.toString()}`
+  return {
+    id: String(candidate.id ?? ''),
+    source: candidate.extendedProps?.source ?? 'event',
+    title: candidate.title ?? '',
+    start: candidate.startStr ?? '',
+    end: candidate.endStr ?? null,
+    allDay: Boolean(candidate.allDay),
+    classId: candidate.extendedProps?.classId ?? null,
+    kind: candidate.extendedProps?.kind ?? '',
+  }
 }
 
 export function CalendarView({
-  canManage,
+  canManageCalendar,
+  canManageContent,
+  canCreateReminder,
   classes = [],
+  tutors = [],
   isAdmin = false,
 }: {
-  canManage: boolean
+  canManageCalendar: boolean
+  canManageContent: boolean
+  canCreateReminder: boolean
   classes?: Opt[]
+  tutors?: Opt[]
   isAdmin?: boolean
 }) {
   const deviceTz = useBrowserTimeZone()
   const isMobile = useMediaQuery('(max-width: 640px)')
+  const { toast } = useUI()
   const [error, setError] = useState<string | null>(null)
-  const [modalDate, setModalDate] = useState<string | null>(null)
+  const [composerState, setComposerState] = useState<{ date: string; initialTab?: ComposerTab } | null>(null)
   const [eventInfo, setEventInfo] = useState<EventDetail | null>(null)
+  const [hiddenSources, setHiddenSources] = useState<ReadonlySet<CalendarItem['source']>>(new Set())
+  const [mode, setMode] = useState<CalendarMode>(isMobile ? 'agenda' : 'normal')
+  const [span, setSpan] = useState<CalendarSpan>(isMobile ? 'week' : 'month')
+  const [currentView, setCurrentView] = useState(
+    VIEW_CONFIG[isMobile ? 'agenda' : 'normal'][isMobile ? 'week' : 'month'],
+  )
   const calRef = useRef<FullCalendar | null>(null)
+  const hiddenRef = useRef(hiddenSources)
+  const didMountRef = useRef(false)
+
+  const canOpenComposer = canManageCalendar || canManageContent || canCreateReminder
+  const resolvedView = VIEW_CONFIG[mode][span]
 
   useEffect(() => {
-    calRef.current?.getApi().changeView(isMobile ? 'listWeek' : 'dayGridMonth')
-  }, [isMobile])
+    hiddenRef.current = hiddenSources
+    if (didMountRef.current) calRef.current?.getApi().refetchEvents()
+    else didMountRef.current = true
+  }, [hiddenSources])
+
+  useEffect(() => {
+    const api = calRef.current?.getApi()
+    if (!api || api.view.type === resolvedView) return
+    api.changeView(resolvedView)
+  }, [resolvedView])
+
+  const toggleSource = useCallback((source: CalendarItem['source']) => {
+    setHiddenSources((current) => {
+      const next = new Set(current)
+      if (next.has(source)) next.delete(source)
+      else next.add(source)
+      return next
+    })
+  }, [])
+
+  const resetFilters = useCallback(() => {
+    setHiddenSources(new Set())
+  }, [])
 
   const fetchEvents = useCallback(async (info: { startStr: string; endStr: string }): Promise<EventInput[]> => {
     const from = info.startStr.slice(0, 10)
@@ -84,35 +119,53 @@ export function CalendarView({
     try {
       const data = await requestJson<CalendarPayload>(calendarUrl(from, to))
       setError(null)
-      return data.items.map((item) => ({
-        id: item.id,
-        title: item.title,
-        start: item.start,
-        end: item.end ?? undefined,
-        allDay: item.allDay,
-        backgroundColor: COLORS[item.source],
-        borderColor: COLORS[item.source],
-        extendedProps: { source: item.source, kind: item.kind, classId: item.classId },
-      }))
+      const hidden = hiddenRef.current
+      return data.items
+        .filter((item) => !hidden.has(item.source))
+        .sort((a, b) => compareCalendarItems(a, b, 'soonest'))
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          start: item.start,
+          end: item.end ?? undefined,
+          allDay: item.allDay,
+          backgroundColor: COLORS[item.source],
+          borderColor: COLORS[item.source],
+          extendedProps: { source: item.source, kind: item.kind, classId: item.classId },
+        }))
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load calendar')
       return []
     }
   }, [])
 
+  const openComposer = useCallback(
+    (initialTab?: ComposerTab, dateOverride?: string) => {
+      const date =
+        dateOverride ?? calendarDateInZone(new Date(), deviceTz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+      setComposerState({ date, initialTab })
+    },
+    [deviceTz],
+  )
+
   return (
     <section className="mt-4">
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <LegendDot color={COLORS.slot} label="Class" />
-        <LegendDot color={COLORS.event} label="Event / holiday" />
-        <LegendDot color={COLORS.assignment} label="Deadline" />
-        <LegendDot color={COLORS.meet} label="Meet" />
-      </div>
-      <p className="mb-2 text-xs text-slate-500" data-tz={deviceTz ?? undefined}>
-        Times shown in your timezone: <span className="font-medium">{deviceTz ?? '...'}</span>
-        {canManage && <span className="text-slate-400"> - tap a date to schedule</span>}
-      </p>
+      <CalendarToolbar
+        canOpenComposer={canOpenComposer}
+        hiddenSources={hiddenSources}
+        mode={mode}
+        span={span}
+        currentView={currentView || resolvedView}
+        deviceTz={deviceTz}
+        onModeChange={setMode}
+        onSpanChange={setSpan}
+        onToggleSource={toggleSource}
+        onResetFilters={resetFilters}
+        onQuickAdd={openComposer}
+      />
+
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+
       <div className={cx(CARD, 'p-2 sm:p-3')}>
         {!deviceTz ? (
           <div className="flex h-64 items-center justify-center text-sm text-slate-400">Loading calendar...</div>
@@ -120,22 +173,19 @@ export function CalendarView({
           <FullCalendar
             ref={calRef}
             plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-            initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
+            initialView={resolvedView}
             timeZone={deviceTz}
-            headerToolbar={
-              isMobile
-                ? { left: 'prev,next', center: 'title', right: 'today' }
-                : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' }
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+            datesSet={(arg) => setCurrentView(arg.view.type)}
+            buttonText={{ today: 'Today' }}
+            buttonHints={{ prev: 'Previous period', next: 'Next period', today: 'This period' }}
+            eventOrder={(left, right) =>
+              compareCalendarItems(toSortableCalendarItem(left), toSortableCalendarItem(right), 'soonest')
             }
-            footerToolbar={isMobile ? { center: 'listWeek,dayGridMonth' } : undefined}
-            buttonText={{ dayGridMonth: 'Month', timeGridWeek: 'Week', listWeek: 'Agenda', today: 'Today' }}
-            // Accessible names for the icon-only prev/next nav buttons (FullCalendar
-            // renders them as chevrons with no text); $0 becomes the active view unit.
-            buttonHints={{ prev: 'Previous $0', next: 'Next $0', today: 'This $0' }}
             dayMaxEventRows={3}
             height="auto"
             events={fetchEvents}
-            dateClick={canManage ? (info) => setModalDate(info.dateStr) : undefined}
+            dateClick={canOpenComposer ? (info) => openComposer(undefined, info.dateStr) : undefined}
             eventClick={(info) => {
               const event = info.event
               setEventInfo({
@@ -143,7 +193,7 @@ export function CalendarView({
                 start: event.start ? event.start.toISOString() : null,
                 end: event.end ? event.end.toISOString() : null,
                 allDay: event.allDay,
-                source: String(event.extendedProps.source ?? ''),
+                source: (event.extendedProps.source as CalendarItem['source']) ?? 'event',
                 kind: String(event.extendedProps.kind ?? ''),
               })
             }}
@@ -153,214 +203,26 @@ export function CalendarView({
 
       {eventInfo && <EventDetailModal info={eventInfo} onClose={() => setEventInfo(null)} />}
 
-      {modalDate && (
-        <ScheduleModal
-          date={modalDate}
+      {composerState && (
+        <CalendarComposerModal
+          key={`${composerState.date}:${composerState.initialTab ?? 'default'}`}
+          date={composerState.date}
+          initialTab={composerState.initialTab}
           classes={classes}
+          tutors={tutors}
           isAdmin={isAdmin}
-          onClose={() => setModalDate(null)}
-          onCreated={() => {
-            setModalDate(null)
+          canManageCalendar={canManageCalendar}
+          canManageContent={canManageContent}
+          canCreateReminder={canCreateReminder}
+          onClose={() => setComposerState(null)}
+          onCalendarRefresh={() => {
+            setComposerState(null)
             calRef.current?.getApi().refetchEvents()
           }}
+          onDone={() => setComposerState(null)}
+          toastMessage={toast}
         />
       )}
     </section>
-  )
-}
-
-function ScheduleModal({
-  date,
-  classes,
-  isAdmin,
-  onClose,
-  onCreated,
-}: {
-  date: string
-  classes: Opt[]
-  isAdmin: boolean
-  onClose: () => void
-  onCreated: () => void
-}) {
-  const { toast } = useUI()
-  const [title, setTitle] = useState('')
-  const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
-  const [kind, setKind] = useState<(typeof KINDS)[number]>('event')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [dayItems, setDayItems] = useState<DayItem[]>([])
-
-  useEffect(() => {
-    const next = new Date(`${date}T00:00:00Z`)
-    next.setUTCDate(next.getUTCDate() + 1)
-
-    void requestJson<CalendarPayload>(calendarUrl(date, next.toISOString().slice(0, 10)))
-      .then((data) => {
-        setDayItems(data.items.map((item) => ({ title: item.title, kind: item.kind })))
-      })
-      .catch(() => {
-        setDayItems([])
-      })
-  }, [date])
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
-    setBusy(true)
-    setError(null)
-
-    try {
-      await requestJson('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          event_date: date,
-          kind,
-          class_id: classId || null,
-          start_time: start || undefined,
-          end_time: end || undefined,
-        }),
-      })
-      toast('Added to schedule', 'success')
-      onCreated()
-    } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : 'Failed to add to schedule'
-      setError(message)
-      toast(message, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title={`Schedule for ${date}`}>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
-      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
-        <p className="font-medium text-slate-500">On this day</p>
-        {dayItems.length === 0 ? (
-          <p className="mt-1 text-slate-400">Nothing scheduled yet.</p>
-        ) : (
-          <ul className="mt-1 space-y-0.5">
-            {dayItems.map((item, index) => (
-              <li key={dayItemKey(item, index)} className="text-slate-600">
-                - {item.title} <span className="text-slate-400">({item.kind})</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <p className="mt-3 text-xs font-medium text-slate-500">Add to schedule</p>
-      <form onSubmit={submit} className="mt-2 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm sm:col-span-2">
-          Title
-          <input
-            value={title}
-            required
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. Doubt-clearing session"
-            className="mt-1 block w-full"
-          />
-        </label>
-        <label className="text-sm">
-          Class
-          <select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1 block w-full">
-            {isAdmin && <option value="">Global (all)</option>}
-            {!isAdmin && classes.length === 0 && <option value="">No classes</option>}
-            {classes.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm">
-          Kind
-          <select
-            value={kind}
-            onChange={(event) => setKind(event.target.value as (typeof KINDS)[number])}
-            className="mt-1 block w-full"
-          >
-            {KINDS.map((kindOption) => (
-              <option key={kindOption} value={kindOption}>
-                {kindOption}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm">
-          Start (optional)
-          <input
-            type="time"
-            value={start}
-            onChange={(event) => setStart(event.target.value)}
-            className="mt-1 block w-full"
-          />
-        </label>
-        <label className="text-sm">
-          End (optional)
-          <input
-            type="time"
-            value={end}
-            onChange={(event) => setEnd(event.target.value)}
-            className="mt-1 block w-full"
-          />
-        </label>
-        <div className="mt-1 flex gap-2 sm:col-span-2">
-          <button type="submit" disabled={busy} className="btn btn-primary">
-            {busy ? 'Saving...' : 'Add to schedule'}
-          </button>
-          <button type="button" onClick={onClose} className="btn btn-ghost">
-            Cancel
-          </button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
-function EventDetailModal({ info, onClose }: { info: EventDetail; onClose: () => void }) {
-  const typeLabel = info.source === 'slot' ? 'Class' : info.source === 'assignment' ? 'Deadline' : info.kind || 'Event'
-  const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }
-  const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
-  const start = info.start ? new Date(info.start) : null
-  const end = info.end ? new Date(info.end) : null
-  const when = !start
-    ? '-'
-    : info.allDay
-      ? start.toLocaleDateString(undefined, dateOptions)
-      : `${start.toLocaleDateString(undefined, dateOptions)}, ${start.toLocaleTimeString(undefined, timeOptions)}${
-          end ? ` - ${end.toLocaleTimeString(undefined, timeOptions)}` : ''
-        }`
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="sm"
-      title={
-        <span className="flex min-w-0 items-center gap-2">
-          <span
-            className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ background: COLORS[info.source] ?? '#94a3b8' }}
-          />
-          <span className="truncate">{info.title}</span>
-        </span>
-      }
-    >
-      <dl className="space-y-2 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt className="text-slate-400">Type</dt>
-          <dd className="capitalize text-slate-700">{typeLabel}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-400">When</dt>
-          <dd className="text-right text-slate-700">{when}</dd>
-        </div>
-      </dl>
-    </Modal>
   )
 }
