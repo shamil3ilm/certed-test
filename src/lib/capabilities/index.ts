@@ -68,13 +68,13 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     // riding on general manageUsers. It stays override-grantable, so an admin can
     // delegate it to a sub_admin explicitly and with an audited reason.
     'manageMentorships',
-    // NOT viewPayslips/viewReceipts: those are the self-service "my own docs"
-    // pages (tutor's payslips, student's receipts). An admin manages all finance
-    // via /admin/finance, so surfacing those nav links only led to note-only
-    // pages. Admin PDF access is enforced in render.ts, not via these caps.
+    // Self-service finance docs default to admin only for now. Other personas can
+    // be granted them later through explicit capability overrides.
+    'viewPayslips',
+    'viewReceipts',
     'manageAdminTier',
   ]),
-  sub_admin: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewUsers', 'manageUsers']),
+  sub_admin: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewCalendar', 'viewUsers', 'manageUsers']),
   tutor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',
@@ -86,17 +86,22 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     // NOT viewMentees: a plain tutor has no mentee access. It comes only from the
     // (student-scoped) mentor persona, auto-assigned when they're given a
     // mentorship - so a tutor sees /students only when they're also a mentor.
-    'viewPayslips',
   ]),
+  // A mentor is teaching staff scoped to their mentees: same capabilities as a
+  // tutor PLUS pastoral mentee access. The class-scoped guards (canManageClass /
+  // canAccessClass / canWriteClass) confine these class powers to the classes the
+  // mentor's mentees are enrolled in - a mentor is NOT a global class authority.
   mentor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',
+    'viewClasses',
+    'viewCalendar',
+    'manageCalendar',
+    'viewGrading',
+    'manageClassContent',
     'viewMentees',
-    // A dedicated mentor is paid via the same pay-slip flow as a tutor, so they
-    // need to see their own pay slips (self-scoped, like a tutor's).
-    'viewPayslips',
   ]),
-  student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar', 'viewReceipts']),
+  student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar']),
   // RESERVED, INTENTIONALLY NOT LISTED: `guardian`, `finance_operator`,
   // `assistant`, `executive` exist in the persona_name DB enum (migration 0014)
   // as forward-looking headroom, but nothing in the app can assign them
@@ -116,9 +121,9 @@ const ROLE_CAPABILITIES: Record<Profile['role'], ReadonlySet<Capability>> = {
   admin: PERSONA_CAPABILITIES['admin'],
   sub_admin: PERSONA_CAPABILITIES['sub_admin'],
   tutor: PERSONA_CAPABILITIES['tutor'],
-  // mentor is an independent identity (may or may not also be a tutor). Its base
-  // capabilities are pastoral oversight only - teaching powers come solely from a
-  // separately-held tutor persona.
+  // mentor is an independent identity (may or may not also be a tutor). It holds
+  // tutor-level teaching capabilities, but the class-scoped guards confine them to
+  // the classes its mentees are enrolled in (not academy-wide).
   mentor: PERSONA_CAPABILITIES['mentor'],
   student: PERSONA_CAPABILITIES['student'],
 }

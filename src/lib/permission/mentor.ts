@@ -9,7 +9,7 @@ import { loadPersonaFlags, hasScopedPersona } from './personas'
  * runs once.
  *
  * Authority: purely persona-based (admin + mentor-scoped personas).
- * The mentorships table is synced by assignMentor/removeMentor and is no longer
+ * The mentorships table is synced by assignMentor/removeMentor but is not
  * consulted for authorization - personas are the single source of truth.
  */
 export const canMentor = cache(async (me: Profile, studentId: string): Promise<boolean> => {

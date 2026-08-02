@@ -10,7 +10,7 @@ export const CAPABILITY_META: Record<Capability, CapabilityMeta> = {
   viewMessages: { label: 'Messaging', description: 'Use in-app messaging.', group: 'General' },
   viewClasses: {
     label: 'View classes',
-    description: 'Open class pages - stream, classwork, people.',
+    description: 'Open class pages - stream, meetings, classwork, attendance, people.',
     group: 'Classes & teaching',
   },
   viewCalendar: { label: 'View calendar', description: 'See the timetable and calendar.', group: 'Classes & teaching' },

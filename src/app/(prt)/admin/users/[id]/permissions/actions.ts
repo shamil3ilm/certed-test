@@ -25,9 +25,8 @@ export async function setUserCapabilityAction(input: {
   const me = await requireCapability('manageAdminTier')
   try {
     // Validate + verify the target, matching the read path (loadUserPermissionsView).
-    // The write path previously trusted profileId straight through to the DB,
-    // relying on the FK to reject bad ids - which produces opaque errors and no
-    // 404 for a well-formed-but-missing id.
+    // Relying on the FK alone to reject a bad profileId would produce opaque errors
+    // and no 404 for a well-formed-but-missing id.
     if (!profileIdSchema.safeParse(input.profileId).success) throw new ValidationError('Invalid user id.')
     if (!(await getProfileById(input.profileId))) throw new NotFoundError('User not found.')
     await setCapabilityOverride(me, input)

@@ -115,10 +115,9 @@ export async function deactivateMentorshipByPair(mentorId: string, studentId: st
 /**
  * Mentor ids for one student. Service-role.
  *
- * THROWS on error rather than returning an empty list. This read was previously
- * selecting a column renamed in 0021 (mentorships.tutor_id -> mentor_id), and a
- * silent empty result meant a student's dedicated mentor simply vanished from
- * their contacts with nothing to indicate a fault.
+ * THROWS on error rather than returning an empty list: a silent empty result on
+ * a query fault would make a student's dedicated mentor simply vanish from their
+ * contacts with nothing to indicate the failure.
  */
 export async function selectActiveMentorIdsForStudent(studentId: string): Promise<string[]> {
   const admin = createAdminClient()

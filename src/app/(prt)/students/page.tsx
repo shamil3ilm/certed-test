@@ -20,6 +20,7 @@ export default async function StudentsPage() {
               href={`/students/${item.id}`}
               leading={<Avatar name={item.name} role="student" />}
               title={item.name}
+              subtitle={item.subtitle}
             />
           </li>
         ))}

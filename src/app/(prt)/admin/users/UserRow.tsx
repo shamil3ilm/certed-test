@@ -25,6 +25,7 @@ export function UserRow({
   canEditPermissions = false,
   mentorSubtitle,
   teaches = false,
+  mentors = false,
 }: {
   p: Profile
   self?: boolean
@@ -32,9 +33,10 @@ export function UserRow({
   canEditPermissions?: boolean
   mentorSubtitle?: string
   teaches?: boolean
+  mentors?: boolean
 }) {
   const isStudent = p.role === 'student'
-  const visibleRoleLabel = staffRoleLabel({ role: p.role, teaches })
+  const visibleRoleLabel = staffRoleLabel({ role: p.role, teaches, mentors })
   return (
     <Card as="li" className="p-3">
       <div className="flex flex-wrap items-end gap-3">

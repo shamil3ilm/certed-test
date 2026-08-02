@@ -122,6 +122,7 @@ export default async function AdminUsersPage({
                     canEditPermissions={data.isSuper}
                     mentorSubtitle={subtitle}
                     teaches={data.teachingStaffIds.has(s.id)}
+                    mentors={data.mentoringStaffIds.has(s.id)}
                   />
                 )
               })}
@@ -150,6 +151,7 @@ export default async function AdminUsersPage({
                   manageable={canManage}
                   canEditPermissions={data.isSuper}
                   teaches={data.teachingStaffIds.has(t.id)}
+                  mentors={data.mentoringStaffIds.has(t.id)}
                 />
               ))}
               {data.tabProfiles.length === 0 && <EmptyState as="li">No tutors yet.</EmptyState>}
@@ -177,6 +179,7 @@ export default async function AdminUsersPage({
                   manageable={canManage && data.isSuper}
                   canEditPermissions={data.isSuper}
                   teaches={data.teachingStaffIds.has(a.id)}
+                  mentors={data.mentoringStaffIds.has(a.id)}
                 />
               ))}
               {data.tabProfiles.length === 0 && <EmptyState as="li">No admins yet.</EmptyState>}

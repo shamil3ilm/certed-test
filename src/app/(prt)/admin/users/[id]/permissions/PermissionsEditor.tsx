@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import { SEGMENTED_GROUP, segmentedButtonClass } from '@/lib/ui'
 import type { PermissionRow } from '@/lib/services/page-data/user-permissions'
 import { assertActionOk } from '../../../../action-client'
 import { useUI } from '../../../../Providers'
@@ -145,17 +146,13 @@ function Segmented({
   baselineAllowed: boolean
   onChange: (next: Effect) => void
 }) {
-  const options: { key: Effect; label: string; activeClass: string }[] = [
-    { key: 'default', label: `Default (${baselineAllowed ? 'on' : 'off'})`, activeClass: 'bg-slate-700 text-white' },
-    { key: 'allow', label: 'Allow', activeClass: 'bg-emerald-600 text-white' },
-    { key: 'deny', label: 'Deny', activeClass: 'bg-red-600 text-white' },
+  const options: { key: Effect; label: string; tone: 'slate' | 'success' | 'danger' }[] = [
+    { key: 'default', label: `Default (${baselineAllowed ? 'on' : 'off'})`, tone: 'slate' },
+    { key: 'allow', label: 'Allow', tone: 'success' },
+    { key: 'deny', label: 'Deny', tone: 'danger' },
   ]
   return (
-    <div
-      className="inline-flex overflow-hidden rounded-lg border border-slate-200"
-      role="group"
-      aria-label="Permission"
-    >
+    <div className={SEGMENTED_GROUP} role="group" aria-label="Permission">
       {options.map((o) => {
         const active = value === o.key
         return (
@@ -165,10 +162,7 @@ function Segmented({
             disabled={disabled}
             aria-pressed={active}
             onClick={() => onChange(o.key)}
-            className={[
-              'px-3 py-1.5 text-xs font-medium transition disabled:opacity-50',
-              active ? o.activeClass : 'bg-white text-slate-600 hover:bg-slate-50',
-            ].join(' ')}
+            className={segmentedButtonClass(active, o.tone)}
           >
             {o.label}
           </button>

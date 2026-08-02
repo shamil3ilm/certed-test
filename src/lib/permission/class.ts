@@ -1,16 +1,34 @@
 import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
-import { isActiveClassTutor, isActiveEnrollee } from '@/lib/data/class-membership'
+import { isActiveClassTutor, isActiveEnrollee, selectActiveClassIdsForStudents } from '@/lib/data/class-membership'
+import { selectActiveMenteeIds } from '@/lib/data/mentorships'
 import { selectClassStatus } from '@/lib/data/classes'
 import { ValidationError } from '@/lib/errors'
 import { loadPersonaFlags } from './personas'
 
-/** Can this user manage the class (roster + settings)? Admin, or a tutor of it. */
+/**
+ * Classes a mentor holds tutor-level authority over: the classes their active
+ * mentees are enrolled in. A mentor is teaching staff scoped to their mentees,
+ * so they get a tutor's class powers here (and only here) - never academy-wide.
+ * Empty for a non-mentor or a mentor whose mentees are in no active class.
+ * Request-cached, so the mentee->class lookup runs once per request.
+ */
+export const mentorAuthorityClassIds = cache(async (profileId: string): Promise<ReadonlySet<string>> => {
+  const menteeIds = await selectActiveMenteeIds(profileId)
+  if (menteeIds.length === 0) return new Set<string>()
+  return new Set(await selectActiveClassIdsForStudents(menteeIds))
+})
+
+/** Can this user manage the class (roster + settings)? Admin, a tutor of it, or a
+ *  mentor of a student enrolled in it. */
 export async function canManageClass(profile: Pick<Profile, 'id'>, classId: string): Promise<boolean> {
-  const { isAdmin, isTutor } = await loadPersonaFlags(profile.id)
+  const { isAdmin, isTutor, hasMentorAuthority } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
-  if (!isTutor) return false
-  return isActiveClassTutor(profile.id, classId)
+  const [teaches, mentors] = await Promise.all([
+    isTutor ? isActiveClassTutor(profile.id, classId) : Promise.resolve(false),
+    hasMentorAuthority ? mentorAuthorityClassIds(profile.id).then((ids) => ids.has(classId)) : Promise.resolve(false),
+  ])
+  return teaches || mentors
 }
 
 /**
@@ -43,11 +61,12 @@ export async function canManageScope(profile: Pick<Profile, 'id'>, classId: stri
  * membership check runs once.
  */
 export const canAccessClass = cache(async (profile: Pick<Profile, 'id'>, classId: string): Promise<boolean> => {
-  const { isAdmin, isTutor, isStudent } = await loadPersonaFlags(profile.id)
+  const { isAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
-  const [teaches, enrolled] = await Promise.all([
+  const [teaches, enrolled, mentors] = await Promise.all([
     isTutor ? isActiveClassTutor(profile.id, classId) : Promise.resolve(false),
     isStudent ? isActiveEnrollee(profile.id, classId) : Promise.resolve(false),
+    hasMentorAuthority ? mentorAuthorityClassIds(profile.id).then((ids) => ids.has(classId)) : Promise.resolve(false),
   ])
-  return teaches || enrolled
+  return teaches || enrolled || mentors
 })

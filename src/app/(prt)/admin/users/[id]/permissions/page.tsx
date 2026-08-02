@@ -1,7 +1,6 @@
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadUserPermissionsView } from '@/lib/services/page-data/user-permissions'
-import { PageHeader } from '@/lib/ui'
+import { BackLink, PageHeader } from '@/lib/ui'
 import { PermissionsEditor } from './PermissionsEditor'
 
 const roleLabel: Record<string, string> = {
@@ -24,12 +23,7 @@ export default async function UserPermissionsPage({ params }: { params: { id: st
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <Link
-        href="/admin/users"
-        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
-      >
-        Back to users
-      </Link>
+      <BackLink href="/admin/users">Back to users</BackLink>
       <PageHeader
         title={`Global permissions - ${target.name}`}
         description={`${roleLabel[target.role] ?? 'Member'} identity - their active GLOBAL personas set the defaults; grant or revoke individual GLOBAL capabilities below. Changes take effect on their next request.`}

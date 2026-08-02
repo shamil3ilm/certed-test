@@ -195,6 +195,23 @@ export async function selectActivePersonaAssignments(profileId: string): Promise
   return (data ?? []) as PersonaAssignmentRow[]
 }
 
+/** Active persona rows for multiple profiles at once. Used by persona-aware list
+ *  UIs such as messaging contacts so the caller can label/group a whole result
+ *  set without an N+1 loadActivePersonas() loop. */
+export async function selectActivePersonaAssignmentsByProfileIds(
+  profileIds: string[],
+): Promise<PersonaAssignmentRow[]> {
+  if (profileIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('persona_assignments')
+    .select('profile_id, persona_name, scope_type, scope_id, status')
+    .in('profile_id', profileIds)
+    .eq('status', 'active')
+  if (error) throw new Error(`data.personas.selectActiveByProfileIds: ${error.message}`)
+  return (data ?? []) as PersonaAssignmentRow[]
+}
+
 /**
  * The actor's OWN active personas, read through the RLS client's self-read
  * policy - the session bootstrap's trust boundary, not the service-role one
