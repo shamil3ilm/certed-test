@@ -51,8 +51,8 @@ describe('computeTotals', () => {
     expect(computeTotals([{ hours: 1, rate: 100 }], 0.005)).toEqual({ subtotal: 100, discount: 0.01, total: 99.99 })
   })
   it('sums rounded line amounts so lines add up to the subtotal', () => {
-    // Each 0.25 × 12.5 = 3.125 → prints 3.13; two of them must total 6.26, not
-    // round(6.25) = 6.25 (the old per-line vs subtotal rounding mismatch).
+    // Each 0.25 × 12.5 = 3.125 → prints 3.13; line amounts are rounded before
+    // summing, so the two lines total 6.26, not round(6.25) = 6.25.
     expect(
       computeTotals([
         { hours: 0.25, rate: 12.5 },

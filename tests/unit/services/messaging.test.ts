@@ -4,22 +4,19 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(async () => new Map()) }))
-vi.mock('@/lib/messaging/recipient-policy', () => ({ canMessage: vi.fn(), unmessageableRecipients: vi.fn() }))
+vi.mock('@/lib/messaging/recipient-policy', () => ({
+  canMessage: vi.fn(),
+  unmessageableRecipients: vi.fn(),
+  assertGroupRecipientsRelated: vi.fn(),
+}))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
-import { canMessage, unmessageableRecipients } from '@/lib/messaging/recipient-policy'
+import { assertGroupRecipientsRelated, canMessage, unmessageableRecipients } from '@/lib/messaging/recipient-policy'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { rateLimit } from '@/lib/security/rate-limit'
-import {
-  createConversation,
-  sendMessage,
-  markRead,
-  listInbox,
-  loadThread,
-  startConversation,
-} from '@/lib/services/messaging'
+import { createConversation, sendMessage, markRead, listInbox, loadThread } from '@/lib/services/messaging'
 import { PermissionError, ValidationError, NotFoundError, RateLimitError } from '@/lib/errors'
 
 const actor = { id: 'actor-1', email: 'a@x.c', role: 'tutor', status: 'active' } as any
@@ -47,6 +44,7 @@ function multiTableClient(byTable: Record<string, unknown[]>) {
       eq: () => builder,
       neq: () => builder,
       in: () => builder,
+      ilike: () => builder,
       lt: () => builder,
       gt: () => builder,
       order: () => builder,
@@ -98,6 +96,7 @@ describe('createConversation', () => {
 
   it('creates a group conversation (no 1:1 dedupe) for multiple allowed recipients', async () => {
     vi.mocked(unmessageableRecipients).mockResolvedValue([]) // every recipient is messageable
+    vi.mocked(assertGroupRecipientsRelated).mockResolvedValue()
     vi.mocked(createAdminClient).mockReturnValue(
       multiTableClient({
         conversations: [{ id: 'g1', kind: 'group', title: 'Study group', created_by: 'actor-1' }],
@@ -110,8 +109,19 @@ describe('createConversation', () => {
     expect(writeAudit).toHaveBeenCalledTimes(1) // a newly created conversation is audited
   })
 
+  it('rejects a group whose recipients are not all directly related', async () => {
+    vi.mocked(unmessageableRecipients).mockResolvedValue([])
+    vi.mocked(assertGroupRecipientsRelated).mockRejectedValueOnce(
+      new ValidationError('Group chats may only include contacts connected through the same student or class.'),
+    )
+
+    await expect(createConversation(actor, { recipientIds: ['r1', 'r2'] })).rejects.toBeInstanceOf(ValidationError)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
   it('cleans up a newly inserted conversation when participant insertion fails', async () => {
     vi.mocked(unmessageableRecipients).mockResolvedValue([])
+    vi.mocked(assertGroupRecipientsRelated).mockResolvedValue()
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(
         multiTableClient({
@@ -126,6 +136,30 @@ describe('createConversation', () => {
       'data.messages.insertParticipants: participant insert failed',
     )
     expect(writeAudit).not.toHaveBeenCalled()
+  })
+})
+
+describe('renameConversation', () => {
+  it('rejects renaming a direct conversation', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }],
+        conversations: [{ id: 'conv-1', kind: 'direct' }],
+      }) as any,
+    )
+    const { renameConversation } = await import('@/lib/services/messaging')
+    await expect(renameConversation(actor, 'conv-1', 'New title')).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('renames a group conversation for its participants', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }],
+        conversations: [{ id: 'conv-2', kind: 'group' }],
+      }) as any,
+    )
+    const { renameConversation } = await import('@/lib/services/messaging')
+    await expect(renameConversation(actor, 'conv-2', 'Study Circle')).resolves.toBeUndefined()
   })
 })
 
@@ -194,29 +228,6 @@ describe('sendMessage', () => {
     )
     await expect(sendMessage(actor, 'conv-2', 'hi all')).resolves.toMatchObject({ id: 'm-3' })
     expect(canMessage).not.toHaveBeenCalled()
-  })
-})
-
-describe('startConversation', () => {
-  it('rolls back a newly created group conversation when the opening send fails', async () => {
-    vi.mocked(unmessageableRecipients).mockResolvedValue([])
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(
-        multiTableClient({
-          conversations: [{ id: 'g2', kind: 'group', title: 'Study group', created_by: 'actor-1' }],
-        }) as any,
-      )
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-      .mockReturnValueOnce(makeClient({ data: { id: 'p-1' }, error: null }) as any)
-      .mockReturnValueOnce(makeClient({ data: [{ profile_id: 'r1' }, { profile_id: 'r2' }], error: null }) as any)
-      .mockReturnValueOnce(makeClient({ data: { kind: 'group' }, error: null }) as any)
-      .mockReturnValueOnce(makeClient({ data: null, error: { message: 'message insert failed' } }) as any)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-
-    await expect(startConversation(actor, { recipientIds: ['r1', 'r2'], body: 'hello' })).rejects.toThrow(
-      'data.messages.insertMessage: message insert failed',
-    )
   })
 })
 
@@ -418,5 +429,34 @@ describe('loadThread', () => {
     const thread = await loadThread(actor, 'g1')
     expect(thread.title).toBe('Bob, Carol')
     expect(thread.participants).toHaveLength(3)
+  })
+
+  it('returns search-scoped thread results when a query is provided', async () => {
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(
+      new Map([
+        ['actor-1', 'Me'],
+        ['other', 'Bob'],
+      ]),
+    )
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [
+          { id: 'p1', profile_id: 'actor-1' },
+          { id: 'p2', profile_id: 'other' },
+        ],
+        conversations: [
+          { id: 'c1', kind: 'direct', title: null, created_by: 'other', last_message_at: 't2', created_at: 't1' },
+        ],
+        messages: [
+          { id: 'm2', conversation_id: 'c1', sender_id: 'actor-1', body: 'chemistry revision', created_at: 't2' },
+          { id: 'm1', conversation_id: 'c1', sender_id: 'other', body: 'chemistry homework', created_at: 't1' },
+        ],
+      }) as any,
+    )
+    const thread = await loadThread(actor, 'c1', { q: 'chemistry' })
+    expect(thread.searchQuery).toBe('chemistry')
+    expect(thread.hasEarlier).toBe(false)
+    expect(thread.isLatestWindow).toBe(false)
+    expect(thread.messages.map((m) => m.id)).toEqual(['m1', 'm2'])
   })
 })

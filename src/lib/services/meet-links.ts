@@ -11,6 +11,7 @@ import {
 } from '@/lib/data/meet-links'
 import { canManageScope, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { linkUrl } from '@/lib/validation/url'
@@ -92,6 +93,23 @@ export function validateCreateMeetLinkInput(input: CreateMeetLinkActionInput): C
 }
 
 /**
+ * Tells a class's students a meeting was posted - a meet link is a time-sensitive
+ * class post (a live session to join), so it earns the same student notification an
+ * announcement does. Best-effort by design: the meet is already saved. Academy-wide
+ * meets (null class) are deliberately NOT fanned out - they'd notify every account.
+ * Uses the 'announcement' kind (a class post) since notifications have no 'meet' kind.
+ */
+async function notifyClassOfMeet(meet: MeetLink): Promise<void> {
+  if (!meet.class_id) return
+  await notifyClassRoleBestEffort(meet.class_id, 'students', {
+    kind: 'announcement',
+    title: `New meeting: ${meet.title}`,
+    body: meet.url,
+    link: `/classroom/${meet.class_id}`,
+  })
+}
+
+/**
  * A class meet requires managing that class; a global meet (null) is
  * admin-only. Enforces canManageScope and writes a `meet.create` audit entry.
  */
@@ -111,6 +129,7 @@ export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput)
     active: true,
   })
   await auditPrivilegedAction(actor, 'meet.create', 'meet_link', created.id)
+  await notifyClassOfMeet(created)
   return created
 }
 
@@ -181,8 +200,8 @@ export async function deleteMeetLink(actor: Profile, id: string): Promise<void> 
   await auditPrivilegedAction(actor, 'meet.delete', 'meet_link', id)
 }
 
-/** Undoes deleteMeetLink - the "kept on record" promise in the removal
- *  confirmation dialog previously had no matching UI action. */
+/** Undoes deleteMeetLink, honouring the "kept on record" promise shown in the
+ *  removal confirmation dialog. */
 export async function restoreMeetLink(actor: Profile, id: string): Promise<void> {
   throttleWrite('meet', actor.id, 'meeting link')
   const link = await getMeetLink(id)

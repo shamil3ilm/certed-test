@@ -2,6 +2,10 @@ import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './support'
 
 async function pickRecipients(page: Page, names: string[]) {
+  await page
+    .getByRole('button', { name: /new chat|start new chat/i })
+    .first()
+    .click()
   const search = page.getByRole('searchbox', { name: 'To (pick one for a direct message, or several for a group)' })
   for (const name of names) {
     await search.fill(name)
@@ -28,16 +32,15 @@ test('MESSAGING -- a tutor composes a direct message, opens the thread, and find
   // Compose a new direct conversation with one of the tutor's students.
   await page.goto('/messages')
   await pickRecipients(page, ['Sara Student'])
-  await page.getByRole('textbox', { name: 'Opening message' }).fill('E2E direct hello')
   const start = page.getByRole('button', { name: 'Start', exact: true })
   await expect(start).toBeEnabled()
   await start.click()
 
-  // Redirected into the thread, the message we just sent is rendered.
+  // Redirected into the thread; send the first message from the thread itself.
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
   const convId = page.url().split('/messages/')[1].split(/[/?#]/)[0]
-  // .first(): the suite shares one mock DB, so an identical body can exist from a
-  // prior test/retry; we only need to confirm this thread rendered the message.
+  await page.getByRole('textbox', { name: 'Message' }).fill('E2E direct hello')
+  await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('E2E direct hello').first()).toBeVisible()
 
   // The conversation is now listed in the inbox, titled with the other party.
@@ -53,16 +56,17 @@ test('MESSAGING -- a tutor starts a group thread auto-titled from its participan
   // Selecting more than one recipient starts a group conversation.
   await page.goto('/messages')
   await pickRecipients(page, ['Sara Student', 'Sam Student'])
-  await page.getByRole('textbox', { name: 'Opening message' }).fill('E2E group kickoff')
   const startGroup = page.getByRole('button', { name: 'Start group' })
   await expect(startGroup).toBeEnabled()
   await startGroup.click()
 
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
-  await expect(page.getByText('E2E group kickoff').first()).toBeVisible()
   // The thread is titled by the other participants (no explicit group title set).
   await expect(page.getByRole('heading', { name: /Sara Student/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: /Sam Student/ })).toBeVisible()
+  await page.getByRole('textbox', { name: 'Message' }).fill('E2E group kickoff')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByText('E2E group kickoff').first()).toBeVisible()
 })
 
 test('MESSAGING -- a non-participant cannot read a thread they are not in', async ({ page }) => {

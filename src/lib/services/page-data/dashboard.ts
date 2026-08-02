@@ -10,10 +10,10 @@ import { countActiveClasses, listClassesByIds } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
 import { financeTotals } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders, type Reminder } from '@/lib/services/reminders'
-import { countPeople, getProfileNamesByIds } from '@/lib/services/users'
+import { countPeople, displayName, getProfilesByIds } from '@/lib/services/users'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 
-export type DashboardMentee = { id: string; name: string }
+export type DashboardMentee = { id: string; name: string; subtitle?: string }
 
 /**
  * The actor's OWN mentees (students they personally mentor), for the dashboard
@@ -24,8 +24,15 @@ export type DashboardMentee = { id: string; name: string }
 export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee[]> {
   const ids = await studentIdsOfMentor(me.id)
   if (ids.length === 0) return []
-  const names = await getProfileNamesByIds(ids)
-  return ids.map((id) => ({ id, name: names.get(id) ?? id }))
+  const profiles = await getProfilesByIds(ids)
+  return ids.map((id) => {
+    const profile = profiles.get(id)
+    return {
+      id,
+      name: profile ? displayName(profile) : id,
+      subtitle: profile?.class_level ?? undefined,
+    }
+  })
 }
 
 /**

@@ -8,8 +8,8 @@
  *
  * All table access lives in src/lib/data/messages.
  */
-export { createConversation, startConversation, sendMessage, markRead, leaveConversation } from './commands'
-export type { CreateConversationInput, StartConversationInput } from './commands'
+export { createConversation, sendMessage, markRead, renameConversation, leaveConversation } from './commands'
+export type { CreateConversationInput } from './commands'
 
 export { listInbox, loadThread } from './queries'
 export type { InboxItem, ThreadData } from './queries'

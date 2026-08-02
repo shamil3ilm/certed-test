@@ -6,6 +6,7 @@ import {
   selectConversationById,
   selectConversationsByIds,
   selectMessageWindow,
+  searchMessages,
   selectMyParticipations,
   selectParticipantIds,
   selectParticipantsForConversations,
@@ -34,6 +35,7 @@ export type ThreadData = {
   hasEarlier: boolean // older messages exist before the first one shown
   earlierCursor: string | null // created_at of the oldest shown message (the "load earlier" cursor)
   isLatestWindow: boolean // true when showing the most recent window (no `before`)
+  searchQuery: string | null
 }
 
 /** Messages loaded per thread window; older ones load on demand via a cursor. */
@@ -97,22 +99,23 @@ export async function listInbox(actor: Profile): Promise<InboxItem[]> {
 export async function loadThread(
   actor: Profile,
   conversationId: string,
-  opts: { before?: string; limit?: number } = {},
+  opts: { before?: string; limit?: number; q?: string } = {},
 ): Promise<ThreadData> {
   await assertParticipant(actor, conversationId)
   const conversation = await selectConversationById(conversationId)
   if (!conversation) throw new NotFoundError('Conversation not found.')
 
   const limit = opts.limit ?? MESSAGE_PAGE
+  const query = opts.q?.trim() || ''
   // The cursor is a message created_at, but it arrives from the URL - a hand-edited
   // `?before=garbage` would otherwise reach the created_at timestamp comparison and
   // 500. Ignore an unparseable cursor and just show the latest window.
   const before = opts.before && !Number.isNaN(Date.parse(opts.before)) ? opts.before : undefined
   const [desc, participantIds] = await Promise.all([
-    selectMessageWindow(conversationId, { before, limit }),
+    query ? searchMessages(conversationId, query, limit) : selectMessageWindow(conversationId, { before, limit }),
     selectParticipantIds(conversationId),
   ])
-  const hasEarlier = desc.length > limit
+  const hasEarlier = query ? false : desc.length > limit
   const shown = desc.slice(0, limit).reverse() // drop the sentinel; ascending for display
 
   const names = await getProfileNamesByIds(participantIds)
@@ -126,6 +129,7 @@ export async function loadThread(
     participants,
     hasEarlier,
     earlierCursor: shown[0]?.created_at ?? null,
-    isLatestWindow: !before,
+    isLatestWindow: !before && !query,
+    searchQuery: query || null,
   }
 }

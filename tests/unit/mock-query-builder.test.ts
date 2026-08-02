@@ -53,8 +53,8 @@ describe('MockQueryBuilder — range() (pagination)', () => {
   const paged = Array.from({ length: 25 }, (_, i) => ({ id: String(i), n: i }))
 
   it('range(from, to) returns the requested window, not just the first N rows', async () => {
-    // Regression: range() used to only apply the SPAN as a limit() and ignore
-    // the offset, so every "page" silently returned the same first N rows.
+    // range() must apply the offset, not just the span as a limit() - otherwise
+    // every "page" returns the same first N rows.
     const page1 = await new MockQueryBuilder([...paged], 't').order('n').range(0, 9).select('*')
     const page2 = await new MockQueryBuilder([...paged], 't').order('n').range(10, 19).select('*')
     expect((page1.data as { n: number }[]).map((r) => r.n)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])

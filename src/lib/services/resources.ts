@@ -177,8 +177,8 @@ export async function archiveResourceFromActionInput(actor: Profile, input: Reso
   await archiveResource(actor, validateResourceIdInput(input))
 }
 
-/** Undoes archiveResource - the "kept on record" promise in the archive
- *  confirmation dialog previously had no matching UI action. */
+/** Undoes archiveResource, honouring the "kept on record" promise shown in the
+ *  archive confirmation dialog. */
 export async function restoreResource(actor: Profile, id: string): Promise<void> {
   throttleWrite('resource', actor.id, 'resource')
   const resource = await requireManageableResource(actor, id, getResource)

@@ -43,7 +43,7 @@ export function ListRow({
   className?: string
 }) {
   // A clickable row with no explicit trailing gets a subtle hover chevron - the
-  // shared "open this" affordance, so pages no longer hand-write "View ->" text.
+  // shared "open this" affordance, so pages don't hand-write "View ->" text.
   const end = trailing ?? (href ? <RowChevron /> : null)
   const body = (
     <>

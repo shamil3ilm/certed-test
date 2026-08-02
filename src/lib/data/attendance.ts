@@ -164,3 +164,21 @@ export async function selectStatusesForStudentAsService(studentId: string): Prom
   if (error) throw new Error(`reportCard.att: ${error.message}`)
   return (data ?? []) as { status: AttendanceStatus }[]
 }
+
+/** Full attendance history for one student, SERVICE-ROLE, for mentor/admin
+ *  evaluation views. The caller must already have proved oversight access. */
+export async function selectRowsForStudentAsService(
+  studentId: string,
+  classId?: string,
+): Promise<Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'>[]> {
+  const admin = createAdminClient()
+  let query = admin
+    .from('attendance')
+    .select('class_id, session_date, status')
+    .eq('student_id', studentId)
+    .order('session_date', { ascending: false })
+  if (classId) query = query.eq('class_id', classId)
+  const { data, error } = await query
+  if (error) throw new Error(`menteeOverview.attendance: ${error.message}`)
+  return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'>[]
+}

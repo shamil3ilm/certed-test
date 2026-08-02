@@ -1,5 +1,36 @@
 import type { ElementType, ReactNode } from 'react'
+import Link from 'next/link'
 import { CARD, cx } from './core'
+
+/** The one "go back to the parent list" link used at the top of every detail
+ *  page: a left arrow + "Back to <where>", muted, sliding a touch on hover. One
+ *  source so the arrow, wording style, spacing and tap target stay identical
+ *  everywhere rather than each page hand-rolling its own. Pass the destination
+ *  phrase as children, e.g. "Back to messages". */
+export function BackLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="mb-3 inline-flex min-h-10 items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:-translate-x-0.5 hover:text-primary"
+    >
+      {/* A stroked SVG arrow, not the thin `←` glyph, so it stays crisp and clearly
+          visible at this small size (the glyph rendered faint in muted grey). */}
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-3.5 w-3.5"
+      >
+        <path d="M13 8H3m4-4L3 8l4 4" />
+      </svg>
+      {children}
+    </Link>
+  )
+}
 
 /* Page and section scaffolding: the surfaces and headings every portal page
  * composes from. */

@@ -13,11 +13,7 @@ export async function PortalHeader() {
   if (actor.accessState !== 'active' || !actor.profile) return null
 
   const profile = actor.profile
-  // Personalize the mentees link only for an actual mentor (active mentor persona);
-  // oversight-only viewers keep the generic "Mentees". Read off the already-loaded
-  // active personas - no extra query.
-  const hasMentorAuthority = actor.personas.some((p) => p.persona_name === 'mentor')
-  const links = navFor(actor.capabilities.allowed, { hasMentorAuthority })
+  const links = navFor(actor.capabilities.allowed)
   const label = personaLabel(actor.personas)
   const unread = await countUnreadNotifications(profile.id)
 

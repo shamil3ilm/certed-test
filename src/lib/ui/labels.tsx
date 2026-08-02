@@ -17,10 +17,13 @@ export function roleLabel(role?: string | null): string {
   return 'Student'
 }
 
-/** Staff label for admin-facing lists where the fixed role may be `mentor` but
- *  the account is currently teaching via an active tutor persona/assignment. */
-export function staffRoleLabel(input: { role?: string | null; teaches?: boolean }): string {
+/** Staff label for admin-facing lists. A `mentor` who also teaches, or a `tutor`
+ *  who also holds a mentor persona, is the same hybrid and must read the same way
+ *  ("Tutor & Mentor") as personaLabel gives the person on their own dashboard -
+ *  hence both the `teaches` and `mentors` flags, resolved by the caller. */
+export function staffRoleLabel(input: { role?: string | null; teaches?: boolean; mentors?: boolean }): string {
   if (input.role === 'mentor') return input.teaches ? 'Tutor & Mentor' : 'Mentor'
+  if (input.role === 'tutor') return input.mentors ? 'Tutor & Mentor' : 'Tutor'
   return roleLabel(input.role)
 }
 

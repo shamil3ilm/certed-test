@@ -4,10 +4,9 @@ import 'server-only'
  * Fail-fast access to required server environment.
  *
  * Reading a required variable through these helpers throws a clear, named error
- * the first time it is missing - instead of the `process.env.X!` non-null
- * assertions the Supabase client factories used to use, which passed `undefined`
- * straight into the client and failed later with a cryptic message far from the
- * cause.
+ * the first time it is missing - instead of a bare `process.env.X!` non-null
+ * assertion, which passes `undefined` straight into the client and fails later
+ * with a cryptic message far from the cause.
  *
  * Only the real (non-mock) path calls these: mock mode never touches Supabase,
  * so a local click-through needs no keys.

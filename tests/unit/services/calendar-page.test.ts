@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/services/classes', () => ({ listClasses: vi.fn(), listClassesByIds: vi.fn() }))
+vi.mock('@/lib/services/classes', () => ({ listClasses: vi.fn(), listClassesByIds: vi.fn(), myClassIds: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForTutor: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ listActiveTeacherCandidates: vi.fn() }))
 
 import type { Capability } from '@/lib/capabilities'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'
-import { listClasses, listClassesByIds } from '@/lib/services/classes'
+import { listClasses, listClassesByIds, myClassIds } from '@/lib/services/classes'
 import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listActiveTeacherCandidates } from '@/lib/services/users'
@@ -20,6 +20,7 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('loadCalendarPageData', () => {
   it('returns empty management data for a read-only actor (no manageCalendar)', async () => {
+    vi.mocked(myClassIds).mockResolvedValueOnce([] as any)
     await expect(loadCalendarPageData({ id: 'student-1', role: 'student' } as any, caps())).resolves.toEqual({
       canManage: false,
       isAdmin: false,

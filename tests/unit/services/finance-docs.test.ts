@@ -139,9 +139,9 @@ describe('issueDocRecord', () => {
 })
 
 describe('finance mutations enforce their own permission check', () => {
-  // Regression: issuing and voiding used to rely entirely on each caller gating
-  // first. They now refuse on their own, so a new caller that forgets is denied
-  // rather than silently writing to the financial record.
+  // Issuing and voiding enforce their own capability check, so a caller that
+  // forgets to gate first is denied rather than silently writing to the
+  // financial record.
   it('issueDocRecord refuses without the capability, and never reaches the RPC', async () => {
     vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('nope'))
     await expect(

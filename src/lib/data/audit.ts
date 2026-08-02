@@ -3,10 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeIlike } from '@/lib/text/ilike'
 
 /**
- * Table access for `audit_log`. Moved here from src/lib/repos, the last file of
- * the old repos layer - it was already a data module in everything but name.
- *
- * Service-role both ways. audit_log has no self-service policy by design: a
+ * Table access for `audit_log`. Service-role both ways. audit_log has no
+ * self-service policy by design: a
  * user must not be able to read or amend the record of what they did, so
  * reading is gated in the domain (the history page) rather than by RLS.
  */

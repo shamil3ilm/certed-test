@@ -1,127 +1,243 @@
 import type { Profile } from '@/lib/auth/profile'
+import type { AssignmentBrief } from '@/lib/data/assignments'
+import { selectActiveAssignmentsByClassIdsAsService, selectAssignmentsByIdsAsService } from '@/lib/data/assignments'
 import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { selectClassesByIds } from '@/lib/data/classes'
-import { selectActiveAssignmentsByClassIdsAsService, type AssignmentBrief } from '@/lib/data/assignments'
-import { selectActiveSubmissionsForStudentAsService } from '@/lib/data/submissions'
-import { getProfileById } from '@/lib/services/users'
+import { selectRowsForStudentAsService } from '@/lib/data/attendance'
+import {
+  selectActiveSubmissionsForStudentAsService,
+  selectEvaluatedSubmissionsForStudentAsService,
+} from '@/lib/data/submissions'
 import { canMentor } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { displayName, getProfileById, getProfilesByIds } from '@/lib/services/users'
+import { getMentorDashboard } from './mentees-dashboard'
+import {
+  average,
+  buildComparison,
+  DAY_MS,
+  EVALUATION_PERIODS,
+  EVALUATION_SORTS,
+  normalizeEvaluationFilters,
+  periodDays,
+  rateFromStatuses,
+  roundMetric,
+  sortGradeRows,
+  type EvaluationPeriod,
+  type EvaluationSort,
+  type MenteeEvaluationFilters,
+  type MenteeListView,
+  type MenteeOverview,
+  type MenteeOverdue,
+  type MenteeSubmission,
+  type MentorDashboardCards,
+  type MentorDashboardMentee,
+  type RawAttendanceRow,
+  type RawGradeRow,
+} from './mentees-shared'
 
-export { canMentor }
-
-/**
- * Mentee (pastoral) views for a mentor. A mentor may not teach the mentee's
- * classes, so RLS would hide the data - these helpers use the service-role
- * client but ALWAYS gate on a verified, active mentorship first (or admin).
- */
-
-type MenteeSubmission = {
-  assignmentId: string
-  assignmentTitle: string
-  classLabel: string
-  status: string
-  submittedAt: string
-  driveLink: string | null
+export {
+  EVALUATION_PERIODS,
+  EVALUATION_SORTS,
+  canMentor,
+  normalizeEvaluationFilters,
+  type EvaluationPeriod,
+  type EvaluationSort,
+  type MenteeEvaluationFilters,
+  type MenteeListView,
+  type MenteeOverview,
+  type MentorDashboardCards,
+  type MentorDashboardMentee,
+  getMentorDashboard,
 }
 
-type MenteeOverdue = {
-  assignmentId: string
-  assignmentTitle: string
-  classLabel: string
-  dueDate: string
-}
-
-type MenteeOverview = {
-  student: Profile
-  classes: { id: string; name: string }[]
-  submissions: MenteeSubmission[]
-  overdue: MenteeOverdue[]
-}
-
-type MenteeListItem = { id: string; name: string }
-type MenteeListView = {
-  isOversight: boolean
-  title: string
-  description: string
-  items: MenteeListItem[]
-}
-
-/** Builds the mentee list for admin/mentor list pages so the page only renders. */
 export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
-  // Key on mentor AUTHORITY, not admin-tier. viewMentees (which admits you here) is
-  // override-grantable, so a role-based isAdminTier check would show an overseer who
-  // was granted viewMentees (e.g. a sub_admin) an empty "My mentees" list. Anyone
-  // WITHOUT their own mentor persona is an overseer -> the academy-wide roster;
-  // someone who personally mentors sees only their own mentees.
   const { hasMentorAuthority } = await loadPersonaFlags(me.id)
   const isOversight = !hasMentorAuthority
   const ids = isOversight
     ? [...new Set((await listMentorships()).map((link) => link.student_id))]
     : await studentIdsOfMentor(me.id)
-  const names = await getProfileNamesByIds(ids)
+  const profiles = await getProfilesByIds(ids)
+
   return {
     isOversight,
-    title: isOversight ? 'Mentees' : 'My mentees',
+    title: 'Mentees',
     description: isOversight
       ? 'Students currently linked through mentor assignments across the academy.'
       : 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
-    items: ids.map((id) => ({ id, name: names.get(id) ?? id })),
+    items: ids.map((id) => {
+      const profile = profiles.get(id)
+      return {
+        id,
+        name: profile ? displayName(profile) : id,
+        subtitle: profile?.class_level ?? undefined,
+      }
+    }),
   }
 }
 
-/**
- * Everything a mentor needs to look after one mentee, scoped to that student.
- * Re-checks mentorship itself (defense-in-depth) so the service-role queries
- * below can never run for a caller who isn't the mentee's mentor / an admin.
- */
-export async function getMenteeOverview(me: Profile, studentId: string): Promise<MenteeOverview | null> {
+export async function getMenteeOverview(
+  me: Profile,
+  studentId: string,
+  filters?: Partial<{ period?: string; classId?: string; sort?: string }>,
+): Promise<MenteeOverview | null> {
   if (!(await canMentor(me, studentId))) return null
   const student = await getProfileById(studentId)
   if (!student) return null
-  const classIds = [...new Set(await selectActiveClassIdsForStudent(studentId))]
 
-  const [classes, assignments, subs] = await Promise.all([
-    selectClassesByIds(classIds),
-    selectActiveAssignmentsByClassIdsAsService(classIds),
-    selectActiveSubmissionsForStudentAsService(studentId),
+  const classIds = [...new Set(await selectActiveClassIdsForStudent(studentId))]
+  const normalizedFilters = normalizeEvaluationFilters(filters)
+
+  const [classes, assignments, submissions, gradedSubs, attendanceRows] = await Promise.all([
+    classIds.length ? selectClassesByIds(classIds) : Promise.resolve([]),
+    classIds.length ? selectActiveAssignmentsByClassIdsAsService(classIds) : Promise.resolve([]),
+    classIds.length ? selectActiveSubmissionsForStudentAsService(studentId) : Promise.resolve([]),
+    classIds.length ? selectEvaluatedSubmissionsForStudentAsService(studentId) : Promise.resolve([]),
+    classIds.length ? selectRowsForStudentAsService(studentId) : Promise.resolve([]),
   ])
 
-  const classLabel = new Map(classes.map((c) => [c.id, c.name]))
-  const assignmentById = new Map(assignments.map((a) => [a.id, a]))
-  const submittedIds = new Set(subs.map((s) => s.assignment_id))
+  const classLabel = new Map(classes.map((course) => [course.id, course.name]))
+  const assignmentById = new Map(assignments.map((assignment) => [assignment.id, assignment]))
+  const submittedIds = new Set(submissions.map((submission) => submission.assignment_id))
 
-  const submissions: MenteeSubmission[] = subs
-    .map((s) => {
-      const a = assignmentById.get(s.assignment_id)
+  const recentSubmissions: MenteeSubmission[] = submissions
+    .map((submission) => {
+      const assignment = assignmentById.get(submission.assignment_id)
       return {
-        assignmentId: s.assignment_id,
-        assignmentTitle: a?.title ?? 'Assignment',
-        classLabel: a ? (classLabel.get(a.class_id) ?? 'Class') : 'Class',
-        status: s.status,
-        submittedAt: s.submitted_at,
-        driveLink: s.drive_link,
+        assignmentId: submission.assignment_id,
+        assignmentTitle: assignment?.title ?? 'Assignment',
+        classLabel: assignment ? (classLabel.get(assignment.class_id) ?? 'Class') : 'Class',
+        status: submission.status,
+        submittedAt: submission.submitted_at,
+        driveLink: submission.drive_link,
       }
     })
-    .sort((x, y) => (x.submittedAt < y.submittedAt ? 1 : -1))
+    .sort((left, right) => (left.submittedAt < right.submittedAt ? 1 : -1))
     .slice(0, 10)
 
   const now = Date.now()
   const overdue: MenteeOverdue[] = assignments
-    .filter((a: AssignmentBrief) => Date.parse(a.due_date) < now && !submittedIds.has(a.id))
-    .sort((x, y) => (x.due_date < y.due_date ? 1 : -1))
-    .map((a) => ({
-      assignmentId: a.id,
-      assignmentTitle: a.title,
-      classLabel: classLabel.get(a.class_id) ?? 'Class',
-      dueDate: a.due_date,
+    .filter((assignment: AssignmentBrief) => Date.parse(assignment.due_date) < now && !submittedIds.has(assignment.id))
+    .sort((left, right) => (left.due_date < right.due_date ? 1 : -1))
+    .map((assignment) => ({
+      assignmentId: assignment.id,
+      assignmentTitle: assignment.title,
+      classLabel: classLabel.get(assignment.class_id) ?? 'Class',
+      dueDate: assignment.due_date,
     }))
+
+  const periodWindowDays = periodDays(normalizedFilters.period)
+  const currentStart = periodWindowDays == null ? null : now - periodWindowDays * DAY_MS
+  const previousStart =
+    periodWindowDays == null || currentStart == null ? null : currentStart - periodWindowDays * DAY_MS
+  const assignmentMeta = await selectAssignmentsByIdsAsService([
+    ...new Set(gradedSubs.map((submission) => submission.assignment_id)),
+  ])
+  const assignmentMetaById = new Map(assignmentMeta.map((assignment) => [assignment.id, assignment]))
+  const classFilterSet = normalizedFilters.classId ? new Set([normalizedFilters.classId]) : null
+
+  const gradeRows: RawGradeRow[] = gradedSubs
+    .map((submission) => {
+      const assignment = assignmentMetaById.get(submission.assignment_id)
+      if (!assignment) return null
+      if (classFilterSet && !classFilterSet.has(assignment.class_id)) return null
+
+      const maxMarks = assignment.max_marks != null ? Number(assignment.max_marks) : null
+      const percent =
+        maxMarks && maxMarks > 0 ? Math.round((Math.min(submission.score, maxMarks) / maxMarks) * 100) : null
+
+      return {
+        assignmentId: submission.assignment_id,
+        assignmentTitle: assignment.title,
+        classLabel: classLabel.get(assignment.class_id) ?? 'Class',
+        submittedAt: submission.submitted_at,
+        gradedAt: submission.graded_at,
+        gradedAtMs: Date.parse(submission.graded_at),
+        score: submission.score,
+        maxMarks,
+        percent,
+        status: submission.status,
+        driveLink: submission.drive_link,
+      }
+    })
+    .filter(Boolean) as RawGradeRow[]
+
+  const currentGradeRows =
+    currentStart == null
+      ? gradeRows
+      : gradeRows.filter((row) => row.gradedAtMs >= currentStart && row.gradedAtMs <= now)
+  const previousGradeRows =
+    previousStart == null || currentStart == null
+      ? []
+      : gradeRows.filter((row) => row.gradedAtMs >= previousStart && row.gradedAtMs < currentStart)
+  const gradeComparison = buildComparison(currentGradeRows, previousGradeRows, (row) => row.percent ?? row.score)
+
+  const attendanceEvaluationRows: RawAttendanceRow[] = attendanceRows
+    .filter((row) => !classFilterSet || classFilterSet.has(row.class_id))
+    .map((row) => ({
+      classId: row.class_id,
+      classLabel: classLabel.get(row.class_id) ?? 'Class',
+      sessionDate: row.session_date,
+      sessionDateMs: Date.parse(`${row.session_date}T00:00:00Z`),
+      status: row.status,
+    }))
+  const currentAttendanceRows =
+    currentStart == null
+      ? attendanceEvaluationRows
+      : attendanceEvaluationRows.filter((row) => row.sessionDateMs >= currentStart && row.sessionDateMs <= now)
+  const previousAttendanceRows =
+    previousStart == null || currentStart == null
+      ? []
+      : attendanceEvaluationRows.filter((row) => row.sessionDateMs >= previousStart && row.sessionDateMs < currentStart)
+
+  const currentAttendanceRate = rateFromStatuses(currentAttendanceRows.map((row) => row.status))
+  const previousAttendanceRate = rateFromStatuses(previousAttendanceRows.map((row) => row.status))
+
+  const overallGradeValues = gradedSubs
+    .map((submission) => {
+      const assignment = assignmentMetaById.get(submission.assignment_id)
+      if (!assignment) return null
+      const maxMarks = assignment.max_marks != null ? Number(assignment.max_marks) : null
+      return maxMarks && maxMarks > 0
+        ? Math.round((Math.min(submission.score, maxMarks) / maxMarks) * 100)
+        : submission.score
+    })
+    .filter((value): value is number => value != null)
 
   return {
     student,
-    classes: classes.map((c) => ({ id: c.id, name: c.name })),
-    submissions,
+    classes: classes.map((course) => ({ id: course.id, name: course.name })),
+    submissions: recentSubmissions,
     overdue,
+    evaluations: {
+      filters: normalizedFilters,
+      grading: {
+        overallAverage: roundMetric(average(overallGradeValues)),
+        periodAverage: gradeComparison.current,
+        previousAverage: currentStart == null ? null : gradeComparison.previous,
+        delta: currentStart == null ? null : gradeComparison.delta,
+        gradedCount: currentGradeRows.length,
+        rows: sortGradeRows(currentGradeRows, normalizedFilters.sort)
+          .slice(0, 20)
+          .map(({ gradedAtMs: _gradedAtMs, ...row }) => row),
+      },
+      attendance: {
+        overallRate: roundMetric(rateFromStatuses(attendanceRows.map((row) => row.status))),
+        periodRate: roundMetric(currentAttendanceRate),
+        previousRate: currentStart == null ? null : roundMetric(previousAttendanceRate),
+        delta:
+          currentStart == null
+            ? null
+            : currentAttendanceRate == null && previousAttendanceRate == null
+              ? null
+              : roundMetric((currentAttendanceRate ?? 0) - (previousAttendanceRate ?? 0)),
+        totalSessions: currentAttendanceRows.length,
+        rows: currentAttendanceRows
+          .sort((left, right) => (left.sessionDate < right.sessionDate ? 1 : -1))
+          .slice(0, 20)
+          .map(({ classId: _classId, sessionDateMs: _sessionDateMs, ...row }) => row),
+      },
+    },
   }
 }

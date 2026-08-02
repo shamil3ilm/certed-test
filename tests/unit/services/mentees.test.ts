@@ -7,14 +7,19 @@ vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), student
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/services/users', async () => {
   const actual = await vi.importActual<typeof import('@/lib/services/users')>('@/lib/services/users')
-  return { ...actual, getProfileById: vi.fn(), getProfileNamesByIds: vi.fn() }
+  return {
+    ...actual,
+    getProfileById: vi.fn(),
+    getProfilesByIds: vi.fn(),
+    displayName: vi.fn((profile: { full_name: string | null; email: string }) => profile.full_name ?? profile.email),
+  }
 })
 
 import { canMentor } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfileById } from '@/lib/services/users'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfilesByIds } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMenteeListView, getMenteeOverview } from '@/lib/services/mentees'
 
@@ -56,6 +61,25 @@ describe('getMenteeOverview', () => {
       classes: [],
       submissions: [],
       overdue: [],
+      evaluations: {
+        filters: { period: '90d', classId: undefined, sort: 'recent' },
+        grading: {
+          overallAverage: null,
+          periodAverage: null,
+          previousAverage: null,
+          delta: null,
+          gradedCount: 0,
+          rows: [],
+        },
+        attendance: {
+          overallRate: null,
+          periodRate: null,
+          previousRate: null,
+          delta: null,
+          totalSessions: 0,
+          rows: [],
+        },
+      },
     })
   })
 })
@@ -68,10 +92,22 @@ describe('getMenteeListView', () => {
       { student_id: 'stud-2' },
       { student_id: 'stud-1' },
     ] as any)
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
       new Map([
-        ['stud-1', 'Stu Dent'],
-        ['stud-2', 'Sam Student'],
+        [
+          'stud-1',
+          { id: 'stud-1', full_name: 'Stu Dent', email: 'stud-1@test.dev', role: 'student', class_level: 'Grade 8' },
+        ],
+        [
+          'stud-2',
+          {
+            id: 'stud-2',
+            full_name: 'Sam Student',
+            email: 'stud-2@test.dev',
+            role: 'student',
+            class_level: 'Grade 7',
+          },
+        ],
       ]) as any,
     )
 
@@ -80,8 +116,8 @@ describe('getMenteeListView', () => {
       title: 'Mentees',
       description: 'Students currently linked through mentor assignments across the academy.',
       items: [
-        { id: 'stud-1', name: 'Stu Dent' },
-        { id: 'stud-2', name: 'Sam Student' },
+        { id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8' },
+        { id: 'stud-2', name: 'Sam Student', subtitle: 'Grade 7' },
       ],
     })
   })
@@ -89,13 +125,20 @@ describe('getMenteeListView', () => {
   it('builds the personal mentee list from the caller student ids for an actual mentor', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: true } as any)
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['stud-1'] as any)
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['stud-1', 'Stu Dent']]) as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([
+        [
+          'stud-1',
+          { id: 'stud-1', full_name: 'Stu Dent', email: 'stud-1@test.dev', role: 'student', class_level: 'Grade 8' },
+        ],
+      ]) as any,
+    )
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
       isOversight: false,
-      title: 'My mentees',
+      title: 'Mentees',
       description: 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
-      items: [{ id: 'stud-1', name: 'Stu Dent' }],
+      items: [{ id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8' }],
     })
   })
 })

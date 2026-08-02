@@ -58,8 +58,8 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
 }
 
 /**
- * Tell a class's students that new work was posted - previously they only found
- * out by visiting Classwork. Best-effort by design (mirrors the announcement
+ * Tell a class's students that new work was posted, so they see it without
+ * having to visit Classwork. Best-effort by design (mirrors the announcement
  * post): the assignment is already committed, so a notification failure must
  * never fail creation.
  */

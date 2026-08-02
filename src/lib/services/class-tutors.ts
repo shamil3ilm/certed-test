@@ -6,7 +6,7 @@ import {
   upsertClassTutor,
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
-import { deactivateGlobalPersona, upsertGlobalPersona } from '@/lib/data/personas'
+import { deactivateGlobalPersona, selectActiveProfileIdsByPersona, upsertGlobalPersona } from '@/lib/data/personas'
 import { requireAdminPersona } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -21,6 +21,15 @@ type ClassTutorActionInput = { class_id?: FormDataEntryValue | null; tutor_id?: 
  *  callers (dashboard tiles, the Users hub) don't reach into the data layer. */
 export async function activeTeachingProfileIds(profileIds: string[]): Promise<string[]> {
   return selectActiveTeachingProfileIds(profileIds)
+}
+
+/** Of the given profile ids, the subset holding an active mentor persona - the
+ *  "mentors" flag behind staff role labels, so a tutor who also mentors reads as
+ *  "Tutor & Mentor" (matching personaLabel) rather than a plain "Tutor". */
+export async function activeMentorProfileIds(profileIds: string[]): Promise<string[]> {
+  if (profileIds.length === 0) return []
+  const wanted = new Set(profileIds)
+  return (await selectActiveProfileIdsByPersona('mentor')).filter((id) => wanted.has(id))
 }
 
 const classTutorParamsSchema = z.object({

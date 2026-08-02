@@ -146,11 +146,10 @@ describe('addUser', () => {
   })
 
   it('deleteUnregisteredProfile is a NO-OP on a registered account (guards the persona delete)', async () => {
-    // Regression: the persona delete used to run unconditionally, so a stray call
-    // on a REGISTERED account would strip every persona (total lockout) while the
-    // guarded profile-row delete left the account standing. It now reads the
-    // account first and bails when it is bound to a login - only the existence
-    // read happens, no delete client is ever opened.
+    // deleteUnregisteredProfile reads the account first and bails when it is bound
+    // to a login: on a REGISTERED account it must be a no-op (a stray call must not
+    // strip every persona and lock the user out), so only the existence read
+    // happens and no delete client is ever opened.
     vi.mocked(createAdminClient).mockReturnValueOnce(
       makeClient({
         data: { id: 'u-1', auth_user_id: 'auth-123', role: 'tutor', status: 'active' },

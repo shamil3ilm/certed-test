@@ -55,6 +55,7 @@ export function buildReportCardHtml(
   body { font-family: 'Louis George Cafe', Arial, sans-serif; color: #0f172a; margin: 0; padding: 32px 36px; font-size: 12px; -webkit-print-color-adjust: exact; }
   .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid ${NAVY}; padding-bottom: 12px; position: relative; }
   .head::after { content: ''; position: absolute; left: 0; bottom: -3px; width: 132px; height: 3px; background: ${BLUE}; border-radius: 999px; }
+  .logo { height: 40px; width: auto; display: block; margin-bottom: 8px; }
   .inst { font-family: 'Dagger Square', 'Louis George Cafe', Georgia, serif; font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: ${NAVY}; }
   .contact { color: #64748b; font-size: 11px; margin-top: 2px; }
   .doc { text-align: right; }
@@ -82,6 +83,7 @@ export function buildReportCardHtml(
 <body>
   <div class="head">
     <div>
+      <img class="logo" src="data:image/png;base64,${assets.logo}" alt="${esc(org.instituteName)}" />
       <div class="inst">${esc(org.instituteName)}</div>
       ${contact ? `<div class="contact">${contact}</div>` : ''}
     </div>

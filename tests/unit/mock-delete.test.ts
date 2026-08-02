@@ -16,8 +16,8 @@ describe('mock delete honours .select()', () => {
       .eq('session_date', '2026-07-23')
       .select('id')
 
-    // Regression: the delete branch ignored `returning`, so clearAttendanceSession
-    // reported 0 cleared while actually removing the rows.
+    // A delete with .select() returns the deleted rows, so clearAttendanceSession
+    // reports the real cleared count instead of 0 while still removing them.
     expect((res.data as unknown[] | null)?.length).toBe(2)
     expect(table('attendance').map((r) => r.id)).toEqual(['a3'])
   })

@@ -3,8 +3,8 @@ import type { Capability } from '@/lib/capabilities'
 
 vi.mock('@/lib/money', () => ({
   formatMoney: vi.fn((amount: number, currency: string) => `${currency}:${amount}`),
-  formatMoneyTotals: vi.fn((totals: { currency: string; live_total: number }[], fallback = 'INR') =>
-    totals.length ? totals.map((t) => `${t.currency}:${t.live_total}`).join(' + ') : `${fallback}:0`,
+  formatMoneyTotals: vi.fn((totals: { currency: string; live_total: number }[]) =>
+    totals.length ? totals.map((t) => `${t.currency}:${t.live_total}`).join(' + ') : '-',
   ),
 }))
 vi.mock('@/lib/time/format', () => ({ todayInZone: vi.fn(() => '2026-07-16') }))
@@ -16,7 +16,11 @@ vi.mock('@/lib/services/classes', () => ({ countActiveClasses: vi.fn(), listClas
 vi.mock('@/lib/services/enrollments', () => ({ countEnrollmentsPerClass: vi.fn() }))
 vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotals: vi.fn() }))
 vi.mock('@/lib/services/reminders', () => ({ listMyPastReminders: vi.fn(), listMyReminders: vi.fn() }))
-vi.mock('@/lib/services/users', () => ({ countPeople: vi.fn(), getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/services/users', () => ({
+  countPeople: vi.fn(),
+  getProfilesByIds: vi.fn(),
+  displayName: vi.fn((profile: { full_name: string | null; email: string }) => profile.full_name ?? profile.email),
+}))
 vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
 
 import { listEvents } from '@/lib/services/calendar-events'
@@ -26,7 +30,7 @@ import { countActiveClasses, listClassesByIds } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
 import { financeTotals } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders } from '@/lib/services/reminders'
-import { countPeople, getProfileNamesByIds } from '@/lib/services/users'
+import { countPeople, getProfilesByIds } from '@/lib/services/users'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { loadDashboardViewData, loadDashboardMentees } from '@/lib/services/page-data/dashboard'
 
@@ -174,8 +178,8 @@ describe('loadDashboardViewData', () => {
       peopleCounts: null,
       activeClassCount: 0,
       perClass: [],
-      revenueLabel: 'INR:0',
-      payoutLabel: 'INR:0',
+      revenueLabel: '-',
+      payoutLabel: '-',
     })
   })
 
@@ -221,12 +225,16 @@ describe('loadDashboardViewData', () => {
   it('refines a tutor WITH mentees to the mentor view kind (mentees + teaching)', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isTutor: true, hasMentorAuthority: true }))
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1'])
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara']]))
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([
+        ['s-1', { id: 's-1', full_name: 'Sara', email: 'sara@test.dev', role: 'student', class_level: 'Grade 10' }],
+      ]) as any,
+    )
 
     await expect(loadDashboardViewData({ id: 'mentor-1', role: 'tutor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
       now: expect.any(Number),
-      mentees: [{ id: 's-1', name: 'Sara' }],
+      mentees: [{ id: 's-1', name: 'Sara', subtitle: 'Grade 10' }],
       teaches: true, // a tutor who mentors keeps the teaching widgets
     })
   })
@@ -234,10 +242,10 @@ describe('loadDashboardViewData', () => {
   it('resolves a dedicated mentor account to the mentor view without teaching widgets', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ hasMentorAuthority: true }))
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1', 's-2'])
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
       new Map([
-        ['s-1', 'Sara'],
-        ['s-2', 'Sam'],
+        ['s-1', { id: 's-1', full_name: 'Sara', email: 'sara@test.dev', role: 'student', class_level: 'Grade 10' }],
+        ['s-2', { id: 's-2', full_name: 'Sam', email: 'sam@test.dev', role: 'student', class_level: 'Grade 9' }],
       ]),
     )
 
@@ -245,8 +253,8 @@ describe('loadDashboardViewData', () => {
       kind: 'mentor',
       now: expect.any(Number),
       mentees: [
-        { id: 's-1', name: 'Sara' },
-        { id: 's-2', name: 'Sam' },
+        { id: 's-1', name: 'Sara', subtitle: 'Grade 10' },
+        { id: 's-2', name: 'Sam', subtitle: 'Grade 9' },
       ],
       teaches: false, // a dedicated mentor teaches nothing
     })
@@ -272,12 +280,16 @@ describe('loadDashboardViewData', () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ hasMentorAuthority: true }))
     vi.mocked(selectActiveClassIdsForTutor).mockResolvedValueOnce(['c-1'])
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1'])
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['s-1', 'Sara']]))
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([
+        ['s-1', { id: 's-1', full_name: 'Sara', email: 'sara@test.dev', role: 'student', class_level: 'Grade 10' }],
+      ]) as any,
+    )
 
     await expect(loadDashboardViewData({ id: 'mentor-1', role: 'mentor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
       now: expect.any(Number),
-      mentees: [{ id: 's-1', name: 'Sara' }],
+      mentees: [{ id: 's-1', name: 'Sara', subtitle: 'Grade 10' }],
       teaches: true,
     })
   })
@@ -303,20 +315,20 @@ describe('loadDashboardMentees', () => {
   it('returns empty and skips the name lookup when the actor mentors nobody', async () => {
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce([])
     await expect(loadDashboardMentees({ id: 'tutor-1' } as any)).resolves.toEqual([])
-    expect(getProfileNamesByIds).not.toHaveBeenCalled()
+    expect(getProfilesByIds).not.toHaveBeenCalled()
   })
 
   it('resolves the actor own mentees to id + name, preserving order', async () => {
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['s-1', 's-2'])
-    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
       new Map([
-        ['s-1', 'Sara'],
-        ['s-2', 'Sam'],
+        ['s-1', { id: 's-1', full_name: 'Sara', email: 'sara@test.dev', role: 'student', class_level: 'Grade 10' }],
+        ['s-2', { id: 's-2', full_name: 'Sam', email: 'sam@test.dev', role: 'student', class_level: 'Grade 9' }],
       ]),
     )
     await expect(loadDashboardMentees({ id: 'mentor-1' } as any)).resolves.toEqual([
-      { id: 's-1', name: 'Sara' },
-      { id: 's-2', name: 'Sam' },
+      { id: 's-1', name: 'Sara', subtitle: 'Grade 10' },
+      { id: 's-2', name: 'Sam', subtitle: 'Grade 9' },
     ])
   })
 })

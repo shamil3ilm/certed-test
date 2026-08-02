@@ -1,7 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import { parsePageParam } from '@/lib/pagination'
 import { isAdminTier } from '@/lib/capabilities'
-import { activeTeachingProfileIds } from '@/lib/services/class-tutors'
+import { activeTeachingProfileIds, activeMentorProfileIds } from '@/lib/services/class-tutors'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
 import {
   countUsersHubStats,
@@ -56,6 +56,7 @@ export type AdminUsersPageData = {
   mentorNames: Map<string, string>
   mentorsByStudent: Map<string, UsersHubMentorLink[]>
   teachingStaffIds: Set<string>
+  mentoringStaffIds: Set<string>
 }
 
 export function usersUrl(params: {
@@ -151,7 +152,11 @@ export async function loadAdminUsersPageData(
   const mentorProfiles = await getProfilesByIds([...new Set(links.map((l) => l.mentor_id))])
   const mentorNames = new Map([...mentorProfiles].map(([id, p]: [string, ProfileLite]) => [id, displayName(p)]))
   const mentorsByStudent = groupMentorsByStudent(links as UsersHubMentorLink[])
-  const teachingStaffIds = new Set(await activeTeachingProfileIds(tabProfiles.map((profile) => profile.id)))
+  const staffIds = tabProfiles.map((profile) => profile.id)
+  const [teachingStaffIds, mentoringStaffIds] = await Promise.all([
+    activeTeachingProfileIds(staffIds).then((r) => new Set(r)),
+    activeMentorProfileIds(staffIds).then((r) => new Set(r)),
+  ])
 
   return {
     isSuper,
@@ -165,5 +170,6 @@ export async function loadAdminUsersPageData(
     mentorNames,
     mentorsByStudent,
     teachingStaffIds,
+    mentoringStaffIds,
   }
 }

@@ -2,7 +2,7 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { PermissionError, ValidationError, RateLimitError } from '@/lib/errors'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { unmessageableRecipients } from '@/lib/messaging/recipient-policy'
+import { assertGroupRecipientsRelated, unmessageableRecipients } from '@/lib/messaging/recipient-policy'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
@@ -15,6 +15,7 @@ import {
   insertParticipants,
   selectConversationKind,
   selectParticipantIds,
+  updateConversationTitle,
   updateConversationLastMessage,
   updateParticipantLastRead,
   type ConversationKind,
@@ -25,7 +26,6 @@ import { assertParticipant, assertStillMessageable, directKeyFor } from './polic
 /** Mutating messaging workflows. Reads live in ./queries, access rules in ./policies. */
 
 export type CreateConversationInput = { recipientIds: string[]; title?: string | null }
-export type StartConversationInput = CreateConversationInput & { body?: string | null }
 
 /** Cap on recipients in a single new conversation (excludes the actor). Keeps a
  *  crafted request from seeding an unbounded participant fan-out. */
@@ -61,6 +61,7 @@ export async function createConversation(actor: Profile, input: CreateConversati
   if ((await unmessageableRecipients(actor, recipientIds)).length > 0) {
     throw new PermissionError('You are not allowed to message one of those recipients.')
   }
+  await assertGroupRecipientsRelated(actor, recipientIds)
 
   const kind: ConversationKind = recipientIds.length === 1 ? 'direct' : 'group'
 
@@ -94,35 +95,6 @@ export async function createConversation(actor: Profile, input: CreateConversati
   }
   await auditPrivilegedAction(actor, 'conversation.create', 'conversation', conversation.id)
   return { id: conversation.id }
-}
-
-/**
- * Start or reuse a conversation and optionally send the opening message as one
- * workflow. If the first message fails on a NEW thread, clean the thread back up
- * so the user does not see a failed start that still created an empty group.
- */
-export async function startConversation(actor: Profile, input: StartConversationInput): Promise<{ id: string }> {
-  const recipientIds = [...new Set(input.recipientIds)].filter((id) => id && id !== actor.id)
-  const kind: ConversationKind = recipientIds.length === 1 ? 'direct' : 'group'
-
-  let reusedId: string | null = null
-  if (kind === 'direct' && recipientIds.length === 1) {
-    reusedId = await findDirectConversationId(actor.id, recipientIds[0])
-  }
-
-  const { id } = reusedId ? { id: reusedId } : await createConversation(actor, input)
-  const text = input.body?.trim() ?? ''
-  if (!text) return { id }
-
-  try {
-    await sendMessage(actor, id, text)
-    return { id }
-  } catch (error) {
-    if (!reusedId) {
-      await cleanupPartialConversation(id)
-    }
-    throw error
-  }
 }
 
 /** Post a message. Caller must be a participant AND (for a direct thread) still be
@@ -165,6 +137,20 @@ export async function sendMessage(actor: Profile, conversationId: string, body: 
 export async function markRead(actor: Profile, conversationId: string): Promise<void> {
   await assertParticipant(actor, conversationId)
   await updateParticipantLastRead(conversationId, actor.id, new Date().toISOString())
+}
+
+/** Rename a group conversation for all participants. Direct threads keep their
+ *  auto-title, so only groups may carry an editable explicit title. */
+export async function renameConversation(actor: Profile, conversationId: string, title: string): Promise<void> {
+  await assertParticipant(actor, conversationId)
+  if ((await selectConversationKind(conversationId)) !== 'group') {
+    throw new ValidationError('Only group conversations can be renamed.')
+  }
+  const nextTitle = title.trim()
+  if (nextTitle.length < 2) throw new ValidationError('Group name must be at least 2 characters.')
+  if (nextTitle.length > 80) throw new ValidationError('Group name is too long.')
+  await updateConversationTitle(conversationId, nextTitle)
+  await auditPrivilegedAction(actor, 'conversation.rename', 'conversation', conversationId)
 }
 
 /** The caller leaves a conversation - removes their own participant row, so it drops

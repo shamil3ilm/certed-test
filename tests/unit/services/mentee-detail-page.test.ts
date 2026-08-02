@@ -4,11 +4,16 @@ vi.mock('@/lib/services/mentees', () => ({
   canMentor: vi.fn(),
   getMenteeOverview: vi.fn(),
 }))
+vi.mock('@/lib/permission', () => ({ canAccessClass: vi.fn() }))
 
 import { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { canMentor, getMenteeOverview } from '@/lib/services/mentees'
+import { canAccessClass } from '@/lib/permission'
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(canAccessClass).mockResolvedValue(false)
+})
 
 describe('loadMenteeDetailPageData', () => {
   it('returns null when the actor is not allowed to mentor the student', async () => {

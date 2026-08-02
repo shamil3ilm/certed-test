@@ -81,20 +81,21 @@ export function formatMoney(amount: number, currency: string): string {
   }
 }
 
+/** A dash for an empty money total - nothing issued yet reads better as "-" than
+ *  a hard "₹0.00", which looks like a real zero-value document. */
+export const EMPTY_MONEY = '-'
+
 /** Sums non-void finance docs per currency into one display string (e.g. "Rs1,200 + $50"). */
 export function totalByCurrency(rows: { total: number; currency: string; voided: boolean }[]): string {
   const m = new Map<string, number>()
   rows.filter((r) => !r.voided).forEach((r) => m.set(r.currency, (m.get(r.currency) ?? 0) + Number(r.total)))
   const g = [...m.entries()]
-  return g.length ? g.map(([c, t]) => formatMoney(t, c)).join(' + ') : formatMoney(0, 'INR')
+  return g.length ? g.map(([c, t]) => formatMoney(t, c)).join(' + ') : EMPTY_MONEY
 }
 
 /** Renders already-aggregated per-currency totals into one display string, with a
- *  zero fallback when there are none. Shared by the dashboard finance card and its
+ *  dash fallback when there are none. Shared by the dashboard finance card and its
  *  drill-down modal (was duplicated in both). */
-export function formatMoneyTotals(
-  totals: ReadonlyArray<{ currency: string; live_total: number }>,
-  fallback = 'INR',
-): string {
-  return totals.length ? totals.map((t) => formatMoney(t.live_total, t.currency)).join(' + ') : formatMoney(0, fallback)
+export function formatMoneyTotals(totals: ReadonlyArray<{ currency: string; live_total: number }>): string {
+  return totals.length ? totals.map((t) => formatMoney(t.live_total, t.currency)).join(' + ') : EMPTY_MONEY
 }

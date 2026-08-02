@@ -1,10 +1,9 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { CommentThread } from '../../CommentThread'
 import { LocalTime } from '../../LocalTime'
-import { Avatar, Card, EmptyState, PageHeader } from '@/lib/ui'
+import { Avatar, BackLink, Card, EmptyState, PageHeader } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 
 export default async function AssignmentDetail({ params }: { params: { id: string } }) {
@@ -14,12 +13,9 @@ export default async function AssignmentDetail({ params }: { params: { id: strin
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <Link
-        href={`/classroom/${data.assignment.class_id}/classwork`}
-        className="mb-3 inline-flex min-h-10 items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
-      >
+      <BackLink href={`/classroom/${data.assignment.class_id}/classwork`}>
         Back to {data.course?.name ?? 'class'} - Classwork
-      </Link>
+      </BackLink>
       <PageHeader
         title={data.assignment.title}
         description={

@@ -20,18 +20,15 @@ describe('nav dead-route guardrail', () => {
     expect(items.length).toBeGreaterThan(0)
   })
 
-  it('labels the mentees link generically for oversight-only actors (no mentor authority)', () => {
-    expect(navFor(allCaps, { hasMentorAuthority: false }).find((item) => item.href === '/students')?.label).toBe(
-      'Mentees',
-    )
-    // Default (no context) is also the generic oversight label.
+  it('labels the mentees link generically for every actor', () => {
     expect(navFor(allCaps).find((item) => item.href === '/students')?.label).toBe('Mentees')
   })
 
-  it('personalizes the mentees label for an actual mentor', () => {
-    expect(navFor(allCaps, { hasMentorAuthority: true }).find((item) => item.href === '/students')?.label).toBe(
-      'My mentees',
-    )
+  it('collapses self-service finance items when the finance hub is present', () => {
+    const hrefs = navFor(allCaps).map((item) => item.href)
+    expect(hrefs).toContain('/admin/finance')
+    expect(hrefs).not.toContain('/payslips')
+    expect(hrefs).not.toContain('/receipts')
   })
 
   it.each(navFor(allCaps))('nav item "$label" ($href) maps to a real page.tsx', ({ href }) => {

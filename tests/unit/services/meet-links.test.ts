@@ -4,10 +4,12 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/permission', () => ({ canManageScope: vi.fn(), assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyClassRoleBestEffort: vi.fn() }))
 
 import { canManageScope, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import {
   createMeetLink,
   createMeetLinkFromActionInput,
@@ -60,6 +62,13 @@ describe('createMeetLink', () => {
       action: 'meet.create',
       entity_type: 'meet_link',
       entity_id: 'link-1',
+    })
+    // A class meet notifies that class's students, like an announcement.
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'students', {
+      kind: 'announcement',
+      title: 'New meeting: Class call',
+      body: 'https://meet.example/x',
+      link: '/classroom/class-1',
     })
   })
 })
@@ -115,6 +124,8 @@ describe('createMeetLinkFromActionInput', () => {
       entity_type: 'meet_link',
       entity_id: 'global-1',
     })
+    // Academy-wide meets are deliberately not fanned out to every account.
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 })
 

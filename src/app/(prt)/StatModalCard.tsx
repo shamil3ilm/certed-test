@@ -25,6 +25,8 @@ export function StatModalCard({
   sections,
   empty,
   load,
+  viewAllHref,
+  viewAllLabel = 'View all',
 }: {
   label: string
   value: string | number
@@ -34,6 +36,11 @@ export function StatModalCard({
   items?: Item[]
   sections?: Section[]
   empty?: string
+  /** Optional footer link to the full list page for this stat (e.g. the Mentees
+   *  card links to /students), so the modal both drills into each row AND offers
+   *  a jump to the whole list. */
+  viewAllHref?: string
+  viewAllLabel?: string
   /**
    * Fetch the modal's contents on first open instead of eagerly on page load
    * - for lists that can grow with the whole academy (all students, all
@@ -148,6 +155,20 @@ export function StatModalCard({
               </ul>
             </div>
           ))}
+        {viewAllHref && (
+          <div className="mt-4 border-t border-slate-100 pt-3 text-right">
+            <Link
+              href={viewAllHref}
+              onClick={() => setOpen(false)}
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              {viewAllLabel}
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          </div>
+        )}
       </Modal>
     </>
   )

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/capabilities', () => ({ isAdminTier: vi.fn() }))
-vi.mock('@/lib/data/class-membership', () => ({ selectActiveTeachingProfileIds: vi.fn() }))
+vi.mock('@/lib/services/class-tutors', () => ({
+  activeTeachingProfileIds: vi.fn(),
+  activeMentorProfileIds: vi.fn(),
+}))
 vi.mock('@/lib/services/mentorships', () => ({ listMentorshipsForUsersHub: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({
   countUsersHubStats: vi.fn(),
@@ -12,7 +15,7 @@ vi.mock('@/lib/services/users', () => ({
 }))
 
 import { isAdminTier } from '@/lib/capabilities'
-import { selectActiveTeachingProfileIds } from '@/lib/data/class-membership'
+import { activeMentorProfileIds, activeTeachingProfileIds } from '@/lib/services/class-tutors'
 import { loadAdminUsersPageData, usersUrl } from '@/lib/services/page-data/admin-users'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
 import {
@@ -57,7 +60,8 @@ describe('loadAdminUsersPageData', () => {
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(
       new Map([['t1', { id: 't1', full_name: 'Maya Mentor', email: 'maya@test.com', role: 'tutor' }]]) as any,
     )
-    vi.mocked(selectActiveTeachingProfileIds).mockResolvedValueOnce([] as any)
+    vi.mocked(activeTeachingProfileIds).mockResolvedValueOnce([] as any)
+    vi.mocked(activeMentorProfileIds).mockResolvedValueOnce([] as any)
 
     const result = await loadAdminUsersPageData({ id: 'admin-1', role: 'admin' } as any, {
       tab: 'students',
@@ -97,7 +101,8 @@ describe('loadAdminUsersPageData', () => {
     vi.mocked(listMentorshipsForUsersHub).mockResolvedValueOnce([] as any)
     vi.mocked(listProfilesByRole).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(new Map() as any)
-    vi.mocked(selectActiveTeachingProfileIds).mockResolvedValueOnce([] as any)
+    vi.mocked(activeTeachingProfileIds).mockResolvedValueOnce([] as any)
+    vi.mocked(activeMentorProfileIds).mockResolvedValueOnce([] as any)
 
     const result = await loadAdminUsersPageData(
       { id: 'sub-1', role: 'sub_admin' } as any,

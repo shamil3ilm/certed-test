@@ -9,10 +9,13 @@ describe('capabilities model', () => {
   it('grants each base role its distinguishing capability', () => {
     expect(hasCapability(profile('admin'), 'viewFinance')).toBe(true)
     expect(hasCapability(profile('admin'), 'manageAdminTier')).toBe(true)
+    expect(hasCapability(profile('admin'), 'viewPayslips')).toBe(true)
+    expect(hasCapability(profile('admin'), 'viewReceipts')).toBe(true)
     expect(hasCapability(profile('sub_admin'), 'manageUsers')).toBe(true)
+    expect(hasCapability(profile('sub_admin'), 'viewCalendar')).toBe(true)
     expect(hasCapability(profile('sub_admin'), 'viewFinance')).toBe(false)
-    expect(hasCapability(profile('tutor'), 'viewPayslips')).toBe(true)
-    expect(hasCapability(profile('student'), 'viewReceipts')).toBe(true)
+    expect(hasCapability(profile('tutor'), 'viewPayslips')).toBe(false)
+    expect(hasCapability(profile('student'), 'viewReceipts')).toBe(false)
     expect(hasCapability(profile('student'), 'viewGrading')).toBe(false)
   })
 
@@ -35,32 +38,40 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('tutor'), 'viewMentees')).toBe(false)
     const caps = getCapabilities([persona('tutor'), persona('mentor')])
     expect(caps.has('viewMentees')).toBe(true) // only from the mentor persona
-    expect(caps.has('viewPayslips')).toBe(true) // from tutor
+    expect(caps.has('viewPayslips')).toBe(false)
     expect(caps.has('viewDashboard')).toBe(true)
   })
 
-  it('mentor persona carries only student-supervision caps, never teaching', () => {
+  it('mentor persona carries pastoral oversight PLUS tutor-level teaching capabilities', () => {
     expect(hasCapability([persona('mentor')], 'viewMentees')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewDashboard')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewMessages')).toBe(true)
-    // Matrix rule: mentor must never gain class/teaching power from the assignment alone.
-    expect(hasCapability([persona('mentor')], 'viewClasses')).toBe(false)
-    expect(hasCapability([persona('mentor')], 'manageClassContent')).toBe(false)
-    expect(hasCapability([persona('mentor')], 'viewGrading')).toBe(false)
+    expect(hasCapability([persona('mentor')], 'viewCalendar')).toBe(true)
+    // A mentor is teaching staff scoped to their mentees: it holds the tutor
+    // teaching capabilities. The class-SCOPED guards (canManageClass /
+    // canWriteClass) confine these to the mentor's mentees' classes.
+    expect(hasCapability([persona('mentor')], 'viewClasses')).toBe(true)
+    expect(hasCapability([persona('mentor')], 'manageClassContent')).toBe(true)
+    expect(hasCapability([persona('mentor')], 'manageCalendar')).toBe(true)
+    expect(hasCapability([persona('mentor')], 'viewGrading')).toBe(true)
+    // Still NOT an admin-tier / finance role.
     expect(hasCapability([persona('mentor')], 'viewFinance')).toBe(false)
+    expect(hasCapability([persona('mentor')], 'manageAdminTier')).toBe(false)
   })
 
-  it('mentor is an independent role: pastoral oversight, never teaching', () => {
-    // A dedicated mentor account (role `mentor`, may not be a tutor) gets only
-    // supervision caps from its role — teaching comes solely from a tutor persona.
+  it('mentor role advertises pastoral oversight plus tutor-level teaching capabilities', () => {
+    // A dedicated mentor account (role `mentor`) is teaching staff for its
+    // mentees: supervision caps PLUS the tutor teaching set (class-scoped by the
+    // guards to the mentees' classes), but no finance/admin-tier powers.
     expect(hasCapability(profile('mentor'), 'viewMentees')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewDashboard')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewMessages')).toBe(true)
-    expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(false)
-    expect(hasCapability(profile('mentor'), 'viewGrading')).toBe(false)
-    // A dedicated mentor is paid via the same pay-slip flow as a tutor, so they
-    // can see their own pay slips (self-service payment visibility, not teaching).
-    expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'viewCalendar')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'viewClasses')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'viewGrading')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(false)
+    expect(hasCapability(profile('mentor'), 'manageAdminTier')).toBe(false)
   })
 
   it('reserved-but-unwired personas advertise no capabilities (fail-closed)', () => {

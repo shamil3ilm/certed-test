@@ -294,10 +294,9 @@ describe('assignment action-input helpers', () => {
   })
 
   it('preserves topic and max_marks in the edit patch when supplied', () => {
-    // Regression: editAssignmentAction used to forward neither field, and the
-    // validator turns a missing value into null - so every edit silently wiped
-    // topic and max_marks (a null max drops that assignment from the report-card
-    // average). Passing them through must round-trip the real values.
+    // The validator turns a missing value into null, so an edit that dropped
+    // topic or max_marks would wipe them (a null max drops that assignment from
+    // the report-card average). Passing them through must round-trip the real values.
     const result = validateEditAssignmentInput({
       id: '550e8400-e29b-41d4-a716-446655440000',
       title: 'Homework',

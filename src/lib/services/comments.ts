@@ -54,8 +54,8 @@ async function withAuthors(rows: Comment[]): Promise<Comment[]> {
 
 /**
  * Comments for many entities of one type, keyed by entity id - one query and one
- * author lookup for the whole set (avoids the per-item N+1 the old per-entity
- * loaders caused when a page rendered a list of resources/meets/submissions).
+ * author lookup for the whole set (avoids the per-item N+1 of a per-entity load
+ * when a page renders a list of resources/meets/submissions).
  */
 export async function listCommentsForEntities(
   entityType: CommentEntity,

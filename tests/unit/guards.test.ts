@@ -20,7 +20,7 @@ describe('capabilities', () => {
 
   it('keeps student capabilities narrow', () => {
     const student = p('student')
-    expect(getCapabilities(student).has('viewReceipts')).toBe(true)
+    expect(getCapabilities(student).has('viewReceipts')).toBe(false)
     expect(getCapabilities(student).has('manageUsers')).toBe(false)
   })
 })

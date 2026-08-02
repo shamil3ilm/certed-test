@@ -129,11 +129,9 @@ describe('myClassIds derives membership from explicit personas', () => {
   it('a persona that is neither tutor nor student (e.g. guardian) gets no classes and never queries membership', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: false, isTutor: false, isStudent: false } as any)
     expect(await myClassIds(guardian)).toEqual([])
-    // Regression: old code inferred tutor as !isStudent and would have queried class_tutors.
-    // Membership reads are now lazy - a caller who holds neither persona doesn't
-    // just skip the query, it never opens a service-role client at all. That is
-    // stricter than the old `client.from` check, which had to hand over a client
-    // first (and whose unconsumed queue then leaked into the next test).
+    // Membership reads are lazy: a caller who holds neither persona never opens a
+    // service-role client at all (not merely skipping the query), so no admin
+    // client is created here.
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 

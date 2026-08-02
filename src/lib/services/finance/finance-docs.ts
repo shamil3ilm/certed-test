@@ -66,9 +66,8 @@ export async function listRecentDocs(kind: FinanceKind, limit = 100): Promise<Fi
   return selectRecentDocs(kind, limit)
 }
 
-/** Real page-through + search/filter for the admin finance ledger - the page
- *  previously fetched a flat newest-200 window with no way to reach anything
- *  older or find a specific document. */
+/** Page-through + search/filter for the admin finance ledger, so the admin can
+ *  reach documents beyond the newest window and find a specific one. */
 export async function listDocsPage(
   kind: FinanceKind,
   opts: { page: number; pageSize: number; search?: string; status?: 'active' | 'voided' },

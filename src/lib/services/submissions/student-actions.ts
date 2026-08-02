@@ -76,10 +76,10 @@ export async function recordSubmission(actor: Profile, input: RecordSubmissionIn
   })
   if (error) throw mapReplaceSubmissionError(error.message)
 
-  // Tell the class's tutors that work was turned in - previously a tutor only
-  // discovered a submission by opening the grading queue. Mirrors the student
-  // new-assignment notification. Best-effort: the submission is already
-  // committed, so a notification failure must never fail the turn-in.
+  // Tell the class's tutors that work was turned in so they see it without
+  // having to open the grading queue. Mirrors the student new-assignment
+  // notification. Best-effort: the submission is already committed, so a
+  // notification failure must never fail the turn-in.
   await notifyClassTutorsOfSubmission(assignment, actor)
 
   return data as Submission

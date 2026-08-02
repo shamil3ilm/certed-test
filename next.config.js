@@ -23,6 +23,11 @@ if ((process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0') !== '1')
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // don't advertise the framework (minor fingerprinting reduction)
+  // Local portal QA and Playwright run through `app.localhost` while the dev
+  // server itself is usually started on `localhost`; allow that explicit
+  // cross-origin dev host so Next's future default block does not break local
+  // asset/HMR requests.
+  allowedDevOrigins: ['app.localhost'],
   env: {
     // Expose the canonical mock-mode flag to browser code so client-side
     // features such as the Drive picker use the same toggle as the server-side

@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
+import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { getProfilesByIds } from '@/lib/services/users'
 import {
   countActiveClasses as countActiveClassRows,
@@ -65,14 +66,18 @@ export const getClass = selectClassById
  * inferred from the absence of another persona.
  */
 const myClassIdsByProfileId = cache(async (profileId: string): Promise<string[]> => {
-  const { isAdmin, isTutor, isStudent } = await loadPersonaFlags(profileId)
+  const { isAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profileId)
   if (isAdmin) return selectAllClassIds()
 
-  const [taught, enrolled] = await Promise.all([
+  // A mentor's visible classes are the classes their mentees are enrolled in -
+  // the same scoping the class guards use - so the Classes list matches what a
+  // mentor may actually open.
+  const [taught, enrolled, mentored] = await Promise.all([
     isTutor ? selectActiveClassIdsForTutor(profileId) : Promise.resolve([]),
     isStudent ? selectActiveClassIdsForStudent(profileId) : Promise.resolve([]),
+    hasMentorAuthority ? mentorAuthorityClassIds(profileId).then((ids) => [...ids]) : Promise.resolve([]),
   ])
-  return [...new Set([...taught, ...enrolled])]
+  return [...new Set([...taught, ...enrolled, ...mentored])]
 })
 
 export async function myClassIds(profile: Profile): Promise<string[]> {
