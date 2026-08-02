@@ -24,17 +24,7 @@ export default async function AttendancePage({
   if (data.kind === 'student') {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SectionLabel>My attendance</SectionLabel>
-          <a
-            href={`/api/report-card/${me.id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-sm btn-soft"
-          >
-            Download report card
-          </a>
-        </div>
+        <SectionLabel>My attendance</SectionLabel>
         <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4">
           <div>
             <p className="text-2xl font-bold text-slate-900">{data.summary.rate}%</p>

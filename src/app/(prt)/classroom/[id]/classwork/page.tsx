@@ -33,6 +33,16 @@ export default async function ClassworkPage({
         >
           Materials
         </a>
+        {data.isStudent && (
+          <a
+            href={`/api/report-card/${me.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sm btn-soft ml-auto"
+          >
+            Download report card
+          </a>
+        )}
       </nav>
       <AssignmentsSection data={data} me={me} courseId={course.id} />
       <MaterialsSection data={data} me={me} courseId={course.id} />
