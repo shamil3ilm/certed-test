@@ -2,20 +2,23 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const TABS = [
-  { seg: '', label: 'Stream' },
-  { seg: 'classwork', label: 'Classwork' },
-  { seg: 'attendance', label: 'Attendance' },
-  { seg: 'people', label: 'People' },
-]
-
-export function ClassTabs({ id }: { id: string }) {
+export function ClassTabs({ id, canGrade }: { id: string; canGrade: boolean }) {
   const pathname = usePathname()
   const base = `/classroom/${id}`
 
+  // Grading sits next to the classwork it marks, and only for graders - a
+  // student never sees a Grading tab on their own class.
+  const tabs = [
+    { seg: '', label: 'Stream' },
+    { seg: 'classwork', label: 'Classwork' },
+    ...(canGrade ? [{ seg: 'grading', label: 'Grading' }] : []),
+    { seg: 'attendance', label: 'Attendance' },
+    { seg: 'people', label: 'People' },
+  ]
+
   return (
     <nav className="-mb-px flex gap-1 overflow-x-auto">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const href = t.seg ? `${base}/${t.seg}` : base
         const active = t.seg ? pathname.startsWith(href) : pathname === base
         return (

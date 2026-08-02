@@ -58,8 +58,7 @@ function CommentThreadBody({
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { toast } = useUI()
 
-  // Clear the scroll timer only on unmount. Keeping this effect cleanup-only
-  // avoids the render-time reset pattern this component used to rely on.
+  // Clear the scroll timer only on unmount.
   useEffect(() => {
     return () => {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
@@ -196,7 +195,7 @@ function CommentThreadBody({
           })}
           <div ref={bottomRef} />
 
-          <form onSubmit={handleSubmit} className="flex gap-2 pt-1">
+          <form onSubmit={handleSubmit} className="flex items-end gap-2 pt-1">
             <label className="min-w-0 flex-1">
               <span className="mb-1 block text-xs font-medium text-slate-500">Comment</span>
               <textarea

@@ -35,6 +35,20 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     }
     return { data: [...byCur.values()], error: null }
   }
+  if (fn === 'revoke_profile_guarded') {
+    // Mirrors migration 0042: refuse to disable the last active admin, else flip
+    // the target to disabled. Returns the same 'ok' | 'not_found' | 'last_admin'.
+    const profiles = table('profiles')
+    const target = profiles.find((p) => p.id === args.p_target)
+    if (!target) return { data: 'not_found', error: null }
+    if (target.role === 'admin' && target.status === 'active') {
+      const activeAdmins = profiles.filter((p) => p.role === 'admin' && p.status === 'active').length
+      if (activeAdmins <= 1) return { data: 'last_admin', error: null }
+    }
+    target.status = 'disabled'
+    persist()
+    return { data: 'ok', error: null }
+  }
   if (fn === 'replace_own_submission') {
     const me = profileByUid(uid)
     if (!me || me.status !== 'active') {

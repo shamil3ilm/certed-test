@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
  * module's: see assertCanComment in src/lib/services/comment-auth.
  */
 
-export type CommentEntity = 'submission' | 'resource' | 'meet'
+export type CommentEntity = 'submission' | 'resource' | 'meet' | 'announcement'
 
 export type CommentRow = {
   id: string

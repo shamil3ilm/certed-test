@@ -37,6 +37,11 @@ export const updateProfileSchema = z.object({
   full_name: z.string().trim().max(120).optional(),
 })
 
+/** Self-service email change - the new sign-in email. */
+export const changeEmailSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+})
+
 /** Self-service password change - same bounds as registerSchema's password. */
 export const changePasswordSchema = z
   .object({

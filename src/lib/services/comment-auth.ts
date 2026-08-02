@@ -1,5 +1,6 @@
 import { selectResourceClassIdAsService } from '@/lib/data/resources'
 import { selectMeetLinkClassIdAsService } from '@/lib/data/meet-links'
+import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
 import { selectSubmissionOwnerAsService } from '@/lib/data/submissions'
 import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
 import { canAccessClass, canManageClass } from '@/lib/permission'
@@ -17,9 +18,10 @@ const NO_ACCESS = 'You do not have access to comment here.'
  * could otherwise attach a comment to a foreign submission. The author must be
  * able to access the thing they're commenting on, mirroring each entity's read
  * rule:
- *   - resource / meet -> a member of its class (canAccessClass: admin, the
- *     class's tutor, or an enrolled student). A global meet (null class) is
- *     academy-wide, so any active class participant who reached here may comment.
+ *   - resource / meet / announcement -> a member of its class (canAccessClass:
+ *     admin, the class's tutor, or an enrolled student). A global meet or
+ *     academy-wide announcement (null class) is academy-wide, so any active
+ *     class participant who reached here may comment.
  *   - submission -> the owning student, or a tutor/admin of its class - never a
  *     classmate (matches the submissions_read RLS rule).
  *
@@ -32,11 +34,16 @@ export async function assertCanComment(actor: Profile, entityType: CommentEntity
   // row that does not exist (NotFoundError) from one the caller merely cannot
   // see (PermissionError), and an RLS read returns the same empty result for
   // both - which would report every permission failure as a missing item.
-  if (entityType === 'resource' || entityType === 'meet') {
+  // resource / meet / announcement all share one rule: a class member may
+  // comment, and a global (null class) item is academy-wide so any active
+  // participant who reached here may comment.
+  if (entityType === 'resource' || entityType === 'meet' || entityType === 'announcement') {
     const parent =
       entityType === 'resource'
         ? await selectResourceClassIdAsService(entityId)
-        : await selectMeetLinkClassIdAsService(entityId)
+        : entityType === 'meet'
+          ? await selectMeetLinkClassIdAsService(entityId)
+          : await selectAnnouncementClassIdAsService(entityId)
     if (!parent) throw new NotFoundError(GONE)
     if (parent.class_id === null) return // global item: academy-wide, comment allowed
     if (!(await canAccessClass(actor, parent.class_id))) throw new PermissionError(NO_ACCESS)

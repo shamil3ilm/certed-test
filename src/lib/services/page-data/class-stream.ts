@@ -4,7 +4,6 @@ import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAnnouncementsForClassPage, type Announcement } from '@/lib/services/announcements'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
-import { listMeetLinks, type MeetLink } from '@/lib/services/meet-links'
 
 const STREAM_PAGE_SIZE = 10
 const ARCHIVED_PAGE_SIZE = 20
@@ -22,10 +21,7 @@ type ClassStreamViewData = {
   streamTotalPages: number
   activeAnnouncements: Announcement[]
   archivedAnnouncements: Announcement[]
-  meetLinks: MeetLink[]
-  archivedMeetLinks: MeetLink[]
-  commentsByMeet: Map<string, Comment[]>
-  classList: { id: string; name: string }[]
+  commentsByAnnouncement: Map<string, Comment[]>
 }
 
 export function classStreamPageUrl(page: number, search?: string): string {
@@ -56,7 +52,7 @@ export async function loadClassStreamViewData(
   const streamPage = parsePageParam(searchParams?.streamPage)
   const streamQ = searchParams?.streamQ?.trim() || undefined
 
-  const [activePage, archivedPage, allMeetLinks] = await Promise.all([
+  const [activePage, archivedPage] = await Promise.all([
     listAnnouncementsForClassPage(course.id, {
       page: streamPage,
       pageSize: STREAM_PAGE_SIZE,
@@ -66,7 +62,6 @@ export async function loadClassStreamViewData(
     canManage
       ? listAnnouncementsForClassPage(course.id, { page: 1, pageSize: ARCHIVED_PAGE_SIZE, status: 'archived' })
       : Promise.resolve({ items: [], total: 0 }),
-    listMeetLinks(course.id, canManage),
   ])
 
   // An out-of-range ?streamPage= (stale/shared/hand-edited URL) would otherwise show
@@ -88,13 +83,11 @@ export async function loadClassStreamViewData(
   const archivedAnnouncements = archivedPage.items.filter((a) =>
     canManageAnnouncement(canManage, isAdmin, course.id, a.class_id),
   )
-  const meetLinks = allMeetLinks.filter((m) => m.active)
-  const archivedMeetLinks = canManage
-    ? allMeetLinks.filter((m) => !m.active && (isAdmin || m.class_id === course.id))
-    : []
-  const commentsByMeet = await listCommentsForEntities(
-    'meet',
-    meetLinks.map((m) => m.id),
+  // Every visible post is threadable (announcements are the 4th comment entity):
+  // load the threads for the posts on this page. Archived posts stay thread-less.
+  const commentsByAnnouncement = await listCommentsForEntities(
+    'announcement',
+    activeAnnouncements.map((a) => a.id),
   )
 
   return {
@@ -108,9 +101,6 @@ export async function loadClassStreamViewData(
     streamTotalPages,
     activeAnnouncements,
     archivedAnnouncements,
-    meetLinks,
-    archivedMeetLinks,
-    commentsByMeet,
-    classList: [{ id: course.id, name: course.name }],
+    commentsByAnnouncement,
   }
 }

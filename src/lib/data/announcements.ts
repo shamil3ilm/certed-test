@@ -1,5 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeOrIlike } from '@/lib/text/ilike'
 
 /**
@@ -142,4 +143,14 @@ export async function updateAnnouncement(id: string, patch: AnnouncementPatch): 
   const supabase = await createClient()
   const { error } = await supabase.from('announcements').update(patch).eq('id', id)
   if (error) throw new Error(`announcements.update: ${error.message}`)
+}
+
+/** Service-role class lookup for comment authorization: assertCanComment has to
+ *  tell "no such post" (NotFoundError) from "not your class" (PermissionError),
+ *  which an RLS read can't - it returns empty for both. `class_id` is null for an
+ *  academy-wide announcement. Mirrors selectMeetLinkClassIdAsService. */
+export async function selectAnnouncementClassIdAsService(id: string): Promise<{ class_id: string | null } | null> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('announcements').select('class_id').eq('id', id).maybeSingle()
+  return (data as { class_id: string | null }) ?? null
 }

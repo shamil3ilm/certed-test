@@ -24,12 +24,14 @@ async function ensureThreadOpen(scope: Locator) {
 test('TUTOR -- shares a meet link, a resource, and comments on the resource', async ({ page }) => {
   await loginAs(page, 'tutor@mock.test')
 
-  // Share a meeting link on the class Stream
+  // Post a meeting to the class Stream: a stream post carrying a join link IS a meeting
   await page.goto(`/classroom/${SEED.math}`)
-  const meet = page.locator('form:has-text("Share a Meet Link")')
-  await meet.getByPlaceholder('e.g. Maths Doubt Class').fill('E2E Doubt Session')
-  await meet.getByPlaceholder('https://meet.google.com/...').fill('https://meet.google.com/e2e-abc')
-  await submitAndReload(page, () => meet.getByRole('button', { name: 'Share link' }).click())
+  const composer = page.locator('form:has-text("Post to the class")')
+  await composer.getByPlaceholder('Title').fill('E2E Doubt Session')
+  await composer.getByPlaceholder('Share something with your class...').fill('Join for doubt clearing')
+  await composer.getByText('Add a meeting link').click()
+  await composer.getByPlaceholder('https://meet.google.com/...').fill('https://meet.google.com/e2e-abc')
+  await submitAndReload(page, () => composer.getByRole('button', { name: 'Post' }).click())
   await expect(page.getByText('E2E Doubt Session').first()).toBeVisible()
 
   // Share a resource in Classwork -> Materials

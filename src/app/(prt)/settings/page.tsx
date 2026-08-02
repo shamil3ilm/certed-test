@@ -2,7 +2,8 @@ import { requireActiveProfile } from '@/lib/auth/require-role'
 import { isMock } from '@/lib/mock/env'
 import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
 import { AlertBanner, PageHeader, Panel } from '@/lib/ui'
-import { changePasswordAction, updateProfileAction } from './actions'
+import { ChangePasswordForm } from './ChangePasswordForm'
+import { changeEmailAction, changePasswordAction, updateProfileAction } from './actions'
 
 export default async function SettingsPage({ searchParams }: { searchParams: SettingsSearchParams }) {
   // Self-service page: any signed-in active user manages their own profile.
@@ -11,7 +12,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Set
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Settings" description="Manage your profile and password." />
+      <PageHeader title="Settings" description="Manage your profile, email and password." />
 
       {data.alerts.map((alert) => (
         <AlertBanner key={`${alert.tone}:${alert.message}`} tone={alert.tone} className="mb-4">
@@ -55,37 +56,29 @@ export default async function SettingsPage({ searchParams }: { searchParams: Set
               </button>
             </div>
           </form>
-        </Panel>
-
-        <Panel title="Password">
-          <form action={changePasswordAction} className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              <span className="text-slate-600">New password</span>
+          <form action={changeEmailAction} className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
+            <label className="text-sm sm:col-span-2">
+              <span className="mb-1 block text-slate-600">Change email</span>
               <input
-                name="password"
-                type="password"
+                name="new_email"
+                type="email"
                 required
-                autoComplete="new-password"
-                className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-slate-600">Confirm password</span>
-              <input
-                name="confirm"
-                type="password"
-                required
-                autoComplete="new-password"
-                className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                autoComplete="email"
+                placeholder="you@example.com"
+                className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
               />
             </label>
             <div className="sm:col-span-2">
               <button type="submit" className="btn btn-primary">
-                Change password
+                Change email
               </button>
-              <p className="mt-2 text-xs text-slate-400">{data.passwordHelpText}</p>
+              <p className="mt-2 text-xs text-slate-400">This becomes your sign-in email, effective immediately.</p>
             </div>
           </form>
+        </Panel>
+
+        <Panel title="Password">
+          <ChangePasswordForm action={changePasswordAction} helpText={data.passwordHelpText} />
         </Panel>
       </div>
     </main>

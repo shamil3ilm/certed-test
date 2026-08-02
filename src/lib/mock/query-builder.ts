@@ -64,6 +64,22 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     this.filters.push((r) => (val === null ? r[col] == null : r[col] === val))
     return this
   }
+  /** PostgREST's `.not(col, op, val)` - the negation of the operator. Covers the
+   *  operators callers actually use (chiefly `.not(col, 'is', null)` = "col IS NOT
+   *  null"), so mock mode handles a `.not()` chain without crashing. */
+  not(col: string, operator: string, val: unknown) {
+    if (operator === 'is') {
+      this.filters.push((r) => (val === null ? r[col] != null : r[col] !== val))
+    } else if (operator === 'eq') {
+      this.filters.push((r) => r[col] !== val)
+    } else if (operator === 'in') {
+      const vals = val as unknown[]
+      this.filters.push((r) => !vals.includes(r[col]))
+    } else {
+      throw new Error(`MockQueryBuilder.not(): unsupported operator "${operator}"`)
+    }
+    return this
+  }
   ilike(col: string, pattern: string) {
     const needle = String(pattern).replace(/%/g, '').toLowerCase()
     this.filters.push((r) =>

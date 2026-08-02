@@ -27,12 +27,6 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M3.5 9h17M8 3v4M16 3v4" />
     </>
   ),
-  '/grading': (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="m8.5 12 2.5 2.5 4.5-5" />
-    </>
-  ),
   '/students': (
     <>
       <circle cx="8" cy="9" r="3" />

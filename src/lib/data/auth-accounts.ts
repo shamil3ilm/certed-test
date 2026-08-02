@@ -38,3 +38,15 @@ export async function updateOwnAuthPassword(password: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password })
   if (error) throw new Error(`data.authAccounts.updateOwnPassword: ${error.message}`)
 }
+
+/** Change an auth account's email via the admin API, confirmed immediately so no
+ *  Supabase confirmation email is sent (the app skips confirmation on create the
+ *  same way, email_confirm: true). The profile row is synced by the caller. */
+export async function updateAuthUserEmail(authUserId: string, email: string): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.updateUserById(authUserId, {
+    email: email.trim().toLowerCase(),
+    email_confirm: true,
+  })
+  if (error) throw new Error(`data.authAccounts.updateAuthUserEmail: ${error.message}`)
+}

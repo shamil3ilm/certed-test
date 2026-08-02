@@ -62,6 +62,18 @@ export async function loadSettingsPageData(
       message: 'Too many password changes. Please wait a few minutes and try again.',
     })
   }
+  if (searchParams.saved === 'email') {
+    alerts.push({ tone: 'success', message: 'Email updated.' })
+  }
+  if (searchParams.error === 'email') {
+    alerts.push({ tone: 'error', message: 'Enter a valid email address.' })
+  }
+  if (searchParams.error === 'email_taken') {
+    alerts.push({ tone: 'error', message: 'That email is already in use.' })
+  }
+  if (searchParams.error === 'email_limit') {
+    alerts.push({ tone: 'error', message: 'Too many email changes. Please wait a few minutes and try again.' })
+  }
 
   const flags = await loadPersonaFlags(actor.id)
   const showStudentClass =

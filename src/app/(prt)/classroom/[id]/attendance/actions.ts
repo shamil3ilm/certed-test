@@ -53,7 +53,11 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
     // silent no-op. A non-ServiceError is an unexpected fault - rethrow.
     // redirect() throws NEXT_REDIRECT, so it must be the last thing in the branch.
     if (e instanceof PermissionError) return
-    if (e instanceof ServiceError) redirect(`/classroom/${classId}/attendance?error=1`)
+    // Carry the session date back so the banner shows on the SAME roster the
+    // manager was clearing, not a reset to today's default date.
+    if (e instanceof ServiceError) {
+      redirect(`/classroom/${classId}/attendance?${new URLSearchParams({ date, error: '1' }).toString()}`)
+    }
     throw e
   }
 }

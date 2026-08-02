@@ -22,7 +22,7 @@ function tableClient(byTable: Record<string, { data: unknown; error: unknown }>)
 
 beforeEach(() => vi.clearAllMocks())
 
-describe('assertCanComment - resource / meet (class membership)', () => {
+describe('assertCanComment - resource / meet / announcement (class membership)', () => {
   it('allows a class member to comment on a resource', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(
       tableClient({ resources: { data: { class_id: 'c1' }, error: null } }),
@@ -51,6 +51,29 @@ describe('assertCanComment - resource / meet (class membership)', () => {
       tableClient({ meet_links: { data: { class_id: null }, error: null } }),
     )
     await expect(assertCanComment(student, 'meet', 'm1')).resolves.toBeUndefined()
+    expect(canAccessClass).not.toHaveBeenCalled()
+  })
+
+  it('allows a class member to comment on a class announcement', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      tableClient({ announcements: { data: { class_id: 'c1' }, error: null } }),
+    )
+    vi.mocked(canAccessClass).mockResolvedValueOnce(true)
+    await expect(assertCanComment(student, 'announcement', 'an1')).resolves.toBeUndefined()
+    expect(canAccessClass).toHaveBeenCalledWith(student, 'c1')
+  })
+
+  it('allows an academy-wide announcement (null class) without a membership check', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      tableClient({ announcements: { data: { class_id: null }, error: null } }),
+    )
+    await expect(assertCanComment(student, 'announcement', 'an2')).resolves.toBeUndefined()
+    expect(canAccessClass).not.toHaveBeenCalled()
+  })
+
+  it('404s a missing announcement without a membership check', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(tableClient({ announcements: { data: null, error: null } }))
+    await expect(assertCanComment(student, 'announcement', 'gone')).rejects.toBeInstanceOf(NotFoundError)
     expect(canAccessClass).not.toHaveBeenCalled()
   })
 })

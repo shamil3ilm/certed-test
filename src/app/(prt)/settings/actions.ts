@@ -2,9 +2,9 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireActiveProfile } from '@/lib/auth/require-role'
-import { RateLimitError } from '@/lib/errors'
-import { updateOwnProfile, changeOwnPassword } from '@/lib/services/users'
-import { updateProfileSchema, changePasswordSchema } from '@/lib/validation/user'
+import { RateLimitError, ValidationError } from '@/lib/errors'
+import { updateOwnProfile, changeOwnPassword, changeOwnEmail } from '@/lib/services/users'
+import { updateProfileSchema, changePasswordSchema, changeEmailSchema } from '@/lib/validation/user'
 
 export async function updateProfileAction(formData: FormData) {
   const me = await requireActiveProfile()
@@ -33,4 +33,21 @@ export async function changePasswordAction(formData: FormData) {
   }
   revalidatePath('/settings')
   redirect('/settings?saved=password')
+}
+
+export async function changeEmailAction(formData: FormData) {
+  const me = await requireActiveProfile()
+  const parsed = changeEmailSchema.safeParse({ email: formData.get('new_email') })
+  if (!parsed.success) redirect('/settings?error=email')
+
+  try {
+    await changeOwnEmail(me, parsed.data.email)
+  } catch (error) {
+    // redirect() throws NEXT_REDIRECT, so it must stay outside this catch.
+    if (error instanceof RateLimitError) redirect('/settings?error=email_limit')
+    if (error instanceof ValidationError) redirect('/settings?error=email_taken')
+    throw error
+  }
+  revalidatePath('/settings')
+  redirect('/settings?saved=email')
 }

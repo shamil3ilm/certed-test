@@ -1,6 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { requireCapability } from '@/lib/auth/require-role'
 import { ServiceError } from '@/lib/errors'
 import {
@@ -38,6 +39,21 @@ export async function createAnnouncementAction(formData: FormData) {
     throw error
   }
   revalidatePath('/classroom', 'layout')
+}
+
+export async function createAnnouncementStatusAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await createAnnouncementFromActionInput(me, {
+      class_id: formData.get('class_id'),
+      title: formData.get('title'),
+      message: formData.get('message'),
+    })
+    revalidatePath('/classroom', 'layout')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
 }
 
 export async function archiveAnnouncementAction(formData: FormData) {

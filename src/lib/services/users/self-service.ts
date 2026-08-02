@@ -1,11 +1,12 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { isMock } from '@/lib/mock/env'
-import { RateLimitError } from '@/lib/errors'
+import { RateLimitError, ValidationError } from '@/lib/errors'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { updateOwnProfile as updateOwnProfileRow, updateProfile } from '@/lib/data/profiles'
-import { updateOwnAuthPassword } from '@/lib/data/auth-accounts'
+import { updateOwnAuthPassword, updateAuthUserEmail } from '@/lib/data/auth-accounts'
+import { getProfileByEmail } from './directory'
 
 /** What a signed-in user may change about their OWN account. */
 
@@ -36,4 +37,33 @@ export async function changeOwnPassword(actor: Pick<Profile, 'id'>, password: st
     await updateOwnAuthPassword(password)
   }
   await auditPrivilegedAction(actor, 'profile.password', 'profile', actor.id)
+}
+
+/** Self-service email change. Like changeOwnPassword, an authenticated session is
+ *  enough (no re-verification). Mock mirrors the new email onto the profile row the
+ *  local auth shim signs in against; real mode updates the Supabase auth account
+ *  AND the profile so sign-in (auth) and display/lookups (profiles) stay in sync. */
+export async function changeOwnEmail(
+  actor: Pick<Profile, 'id' | 'auth_user_id' | 'email'>,
+  newEmail: string,
+): Promise<void> {
+  if (!rateLimit(`email-change:${actor.id}`, { limit: 5, windowMs: 10 * 60 * 1000 }).ok) {
+    throw new RateLimitError('Too many email changes. Please wait a few minutes and try again.')
+  }
+  const email = newEmail.trim().toLowerCase()
+  // No-op if unchanged, so a resubmit doesn't trip the "already in use" check.
+  if (email === (actor.email ?? '').trim().toLowerCase()) return
+  const existing = await getProfileByEmail(email)
+  if (existing && existing.id !== actor.id) {
+    throw new ValidationError('That email is already in use.')
+  }
+  if (isMock()) {
+    await updateProfile(actor.id, { email })
+  } else {
+    // Auth first: if Supabase rejects (e.g. taken at the auth layer) the profile
+    // row is left untouched, so the two never diverge on a failed change.
+    if (actor.auth_user_id) await updateAuthUserEmail(actor.auth_user_id, email)
+    await updateProfile(actor.id, { email })
+  }
+  await auditPrivilegedAction(actor, 'profile.email', 'profile', actor.id)
 }

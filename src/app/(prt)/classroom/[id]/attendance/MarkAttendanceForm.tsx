@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { SEGMENTED_GROUP, segmentedButtonClass } from '@/lib/ui'
 import { assertActionOk } from '../../../action-client'
 import { markAttendanceAction } from './actions'
 import { useUI } from '../../../Providers'
@@ -9,10 +10,10 @@ import type { AttendanceStatus } from '@/lib/services/attendance'
 
 type Row = { id: string; name: string; status: AttendanceStatus | null }
 
-const OPTIONS: { value: AttendanceStatus; label: string; on: string }[] = [
-  { value: 'present', label: 'Present', on: 'bg-emerald-700 text-white' },
-  { value: 'late', label: 'Late', on: 'bg-amber-700 text-white' },
-  { value: 'absent', label: 'Absent', on: 'bg-red-700 text-white' },
+const OPTIONS: { value: AttendanceStatus; label: string; tone: 'success' | 'warning' | 'danger' }[] = [
+  { value: 'present', label: 'Present', tone: 'success' },
+  { value: 'late', label: 'Late', tone: 'warning' },
+  { value: 'absent', label: 'Absent', tone: 'danger' },
 ]
 
 export function MarkAttendanceForm({ classId, date, students }: { classId: string; date: string; students: Row[] }) {
@@ -87,16 +88,14 @@ function MarkAttendanceFormBody({ classId, date, students }: { classId: string; 
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3"
           >
             <span className="text-sm font-medium text-slate-800">{row.name}</span>
-            <div className="flex gap-1" role="group" aria-label={`Attendance for ${row.name}`}>
+            <div className={SEGMENTED_GROUP} role="group" aria-label={`Attendance for ${row.name}`}>
               {OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setStatus(row.id, option.value)}
                   aria-pressed={row.status === option.value}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                    row.status === option.value ? option.on : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
+                  className={segmentedButtonClass(row.status === option.value, option.tone)}
                 >
                   {option.label}
                 </button>

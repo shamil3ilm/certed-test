@@ -6,14 +6,11 @@ vi.mock('@/lib/permission/personas', () => ({
   loadPersonaFlags: vi.fn(),
 }))
 vi.mock('@/lib/services/announcements', () => ({ listAnnouncementsForClassPage: vi.fn() }))
-vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
-vi.mock('@/lib/services/meet-links', () => ({ listMeetLinks: vi.fn() }))
+vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn(async () => new Map()) }))
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { listAnnouncementsForClassPage } from '@/lib/services/announcements'
 import { classStreamPageUrl, loadClassStreamViewData } from '@/lib/services/page-data/class-stream'
-import { listCommentsForEntities } from '@/lib/services/comments'
-import { listMeetLinks } from '@/lib/services/meet-links'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -71,11 +68,6 @@ describe('loadClassStreamViewData', () => {
         ],
         total: 2,
       } as any)
-    vi.mocked(listMeetLinks).mockResolvedValueOnce([
-      { id: 'm1', class_id: 'class-1', title: 'Live class meet', active: true },
-      { id: 'm2', class_id: null, title: 'Archived global meet', active: false },
-    ] as any)
-    vi.mocked(listCommentsForEntities).mockResolvedValueOnce(new Map([['m1', [{ id: 'c1' }]]]) as any)
 
     const result = await loadClassStreamViewData(
       { id: 'admin-1', role: 'admin', email: 'admin@test.com', full_name: 'Admin' } as any,
@@ -93,11 +85,6 @@ describe('loadClassStreamViewData', () => {
     expect(result.isArchived).toBe(false)
     expect(result.streamTotalPages).toBe(2)
     expect(result.archivedAnnouncements).toHaveLength(2)
-    expect(result.meetLinks).toEqual([{ id: 'm1', class_id: 'class-1', title: 'Live class meet', active: true }])
-    expect(result.archivedMeetLinks).toEqual([
-      { id: 'm2', class_id: null, title: 'Archived global meet', active: false },
-    ])
-    expect(result.classList).toEqual([{ id: 'class-1', name: 'Math' }])
   })
 
   it('hides archived manager-only data from a student view', async () => {
@@ -106,10 +93,6 @@ describe('loadClassStreamViewData', () => {
     ] as any)
     vi.mocked(hasPersona).mockImplementation(() => false)
     vi.mocked(listAnnouncementsForClassPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
-    vi.mocked(listMeetLinks).mockResolvedValueOnce([
-      { id: 'm1', class_id: 'class-1', title: 'Live', active: true },
-    ] as any)
-    vi.mocked(listCommentsForEntities).mockResolvedValueOnce(new Map() as any)
 
     const result = await loadClassStreamViewData(
       { id: 'student-1', role: 'student', email: 'student@test.com', full_name: 'Student' } as any,
@@ -121,15 +104,12 @@ describe('loadClassStreamViewData', () => {
     expect(result.canManage).toBe(false)
     expect(result.canManageContent).toBe(false)
     expect(result.archivedAnnouncements).toEqual([])
-    expect(result.archivedMeetLinks).toEqual([])
   })
 
   it('keeps archived classes readable while disabling manager write actions', async () => {
     vi.mocked(listAnnouncementsForClassPage)
       .mockResolvedValueOnce({ items: [], total: 0 } as any)
       .mockResolvedValueOnce({ items: [], total: 0 } as any)
-    vi.mocked(listMeetLinks).mockResolvedValueOnce([] as any)
-    vi.mocked(listCommentsForEntities).mockResolvedValueOnce(new Map() as any)
 
     const result = await loadClassStreamViewData(
       { id: 'admin-1', role: 'admin', email: 'admin@test.com', full_name: 'Admin' } as any,

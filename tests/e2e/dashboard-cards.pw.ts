@@ -57,12 +57,14 @@ test('TUTOR dashboard cards and CTAs are interactive', async ({ page }) => {
   await loginAs(page, 'tutor@mock.test')
   await page.goto('/dashboard')
 
-  await expect(page.getByRole('heading', { name: "Today's classes" })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Upcoming classes' })).toBeVisible()
 
+  // "Review all" now lands on the class list (grading moved from a top-level
+  // queue to a per-class Classroom -> Grading tab).
   const reviewAll = page.getByRole('link', { name: /Review all/i })
   if (await reviewAll.count()) {
     await reviewAll.first().click()
-    await expectUrlContains(page, '/grading')
+    await expectUrlContains(page, '/classroom')
   }
 
   await page.goto('/dashboard')
