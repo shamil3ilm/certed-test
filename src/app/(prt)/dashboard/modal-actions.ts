@@ -1,6 +1,6 @@
 'use server'
 import { requireCapability } from '@/lib/auth/require-role'
-import { activeTeachingProfileIds } from '@/lib/services/class-tutors'
+import { activeTeachingProfileIds, activeMentorProfileIds } from '@/lib/services/class-tutors'
 import { financeUrl } from '@/lib/services/finance/admin-finance'
 import { listProfilesByFilter } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
@@ -40,11 +40,15 @@ export async function loadStudentsModal() {
 export async function loadTutorsModal() {
   await requireCapability('viewUsers')
   const staff = await listProfilesByFilter({ role: ['tutor', 'mentor'], status: 'active' })
-  const teachingStaffIds = new Set(await activeTeachingProfileIds(staff.map((profile) => profile.id)))
+  const ids = staff.map((profile) => profile.id)
+  const [teachingStaffIds, mentoringStaffIds] = await Promise.all([
+    activeTeachingProfileIds(ids).then((r) => new Set(r)),
+    activeMentorProfileIds(ids).then((r) => new Set(r)),
+  ])
   return {
     items: staff.map((p) => ({
       primary: p.full_name ?? p.email,
-      secondary: `${staffRoleLabel({ role: p.role, teaches: teachingStaffIds.has(p.id) })} - ${p.email}`,
+      secondary: `${staffRoleLabel({ role: p.role, teaches: teachingStaffIds.has(p.id), mentors: mentoringStaffIds.has(p.id) })} - ${p.email}`,
       href: `/admin/users?tab=tutors&q=${encodeURIComponent(p.email)}`,
     })),
   }
@@ -64,7 +68,7 @@ export async function loadPendingModal() {
 
 export async function loadActiveClassesModal() {
   // manageAdminTier is the admin-tier marker (a hard rule, never override-granted),
-  // preserving this modal's admin-only reach exactly as the prior isAdminTier check.
+  // so this modal stays admin-only.
   await requireCapability('manageAdminTier')
   const [classes, enrollCounts] = await Promise.all([listClasses(), countEnrollmentsPerClass()])
   const active = classes.filter((c) => c.status === 'active')
