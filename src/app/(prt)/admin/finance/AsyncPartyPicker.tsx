@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { cx } from '@/lib/ui'
 import type { ActionResult } from '@/lib/api/action-error'
 import { assertActionOk } from '../../action-client'
@@ -36,6 +36,7 @@ export function AsyncPartyPicker({
   const [results, setResults] = useState<Party[]>([])
   const [searching, setSearching] = useState(false)
   const [open, setOpen] = useState(false)
+  const listboxId = useId()
   // Refs so the debounced effect depends only on `query` - not on prop/handler
   // identity, which would otherwise restart the timer (and the search) every render.
   const onSearchRef = useRef(onSearch)
@@ -138,10 +139,12 @@ export function AsyncPartyPicker({
         className={FIELD_CLASS}
         role="combobox"
         aria-expanded={showDropdown}
+        aria-controls={listboxId}
         autoComplete="off"
       />
       {showDropdown && (
         <div
+          id={listboxId}
           role="listbox"
           className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
@@ -154,6 +157,7 @@ export function AsyncPartyPicker({
               key={party.id}
               type="button"
               role="option"
+              aria-selected={false}
               // preventDefault keeps focus on the input so the click commits before
               // any blur can tear the dropdown down.
               onMouseDown={(event) => event.preventDefault()}

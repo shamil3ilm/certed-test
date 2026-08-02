@@ -25,7 +25,7 @@ async function issueDoc(
   const allowedRoles = kind === 'receipt' ? ['student'] : ['tutor', 'mentor']
   if (!party || !allowedRoles.includes(party.role) || party.status !== 'active') {
     // A stale/wrong party_id is a client-correctable input error, not a server
-    // fault: ValidationError maps to 400 in the handler, so it no longer pollutes
+    // fault: ValidationError maps to 400 in the handler, so it doesn't pollute
     // the 5xx error budget as a bare Error would.
     throw new ValidationError(`No ${kind === 'receipt' ? 'active student' : 'active payee'} found for that selection.`)
   }
