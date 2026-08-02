@@ -150,6 +150,7 @@ describe('createAssignment API-input helpers', () => {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       title: 'HW',
       due_date: '2026-07-20T00:00:00.000Z',
+      max_marks: 20,
     })
     expect(created.id).toBe('a-1')
   })
@@ -278,6 +279,7 @@ describe('assignment action-input helpers', () => {
         description: ' Solve all ',
         due_date: '2026-07-20T00:00:00.000Z',
         attachment_drive_link: 'https://example.com/brief',
+        max_marks: '20',
       }),
     ).toEqual({
       id: '550e8400-e29b-41d4-a716-446655440000',
@@ -287,7 +289,7 @@ describe('assignment action-input helpers', () => {
         due_date: '2026-07-20T00:00:00.000Z',
         attachment_drive_link: 'https://example.com/brief',
         topic: null,
-        max_marks: null,
+        max_marks: 20,
         enforce_deadline: false,
       },
     })
@@ -321,6 +323,27 @@ describe('assignment action-input helpers', () => {
     ).toThrow(ValidationError)
   })
 
+  it('requires max marks on create and edit (so every assignment grades out of a total)', () => {
+    expect(() =>
+      validateCreateAssignmentInput({
+        class_id: '550e8400-e29b-41d4-a716-446655440000',
+        title: 'HW',
+        due_date: '2026-07-20T00:00:00.000Z',
+        // max_marks omitted
+      }),
+    ).toThrow(ValidationError)
+    expect(() =>
+      validateEditAssignmentInput({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        title: 'HW',
+        description: '',
+        due_date: '2026-07-20T00:00:00.000Z',
+        attachment_drive_link: '',
+        max_marks: '', // blank
+      }),
+    ).toThrow(/max marks is required/i)
+  })
+
   it('delegates archive/edit action input through the service boundary', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
@@ -345,6 +368,7 @@ describe('assignment action-input helpers', () => {
       description: ' Solve all ',
       due_date: '2026-07-20T00:00:00.000Z',
       attachment_drive_link: 'https://example.com/brief',
+      max_marks: '20',
     })
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'tutor-1',

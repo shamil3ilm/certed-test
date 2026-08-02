@@ -121,14 +121,13 @@ export function validateEditAssignmentInput(input: EditAssignmentActionInput): {
   if (brief && !linkUrl.safeParse(brief).success) {
     throw new ValidationError('Invalid assignment attachment link')
   }
-  // max_marks is an optional numeric from a form field: blank clears it (null),
-  // otherwise it must be a non-negative number within the numeric(6,2) column.
+  // max_marks is REQUIRED so every assignment grades out of a total. Blank or a
+  // non-positive value is rejected; it must fit the numeric(6,2) column.
   const rawMax = String(input.max_marks ?? '').trim()
-  let max_marks: number | null = null
-  if (rawMax) {
-    const n = Number(rawMax)
-    if (Number.isNaN(n) || n < 0 || n > 9999.99) throw new ValidationError('Invalid max marks')
-    max_marks = n
+  if (!rawMax) throw new ValidationError('Max marks is required')
+  const max_marks = Number(rawMax)
+  if (Number.isNaN(max_marks) || max_marks <= 0 || max_marks > 9999.99) {
+    throw new ValidationError('Max marks must be a positive number')
   }
   return {
     id: parsed.data.id,

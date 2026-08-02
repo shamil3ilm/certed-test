@@ -25,7 +25,7 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!classId || !title || !due) return
+    if (!classId || !title || !due || !maxMarks.trim()) return
 
     setBusy(true)
 
@@ -40,7 +40,7 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
           due_date: new Date(due).toISOString(),
           attachment_drive_link: brief.trim() || undefined,
           topic: topic.trim() || undefined,
-          max_marks: maxMarks ? Number(maxMarks) : undefined,
+          max_marks: Number(maxMarks),
           enforce_deadline: enforceDeadline,
         }),
       })
@@ -101,10 +101,11 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
         <Field label="Topic (optional)" className="min-w-[10rem] flex-1" hint="e.g. Algebra - groups classwork">
           <Input value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Unit / chapter" />
         </Field>
-        <Field label="Max marks (optional)" className="w-32">
+        <Field label="Max marks" className="w-32">
           <Input
             type="number"
-            min="0"
+            required
+            min="1"
             step="0.5"
             value={maxMarks}
             onChange={(event) => setMaxMarks(event.target.value)}

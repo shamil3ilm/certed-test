@@ -116,6 +116,9 @@ export function GradeForm({
           Reopen for resubmission
         </button>
       )}
+      {maxMarks == null && (
+        <p className="w-full text-xs text-amber-600">No max marks set - edit the assignment to grade out of a total.</p>
+      )}
     </form>
   )
 }

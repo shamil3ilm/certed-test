@@ -54,7 +54,7 @@ export function EditAssignment({
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!title.trim() || !due) return
+    if (!title.trim() || !due || !maxMarks.trim()) return
 
     const formData = new FormData()
     formData.set('id', assignment.id)
@@ -98,12 +98,13 @@ export function EditAssignment({
       <Field label="Topic (optional)">
         <Input value={topic} onChange={(event) => setTopic(event.target.value)} maxLength={60} />
       </Field>
-      <Field label="Max marks (optional)">
+      <Field label="Max marks">
         <Input
           type="number"
-          min={0}
+          required
+          min={1}
           max={9999.99}
-          step="0.01"
+          step="0.5"
           value={maxMarks}
           onChange={(event) => setMaxMarks(event.target.value)}
           placeholder="e.g. 20"

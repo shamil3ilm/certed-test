@@ -17,10 +17,10 @@ export const createAssignmentSchema = z.object({
   due_date: isoDate, // absolute ISO instant (client converts its local input to UTC)
   attachment_drive_link: linkUrl.optional(),
   topic: z.string().trim().max(60).optional(),
-  // Positive, not just non-negative: a max of 0 is never meaningful (the only
-  // acceptable mark would be 0), and it can't form a percentage on the report
-  // card. Capped at the DB column precision numeric(6,2) -> max 9999.99.
-  max_marks: z.number().positive().max(9999.99).optional(),
+  // REQUIRED so every assignment grades out of a total (and forms a percentage on
+  // the report card). Positive, not just non-negative: a max of 0 is never
+  // meaningful. Capped at the DB column precision numeric(6,2) -> max 9999.99.
+  max_marks: z.number().positive().max(9999.99),
   // Hard deadline: when true, submissions close after due_date (enforced in
   // recordSubmission). Optional/absent -> false (always-accept-late, the default).
   enforce_deadline: z.boolean().optional(),

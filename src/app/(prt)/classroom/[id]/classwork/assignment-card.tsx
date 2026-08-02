@@ -38,8 +38,10 @@ export function AssignmentCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium text-slate-900">{assignment.title}</h3>
             {assignment.topic && <Badge tone="primary">{assignment.topic}</Badge>}
-            {assignment.max_marks != null && (
+            {assignment.max_marks != null ? (
               <span className="text-xs text-slate-400">/ {Number(assignment.max_marks)} marks</span>
+            ) : (
+              data.canManageContent && <Badge tone="warning">No max marks - Edit to set</Badge>
             )}
           </div>
           {assignment.description && <p className="mt-1 text-sm text-slate-600">{assignment.description}</p>}
