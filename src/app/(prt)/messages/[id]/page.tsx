@@ -7,21 +7,22 @@ import { MarkRead } from '../MarkRead'
 import { MessageComposer } from './MessageComposer'
 import { leaveConversationAction } from '../actions'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
-import { Avatar, Badge, Card, EmptyState, PageHeader } from '@/lib/ui'
+import { Avatar, BackLink, Badge, Card, EmptyState, PageHeader } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
+import { RenameGroupForm } from './RenameGroupForm'
 
 export default async function ThreadPage({
   params,
   searchParams,
 }: {
   params: { id: string }
-  searchParams?: { before?: string }
+  searchParams?: { before?: string; q?: string }
 }) {
   const me = await requireCapability('viewMessages')
 
   let data
   try {
-    data = await loadThread(me, params.id, { before: searchParams?.before })
+    data = await loadThread(me, params.id, { before: searchParams?.before, q: searchParams?.q })
   } catch (error) {
     if (error instanceof PermissionError || error instanceof NotFoundError) notFound()
     throw error
@@ -34,16 +35,17 @@ export default async function ThreadPage({
       {/* Only mark read from the latest window - jumping to older messages must
           not silently clear the unread flag on newer ones. */}
       {data.isLatestWindow && <MarkRead conversationId={params.id} />}
-      <Link
-        href="/messages"
-        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:-translate-x-0.5 hover:text-primary"
-      >
-        Back to messages
-      </Link>
+      <BackLink href="/messages">Back to messages</BackLink>
       <div className="flex items-start justify-between gap-3">
         <PageHeader
           title={data.title}
-          description={data.conversation.kind === 'group' ? `${data.participants.length} participants` : undefined}
+          description={
+            data.searchQuery
+              ? `Showing results for "${data.searchQuery}"`
+              : data.conversation.kind === 'group'
+                ? `${data.participants.length} participants`
+                : undefined
+          }
         />
         {data.conversation.kind === 'group' && (
           <form action={leaveConversationAction} className="shrink-0 pt-1">
@@ -66,6 +68,7 @@ export default async function ThreadPage({
             <Badge tone="warning">Group conversation</Badge>
             <span className="text-xs text-slate-400">Everyone here can read new replies.</span>
           </div>
+          <RenameGroupForm conversationId={params.id} initialTitle={data.conversation.title ?? data.title} />
           <div className="mt-3 flex flex-wrap gap-2">
             {data.participants.map((participant) => {
               const mine = participant.id === me.id
@@ -87,6 +90,29 @@ export default async function ThreadPage({
       )}
 
       <div className="mt-4 space-y-2">
+        <Card className="p-3">
+          <form action={`/messages/${params.id}`} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="flex-1">
+              <span className="mb-1 block text-xs font-medium text-slate-500">Search chat</span>
+              <input
+                name="q"
+                defaultValue={data.searchQuery ?? ''}
+                className="w-full"
+                placeholder="Search messages..."
+              />
+            </label>
+            <div className="flex gap-2">
+              <button type="submit" className="btn btn-sm btn-soft">
+                Search
+              </button>
+              {data.searchQuery && (
+                <Link href={`/messages/${params.id}`} className="btn btn-sm btn-ghost">
+                  Clear
+                </Link>
+              )}
+            </div>
+          </form>
+        </Card>
         {data.hasEarlier && data.earlierCursor && (
           <div className="flex justify-center pb-1">
             <Link
@@ -97,7 +123,7 @@ export default async function ThreadPage({
             </Link>
           </div>
         )}
-        {data.messages.length === 0 && <EmptyState>No messages yet. Say hello.</EmptyState>}
+        {data.messages.length === 0 && <EmptyState>No messages yet.</EmptyState>}
         {data.messages.map((m) => {
           const mine = m.sender_id === me.id
           return (

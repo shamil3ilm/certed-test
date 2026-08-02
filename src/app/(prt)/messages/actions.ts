@@ -10,7 +10,13 @@ import {
   type ActionStatusResult,
 } from '@/lib/api/action-error'
 import { redirect } from 'next/navigation'
-import { leaveConversation, markRead, sendMessage, startConversation } from '@/lib/services/messaging'
+import {
+  createConversation,
+  leaveConversation,
+  markRead,
+  renameConversation,
+  sendMessage,
+} from '@/lib/services/messaging'
 import { ServiceError } from '@/lib/errors'
 
 /** Post a message to an existing conversation, then refresh the thread. Returns
@@ -29,20 +35,31 @@ export async function sendMessageAction(formData: FormData): Promise<ActionStatu
   }
 }
 
-/**
- * Start a conversation with one or more allowed recipients (1 -> direct,
- * many -> group), optionally with a first message. Returns the new/reused
- * conversation id so the client can navigate; recipient eligibility, direct
- * dedupe, and first-message rollback are enforced in startConversation.
- */
+/** Open a conversation with one or more allowed recipients (1 -> direct,
+ *  many -> group). Returns the new/reused conversation id so the client can
+ *  navigate; recipient eligibility and direct dedupe are enforced in the
+ *  messaging domain service. */
 export async function startConversationAction(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const me = await requireCapability('viewMessages')
   const recipientIds = formData.getAll('recipient_ids').map(String).filter(Boolean)
-  const body = String(formData.get('body') ?? '')
   try {
     if (recipientIds.length === 0) return actionFail('Pick at least one recipient.')
-    const { id } = await startConversation(me, { recipientIds, body })
+    const { id } = await createConversation(me, { recipientIds })
     return actionOk({ id })
+  } catch (e) {
+    return toActionError(e)
+  }
+}
+
+export async function renameConversationAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('viewMessages')
+  const conversationId = String(formData.get('conversation_id') ?? '')
+  const title = String(formData.get('title') ?? '')
+  try {
+    await renameConversation(me, conversationId, title)
+    revalidatePath(`/messages/${conversationId}`)
+    revalidatePath('/messages')
+    return actionDone()
   } catch (e) {
     return toActionError(e)
   }

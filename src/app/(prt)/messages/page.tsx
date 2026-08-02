@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { listInbox } from '@/lib/services/messaging'
 import { listMessageableContacts } from '@/lib/messaging/recipient-policy'
-import { NewMessageForm } from './NewMessageForm'
-import { PageHeader, Card, EmptyState, Badge, Avatar } from '@/lib/ui'
+import { PageHeader, EmptyState, Badge, Avatar } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
+import { NewChatLauncher } from './NewChatLauncher'
 
 export default async function MessagesPage() {
   const me = await requireCapability('viewMessages')
@@ -12,19 +12,9 @@ export default async function MessagesPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <PageHeader
-        title="Messages"
-        description="Your conversations. Start a new one with anyone you're allowed to contact."
-      />
+      <PageHeader title="Messages" description="Your conversations." />
 
-      <Card className="mb-5 p-4">
-        <h2 className="mb-2 text-sm font-semibold text-slate-700">New message</h2>
-        {contacts.length === 0 ? (
-          <p className="text-sm text-slate-400">You have no contacts you can message yet.</p>
-        ) : (
-          <NewMessageForm contacts={contacts} />
-        )}
-      </Card>
+      <NewChatLauncher contacts={contacts} />
 
       {inbox.length === 0 ? (
         <EmptyState>No conversations yet.</EmptyState>
@@ -50,9 +40,7 @@ export default async function MessagesPage() {
                       </Badge>
                       {c.hasUnread && <Badge tone="primary">Unread</Badge>}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                      {c.lastMessage ?? 'No messages yet. Start the conversation.'}
-                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-500">{c.lastMessage ?? 'No messages yet.'}</p>
                   </div>
                   {c.lastAt && (
                     <span className="shrink-0 pt-0.5 text-[11px] text-slate-400">
