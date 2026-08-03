@@ -3,16 +3,28 @@
 import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { requireCapability } from '@/lib/auth/require-role'
-import { createLinkResourceFromActionInput, editResourceFromActionInput } from '@/lib/services/resources'
+import { createDocumentFromActionInput, editDocumentFromActionInput } from '@/lib/services/resources'
 
-export async function createLinkResourceAction(formData: FormData): Promise<ActionStatusResult> {
+/** Pulls the document metadata fields off a submitted form. The service
+ *  validates + defaults them; here we only forward. */
+function documentFields(formData: FormData) {
+  return {
+    classId: formData.get('classId'),
+    id: formData.get('id'),
+    title: formData.get('title'),
+    url: formData.get('url'),
+    description: formData.get('description'),
+    category: formData.get('category'),
+    subject: formData.get('subject'),
+    file_type: formData.get('file_type'),
+    visibility: formData.get('visibility'),
+  }
+}
+
+export async function createDocumentAction(formData: FormData): Promise<ActionStatusResult> {
   const me = await requireCapability('manageClassContent')
   try {
-    await createLinkResourceFromActionInput(me, {
-      classId: formData.get('classId'),
-      title: formData.get('title'),
-      url: formData.get('url'),
-    })
+    await createDocumentFromActionInput(me, documentFields(formData))
     revalidatePath('/classroom', 'layout')
     return actionDone()
   } catch (error) {
@@ -20,14 +32,10 @@ export async function createLinkResourceAction(formData: FormData): Promise<Acti
   }
 }
 
-export async function editLinkResourceAction(formData: FormData): Promise<ActionStatusResult> {
+export async function editDocumentAction(formData: FormData): Promise<ActionStatusResult> {
   const me = await requireCapability('manageClassContent')
   try {
-    await editResourceFromActionInput(me, {
-      id: formData.get('id'),
-      title: formData.get('title'),
-      url: formData.get('url'),
-    })
+    await editDocumentFromActionInput(me, documentFields(formData))
     revalidatePath('/classroom', 'layout')
     return actionDone()
   } catch (error) {
