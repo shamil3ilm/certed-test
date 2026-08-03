@@ -40,3 +40,11 @@ Use a numbered kebab-case name, for example:
 1. ADRs are for major decisions, not every implementation detail.
 2. If a major architecture rule changes, add or update an ADR in the same workstream.
 3. If an ADR is superseded, do not delete it. Mark it superseded and reference the replacement.
+
+## Records
+
+- [0001 — Adopt a `src/lib/data` access layer](0001-adopt-data-layer.md)
+- [0002 — Capability-first route guards](0002-capability-first-route-guards.md)
+- [0003 — Personas are fixed identities](0003-personas-as-fixed-identities.md)
+- [0004 — Documents are Google Drive links, not stored files](0004-google-drive-storage-model.md)
+- [0005 — RLS-scoped reads by default, service-role for aggregation](0005-rls-with-service-role-layering.md)
