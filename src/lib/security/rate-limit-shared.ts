@@ -28,7 +28,17 @@ export async function rateLimitShared(
       p_limit: opts.limit,
       p_window_seconds: opts.windowSeconds,
     })
-    if (error) throw new Error(error.message)
+    if (error) {
+      // A MISSING function is a deploy problem (the rate_limit_counters migration
+      // was never applied), not a transient blip - and it silently disables this
+      // control. Flag it distinctly so it's actioned, not lost among network noise.
+      const rpcMissing = error.code === 'PGRST202' || /could not find the function|does not exist/i.test(error.message)
+      logError(rpcMissing ? 'rateLimitShared:rpc-missing' : 'rateLimitShared', new Error(error.message), {
+        key,
+        ...(rpcMissing ? { action: 'apply the rate_limit_counters migration (rate_limit_hit RPC)' } : {}),
+      })
+      return { ok: true, retryAfterSec: 0 } // fail open (see the note above)
+    }
     // The RPC returns a single-row table; supabase-js surfaces it as an array.
     const row = (Array.isArray(data) ? data[0] : data) as
       { allowed?: boolean; retry_after_seconds?: number } | null | undefined
