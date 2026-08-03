@@ -22,3 +22,6 @@ export type { AttendanceRow, PaginatedAttendance, SessionSummary } from './queri
 export { markAttendance, clearAttendanceSession } from './marking'
 export type { MarkAttendanceInput } from './marking'
 export type { AttendanceMark } from '@/lib/data/attendance'
+
+export { saveSessionTimes, getSession, listRecentSessions } from './sessions'
+export type { ClassSession, SaveSessionActionInput } from './sessions'

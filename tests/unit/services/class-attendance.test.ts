@@ -11,6 +11,8 @@ vi.mock('@/lib/services/attendance', () => ({
   listAttendanceForStudentPage: vi.fn(),
   listSessionSummariesForClass: vi.fn(),
   summarizeAttendanceForStudent: vi.fn(),
+  getSession: vi.fn(),
+  listRecentSessions: vi.fn(),
 }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/time/format', () => ({ isCalendarDate: vi.fn(), todayInZone: vi.fn() }))
@@ -23,6 +25,8 @@ import {
   listAttendanceForStudentPage,
   listSessionSummariesForClass,
   summarizeAttendanceForStudent,
+  getSession,
+  listRecentSessions,
 } from '@/lib/services/attendance'
 import {
   loadClassAttendancePageData,
@@ -55,6 +59,8 @@ beforeEach(() => {
     } as any
   })
   vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
+  vi.mocked(getSession).mockResolvedValue(null)
+  vi.mocked(listRecentSessions).mockResolvedValue([])
 })
 
 describe('attendanceRecordPageUrl', () => {
@@ -97,6 +103,7 @@ describe('loadClassAttendancePageData', () => {
       recTotalPages: 2,
       summary: { present: 5, late: 1, absent: 2, total: 8, rate: 75 },
       rows: [{ id: 'a1', session_date: '2026-07-15', status: 'present' }],
+      sessions: [],
     })
   })
 
@@ -121,10 +128,11 @@ describe('loadClassAttendancePageData', () => {
     ).resolves.toEqual({
       kind: 'manager',
       date: '2026-07-16',
+      session: null,
       hasMarks: true,
       roster: [
-        { id: 's1', name: 'Sara Student', status: 'late' },
-        { id: 's2', name: 'Sam Student', status: null },
+        { id: 's1', name: 'Sara Student', status: 'late', join_at: null, leave_at: null },
+        { id: 's2', name: 'Sam Student', status: null, join_at: null, leave_at: null },
       ],
       sessions: [{ session_date: '2026-07-16', present: 0, late: 1, absent: 0, total: 1, rate: 100 }],
     })

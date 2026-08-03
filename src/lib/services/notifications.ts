@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { getClassMembers } from '@/lib/services/classes'
+import { logError } from '@/lib/observability/log'
 import {
   insertNotifications,
   selectRecentNotifications,
@@ -15,7 +16,8 @@ import {
  * access goes through src/lib/data/notifications - this module holds no queries.
  */
 
-type NotificationKind = 'message' | 'grade' | 'announcement' | 'assignment' | 'submission'
+type NotificationKind =
+  'message' | 'grade' | 'announcement' | 'assignment' | 'submission' | 'resource' | 'attendance' | 'schedule'
 
 /** A notification as the app consumes it (the stored row, kind narrowed). */
 export type Notification = Omit<NotificationRow, 'kind'> & { kind: NotificationKind }
@@ -42,6 +44,36 @@ export async function notify(profileIds: string[], input: NotifyInput): Promise<
       link: input.link ?? null,
     })),
   )
+  // In-app is the source of truth and just succeeded; fan the same event out to
+  // email best-effort (never fails the in-app write).
+  await dispatchEmail(ids, input)
+}
+
+/** Whether email delivery is wired. Off until a provider + org opt-in exist, so
+ *  the rest of the system is email-ready without one. */
+function emailNotificationsEnabled(): boolean {
+  return process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true'
+}
+
+/**
+ * Email channel (future-ready). THE single
+ * extension point: when an email provider is added, resolve each profile's
+ * address + per-user preference here and send. Kept a no-op until then, so the
+ * whole notification pipeline is email-ready without a provider. Always
+ * best-effort - email must never fail the core action or the in-app write.
+ */
+async function deliverEmailNotifications(_profileIds: string[], _input: NotifyInput): Promise<void> {
+  if (!emailNotificationsEnabled()) return
+  // TODO: resolve verified addresses + per-user email preferences, then send via
+  // the provider (Resend / SES / ...). Intentionally unimplemented.
+}
+
+async function dispatchEmail(profileIds: string[], input: NotifyInput): Promise<void> {
+  try {
+    await deliverEmailNotifications(profileIds, input)
+  } catch (error) {
+    logError('notify.email', error, { kind: input.kind, recipients: profileIds.length })
+  }
 }
 
 /** Fire-and-forget wrapper: notify without ever throwing into the caller's flow.
@@ -50,8 +82,10 @@ export async function notify(profileIds: string[], input: NotifyInput): Promise<
 export async function notifyBestEffort(profileIds: string[], input: NotifyInput): Promise<void> {
   try {
     await notify(profileIds, input)
-  } catch {
-    // deliberately swallowed - see the contract above
+  } catch (error) {
+    // deliberately swallowed - see the contract above - but logged so a failing
+    // notification write is diagnosable rather than invisible.
+    logError('notifyBestEffort', error, { kind: input.kind, recipients: profileIds.length })
   }
 }
 
@@ -73,8 +107,9 @@ export async function notifyClassRoleBestEffort(
       members[role].map((m) => m.id),
       input,
     )
-  } catch {
-    // best-effort - never fail the caller's core action
+  } catch (error) {
+    // best-effort - never fail the caller's core action, but log the failure.
+    logError('notifyClassRoleBestEffort', error, { classId, role, kind: input.kind })
   }
 }
 

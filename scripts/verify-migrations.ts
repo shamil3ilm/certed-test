@@ -37,7 +37,7 @@ const phases: Phase[] = [
       'org_settings',
       'classes',
       'enrollments',
-      'class_teachers',
+      'class_tutors',
       'mentorships',
       'audit_log',
       'announcements',
@@ -74,6 +74,22 @@ const phases: Phase[] = [
     migrations: ['0017'],
     description: 'Disabled-user, settings, and finance RLS hardening under the persona model',
     tables: [],
+  },
+  {
+    name: 'Later hardening & features (0018-0049)',
+    // prettier-ignore
+    migrations: [
+      '0018', '0019', '0020', '0021', '0022', '0023', '0024', '0025', '0026', '0027', '0028',
+      '0029', '0030', '0031', '0032', '0033', '0034', '0035', '0036', '0037', '0038', '0039',
+      '0040', '0041', '0042', '0043', '0044', '0045', '0046', '0047', '0048', '0049',
+    ],
+    description:
+      'teacher→tutor rename, authorization/RLS hardening, notifications, messaging matrix, mentor ' +
+      'class authority, comments, the document library + versioning, announcement attachments, ' +
+      'attendance working hours, and cross-instance rate limiting. Most refine existing tables, but ' +
+      'a few add base tables (checked below).',
+    // Base tables introduced by 0044-0048 - verified like the earlier phases.
+    tables: ['class_sessions', 'rate_limit_counters', 'resource_versions'],
   },
 ]
 

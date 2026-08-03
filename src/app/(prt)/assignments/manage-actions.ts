@@ -6,7 +6,11 @@ import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/ac
 import { ServiceError } from '@/lib/errors'
 import { archiveAssignmentFromActionInput, editAssignmentFromActionInput } from '@/lib/services/assignments'
 import { gradeSubmissionFromActionInput } from '@/lib/services/submissions'
-import { archiveResourceFromActionInput, restoreResourceFromActionInput } from '@/lib/services/resources'
+import {
+  archiveDocumentFromActionInput,
+  restoreDocumentFromActionInput,
+  restoreDocumentVersionFromActionInput,
+} from '@/lib/services/resources'
 import { classErrorUrl } from '../action-redirect'
 
 // Permission check + audit on every mutation now happens inside each service
@@ -82,7 +86,7 @@ export async function gradeSubmissionAction(formData: FormData): Promise<ActionS
 export async function deleteResourceAction(formData: FormData) {
   const me = await requireCapability('manageClassContent')
   try {
-    await archiveResourceFromActionInput(me, { id: formData.get('id') })
+    await archiveDocumentFromActionInput(me, { id: formData.get('id') })
   } catch (error) {
     if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
     throw error
@@ -93,7 +97,22 @@ export async function deleteResourceAction(formData: FormData) {
 export async function restoreResourceAction(formData: FormData) {
   const me = await requireCapability('manageClassContent')
   try {
-    await restoreResourceFromActionInput(me, { id: formData.get('id') })
+    await restoreDocumentFromActionInput(me, { id: formData.get('id') })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
+    throw error
+  }
+  revalidatePath('/classroom', 'layout')
+}
+
+/** Roll a document back to one of its superseded versions. */
+export async function restoreVersionAction(formData: FormData) {
+  const me = await requireCapability('manageClassContent')
+  try {
+    await restoreDocumentVersionFromActionInput(me, {
+      resourceId: formData.get('resourceId'),
+      versionId: formData.get('versionId'),
+    })
   } catch (error) {
     if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
     throw error

@@ -1,10 +1,11 @@
 import { invalidJson, ok, tooManyRequests, fail } from '@/lib/api/response'
 import { INVALID_REQUEST_MESSAGE, TOO_MANY_MESSAGES_MESSAGE } from '@/lib/api/messages'
 import { relayContactSubmission } from '@/lib/services/contact'
-import { rateLimit, clientIp } from '@/lib/security/rate-limit'
+import { clientIp } from '@/lib/security/rate-limit'
+import { rateLimitShared } from '@/lib/security/rate-limit-shared'
 
 export async function POST(request: Request) {
-  const rl = rateLimit(`contact:${clientIp(request.headers)}`, { limit: 5, windowMs: 10 * 60 * 1000 })
+  const rl = await rateLimitShared(`contact:${clientIp(request.headers)}`, { limit: 5, windowSeconds: 10 * 60 })
   if (!rl.ok) return tooManyRequests(TOO_MANY_MESSAGES_MESSAGE, rl.retryAfterSec)
 
   let raw: unknown

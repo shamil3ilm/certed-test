@@ -8,7 +8,10 @@ vi.mock('@/lib/permission/personas', () => ({
 }))
 vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
-vi.mock('@/lib/services/resources', () => ({ listResourcesPage: vi.fn() }))
+vi.mock('@/lib/services/resources', () => ({
+  listResourcesPage: vi.fn(),
+  listVersionsForDocuments: vi.fn(async () => new Map()),
+}))
 vi.mock('@/lib/services/submissions', () => ({
   listMyActiveSubmissions: vi.fn(),
   listMySupersededSubmissions: vi.fn(),
@@ -17,57 +20,49 @@ vi.mock('@/lib/services/submissions', () => ({
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { canManageClass } from '@/lib/permission'
 import { listAssignments } from '@/lib/services/assignments'
-import { loadClassworkPageData, classworkPageUrl } from '@/lib/services/page-data/classwork'
+import { loadClassworkPageData, documentFilterUrl, type DocumentFilterState } from '@/lib/services/page-data/classwork'
 import { listCommentsForEntities } from '@/lib/services/comments'
 import { listResourcesPage } from '@/lib/services/resources'
 import { listMyActiveSubmissions, listMySupersededSubmissions } from '@/lib/services/submissions'
 
+const BASE_FILTERS: DocumentFilterState = { q: '', category: '', subject: '', from: '', to: '', sort: 'latest' }
+const doc = (o: Record<string, unknown>) => ({ category: 'general_documents', ...o })
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(loadPersonaFlags).mockImplementation(async (profileId: string) => {
-    if (profileId === 'student-1') {
-      return {
-        personas: [],
-        isAdmin: false,
-        isSubAdmin: false,
-        isManager: false,
-        isStudent: true,
-        isMentor: false,
-      } as any
-    }
+    const student = profileId === 'student-1'
     return {
       personas: [],
       isAdmin: false,
       isSubAdmin: false,
-      isManager: true,
-      isStudent: false,
+      isManager: !student,
+      isStudent: student,
       isMentor: false,
+      hasMentorAuthority: false,
     } as any
   })
   vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
 })
 
-describe('classworkPageUrl', () => {
-  it('builds classwork material URLs while omitting default values', () => {
-    expect(classworkPageUrl(1)).toBe('?')
-    expect(classworkPageUrl(2, 'notes')).toBe('?matPage=2&matQ=notes')
+describe('documentFilterUrl', () => {
+  it('builds filter URLs, omitting defaults and clearing on empty', () => {
+    expect(documentFilterUrl(BASE_FILTERS, {})).toBe('?')
+    expect(documentFilterUrl(BASE_FILTERS, { category: 'question_papers' })).toBe('?cat=question_papers')
+    expect(documentFilterUrl(BASE_FILTERS, { q: 'notes', sort: 'oldest' })).toBe('?q=notes&sort=oldest')
   })
 })
 
 describe('loadClassworkPageData', () => {
-  it('loads the student classwork view with visible assignments and mapped comments', async () => {
+  it('groups the student document view by category and maps comments', async () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([
       { persona_name: 'student', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'student')
-    const resourcePageResponses = [
-      { items: [{ id: 'r1', title: 'Notes', created_at: '2026-07-15T00:00:00.000Z' }], total: 11 },
-      { items: [], total: 0 },
-    ]
-    let resourcePageCallCount = 0
-    vi.mocked(listResourcesPage).mockImplementation(() =>
-      Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any),
-    )
+    vi.mocked(listResourcesPage).mockResolvedValueOnce({
+      items: [doc({ id: 'r1', title: 'Notes', category: 'practice_sheets', created_at: '2026-07-15T00:00:00.000Z' })],
+      total: 1,
+    } as any)
     vi.mocked(listAssignments).mockResolvedValueOnce([
       { id: 'a1', class_id: 'class-1', title: 'Essay', status: 'active', due_date: '2026-07-17T00:00:00.000Z' },
       { id: 'a2', class_id: 'class-1', title: 'Old task', status: 'archived', due_date: '2026-07-10T00:00:00.000Z' },
@@ -85,40 +80,54 @@ describe('loadClassworkPageData', () => {
     const result = await loadClassworkPageData(
       { id: 'student-1', role: 'student' } as any,
       { id: 'class-1', name: 'Math', status: 'active' },
-      { matPage: '2', matQ: ' notes ' },
+      {},
     )
 
     expect(result.canManage).toBe(false)
     expect(result.canManageContent).toBe(false)
-    expect(result.isArchived).toBe(false)
-    expect(result.materialsPage).toBe(2)
-    expect(result.materialsQuery).toBe('notes')
-    expect(result.materialsTotalPages).toBe(2)
+    expect(result.documentTotal).toBe(1)
+    expect(result.documentsByCategory.practice_sheets).toHaveLength(1)
+    expect(result.documentsByCategory.practice_sheets[0].comments).toEqual([{ id: 'c2' }])
+    expect(result.documentsByCategory.question_papers).toEqual([])
+    expect(result.archivedDocuments).toEqual([])
     expect(result.assignmentViews).toHaveLength(1)
-    expect(result.assignmentViews[0].submission?.id).toBe('s1')
-    expect(result.assignmentViews[0].submissionComments).toEqual([{ id: 'c1' }])
     expect(result.assignmentViews[0].submissionHistory.map((s) => s.id)).toEqual(['s0'])
-    expect(result.resourceViews[0].comments).toEqual([{ id: 'c2' }])
-    expect(result.archivedResources).toEqual([])
   })
 
-  it('loads archived resources for a manager and skips student submission lookups', async () => {
+  it('reads the filter state from search params', async () => {
+    vi.mocked(listResourcesPage).mockResolvedValue({ items: [], total: 0 } as any)
+    vi.mocked(listAssignments).mockResolvedValue([] as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
+
+    const result = await loadClassworkPageData(
+      { id: 'tutor-1', role: 'tutor' } as any,
+      { id: 'class-1', name: 'Math', status: 'active' },
+      { q: ' notes ', cat: 'question_papers', subj: 'Maths', sort: 'oldest', from: '2026-07-01' },
+    )
+    expect(result.filters).toEqual({
+      q: 'notes',
+      category: 'question_papers',
+      subject: 'Maths',
+      from: '2026-07-01',
+      to: '',
+      sort: 'oldest',
+    })
+    expect(result.hasActiveFilters).toBe(true)
+  })
+
+  it('loads archived documents for a manager and skips student lookups', async () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([
       { persona_name: 'tutor', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
-    const resourcePageResponses = [
+    const responses = [
       { items: [], total: 0 },
-      { items: [{ id: 'r2', title: 'Archived Notes' }], total: 1 },
+      { items: [doc({ id: 'r2', title: 'Archived Notes' })], total: 1 },
     ]
-    let resourcePageCallCount = 0
-    vi.mocked(listResourcesPage).mockImplementation(() =>
-      Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any),
-    )
+    let call = 0
+    vi.mocked(listResourcesPage).mockImplementation(() => Promise.resolve(responses[call++] as any))
     vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
-    vi.mocked(listCommentsForEntities)
-      .mockResolvedValueOnce(new Map() as any)
-      .mockResolvedValueOnce(new Map() as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
 
     const result = await loadClassworkPageData(
       { id: 'tutor-1', role: 'tutor' } as any,
@@ -128,23 +137,14 @@ describe('loadClassworkPageData', () => {
 
     expect(result.canManage).toBe(true)
     expect(result.canManageContent).toBe(true)
-    expect(result.archivedResources).toEqual([{ id: 'r2', title: 'Archived Notes' }])
+    expect(result.archivedDocuments).toEqual([doc({ id: 'r2', title: 'Archived Notes' })])
     expect(listMyActiveSubmissions).not.toHaveBeenCalled()
   })
 
-  it('keeps archived classwork readable while disabling manager write actions', async () => {
-    const resourcePageResponses = [
-      { items: [{ id: 'r1', title: 'Notes', created_at: '2026-07-15T00:00:00.000Z' }], total: 1 },
-      { items: [{ id: 'r2', title: 'Archived Notes' }], total: 1 },
-    ]
-    let resourcePageCallCount = 0
-    vi.mocked(listResourcesPage).mockImplementation(() =>
-      Promise.resolve(resourcePageResponses[resourcePageCallCount++] as any),
-    )
+  it('keeps archived-class classwork readable while disabling manager write actions', async () => {
+    vi.mocked(listResourcesPage).mockResolvedValue({ items: [], total: 0 } as any)
     vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
-    vi.mocked(listCommentsForEntities)
-      .mockResolvedValueOnce(new Map() as any)
-      .mockResolvedValueOnce(new Map([['r1', []]]) as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
 
     const result = await loadClassworkPageData(
       { id: 'tutor-1', role: 'tutor' } as any,
@@ -155,7 +155,5 @@ describe('loadClassworkPageData', () => {
     expect(result.canManage).toBe(true)
     expect(result.canManageContent).toBe(false)
     expect(result.isArchived).toBe(true)
-    expect(result.resourceViews).toHaveLength(1)
-    expect(result.archivedResources).toEqual([{ id: 'r2', title: 'Archived Notes' }])
   })
 })

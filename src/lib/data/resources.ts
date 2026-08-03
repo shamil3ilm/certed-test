@@ -2,35 +2,65 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeIlike } from '@/lib/text/ilike'
+import type { DocumentCategory, DocumentVisibility } from '@/lib/documents/categories'
 
 /**
- * Table access for `resources` - class materials, currently always a Drive link.
+ * Table access for `resources` - the class document library (a document is a
+ * Google Drive link plus metadata: category, subject, visibility, downloads).
  * RLS client throughout; a tutor may write resources for a class they teach
- * under policy. The domain (src/lib/services/resources) adds the canManageClass
- * check on top.
+ * under policy. The domain (src/lib/services/resources) adds the canDocument
+ * RBAC check on top.
  */
 
 export type ResourceRow = {
   id: string
   class_id: string
   title: string
+  description: string | null
+  category: DocumentCategory
+  subject: string | null
+  file_type: string | null
   drive_link: string | null
   uploaded_by: string | null
+  download_count: number
+  visibility: DocumentVisibility
   status: 'active' | 'archived'
   created_at: string
 }
 
-// Explicit projection (matches PROFILE_COLUMNS) so a future wide column on
-// `resources` isn't shipped on every list read.
-const RESOURCE_COLUMNS = 'id, class_id, title, drive_link, uploaded_by, status, created_at'
+// Explicit projection so a future wide column on `resources` isn't shipped on
+// every list read.
+const RESOURCE_COLUMNS =
+  'id, class_id, title, description, category, subject, file_type, drive_link, uploaded_by, download_count, visibility, status, created_at'
 
-type ResourceInsert = Omit<ResourceRow, 'id' | 'created_at'>
+// download_count defaults to 0 in the DB; the service never sets it on insert.
+type ResourceInsert = Omit<ResourceRow, 'id' | 'created_at' | 'download_count'>
 
-/** One page of a class's resources, newest first, with an exact total. Both the
- *  range and the count are SQL-side. */
+/** Editable metadata fields (status + download_count change through their own
+ *  functions). All optional so an edit can patch just what changed. */
+export type ResourceEditPatch = Partial<
+  Pick<ResourceRow, 'title' | 'description' | 'category' | 'subject' | 'file_type' | 'drive_link' | 'visibility'>
+>
+
+/** Filters/sort for the document library page. */
+export type ResourcePageFilters = {
+  from: number
+  to: number
+  status: ResourceRow['status']
+  search?: string
+  category?: DocumentCategory
+  subject?: string
+  dateFrom?: string
+  dateTo?: string
+  sort?: 'latest' | 'oldest'
+}
+
+/** One page of a class's documents with an exact total. Category/subject/date
+ *  filters, keyword search (title + description + subject), and sort all run
+ *  SQL-side, so paging stays correct under filtering. */
 export async function selectResourcePage(
   classId: string,
-  opts: { from: number; to: number; status: ResourceRow['status']; search?: string },
+  opts: ResourcePageFilters,
 ): Promise<{ rows: ResourceRow[]; total: number }> {
   const supabase = await createClient()
   let query = supabase
@@ -38,11 +68,56 @@ export async function selectResourcePage(
     .select(RESOURCE_COLUMNS, { count: 'exact' })
     .eq('class_id', classId)
     .eq('status', opts.status)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: opts.sort === 'oldest' })
+  if (opts.category) query = query.eq('category', opts.category)
+  if (opts.dateFrom) query = query.gte('created_at', opts.dateFrom)
+  if (opts.dateTo) query = query.lte('created_at', opts.dateTo)
+  const subject = opts.subject?.trim()
+  if (subject) query = query.ilike('subject', `%${escapeIlike(subject)}%`)
   const search = opts.search?.trim()
-  if (search) query = query.ilike('title', `%${escapeIlike(search)}%`)
+  if (search) {
+    const term = `%${escapeIlike(search)}%`
+    query = query.or(`title.ilike.${term},description.ilike.${term},subject.ilike.${term}`)
+  }
   const { data, error, count } = await query.range(opts.from, opts.to)
   if (error) throw new Error(`resources.listPage: ${error.message}`)
+  return { rows: (data ?? []) as ResourceRow[], total: count ?? 0 }
+}
+
+/** Cross-class document search: the same filters as the per-class
+ *  library but with NO class filter, so RLS returns exactly the active documents
+ *  the caller may read across ALL their classes - staff see staff-only docs in
+ *  classes they teach, students see class-visible docs, admin sees everything.
+ *  Only the class scope differs from selectResourcePage; the filter block is
+ *  intentionally identical so search and the library behave the same. */
+export async function selectDocumentSearchPage(opts: {
+  from: number
+  to: number
+  search?: string
+  category?: DocumentCategory
+  subject?: string
+  dateFrom?: string
+  dateTo?: string
+  sort?: 'latest' | 'oldest'
+}): Promise<{ rows: ResourceRow[]; total: number }> {
+  const supabase = await createClient()
+  let query = supabase
+    .from('resources')
+    .select(RESOURCE_COLUMNS, { count: 'exact' })
+    .eq('status', 'active')
+    .order('created_at', { ascending: opts.sort === 'oldest' })
+  if (opts.category) query = query.eq('category', opts.category)
+  if (opts.dateFrom) query = query.gte('created_at', opts.dateFrom)
+  if (opts.dateTo) query = query.lte('created_at', opts.dateTo)
+  const subject = opts.subject?.trim()
+  if (subject) query = query.ilike('subject', `%${escapeIlike(subject)}%`)
+  const search = opts.search?.trim()
+  if (search) {
+    const term = `%${escapeIlike(search)}%`
+    query = query.or(`title.ilike.${term},description.ilike.${term},subject.ilike.${term}`)
+  }
+  const { data, error, count } = await query.range(opts.from, opts.to)
+  if (error) throw new Error(`resources.searchPage: ${error.message}`)
   return { rows: (data ?? []) as ResourceRow[], total: count ?? 0 }
 }
 
@@ -82,11 +157,25 @@ export async function updateResourceStatus(id: string, status: ResourceRow['stat
   if (error) throw new Error(`resources.${status === 'active' ? 'restore' : 'archive'}: ${error.message}`)
 }
 
-/** Edit a material's own fields (title / link). Status is changed separately. */
-export async function updateResource(id: string, patch: { title: string; drive_link: string }): Promise<void> {
+/** Edit a document's own metadata fields. Status + download_count change
+ *  through their own functions. */
+export async function updateResource(id: string, patch: ResourceEditPatch): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('resources').update(patch).eq('id', id)
   if (error) throw new Error(`resources.edit: ${error.message}`)
+}
+
+/** Record a download. Service-role read-modify-write (the caller has already
+ *  passed the canDocument('download') gate); atomic-enough for this scale. */
+export async function incrementResourceDownloadCount(id: string): Promise<void> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('resources').select('download_count').eq('id', id).maybeSingle()
+  const current = (data as { download_count: number } | null)?.download_count ?? 0
+  const { error } = await admin
+    .from('resources')
+    .update({ download_count: current + 1 })
+    .eq('id', id)
+  if (error) throw new Error(`resources.incrementDownload: ${error.message}`)
 }
 
 /**

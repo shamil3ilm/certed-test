@@ -19,6 +19,8 @@ export type AttendanceRow = {
   student_id: string
   session_date: string // 'YYYY-MM-DD'
   status: AttendanceStatus
+  join_at: string | null
+  leave_at: string | null
   marked_by: string | null
   created_at: string
   updated_at: string
@@ -29,12 +31,15 @@ export type AttendanceMark = {
   student_id: string
   session_date: string
   status: AttendanceStatus
+  join_at?: string | null
+  leave_at?: string | null
   marked_by: string
 }
 
-// Explicit projection (matches PROFILE_COLUMNS) so a future wide column on
-// `attendance` isn't shipped on every list read.
-const ATTENDANCE_COLUMNS = 'id, class_id, student_id, session_date, status, marked_by, created_at, updated_at'
+// Explicit projection so a future wide column on `attendance` isn't shipped on
+// every list read.
+const ATTENDANCE_COLUMNS =
+  'id, class_id, student_id, session_date, status, join_at, leave_at, marked_by, created_at, updated_at'
 
 type StatusCounts = { present: number; late: number; absent: number; total: number }
 

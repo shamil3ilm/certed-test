@@ -11,6 +11,7 @@ describe('nav ordering by persona', () => {
     expect(labelsFor(['admin'])).toEqual([
       'Dashboard',
       'Classes',
+      'Documents',
       'Mentees',
       'Messages',
       'Calendar',
@@ -26,22 +27,29 @@ describe('nav ordering by persona', () => {
   })
 
   it('keeps the tutor main-nav order stable', () => {
-    expect(labelsFor(['tutor'])).toEqual(['Dashboard', 'Classes', 'Messages', 'Calendar'])
+    expect(labelsFor(['tutor'])).toEqual(['Dashboard', 'Classes', 'Documents', 'Messages', 'Calendar'])
   })
 
   it('keeps the mentor main-nav order stable', () => {
     // A mentor is teaching staff for its mentees, so it now carries the tutor
     // teaching nav (Classes) alongside Mentees. Grading is a per-class tab, not
     // a top-level nav item.
-    expect(labelsFor(['mentor'])).toEqual(['Dashboard', 'Classes', 'Mentees', 'Messages', 'Calendar'])
+    expect(labelsFor(['mentor'])).toEqual(['Dashboard', 'Classes', 'Documents', 'Mentees', 'Messages', 'Calendar'])
   })
 
   it('keeps the tutor-plus-mentor main-nav order stable', () => {
-    expect(labelsFor(['tutor', 'mentor'])).toEqual(['Dashboard', 'Classes', 'Mentees', 'Messages', 'Calendar'])
+    expect(labelsFor(['tutor', 'mentor'])).toEqual([
+      'Dashboard',
+      'Classes',
+      'Documents',
+      'Mentees',
+      'Messages',
+      'Calendar',
+    ])
   })
 
   it('keeps the student main-nav order stable', () => {
-    expect(labelsFor(['student'])).toEqual(['Dashboard', 'Classes', 'Messages', 'Calendar'])
+    expect(labelsFor(['student'])).toEqual(['Dashboard', 'Classes', 'Documents', 'Messages', 'Calendar'])
   })
 
   it('collapses self-service finance items into the finance hub when finance is present', () => {

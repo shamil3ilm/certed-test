@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import type { CalendarEvent } from '@/lib/services/calendar-events'
 import type {
   AdminDashboardViewData,
@@ -7,6 +8,8 @@ import type {
 } from '@/lib/services/page-data/dashboard'
 import { Avatar, Card, ListRow, MiniBars, Panel, StatGrid } from '@/lib/ui'
 import { StatModalCard } from '../StatModalCard'
+import { AdminAnalyticsStats } from './analytics-stats'
+import { WidgetSkeleton } from './widgets'
 import { ReminderPanel } from './ReminderPanel'
 import {
   loadActiveClassesModal,
@@ -168,6 +171,11 @@ export function AdminOverview({ data }: { data: AdminDashboardViewData }) {
       <StatGrid cols={4} className="mt-6">
         {statCards}
       </StatGrid>
+      <section className="mt-6">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <AdminAnalyticsStats />
+        </Suspense>
+      </section>
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Students per class">
           <MiniBars data={data.perClass} />

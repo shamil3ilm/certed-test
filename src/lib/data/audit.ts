@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeIlike } from '@/lib/text/ilike'
+import { logError } from '@/lib/observability/log'
 
 /**
  * Table access for `audit_log`. Service-role both ways. audit_log has no
@@ -65,7 +66,9 @@ export async function writeAudit(entry: {
       entity_type: entry.entity_type,
       entity_id: entry.entity_id ?? null,
     })
-  } catch {
-    /* swallow */
+  } catch (error) {
+    // Best-effort must not break the primary action, but a lost audit record is
+    // security-relevant - log it so the gap is visible.
+    logError('writeAudit', error, { action: entry.action, entity_type: entry.entity_type })
   }
 }

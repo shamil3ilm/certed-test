@@ -10,6 +10,7 @@ import { getAnnouncement, type Announcement } from './queries'
 import {
   validateCreateAnnouncementInput,
   validateEditAnnouncementInput,
+  type AnnouncementEditPatch,
   type CreateAnnouncementActionInput,
   type CreateAnnouncementInput,
   type EditAnnouncementActionInput,
@@ -40,6 +41,9 @@ async function requireManageable(actor: Profile, id: string): Promise<Announceme
  */
 async function notifyClassOfPost(announcement: Announcement): Promise<void> {
   if (!announcement.class_id) return
+  // A post scheduled for the future isn't live yet, so don't notify about it now.
+  // (A publish-time scheduler would send it when it goes live; not built here.)
+  if (announcement.publish_at && Date.parse(announcement.publish_at) > Date.now()) return
   await notifyClassRoleBestEffort(announcement.class_id, 'students', {
     kind: 'announcement',
     title: `New announcement: ${announcement.title}`,
@@ -60,6 +64,9 @@ export async function createAnnouncement(actor: Profile, input: CreateAnnounceme
     class_id: input.class_id,
     title: input.title,
     message: input.message,
+    attachments: input.attachments,
+    publish_at: input.publish_at,
+    expires_at: input.expires_at,
     author_id: actor.id,
     status: 'active',
   })
@@ -94,11 +101,7 @@ export async function restoreAnnouncement(actor: Profile, id: string): Promise<v
   await auditPrivilegedAction(actor, 'announcement.restore', 'announcement', id)
 }
 
-export async function editAnnouncement(
-  actor: Profile,
-  id: string,
-  patch: { title: string; message: string },
-): Promise<void> {
+export async function editAnnouncement(actor: Profile, id: string, patch: AnnouncementEditPatch): Promise<void> {
   throttleWrite('announcement', actor.id, 'announcement')
   await requireManageable(actor, id)
   await updateAnnouncement(id, patch)

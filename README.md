@@ -76,7 +76,9 @@ Use the setup guide:
 Important:
 
 - The authoritative database source is `supabase/migrations`
-- The migration chain currently runs from `0001` through `0029`
+- The migration chain starts at `0001`; the **current end is the highest-numbered
+  file in `supabase/migrations/`** — read the directory rather than trusting a
+  number quoted here, which drifts every time a migration is added
 - Do not use only the early migrations listed in older notes or screenshots
 
 ## Testing

@@ -16,15 +16,17 @@ if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
   exit 1
 fi
 
-if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-  echo "Missing SUPABASE_SERVICE_ROLE_KEY"
+# Canonical name is SUPABASE_SECRET_KEY (matches src/lib/env.ts + verify-migrations.ts);
+# accept the older SUPABASE_SERVICE_ROLE_KEY as a fallback so existing setups keep working.
+if [ -z "$SUPABASE_SECRET_KEY" ] && [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  echo "Missing SUPABASE_SECRET_KEY"
   exit 1
 fi
 
 echo "OK: Supabase credentials found"
 echo ""
 
-echo "Applying migrations (0001-0017)..."
+echo "Applying the full migration chain..."
 supabase db push
 echo "OK: Migrations applied"
 echo ""
@@ -53,7 +55,7 @@ echo "=========================================="
 echo "Fresh Environment Build Successful"
 echo ""
 echo "Summary:"
-echo "  OK: Migration chain 0001-0017 applied"
+echo "  OK: Full migration chain applied"
 echo "  OK: Test data populated"
 echo "  OK: Schema verified"
 echo "  OK: Unit tests passed"

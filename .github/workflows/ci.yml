@@ -1,0 +1,82 @@
+name: CI
+
+# Runs the same static gates a developer runs locally, on every push and PR.
+# The document-management refactor once landed a tree that did not type-check
+# (37 errors) and shipped a red test file; `typecheck` + `test` here are exactly
+# the gates that would have caught it before merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same ref cancels the in-flight run - no point finishing CI
+# for a commit that's already been superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two migrations sharing a version prefix is a silent data-integrity bug:
+      # Supabase records the version once and skips the rest, so a migration can
+      # look applied while never running. This has recurred (0034->0041, then
+      # 0047x2); catch it in CI instead. Pure bash - runs before the slow steps.
+      - name: Migration hygiene (unique version prefixes)
+        run: |
+          dupes=$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration version prefix(es): $dupes"
+            echo "Two migrations share a number; Supabase records the version once and silently skips the rest. Renumber the later one."
+            exit 1
+          fi
+          echo "Migration version prefixes are unique."
+
+      # The rebuild snapshot is a pg_dump that can only be regenerated from a live
+      # DB (npm run db:rebuild-snapshot), so this warns rather than fails - flip the
+      # warnings to 'exit 1' once the snapshot is regenerated and kept in sync.
+      - name: Rebuild snapshot freshness (warn only)
+        run: |
+          latest=$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' | sort | tail -1)
+          snap=$(grep -oE '0001\.\.[0-9]{4}' supabase/rebuild/0000_full_rebuild.sql | head -1 | sed -E 's/0001\.\.//')
+          if [ -z "$snap" ]; then
+            echo "::warning::rebuild snapshot has no 0001..NNNN marker; run 'npm run db:rebuild-snapshot'"
+          elif [ "$snap" != "$latest" ]; then
+            echo "::warning::rebuild snapshot is stale (snapshot=$snap, migrations head=$latest); run 'supabase db reset && npm run db:rebuild-snapshot'"
+          else
+            echo "Rebuild snapshot is current ($snap)."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Ordered cheapest-to-catch first so an obvious failure fails fast.
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      # A green typecheck doesn't prove the app builds - route data collection,
+      # prerendering, and the build-env validator only run here. Dummy public
+      # env lets the client vars inline without contacting Supabase (the build
+      # never connects); real secrets are not needed to compile.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-anon-key

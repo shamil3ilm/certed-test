@@ -3,7 +3,7 @@ import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { mentorAuthorityClassIds } from '@/lib/permission/class'
-import { getProfilesByIds } from '@/lib/services/users'
+import { getProfileNamesByIds, getProfilesByIds } from '@/lib/services/users'
 import {
   countActiveClasses as countActiveClassRows,
   selectAllClassIds,
@@ -19,7 +19,6 @@ import {
   selectActiveEnrollmentRowsForClass,
   selectActiveTutorRefsByClassIds,
   selectActiveTutorRowsForClass,
-  type MembershipRef,
 } from '@/lib/data/class-membership'
 import { selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 
@@ -34,9 +33,15 @@ import { selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 
 export type { ClassRow }
 
+export type MemberBrief = { id: string; name: string }
+
 export type ClassSummary = ClassRow & {
   tutorCount: number
   studentCount: number
+  // Resolved members, so a 1-on-1 class card can name the person rather than
+  // show a bare count. Counts stay (they equal these lengths) for group classes.
+  students: MemberBrief[]
+  tutors: MemberBrief[]
 }
 
 export type ClassMember = { id: string; rowId: string; name: string; email: string; role: string }
@@ -84,13 +89,22 @@ export async function myClassIds(profile: Profile): Promise<string[]> {
   return myClassIdsByProfileId(profile.id)
 }
 
-const tally = (rows: MembershipRef[]): Map<string, number> => {
-  const counts = new Map<string, number>()
-  for (const r of rows) counts.set(r.class_id, (counts.get(r.class_id) ?? 0) + 1)
-  return counts
+/** Groups member ids by class, resolving each to a display name. */
+function groupMembers(
+  refs: Array<{ class_id: string; member_id: string }>,
+  names: Map<string, string>,
+): Map<string, MemberBrief[]> {
+  const byClass = new Map<string, MemberBrief[]>()
+  for (const ref of refs) {
+    const list = byClass.get(ref.class_id) ?? []
+    list.push({ id: ref.member_id, name: names.get(ref.member_id) ?? 'Unknown' })
+    byClass.set(ref.class_id, list)
+  }
+  return byClass
 }
 
-/** Classes visible to the caller, with member counts, sorted by name. */
+/** Classes visible to the caller, with member counts + resolved names (so a card
+ *  can name the single student/tutor of a 1-on-1 class), sorted by name. */
 export async function listMyClasses(profile: Profile): Promise<ClassSummary[]> {
   const classIds = await myClassIds(profile)
   if (classIds.length === 0) return []
@@ -99,13 +113,22 @@ export async function listMyClasses(profile: Profile): Promise<ClassSummary[]> {
     selectActiveTutorRefsByClassIds(classIds),
     selectActiveEnrollmentRefsByClassIds(classIds),
   ])
-  const tutorCounts = tally(tutorRefs)
-  const studentCounts = tally(studentRefs)
-  return classes.map((c) => ({
-    ...c,
-    tutorCount: tutorCounts.get(c.id) ?? 0,
-    studentCount: studentCounts.get(c.id) ?? 0,
-  }))
+  const names = await getProfileNamesByIds([
+    ...new Set([...tutorRefs.map((r) => r.tutor_id), ...studentRefs.map((r) => r.student_id)]),
+  ])
+  const tutorsByClass = groupMembers(
+    tutorRefs.map((r) => ({ class_id: r.class_id, member_id: r.tutor_id })),
+    names,
+  )
+  const studentsByClass = groupMembers(
+    studentRefs.map((r) => ({ class_id: r.class_id, member_id: r.student_id })),
+    names,
+  )
+  return classes.map((c) => {
+    const tutors = tutorsByClass.get(c.id) ?? []
+    const students = studentsByClass.get(c.id) ?? []
+    return { ...c, tutorCount: tutors.length, studentCount: students.length, students, tutors }
+  })
 }
 
 /** Tutors + students of a class, with display names resolved. */

@@ -22,10 +22,9 @@ For those, use the migrations directly.
 
 ## Current migration range
 
-The current chain runs from:
-
-- `0001`
-- through `0031`
+The chain starts at `0001`; the current end is the **highest-numbered file in
+`supabase/migrations/`**. Read the directory rather than trusting a number quoted
+here — it drifts every time a migration is added.
 
 Note: `0028` narrows the `submissions_update` policy so a student may only update
 their own submission while it is still active and ungraded (closing a direct

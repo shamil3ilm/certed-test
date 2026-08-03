@@ -5,13 +5,25 @@ import { getClassMembers } from '@/lib/services/classes'
 import { attendanceMarkSchema } from '@/lib/validation/attendance'
 import { isCalendarDate } from '@/lib/time/format'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { deleteSession, upsertMarks, type AttendanceMark } from '@/lib/data/attendance'
 
 /** Recording and correcting a session's attendance. Both paths are gated on
  *  canManageClass (a tutor of THIS class, or an admin) and audited. */
 
-export type MarkAttendanceInput = { student_id: string; status: string }
+export type MarkAttendanceInput = {
+  student_id: string
+  status: string
+  join_at?: string | null
+  leave_at?: string | null
+}
+
+/** An ISO instant or null - drops anything unparseable rather than storing junk. */
+function isoOrNull(value: string | null | undefined): string | null {
+  if (!value) return null
+  return Number.isNaN(Date.parse(value)) ? null : value
+}
 
 /**
  * Marks a whole class for one session date in a single atomic write.
@@ -41,12 +53,28 @@ export async function markAttendance(
       session_date: params.sessionDate,
       status: m.status,
     })
-    if (parsed.success) rows.push({ ...parsed.data, marked_by: actor.id })
+    if (parsed.success) {
+      rows.push({
+        ...parsed.data,
+        join_at: isoOrNull(m.join_at),
+        leave_at: isoOrNull(m.leave_at),
+        marked_by: actor.id,
+      })
+    }
   }
   if (rows.length === 0) throw new ValidationError('Nothing to save - check the date and roster.')
 
   await upsertMarks(rows)
   await auditPrivilegedAction(actor, 'attendance.mark', 'class', params.classId)
+  // Tell the marked students their attendance was recorded (best-effort).
+  await notifyBestEffort(
+    rows.map((r) => r.student_id),
+    {
+      kind: 'attendance',
+      title: `Attendance recorded for ${params.sessionDate}`,
+      link: `/classroom/${params.classId}/attendance`,
+    },
+  )
   return { saved: rows.length }
 }
 

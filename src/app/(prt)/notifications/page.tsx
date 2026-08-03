@@ -12,6 +12,9 @@ const KIND_META: Record<string, { label: string; className: string }> = {
   announcement: { label: 'Announcement', className: 'bg-amber-50 text-amber-700' },
   assignment: { label: 'Assignment', className: 'bg-violet-50 text-violet-700' },
   submission: { label: 'Submission', className: 'bg-indigo-50 text-indigo-700' },
+  resource: { label: 'Document', className: 'bg-indigo-50 text-indigo-700' },
+  attendance: { label: 'Attendance', className: 'bg-teal-50 text-teal-700' },
+  schedule: { label: 'Schedule', className: 'bg-rose-50 text-rose-700' },
 }
 
 export default async function NotificationsPage() {

@@ -1,194 +1,395 @@
 import 'server-only'
 import {
+  incrementResourceDownloadCount,
   insertResource,
+  selectDocumentSearchPage,
   selectRecentForClasses,
   selectResourceById,
   selectResourcePage,
   updateResource,
   updateResourceStatus,
+  type ResourceEditPatch,
   type ResourceRow,
 } from '@/lib/data/resources'
+import { listClassesByIds } from '@/lib/services/classes'
+import {
+  insertVersion,
+  selectVersionByIdAsService,
+  selectVersionsForResource,
+  selectVersionsForResources,
+  type ResourceVersionRow,
+} from '@/lib/data/resource-versions'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageClass, assertClassActive } from '@/lib/permission'
+import { assertClassActive } from '@/lib/permission'
+import { assertCanDocument } from '@/lib/permission/documents'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { requireManageableResource } from '@/lib/services/service-helpers'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
+import { NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { linkUrl } from '@/lib/validation/url'
+import { isAllowedDriveUrl } from '@/lib/drive-link'
 import { titleField } from '@/lib/validation/fields'
 import { validateUuidField } from '@/lib/validation/id'
+import { documentCategoryLabel, type DocumentCategory } from '@/lib/documents/categories'
 import { z } from 'zod'
 
+/** Tell a class's students a document was posted/updated. Best-effort (the write
+ *  is already committed), and only for class-visible documents - a staff-only
+ *  document must not surface to students, even as a notification. */
+async function notifyClassOfDocument(doc: Document, action: 'New document' | 'Updated document'): Promise<void> {
+  if (doc.visibility !== 'class') return
+  await notifyClassRoleBestEffort(doc.class_id, 'students', {
+    kind: 'resource',
+    title: `${action}: ${doc.title}`,
+    body: doc.subject ?? documentCategoryLabel(doc.category),
+    link: `/classroom/${doc.class_id}/classwork#materials`,
+  })
+}
+
+/**
+ * The class document library. A document is a Google Drive link plus metadata
+ * (category, subject, visibility, download count). Every write is RBAC-enforced
+ * through canDocument (see @/lib/permission/documents): the matrix, class scope,
+ * ownership, and the student visibility gate. The `resources` table backs it.
+ */
 export type Resource = ResourceRow
+export type Document = ResourceRow
+export type DocumentVersion = ResourceVersionRow
 
-type PaginatedResources = { items: Resource[]; total: number }
+/** Snapshot a document's CURRENT content into its version history before it is
+ *  overwritten, so a superseded Drive link is never lost. The
+ *  author recorded is the version's own uploader; `note` says why it was
+ *  archived. Callers snapshot the pre-edit state, then apply the new one. */
+async function snapshotDocument(doc: Document, note: string): Promise<void> {
+  await insertVersion({
+    resource_id: doc.id,
+    title: doc.title,
+    drive_link: doc.drive_link,
+    description: doc.description,
+    category: doc.category,
+    subject: doc.subject,
+    file_type: doc.file_type,
+    created_by: doc.uploaded_by,
+    note,
+  })
+}
 
-/** Paginated read of a class's materials list (SQL-side range + count), so the
- *  classwork page loads one bounded page rather than every active resource. */
-export async function listResourcesPage(
-  classId: string,
-  opts: { page: number; pageSize: number; status?: 'active' | 'archived'; search?: string },
-): Promise<PaginatedResources> {
+type PaginatedDocuments = { items: Document[]; total: number }
+
+/** Filters for the document library (search / category / subject / date / sort),
+ *  applied SQL-side. Visibility is enforced by RLS - a student's read never
+ *  returns a staff-only document. */
+export type ListDocumentsOptions = {
+  page: number
+  pageSize: number
+  status?: 'active' | 'archived'
+  search?: string
+  category?: DocumentCategory
+  subject?: string
+  dateFrom?: string
+  dateTo?: string
+  sort?: 'latest' | 'oldest'
+}
+
+/** Paginated read of a class's documents (SQL-side range + count). */
+export async function listResourcesPage(classId: string, opts: ListDocumentsOptions): Promise<PaginatedDocuments> {
   const from = (opts.page - 1) * opts.pageSize
   const { rows, total } = await selectResourcePage(classId, {
     from,
     to: from + opts.pageSize - 1,
     status: opts.status ?? 'active',
     search: opts.search,
+    category: opts.category,
+    subject: opts.subject,
+    dateFrom: opts.dateFrom,
+    dateTo: opts.dateTo,
+    sort: opts.sort ?? 'latest',
   })
   return { items: rows, total }
 }
 
-/** Newest resources across a tutor's classes - the dashboard's "recent
- *  uploads" widget. SQL-side `.in()` + `.limit()`, not a full-table fetch. */
-export async function listRecentResourcesForClasses(classIds: string[], limit = 5): Promise<Resource[]> {
+/** Newest documents across a set of classes - the dashboard's "recent uploads"
+ *  widget. SQL-side `.in()` + `.limit()`, not a full-table fetch. */
+export async function listRecentResourcesForClasses(classIds: string[], limit = 5): Promise<Document[]> {
   return selectRecentForClasses(classIds, limit)
 }
 
-export async function getResource(id: string): Promise<Resource | null> {
+/** One search result: the document plus its class name for display. */
+export type DocumentSearchResult = { document: Document; className: string }
+
+/**
+ * Cross-class document search. RLS scopes the underlying query to
+ * exactly the documents the caller may read, so no class list has to be passed
+ * or checked here; we then resolve each result's class name (the class is always
+ * readable when its document is).
+ */
+export async function searchDocuments(opts: {
+  page: number
+  pageSize: number
+  search?: string
+  category?: DocumentCategory
+  subject?: string
+  dateFrom?: string
+  dateTo?: string
+  sort?: 'latest' | 'oldest'
+}): Promise<{ items: DocumentSearchResult[]; total: number }> {
+  const from = (opts.page - 1) * opts.pageSize
+  const { rows, total } = await selectDocumentSearchPage({
+    from,
+    to: from + opts.pageSize - 1,
+    search: opts.search,
+    category: opts.category,
+    subject: opts.subject,
+    dateFrom: opts.dateFrom,
+    dateTo: opts.dateTo,
+    sort: opts.sort ?? 'latest',
+  })
+  const classes = await listClassesByIds([...new Set(rows.map((r) => r.class_id))])
+  const nameById = new Map(classes.map((c) => [c.id, c.name]))
+  return {
+    items: rows.map((document) => ({ document, className: nameById.get(document.class_id) ?? 'Class' })),
+    total,
+  }
+}
+
+export async function getResource(id: string): Promise<Document | null> {
   return selectResourceById(id)
 }
 
-type CreateLinkResourceInput = {
-  class_id: string
-  title: string
-  drive_link: string
+export function validateResourceIdInput(input: { id?: FormDataEntryValue | null }): string {
+  return validateUuidField(input.id, 'Invalid document id')
 }
 
-const createLinkResourceInputSchema = z.object({
-  class_id: z.string().uuid(),
-  title: titleField,
-  drive_link: linkUrl,
-})
+// ── Shared metadata validation (create + edit never drift) ───────────────────
+const categoryField = z.enum(['question_papers', 'practice_sheets', 'academic_resources', 'general_documents'])
+const visibilityField = z.enum(['class', 'staff'])
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => v || null)
 
-type CreateLinkResourceActionInput = {
+export type DocumentActionInput = {
   classId?: FormDataEntryValue | null
+  id?: FormDataEntryValue | null
   title?: FormDataEntryValue | null
   url?: FormDataEntryValue | null
+  description?: FormDataEntryValue | null
+  category?: FormDataEntryValue | null
+  subject?: FormDataEntryValue | null
+  file_type?: FormDataEntryValue | null
+  visibility?: FormDataEntryValue | null
 }
 
-export function validateCreateLinkResourceInput(input: CreateLinkResourceActionInput): CreateLinkResourceInput {
-  const parsed = createLinkResourceInputSchema.safeParse({
-    class_id: input.classId,
+type DocumentMetaInput = {
+  title: string
+  drive_link: string
+  description: string | null
+  category: DocumentCategory
+  subject: string | null
+  file_type: string | null
+  visibility: 'class' | 'staff'
+}
+
+type CreateDocumentInput = DocumentMetaInput & { class_id: string }
+type EditDocumentInput = DocumentMetaInput & { id: string }
+
+const metaSchema = {
+  title: titleField,
+  // A document link must be a Google Drive/Docs URL (not just any http link): the
+  // storage model is Drive, and the download route redirects to this value, so a
+  // host allowlist here stops it becoming an open-redirect gadget.
+  drive_link: linkUrl.refine(isAllowedDriveUrl, 'Link must be a Google Drive or Google Docs link'),
+  description: optionalText(2000),
+  category: categoryField,
+  subject: optionalText(120),
+  file_type: optionalText(40),
+  visibility: visibilityField,
+}
+
+const createDocumentSchema = z.object({ class_id: z.string().uuid(), ...metaSchema })
+const editDocumentSchema = z.object({ id: z.string().uuid(), ...metaSchema })
+
+function metaFromAction(input: DocumentActionInput) {
+  return {
     title: input.title,
     drive_link: input.url,
-  })
-
-  if (!parsed.success) {
-    throw new ValidationError('Invalid link resource data')
+    description: input.description ?? undefined,
+    category: input.category ?? 'general_documents',
+    subject: input.subject ?? undefined,
+    file_type: input.file_type ?? undefined,
+    visibility: input.visibility ?? 'class',
   }
+}
 
+export function validateCreateDocumentInput(input: DocumentActionInput): CreateDocumentInput {
+  const parsed = createDocumentSchema.safeParse({ class_id: input.classId, ...metaFromAction(input) })
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid document data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
+  }
   return parsed.data
 }
 
-type ResourceIdActionInput = {
-  id?: FormDataEntryValue | null
-}
-
-export function validateResourceIdInput(input: ResourceIdActionInput): string {
-  return validateUuidField(input.id, 'Invalid resource id')
-}
-
-/**
- * Creates an active link-based resource (no Drive file upload needed).
- * Enforces canManageClass and writes the audit entry - a caller cannot reach
- * the insert without going through this check.
- */
-export async function createLinkResource(actor: Profile, input: CreateLinkResourceInput): Promise<Resource> {
-  throttleWrite('resource', actor.id, 'resource')
-  if (!(await canManageClass(actor, input.class_id))) {
-    throw new PermissionError('Not authorized for this class')
+export function validateEditDocumentInput(input: DocumentActionInput): EditDocumentInput {
+  const parsed = editDocumentSchema.safeParse({ id: String(input.id ?? ''), ...metaFromAction(input) })
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid document data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
   }
+  return parsed.data
+}
+
+/** Upload a document. canDocument('upload') = RBAC matrix + class scope; then the
+ *  class must be active; then audit. */
+export async function createDocument(actor: Profile, input: CreateDocumentInput): Promise<Document> {
+  throttleWrite('resource', actor.id, 'document')
+  await assertCanDocument(actor, 'upload', { class_id: input.class_id, visibility: input.visibility })
   await assertClassActive(input.class_id)
   const created = await insertResource({
     class_id: input.class_id,
     title: input.title,
+    description: input.description,
+    category: input.category,
+    subject: input.subject,
+    file_type: input.file_type,
     drive_link: input.drive_link,
     uploaded_by: actor.id,
+    visibility: input.visibility,
     status: 'active',
   })
   await auditPrivilegedAction(actor, 'resource.create', 'resource', created.id)
+  await notifyClassOfDocument(created, 'New document')
   return created
 }
 
-export async function createLinkResourceFromActionInput(
-  actor: Profile,
-  input: CreateLinkResourceActionInput,
-): Promise<Resource> {
-  return createLinkResource(actor, validateCreateLinkResourceInput(input))
+export async function createDocumentFromActionInput(actor: Profile, input: DocumentActionInput): Promise<Document> {
+  return createDocument(actor, validateCreateDocumentInput(input))
 }
 
-type EditLinkResourceInput = { id: string; title: string; drive_link: string }
-
-const editLinkResourceInputSchema = z.object({
-  id: z.string().uuid(),
-  title: titleField,
-  drive_link: linkUrl,
-})
-
-type EditLinkResourceActionInput = {
-  id?: FormDataEntryValue | null
-  title?: FormDataEntryValue | null
-  url?: FormDataEntryValue | null
-}
-
-export function validateEditLinkResourceInput(input: EditLinkResourceActionInput): EditLinkResourceInput {
-  const parsed = editLinkResourceInputSchema.safeParse({
-    id: String(input.id ?? ''),
+/** Edit a document's metadata. canDocument('edit', doc) - a tutor may edit only
+ *  what they uploaded; a mentor/admin, any in scope. */
+export async function editDocument(actor: Profile, input: EditDocumentInput): Promise<void> {
+  throttleWrite('resource', actor.id, 'document')
+  const doc = await getResource(input.id)
+  if (!doc) throw new NotFoundError('Document not found')
+  await assertCanDocument(actor, 'edit', doc)
+  // Replacing the Drive link is a new version of the document: keep the prior
+  // link + metadata in history first (metadata-only tweaks don't clutter it).
+  if (input.drive_link !== doc.drive_link) await snapshotDocument(doc, 'Replaced')
+  const patch: ResourceEditPatch = {
     title: input.title,
-    drive_link: input.url,
-  })
-  if (!parsed.success) {
-    throw new ValidationError('Invalid material data')
+    drive_link: input.drive_link,
+    description: input.description,
+    category: input.category,
+    subject: input.subject,
+    file_type: input.file_type,
+    visibility: input.visibility,
   }
-  return parsed.data
-}
-
-/**
- * Edit a material's title and link. Enforces canManageClass on the resource's
- * own class (via requireManageableResource) and audits - the same authorization
- * as archive/restore. Editing metadata isn't gated on class-active, matching how
- * assignments and announcements can be edited after their class is archived.
- */
-export async function editResource(actor: Profile, input: EditLinkResourceInput): Promise<void> {
-  throttleWrite('resource', actor.id, 'resource')
-  await requireManageableResource(actor, input.id, getResource)
-  await updateResource(input.id, { title: input.title, drive_link: input.drive_link })
+  await updateResource(input.id, patch)
   await auditPrivilegedAction(actor, 'resource.edit', 'resource', input.id)
+  await notifyClassOfDocument({ ...doc, ...patch }, 'Updated document')
 }
 
-export async function editResourceFromActionInput(actor: Profile, input: EditLinkResourceActionInput): Promise<void> {
-  return editResource(actor, validateEditLinkResourceInput(input))
+export async function editDocumentFromActionInput(actor: Profile, input: DocumentActionInput): Promise<void> {
+  return editDocument(actor, validateEditDocumentInput(input))
 }
 
-/**
- * Soft-remove: archive the resource (kept on record) rather than deleting
- * it. Enforces canManageClass on the resource's own class and writes the
- * audit entry.
- */
-export async function archiveResource(actor: Profile, id: string): Promise<void> {
-  throttleWrite('resource', actor.id, 'resource')
-  await requireManageableResource(actor, id, getResource)
+/** Soft-remove (archive). canDocument('delete', doc) - tutors delete only their own. */
+export async function archiveDocument(actor: Profile, id: string): Promise<void> {
+  throttleWrite('resource', actor.id, 'document')
+  const doc = await getResource(id)
+  if (!doc) throw new NotFoundError('Document not found')
+  await assertCanDocument(actor, 'delete', doc)
   await updateResourceStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'resource.delete', 'resource', id)
 }
 
-export async function archiveResourceFromActionInput(actor: Profile, input: ResourceIdActionInput): Promise<void> {
-  await archiveResource(actor, validateResourceIdInput(input))
+export async function archiveDocumentFromActionInput(
+  actor: Profile,
+  input: { id?: FormDataEntryValue | null },
+): Promise<void> {
+  await archiveDocument(actor, validateResourceIdInput(input))
 }
 
-/** Undoes archiveResource, honouring the "kept on record" promise shown in the
- *  archive confirmation dialog. */
-export async function restoreResource(actor: Profile, id: string): Promise<void> {
-  throttleWrite('resource', actor.id, 'resource')
-  const resource = await requireManageableResource(actor, id, getResource)
-  // Restoring re-activates content on the class - same rule as create/upload: no
-  // active material on an archived (soft-deleted) class.
-  await assertClassActive(resource.class_id)
+/** Restore an archived document. Same authority as edit, plus class must be active. */
+export async function restoreDocument(actor: Profile, id: string): Promise<void> {
+  throttleWrite('resource', actor.id, 'document')
+  const doc = await getResource(id)
+  if (!doc) throw new NotFoundError('Document not found')
+  await assertCanDocument(actor, 'edit', doc)
+  await assertClassActive(doc.class_id)
   await updateResourceStatus(id, 'active')
   await auditPrivilegedAction(actor, 'resource.restore', 'resource', id)
 }
 
-export async function restoreResourceFromActionInput(actor: Profile, input: ResourceIdActionInput): Promise<void> {
-  await restoreResource(actor, validateResourceIdInput(input))
+export async function restoreDocumentFromActionInput(
+  actor: Profile,
+  input: { id?: FormDataEntryValue | null },
+): Promise<void> {
+  await restoreDocument(actor, validateResourceIdInput(input))
+}
+
+/** Record a download and return the document (so the caller can redirect to the
+ *  Drive link). canDocument('download', doc), increment the counter, then audit. */
+export async function recordDownload(actor: Profile, id: string): Promise<Document> {
+  const doc = await getResource(id)
+  if (!doc) throw new NotFoundError('Document not found')
+  await assertCanDocument(actor, 'download', doc)
+  await incrementResourceDownloadCount(id)
+  await auditPrivilegedAction(actor, 'resource.download', 'resource', id)
+  return doc
+}
+
+/** History for many documents at once (grouped, newest first) - the class
+ *  library page attaches each card's history in one query. RLS scopes it to the
+ *  same documents the caller can already read. */
+export async function listVersionsForDocuments(resourceIds: string[]): Promise<Map<string, DocumentVersion[]>> {
+  return selectVersionsForResources(resourceIds)
+}
+
+/** A document's version history, newest first. canDocument('view', doc) - anyone
+ *  who may read the document may read its history (RLS enforces this too). */
+export async function listDocumentVersions(actor: Profile, resourceId: string): Promise<DocumentVersion[]> {
+  const doc = await getResource(resourceId)
+  if (!doc) throw new NotFoundError('Document not found')
+  await assertCanDocument(actor, 'view', doc)
+  return selectVersionsForResource(resourceId)
+}
+
+/**
+ * Restore a superseded version as the live document. Snapshots the CURRENT state
+ * first (so restoring is itself reversible and nothing is lost), then applies the
+ * chosen version's content. Visibility is an access control, not content, so it
+ * is left as-is. canDocument('edit', doc) gates it.
+ */
+export async function restoreDocumentVersion(actor: Profile, resourceId: string, versionId: string): Promise<void> {
+  throttleWrite('resource', actor.id, 'document')
+  const doc = await getResource(resourceId)
+  if (!doc) throw new NotFoundError('Document not found')
+  await assertCanDocument(actor, 'edit', doc)
+  const version = await selectVersionByIdAsService(versionId)
+  if (!version || version.resource_id !== resourceId) throw new NotFoundError('Version not found')
+
+  await snapshotDocument(doc, `Restored v${version.version_no}`)
+  const patch: ResourceEditPatch = {
+    title: version.title,
+    drive_link: version.drive_link,
+    description: version.description,
+    category: version.category,
+    subject: version.subject,
+    file_type: version.file_type,
+  }
+  await updateResource(resourceId, patch)
+  await auditPrivilegedAction(actor, 'resource.restore_version', 'resource', resourceId)
+  await notifyClassOfDocument({ ...doc, ...patch }, 'Updated document')
+}
+
+export async function restoreDocumentVersionFromActionInput(
+  actor: Profile,
+  input: { resourceId?: FormDataEntryValue | null; versionId?: FormDataEntryValue | null },
+): Promise<void> {
+  const resourceId = validateUuidField(input.resourceId, 'Invalid document id')
+  const versionId = validateUuidField(input.versionId, 'Invalid version id')
+  return restoreDocumentVersion(actor, resourceId, versionId)
 }

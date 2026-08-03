@@ -32,15 +32,16 @@ const announcementRow = {
   status: 'active',
   created_at: 't',
 }
+const extras = { attachments: [], publish_at: null, expires_at: null }
 
 beforeEach(() => vi.resetAllMocks())
 
 describe('createAnnouncement', () => {
   it('rejects a caller who cannot manage the scope, without a DB write or audit', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(false)
-    await expect(createAnnouncement(actor, { class_id: 'class-1', title: 'x', message: 'y' })).rejects.toBeInstanceOf(
-      PermissionError,
-    )
+    await expect(
+      createAnnouncement(actor, { class_id: 'class-1', title: 'x', message: 'y', ...extras }),
+    ).rejects.toBeInstanceOf(PermissionError)
     expect(createClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -48,7 +49,7 @@ describe('createAnnouncement', () => {
   it('creates and audits for a manager', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
-    const created = await createAnnouncement(actor, { class_id: 'class-1', title: 'Hi', message: 'msg' })
+    const created = await createAnnouncement(actor, { class_id: 'class-1', title: 'Hi', message: 'msg', ...extras })
     expect(created.id).toBe('ann-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -60,9 +61,9 @@ describe('createAnnouncement', () => {
 
   it('a global (null class_id) post is admin-only — a tutor is rejected', async () => {
     vi.mocked(canManageScope).mockResolvedValueOnce(false)
-    await expect(createAnnouncement(actor, { class_id: null, title: 'x', message: 'y' })).rejects.toBeInstanceOf(
-      PermissionError,
-    )
+    await expect(
+      createAnnouncement(actor, { class_id: null, title: 'x', message: 'y', ...extras }),
+    ).rejects.toBeInstanceOf(PermissionError)
     expect(canManageScope).toHaveBeenCalledWith(actor, null)
   })
 })
@@ -79,7 +80,45 @@ describe('validateCreateAnnouncementInput', () => {
       class_id: null,
       title: 'Welcome',
       message: 'Hello everyone',
+      attachments: [],
+      publish_at: null,
+      expires_at: null,
     })
+  })
+
+  it('parses attachment links (one per line) and publish/expiry dates', () => {
+    const result = validateCreateAnnouncementInput({
+      class_id: '',
+      title: 'x',
+      message: 'y',
+      attachments: 'https://drive.google.com/file/d/1/view\n\nhttps://example.com/a.pdf',
+      publish_at: '2026-08-10',
+      expires_at: '2026-08-20',
+    })
+    expect(result.attachments).toEqual([
+      { url: 'https://drive.google.com/file/d/1/view' },
+      { url: 'https://example.com/a.pdf' },
+    ])
+    expect(result.publish_at).toBe('2026-08-10T00:00:00.000Z')
+    expect(result.expires_at).toBe('2026-08-20T23:59:59.999Z')
+  })
+
+  it('rejects an expiry that is not after the publish date', () => {
+    expect(() =>
+      validateCreateAnnouncementInput({
+        class_id: '',
+        title: 'x',
+        message: 'y',
+        publish_at: '2026-08-20',
+        expires_at: '2026-08-10',
+      }),
+    ).toThrow(ValidationError)
+  })
+
+  it('rejects an invalid attachment link', () => {
+    expect(() =>
+      validateCreateAnnouncementInput({ class_id: '', title: 'x', message: 'y', attachments: 'not-a-link' }),
+    ).toThrow(ValidationError)
   })
 
   it('rejects invalid create payloads with a typed validation error', () => {
@@ -122,6 +161,9 @@ describe('validateEditAnnouncementInput', () => {
       patch: {
         title: 'Updated',
         message: 'Refined',
+        attachments: [],
+        publish_at: null,
+        expires_at: null,
       },
     })
   })
@@ -142,7 +184,7 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
     for (const fn of [
       () => archiveAnnouncement(actor, 'missing'),
       () => restoreAnnouncement(actor, 'missing'),
-      () => editAnnouncement(actor, 'missing', { title: 't', message: 'm' }),
+      () => editAnnouncement(actor, 'missing', { title: 't', message: 'm', ...extras }),
     ]) {
       vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
       await expect(fn()).rejects.toBeInstanceOf(NotFoundError)
@@ -187,7 +229,7 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await editAnnouncement(actor, 'ann-1', { title: 'New', message: 'New msg' })
+    await editAnnouncement(actor, 'ann-1', { title: 'New', message: 'New msg', ...extras })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'announcement.edit',

@@ -59,27 +59,35 @@ export async function selectActiveClassIdsForStudents(studentIds: string[]): Pro
   return [...new Set(((data ?? []) as MembershipRef[]).map((r) => r.class_id))]
 }
 
-/** One `class_id` per active teaching assignment across the given classes -
- *  the caller tallies them into per-class tutor counts. */
-export async function selectActiveTutorRefsByClassIds(classIds: string[]): Promise<MembershipRef[]> {
+/** One row per active teaching assignment across the given classes, carrying the
+ *  tutor id - the caller tallies counts AND resolves names (1-on-1 class cards). */
+export async function selectActiveTutorRefsByClassIds(
+  classIds: string[],
+): Promise<Array<{ class_id: string; tutor_id: string }>> {
   if (classIds.length === 0) return []
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('class_tutors')
-    .select('class_id')
+    .select('class_id, tutor_id')
     .in('class_id', classIds)
     .eq('active', true)
   if (error) throw new Error(`classMembership.tutorRefsByClassIds: ${error.message}`)
-  return (data ?? []) as MembershipRef[]
+  return (data ?? []) as Array<{ class_id: string; tutor_id: string }>
 }
 
-/** One `class_id` per active enrolment across the given classes. */
-export async function selectActiveEnrollmentRefsByClassIds(classIds: string[]): Promise<MembershipRef[]> {
+/** One row per active enrolment across the given classes, carrying the student id. */
+export async function selectActiveEnrollmentRefsByClassIds(
+  classIds: string[],
+): Promise<Array<{ class_id: string; student_id: string }>> {
   if (classIds.length === 0) return []
   const admin = createAdminClient()
-  const { data, error } = await admin.from('enrollments').select('class_id').in('class_id', classIds).eq('active', true)
+  const { data, error } = await admin
+    .from('enrollments')
+    .select('class_id, student_id')
+    .in('class_id', classIds)
+    .eq('active', true)
   if (error) throw new Error(`classMembership.enrollmentRefsByClassIds: ${error.message}`)
-  return (data ?? []) as MembershipRef[]
+  return (data ?? []) as Array<{ class_id: string; student_id: string }>
 }
 
 /** Active teaching rows for one class. The row id is returned alongside the
@@ -192,6 +200,54 @@ export async function selectActiveTutorIdsByClassIds(classIds: string[]): Promis
     .eq('active', true)
   if (error) throw new Error(`classMembership.tutorIdsByClassIds: ${error.message}`)
   return ((data ?? []) as { tutor_id: string }[]).map((r) => r.tutor_id)
+}
+
+/**
+ * Pair reads: the (person, class) edges themselves, not just one side. A caller
+ * that needs a per-person class map (e.g. "which of my taught classes is each
+ * student in") builds it from ONE of these instead of one query per person.
+ * Service-role aggregation - scope the ids to the caller's own membership.
+ */
+export type EnrollmentPair = { student_id: string; class_id: string }
+export type TutorPair = { tutor_id: string; class_id: string }
+
+/** (student_id, class_id) for every active enrolment in the given classes. */
+export async function selectActiveEnrollmentPairsByClassIds(classIds: string[]): Promise<EnrollmentPair[]> {
+  if (classIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('enrollments')
+    .select('student_id, class_id')
+    .in('class_id', classIds)
+    .eq('active', true)
+  if (error) throw new Error(`classMembership.enrollmentPairsByClassIds: ${error.message}`)
+  return (data ?? []) as EnrollmentPair[]
+}
+
+/** (student_id, class_id) for every active enrolment of the given students. */
+export async function selectActiveEnrollmentPairsByStudentIds(studentIds: string[]): Promise<EnrollmentPair[]> {
+  if (studentIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('enrollments')
+    .select('student_id, class_id')
+    .in('student_id', studentIds)
+    .eq('active', true)
+  if (error) throw new Error(`classMembership.enrollmentPairsByStudentIds: ${error.message}`)
+  return (data ?? []) as EnrollmentPair[]
+}
+
+/** (tutor_id, class_id) for every active teaching assignment in the given classes. */
+export async function selectActiveTutorPairsByClassIds(classIds: string[]): Promise<TutorPair[]> {
+  if (classIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('class_tutors')
+    .select('tutor_id, class_id')
+    .in('class_id', classIds)
+    .eq('active', true)
+  if (error) throw new Error(`classMembership.tutorPairsByClassIds: ${error.message}`)
+  return (data ?? []) as TutorPair[]
 }
 
 /** Which of the given staff ids are actively teaching at least one class. */

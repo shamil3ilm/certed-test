@@ -1,57 +1,75 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn(), assertClassActive: vi.fn() }))
+vi.mock('@/lib/permission/documents', () => ({ assertCanDocument: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/resource-versions', () => ({
+  insertVersion: vi.fn(),
+  selectVersionByIdAsService: vi.fn(),
+  selectVersionsForResource: vi.fn(),
+  selectVersionsForResources: vi.fn(),
+}))
 
-import { canManageClass, assertClassActive } from '@/lib/permission'
+import { assertCanDocument } from '@/lib/permission/documents'
+import { assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
+import { insertVersion, selectVersionByIdAsService } from '@/lib/data/resource-versions'
 import {
-  createLinkResource,
-  createLinkResourceFromActionInput,
-  archiveResource,
-  archiveResourceFromActionInput,
-  editResource,
-  validateEditLinkResourceInput,
-  restoreResource,
-  restoreResourceFromActionInput,
-  listResourcesPage,
-  validateCreateLinkResourceInput,
+  createDocument,
+  editDocument,
+  archiveDocument,
+  restoreDocument,
+  recordDownload,
+  restoreDocumentVersion,
+  validateCreateDocumentInput,
+  validateEditDocumentInput,
   validateResourceIdInput,
+  listResourcesPage,
 } from '@/lib/services/resources'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
-const resourceRow = {
+const classId = '550e8400-e29b-41d4-a716-446655440000'
+const docRow = {
   id: 'res-1',
   class_id: 'class-1',
   title: 'Notes',
+  description: null,
+  category: 'general_documents',
+  subject: null,
+  file_type: null,
   drive_link: 'https://x',
   uploaded_by: 'tutor-1',
+  download_count: 2,
+  visibility: 'class',
   status: 'active',
   created_at: 't',
 }
-const classId = '550e8400-e29b-41d4-a716-446655440000'
+const createInput = {
+  class_id: 'class-1',
+  title: 'Paper 1',
+  drive_link: 'https://drive.google.com/x',
+  description: null,
+  category: 'question_papers' as const,
+  subject: 'Maths',
+  file_type: 'PDF',
+  visibility: 'class' as const,
+}
 
 beforeEach(() => vi.resetAllMocks())
 
-describe('createLinkResource', () => {
-  it('rejects a non-manager without touching the database or the audit log', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(
-      createLinkResource(actor, { class_id: 'class-1', title: 'x', drive_link: 'https://x' }),
-    ).rejects.toBeInstanceOf(PermissionError)
-    expect(createClient).not.toHaveBeenCalled()
-    expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('creates the resource and audits it for a manager', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    const created = await createLinkResource(actor, { class_id: 'class-1', title: 'Notes', drive_link: 'https://x' })
+describe('createDocument', () => {
+  it('enforces canDocument("upload") with class + visibility, then audits', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
+    const created = await createDocument(actor, createInput)
     expect(created.id).toBe('res-1')
+    expect(assertCanDocument).toHaveBeenCalledWith(actor, 'upload', { class_id: 'class-1', visibility: 'class' })
+    expect(assertClassActive).toHaveBeenCalledWith('class-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'resource.create',
@@ -59,30 +77,34 @@ describe('createLinkResource', () => {
       entity_id: 'res-1',
     })
   })
+
+  it('rejects when canDocument denies, without touching the DB or audit', async () => {
+    vi.mocked(assertCanDocument).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(createDocument(actor, createInput)).rejects.toBeInstanceOf(PermissionError)
+    expect(createClient).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
 })
 
-describe('editResource', () => {
-  const patch = { id: 'res-1', title: 'Updated notes', drive_link: 'https://y' }
+describe('editDocument', () => {
+  const patch = { id: 'res-1', ...createInput }
 
-  it('throws NotFoundError for a missing id, without a permission check or audit', async () => {
+  it('throws NotFound for a missing id, without a permission check or audit', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(editResource(actor, patch)).rejects.toBeInstanceOf(NotFoundError)
-    expect(canManageClass).not.toHaveBeenCalled()
+    await expect(editDocument(actor, patch)).rejects.toBeInstanceOf(NotFoundError)
+    expect(assertCanDocument).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-manager without writing or auditing', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(editResource(actor, patch)).rejects.toBeInstanceOf(PermissionError)
-    expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('edits and audits for a manager', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await editResource(actor, patch)
+  it('enforces canDocument("edit", doc), snapshots the replaced link, and audits', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update
+    await editDocument(actor, patch) // patch.drive_link !== docRow.drive_link
+    expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
+    // The prior link is kept in history before the row is overwritten.
+    expect(insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ resource_id: 'res-1', drive_link: 'https://x', note: 'Replaced' }),
+    )
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'resource.edit',
@@ -90,94 +112,72 @@ describe('editResource', () => {
       entity_id: 'res-1',
     })
   })
-})
 
-describe('validateEditLinkResourceInput', () => {
-  it('accepts a valid id + title + url', () => {
-    const parsed = validateEditLinkResourceInput({
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      title: 'Notes',
-      url: 'https://drive.google.com/x',
-    })
-    expect(parsed.title).toBe('Notes')
-    expect(parsed.drive_link).toBe('https://drive.google.com/x')
+  it('does NOT snapshot a metadata-only edit (link unchanged)', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update
+    await editDocument(actor, { ...patch, drive_link: docRow.drive_link, title: 'Renamed' })
+    expect(insertVersion).not.toHaveBeenCalled()
   })
 
-  it('rejects a bad id or blank title', () => {
-    expect(() => validateEditLinkResourceInput({ id: 'nope', title: 'x', url: 'https://x' })).toThrow(ValidationError)
-    expect(() =>
-      validateEditLinkResourceInput({ id: '550e8400-e29b-41d4-a716-446655440000', title: '  ', url: 'https://x' }),
-    ).toThrow(ValidationError)
+  it('rejects when canDocument denies, without writing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
+    vi.mocked(assertCanDocument).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(editDocument(actor, patch)).rejects.toBeInstanceOf(PermissionError)
+    expect(insertVersion).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 
-describe('validateCreateLinkResourceInput', () => {
-  it('trims and maps action input into the resource create shape', () => {
-    expect(
-      validateCreateLinkResourceInput({
-        classId,
-        title: ' Notes ',
-        url: 'https://example.com/notes',
-      }),
-    ).toEqual({
-      class_id: classId,
-      title: 'Notes',
-      drive_link: 'https://example.com/notes',
-    })
-  })
+describe('restoreDocumentVersion', () => {
+  const version = {
+    id: 'ver-1',
+    resource_id: 'res-1',
+    version_no: 2,
+    title: 'Old notes',
+    drive_link: 'https://old',
+    description: null,
+    category: 'general_documents' as const,
+    subject: null,
+    file_type: null,
+    created_by: 'tutor-1',
+    note: 'Replaced',
+    created_at: 't',
+  }
 
-  it('rejects invalid action input with a typed validation error', () => {
-    expect(() =>
-      validateCreateLinkResourceInput({
-        classId: 'bad-id',
-        title: '',
-        url: 'javascript:alert(1)',
-      }),
-    ).toThrow(ValidationError)
-  })
-})
-
-describe('createLinkResourceFromActionInput', () => {
-  it('creates a resource after normalizing the action payload', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-
-    const created = await createLinkResourceFromActionInput(actor, {
-      classId,
-      title: ' Notes ',
-      url: 'https://example.com/resource',
-    })
-
-    expect(created.id).toBe('res-1')
+  it('snapshots the current state, applies the version, and audits restore_version', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
+    vi.mocked(selectVersionByIdAsService).mockResolvedValueOnce(version as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update
+    await restoreDocumentVersion(actor, 'res-1', 'ver-1')
+    expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
+    // Current live state is archived to history before the rollback overwrites it.
+    expect(insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ resource_id: 'res-1', drive_link: 'https://x', note: 'Restored v2' }),
+    )
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
-      action: 'resource.create',
+      action: 'resource.restore_version',
       entity_type: 'resource',
       entity_id: 'res-1',
     })
   })
+
+  it('rejects a version id that belongs to a different document', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
+    vi.mocked(selectVersionByIdAsService).mockResolvedValueOnce({ ...version, resource_id: 'other' } as any)
+    await expect(restoreDocumentVersion(actor, 'res-1', 'ver-1')).rejects.toBeInstanceOf(NotFoundError)
+    expect(insertVersion).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
 })
 
-describe('archiveResource', () => {
-  it('throws NotFoundError for a missing id, without a permission check or audit', async () => {
+describe('archiveDocument / restoreDocument', () => {
+  it('archive enforces canDocument("delete") and audits resource.delete', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(archiveResource(actor, 'missing')).rejects.toBeInstanceOf(NotFoundError)
-    expect(canManageClass).not.toHaveBeenCalled()
-    expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('rejects a non-manager without writing or auditing', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(archiveResource(actor, 'res-1')).rejects.toBeInstanceOf(PermissionError)
-    expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('archives and audits for a manager', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await archiveResource(actor, 'res-1')
+    await archiveDocument(actor, 'res-1')
+    expect(assertCanDocument).toHaveBeenCalledWith(actor, 'delete', docRow)
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'resource.delete',
@@ -185,28 +185,13 @@ describe('archiveResource', () => {
       entity_id: 'res-1',
     })
   })
-})
 
-describe('restoreResource', () => {
-  it('throws NotFoundError for a missing id, without a permission check or audit', async () => {
+  it('restore checks class-active and audits resource.restore', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(restoreResource(actor, 'missing')).rejects.toBeInstanceOf(NotFoundError)
-    expect(canManageClass).not.toHaveBeenCalled()
-    expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('rejects a non-manager without writing or auditing', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
-    await expect(restoreResource(actor, 'res-1')).rejects.toBeInstanceOf(PermissionError)
-    expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('restores and audits resource.restore for a manager', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await restoreResource(actor, 'res-1')
+    await restoreDocument(actor, 'res-1')
+    expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
+    expect(assertClassActive).toHaveBeenCalledWith('class-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'resource.restore',
@@ -214,95 +199,120 @@ describe('restoreResource', () => {
       entity_id: 'res-1',
     })
   })
+})
 
-  it('refuses to restore a resource onto an archived class, without reactivating or auditing', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: resourceRow, error: null }) as any) // getResource
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
-    await expect(restoreResource(actor, 'res-1')).rejects.toBeInstanceOf(ValidationError)
+describe('recordDownload', () => {
+  it('enforces canDocument("download"), increments the counter, audits, and returns the doc', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
+    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: { download_count: 2 }, error: null }) as any)
+    const doc = await recordDownload(actor, 'res-1')
+    expect(doc.id).toBe('res-1')
+    expect(assertCanDocument).toHaveBeenCalledWith(actor, 'download', docRow)
+    expect(writeAudit).toHaveBeenCalledWith({
+      actor_id: 'tutor-1',
+      action: 'resource.download',
+      entity_type: 'resource',
+      entity_id: 'res-1',
+    })
+  })
+
+  it('rejects a denied download before incrementing', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...docRow, visibility: 'staff' }, error: null }) as any,
+    )
+    vi.mocked(assertCanDocument).mockRejectedValueOnce(new PermissionError('staff only'))
+    await expect(recordDownload(actor, 'res-1')).rejects.toBeInstanceOf(PermissionError)
+    expect(createAdminClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 })
 
-describe('listResourcesPage', () => {
-  it('filters by class/status and requests the correct range', async () => {
+describe('validateCreateDocumentInput / validateEditDocumentInput', () => {
+  it('normalizes a valid create payload', () => {
+    expect(
+      validateCreateDocumentInput({
+        classId,
+        title: ' Paper 1 ',
+        url: 'https://drive.google.com/x',
+        category: 'question_papers',
+        subject: ' Maths ',
+        visibility: 'staff',
+      }),
+    ).toEqual({
+      class_id: classId,
+      title: 'Paper 1',
+      drive_link: 'https://drive.google.com/x',
+      description: null,
+      category: 'question_papers',
+      subject: 'Maths',
+      file_type: null,
+      visibility: 'staff',
+    })
+  })
+
+  it('rejects an unknown category (no custom categories)', () => {
+    expect(() => validateCreateDocumentInput({ classId, title: 'x', url: 'https://x', category: 'made_up' })).toThrow(
+      ValidationError,
+    )
+  })
+
+  it('rejects a non-http link', () => {
+    expect(() =>
+      validateEditDocumentInput({ id: classId, title: 'x', url: 'javascript:alert(1)', category: 'general_documents' }),
+    ).toThrow(ValidationError)
+  })
+
+  it('rejects a valid http link that is not a Google Drive/Docs host', () => {
+    expect(() =>
+      validateCreateDocumentInput({
+        classId,
+        title: 'x',
+        url: 'https://evil.example.com/x',
+        category: 'general_documents',
+      }),
+    ).toThrow(ValidationError)
+  })
+})
+
+describe('listResourcesPage filters', () => {
+  it('filters class/status/category and requests the right range', async () => {
     const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 25 })) }
     vi.mocked(createClient).mockResolvedValueOnce(client as any)
-    const result = await listResourcesPage('class-1', { page: 2, pageSize: 10 })
+    const result = await listResourcesPage('class-1', {
+      page: 2,
+      pageSize: 10,
+      category: 'practice_sheets',
+    })
     const builder = client.from.mock.results[0].value
     expect(builder.eq).toHaveBeenCalledWith('class_id', 'class-1')
     expect(builder.eq).toHaveBeenCalledWith('status', 'active')
+    expect(builder.eq).toHaveBeenCalledWith('category', 'practice_sheets')
     expect(builder.range).toHaveBeenCalledWith(10, 19)
     expect(result.total).toBe(25)
   })
 
-  it('filters to archived status when requested', async () => {
-    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
-    await listResourcesPage('class-1', { page: 1, pageSize: 20, status: 'archived' })
-    const builder = client.from.mock.results[0].value
-    expect(builder.eq).toHaveBeenCalledWith('status', 'archived')
-  })
-
-  it('applies an ilike title search, escaping wildcards', async () => {
+  it('searches title/description/subject and escapes wildcards', async () => {
     const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
     vi.mocked(createClient).mockResolvedValueOnce(client as any)
     await listResourcesPage('class-1', { page: 1, pageSize: 10, search: '50%_off' })
     const builder = client.from.mock.results[0].value
-    expect(builder.ilike).toHaveBeenCalledWith('title', '%50\\%\\_off%')
+    expect(builder.or).toHaveBeenCalledWith(
+      'title.ilike.%50\\%\\_off%,description.ilike.%50\\%\\_off%,subject.ilike.%50\\%\\_off%',
+    )
   })
 
-  it('skips the search filter when blank', async () => {
+  it('sorts oldest-first when requested', async () => {
     const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
     vi.mocked(createClient).mockResolvedValueOnce(client as any)
-    await listResourcesPage('class-1', { page: 1, pageSize: 10, search: '  ' })
+    await listResourcesPage('class-1', { page: 1, pageSize: 10, sort: 'oldest' })
     const builder = client.from.mock.results[0].value
-    expect(builder.ilike).not.toHaveBeenCalled()
+    expect(builder.order).toHaveBeenCalledWith('created_at', { ascending: true })
   })
 })
 
-describe('resource action-input helpers', () => {
-  it('validates resource ids from the action layer', () => {
-    expect(validateResourceIdInput({ id: '550e8400-e29b-41d4-a716-446655440000' })).toBe(
-      '550e8400-e29b-41d4-a716-446655440000',
-    )
-  })
-
-  it('rejects invalid resource ids with a typed validation error', () => {
+describe('validateResourceIdInput', () => {
+  it('accepts a uuid and rejects garbage', () => {
+    expect(validateResourceIdInput({ id: classId })).toBe(classId)
     expect(() => validateResourceIdInput({ id: 'bad' })).toThrow(ValidationError)
-  })
-
-  it('delegates archive/restore resource after validation', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({
-        data: { ...resourceRow, id: '550e8400-e29b-41d4-a716-446655440000', class_id: classId },
-        error: null,
-      }) as any,
-    )
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await archiveResourceFromActionInput(actor, { id: '550e8400-e29b-41d4-a716-446655440000' })
-    expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1',
-      action: 'resource.delete',
-      entity_type: 'resource',
-      entity_id: '550e8400-e29b-41d4-a716-446655440000',
-    })
-
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({
-        data: { ...resourceRow, id: '550e8400-e29b-41d4-a716-446655440000', class_id: classId },
-        error: null,
-      }) as any,
-    )
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await restoreResourceFromActionInput(actor, { id: '550e8400-e29b-41d4-a716-446655440000' })
-    expect(writeAudit).toHaveBeenLastCalledWith({
-      actor_id: 'tutor-1',
-      action: 'resource.restore',
-      entity_type: 'resource',
-      entity_id: '550e8400-e29b-41d4-a716-446655440000',
-    })
   })
 })

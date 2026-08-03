@@ -4,6 +4,7 @@ import { myClassIds } from '@/lib/services/classes'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import type { DashboardMentee } from '@/lib/services/page-data/dashboard'
 import { MentorInsights } from './MentorInsights'
+import { StudentAnalyticsStats, TutorAnalyticsStats } from './analytics-stats'
 import { CapabilityNotice, MenteesPanel } from './dashboard-panels'
 import {
   AttendanceRateWidget,
@@ -84,6 +85,13 @@ export function TutorDashboardContent({
 
   return (
     <>
+      {canViewClasses && (
+        <section className="mt-6">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <TutorAnalyticsStats me={me} />
+          </Suspense>
+        </section>
+      )}
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {canViewClasses && (
           <Suspense fallback={<WidgetSkeleton />}>
@@ -141,6 +149,11 @@ export function StudentDashboardContent({
 
   return (
     <>
+      <section className="mt-6">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <StudentAnalyticsStats me={me} />
+        </Suspense>
+      </section>
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />

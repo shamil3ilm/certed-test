@@ -19,6 +19,7 @@ import { assertTimeOrder } from '@/lib/validation/time-order'
 import { canWriteClass, assertClassActive } from '@/lib/permission'
 import { selectSlotById } from '@/lib/data/timetable-slots'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
@@ -89,6 +90,16 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
     created_by: actor.id,
   })
   await auditPrivilegedAction(actor, 'event.create', 'calendar_event', created.id)
+  // A cancellation/reschedule changes when a class meets - tell its students
+  // (best-effort). Plain events + holidays don't fan out.
+  if (created.class_id && (created.kind === 'cancellation' || created.kind === 'reschedule')) {
+    await notifyClassRoleBestEffort(created.class_id, 'students', {
+      kind: 'schedule',
+      title: `Class ${created.kind === 'cancellation' ? 'cancelled' : 'rescheduled'}: ${created.title}`,
+      body: created.event_date,
+      link: '/calendar',
+    })
+  }
   return created
 }
 

@@ -82,7 +82,7 @@ describe('recipientPolicy', () => {
     vi.mocked(studentIdsOfMentor).mockResolvedValue(['mentee-1'])
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
-        enrollments: [{ class_id: 'c-9' }], // classes the mentees are enrolled in
+        enrollments: [{ student_id: 'mentee-1', class_id: 'c-9' }], // classes the mentees are enrolled in
         class_tutors: [{ tutor_id: 'mentee-tutor' }], // tutors of those classes
       }) as any,
     )
@@ -264,7 +264,7 @@ describe('recipientPolicy', () => {
     vi.mocked(studentIdsOfMentor).mockResolvedValue(['student-1'])
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
-        enrollments: [{ class_id: 'c-1' }],
+        enrollments: [{ student_id: 'student-1', class_id: 'c-1' }],
         class_tutors: [{ tutor_id: 'tutor-1', class_id: 'c-1' }],
       }) as any,
     )

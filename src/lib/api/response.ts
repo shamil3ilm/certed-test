@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ERROR_CODES, codeForAuthMessage, codeForServiceError, type ErrorCode } from '@/lib/api/error-codes'
 import { ServiceError } from '@/lib/errors'
+import { logError } from '@/lib/observability/log'
 import {
   ACCESS_REVOKED_MESSAGE,
   FORBIDDEN_MESSAGE,
@@ -109,5 +110,8 @@ export function apiError(error: unknown) {
     return fail(error.message, error.status, codeForServiceError(error))
   }
   if (error instanceof Error && AUTH_CODES.has(error.message)) return authFail(error)
+  // Unknown error -> generic 500 to the client, but log the real detail server-side
+  // so an internal failure isn't silently masked by the generic message.
+  logError('apiError', error)
   return serverError()
 }

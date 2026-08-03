@@ -1,0 +1,93 @@
+import type { Profile } from '@/lib/auth/profile'
+import { PermissionError } from '@/lib/errors'
+import { canAccessClass, canManageClass } from '@/lib/permission/class'
+import { loadPersonaFlags } from '@/lib/permission/personas'
+import type { DocumentVisibility } from '@/lib/documents/categories'
+
+/**
+ * Role-based document permissions.
+ *
+ * Two layers, both enforced on the server:
+ *  1. This MATRIX - what each role may do in principle (configurable: it is the
+ *     single source of truth; swap it for a DB-backed table later without
+ *     touching callers).
+ *  2. Class scope + ownership - a manage action still requires canManageClass
+ *     (admin / tutor-of-class / mentor-of-an-enrolled-student, per 0043), a view
+ *     action requires canAccessClass, and a `own` matrix entry requires the
+ *     caller to be the uploader.
+ *
+ * Never gate a document write on the matrix alone - always through canDocument.
+ */
+
+export type DocumentAction = 'view' | 'upload' | 'edit' | 'delete' | 'download' | 'share'
+export type DocumentRole = 'admin' | 'mentor' | 'tutor' | 'student'
+
+/** 'yes' = allowed, 'own' = allowed only on documents the caller uploaded,
+ *  'no' = never. */
+type MatrixEntry = 'yes' | 'own' | 'no'
+
+export const DOCUMENT_PERMISSION_MATRIX: Record<DocumentRole, Record<DocumentAction, MatrixEntry>> = {
+  // Full control.
+  admin: { view: 'yes', upload: 'yes', edit: 'yes', delete: 'yes', download: 'yes', share: 'yes' },
+  // Manages tutor resources for their mentees' classes (canManageClass scopes it).
+  mentor: { view: 'yes', upload: 'yes', edit: 'yes', delete: 'yes', download: 'yes', share: 'yes' },
+  // Uploads to classes they teach; may edit/delete only what they uploaded.
+  tutor: { view: 'yes', upload: 'yes', edit: 'own', delete: 'own', download: 'yes', share: 'yes' },
+  // Consumes only: view allowed documents, download if permitted; no write/share.
+  student: { view: 'yes', upload: 'no', edit: 'no', delete: 'no', download: 'yes', share: 'no' },
+}
+
+const MANAGE_ACTIONS: ReadonlySet<DocumentAction> = new Set(['upload', 'edit', 'delete', 'share'])
+
+type PersonaFlags = Awaited<ReturnType<typeof loadPersonaFlags>>
+
+/** The highest-privilege document role this actor holds. A person may hold
+ *  several personas; class scope (below) still confines mentor/tutor powers to
+ *  the relevant classes. */
+export function documentRoleFor(flags: PersonaFlags): DocumentRole {
+  if (flags.isAdmin) return 'admin'
+  if (flags.hasMentorAuthority) return 'mentor'
+  if (flags.isTutor) return 'tutor'
+  return 'student'
+}
+
+/** The target of a permission check. For `upload` only `class_id` (and the
+ *  intended `visibility`) is known - there is no row yet. */
+export type DocumentTarget = {
+  class_id: string
+  uploaded_by?: string | null
+  visibility?: DocumentVisibility
+}
+
+/** May `actor` perform `action` on this document/target? Combines the matrix,
+ *  class scope, ownership, and the student visibility gate. */
+export async function canDocument(actor: Profile, action: DocumentAction, target: DocumentTarget): Promise<boolean> {
+  const flags = await loadPersonaFlags(actor.id)
+  const role = documentRoleFor(flags)
+  const entry = DOCUMENT_PERMISSION_MATRIX[role][action]
+  if (entry === 'no') return false
+
+  // A manage action needs class-management authority; a read needs class access.
+  const scoped = MANAGE_ACTIONS.has(action)
+    ? await canManageClass(actor, target.class_id)
+    : await canAccessClass(actor, target.class_id)
+  if (!scoped) return false
+
+  // `own` entries (tutor edit/delete) require the caller to be the uploader.
+  if (entry === 'own' && (!target.uploaded_by || target.uploaded_by !== actor.id)) return false
+
+  // A student can never view/download a staff-only document (defence-in-depth
+  // over the RLS visibility gate in 0045).
+  if (role === 'student' && (action === 'view' || action === 'download') && target.visibility === 'staff') {
+    return false
+  }
+
+  return true
+}
+
+/** Throwing variant for service write paths. */
+export async function assertCanDocument(actor: Profile, action: DocumentAction, target: DocumentTarget): Promise<void> {
+  if (!(await canDocument(actor, action, target))) {
+    throw new PermissionError(`Not allowed to ${action} this document.`)
+  }
+}

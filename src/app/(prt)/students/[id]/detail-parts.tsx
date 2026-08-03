@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Avatar, Badge, Card, FILTER_CONTROL, FilterBar, FilterField, SectionLabel, StatCard, StatGrid } from '@/lib/ui'
+import { STUDENT_REPORTS } from '@/lib/reports/registry'
 import { comparisonLabel } from './detail-shared'
 
 type MenteePageData = NonNullable<Awaited<ReturnType<typeof loadMenteeDetailPageData>>>
@@ -45,14 +46,17 @@ export function MenteeHeader({ data, hasMentorAuthority }: { data: MenteePageDat
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <MessageUserButton recipientId={student.id} className="btn-sm btn-soft" />
-          <a
-            href={`/api/report-card/${student.id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-sm btn-soft"
-          >
-            Download report card
-          </a>
+          {STUDENT_REPORTS.map((report) => (
+            <a
+              key={report.type}
+              href={report.pdfPath(student.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm btn-soft"
+            >
+              {report.label}
+            </a>
+          ))}
         </div>
       </div>
 

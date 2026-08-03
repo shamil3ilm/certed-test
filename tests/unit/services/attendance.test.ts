@@ -6,8 +6,10 @@ vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { getClassMembers } from '@/lib/services/classes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -92,6 +94,8 @@ describe('markAttendance', () => {
       entity_type: 'class',
       entity_id: classId,
     })
+    // The marked student is notified (best-effort); the dropped foreign id is not.
+    expect(notifyBestEffort).toHaveBeenCalledWith([enrolledStudentId], expect.objectContaining({ kind: 'attendance' }))
   })
 })
 

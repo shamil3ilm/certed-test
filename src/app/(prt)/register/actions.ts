@@ -4,7 +4,8 @@ import { actionDone, actionFail, type ActionStatusResult } from '@/lib/api/actio
 import { ERROR_CODES } from '@/lib/api/error-codes'
 import { isMock } from '@/lib/mock/env'
 import { completePasswordRegistration } from '@/lib/services/users'
-import { rateLimit, clientIp } from '@/lib/security/rate-limit'
+import { clientIp } from '@/lib/security/rate-limit'
+import { rateLimitShared } from '@/lib/security/rate-limit-shared'
 import { registerSchema } from '@/lib/validation/user'
 
 // The shared envelope already carries the machine-readable `code`, so this is
@@ -21,7 +22,7 @@ export async function registerAction(_prev: RegisterState, formData: FormData): 
     return actionFail('Password registration is only available in production mode.', ERROR_CODES.invalidRequest)
   }
 
-  const rl = rateLimit(`register:${clientIp(headers())}`, { limit: 8, windowMs: 10 * 60 * 1000 })
+  const rl = await rateLimitShared(`register:${clientIp(headers())}`, { limit: 8, windowSeconds: 10 * 60 })
   if (!rl.ok) {
     return actionFail('Too many attempts. Please wait a few minutes and try again.', ERROR_CODES.rateLimited)
   }

@@ -1,30 +1,55 @@
 import type { Profile } from '@/lib/auth/profile'
-import { parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAssignments, type Assignment } from '@/lib/services/assignments'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
-import { listResourcesPage, type Resource } from '@/lib/services/resources'
+import {
+  listResourcesPage,
+  listVersionsForDocuments,
+  type Document,
+  type DocumentVersion,
+} from '@/lib/services/resources'
 import { listMyActiveSubmissions, listMySupersededSubmissions, type Submission } from '@/lib/services/submissions'
+import { DOCUMENT_CATEGORY_VALUES, isDocumentCategory, type DocumentCategory } from '@/lib/documents/categories'
 
-const MATERIALS_PAGE_SIZE = 10
-const ARCHIVED_PAGE_SIZE = 20
+// A class's document library is bounded (small academy), so we load the whole
+// active set for the class in one query and group it into the four sections in
+// memory. Filters/sort still run SQL-side. Global cross-class search + paging
+// lives on the separate Documents page.
+const CLASS_DOCS_CAP = 500
+const ARCHIVED_PAGE_SIZE = 50
 
-type ClassworkSearchParams = { matPage?: string; matQ?: string }
+type ClassworkSearchParams = {
+  q?: string
+  cat?: string
+  subj?: string
+  from?: string
+  to?: string
+  sort?: string
+  error?: string
+}
 
 type ClassworkAssignmentView = {
   assignment: Assignment
   submission: Submission | undefined
   submissionComments: Comment[]
-  /** The student's own prior (replaced) versions for this assignment, newest first. */
   submissionHistory: Submission[]
-  /** A hard-deadline assignment whose due instant has passed: submissions closed. */
   deadlineClosed: boolean
 }
 
-type ClassworkResourceView = {
-  resource: Resource
+type ClassworkDocumentView = {
+  document: Document
   comments: Comment[]
+  versions: DocumentVersion[]
+}
+
+export type DocumentFilterState = {
+  q: string
+  category: DocumentCategory | ''
+  subject: string
+  from: string
+  to: string
+  sort: 'latest' | 'oldest'
 }
 
 type ClassworkPageData = {
@@ -34,21 +59,33 @@ type ClassworkPageData = {
   isArchived: boolean
   now: number
   classList: { id: string; name: string }[]
-  materialsPage: number
-  materialsQuery?: string
-  materialsTotal: number
-  materialsTotalPages: number
+  filters: DocumentFilterState
+  hasActiveFilters: boolean
+  documentsByCategory: Record<DocumentCategory, ClassworkDocumentView[]>
+  documentTotal: number
   assignmentViews: ClassworkAssignmentView[]
-  resourceViews: ClassworkResourceView[]
-  archivedResources: Resource[]
+  archivedDocuments: Document[]
 }
 
-export function classworkPageUrl(page: number, search?: string): string {
+/** Builds a Classwork URL that preserves the current document filters, changing
+ *  only the keys passed in `patch` (empty string clears a key). */
+export function documentFilterUrl(current: DocumentFilterState, patch: Partial<DocumentFilterState>): string {
+  const next = { ...current, ...patch }
   const sp = new URLSearchParams()
-  if (page > 1) sp.set('matPage', String(page))
-  if (search) sp.set('matQ', search)
+  if (next.q) sp.set('q', next.q)
+  if (next.category) sp.set('cat', next.category)
+  if (next.subject) sp.set('subj', next.subject)
+  if (next.from) sp.set('from', next.from)
+  if (next.to) sp.set('to', next.to)
+  if (next.sort === 'oldest') sp.set('sort', 'oldest')
   const query = sp.toString()
   return query ? `?${query}` : '?'
+}
+
+function isoOrUndefined(day: string | undefined, endOfDay = false): string | undefined {
+  if (!day) return undefined
+  const parsed = new Date(`${day}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
 }
 
 /** Loads and shapes the classwork page so the page only renders forms + lists. */
@@ -60,44 +97,39 @@ export async function loadClassworkPageData(
   const [{ isStudent }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
   const isArchived = course.status === 'archived'
   const canManageContent = canManage && !isArchived
-  // Student and tutor/manager are mutually exclusive by construction - a student
-  // can't be made a class tutor (addTutor requires role tutor|mentor) and a tutor
-  // can't be enrolled (enrolStudent requires role student) - so a student never
-  // manages a class. No hybrid student+manager to guard against.
-  const isStudentView = isStudent
   const classList = [{ id: course.id, name: course.name }]
-  const materialsPage = parsePageParam(searchParams?.matPage)
-  const materialsQuery = searchParams?.matQ?.trim() || undefined
 
-  const [resourcesPage, archivedPage, assignments, mySubs, myPriorSubs] = await Promise.all([
+  const filters: DocumentFilterState = {
+    q: searchParams?.q?.trim() ?? '',
+    category: isDocumentCategory(searchParams?.cat ?? '') ? (searchParams!.cat as DocumentCategory) : '',
+    subject: searchParams?.subj?.trim() ?? '',
+    from: searchParams?.from ?? '',
+    to: searchParams?.to ?? '',
+    sort: searchParams?.sort === 'oldest' ? 'oldest' : 'latest',
+  }
+  const hasActiveFilters = Boolean(
+    filters.q || filters.category || filters.subject || filters.from || filters.to || filters.sort === 'oldest',
+  )
+
+  const [docsPage, archivedPage, assignments, mySubs, myPriorSubs] = await Promise.all([
     listResourcesPage(course.id, {
-      page: materialsPage,
-      pageSize: MATERIALS_PAGE_SIZE,
+      page: 1,
+      pageSize: CLASS_DOCS_CAP,
       status: 'active',
-      search: materialsQuery,
+      search: filters.q || undefined,
+      category: filters.category || undefined,
+      subject: filters.subject || undefined,
+      dateFrom: isoOrUndefined(filters.from),
+      dateTo: isoOrUndefined(filters.to, true),
+      sort: filters.sort,
     }),
     canManage
       ? listResourcesPage(course.id, { page: 1, pageSize: ARCHIVED_PAGE_SIZE, status: 'archived' })
       : Promise.resolve({ items: [], total: 0 }),
     listAssignments({ classId: course.id }),
-    isStudentView ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
-    isStudentView ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
+    isStudent ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
+    isStudent ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
   ])
-
-  // An out-of-range ?matPage= (stale/shared/hand-edited URL) would otherwise show a
-  // blank materials list with no empty-state and no pager. Clamp to the last real
-  // page and refetch so the user lands on content with a working pager instead.
-  const materialsTotalPages = totalPages(resourcesPage.total, MATERIALS_PAGE_SIZE)
-  const effMaterialsPage = Math.min(materialsPage, materialsTotalPages)
-  const materials =
-    effMaterialsPage === materialsPage
-      ? resourcesPage
-      : await listResourcesPage(course.id, {
-          page: effMaterialsPage,
-          pageSize: MATERIALS_PAGE_SIZE,
-          status: 'active',
-          search: materialsQuery,
-        })
 
   const subByAssignment = new Map(mySubs.map((s) => [s.assignment_id, s]))
   const historyByAssignment = new Map<string, Submission[]>()
@@ -107,41 +139,44 @@ export async function loadClassworkPageData(
     historyByAssignment.set(prior.assignment_id, list)
   }
   const visibleAssignments = assignments.filter(
-    (a) =>
-      canManage ||
-      a.status === 'active' ||
-      // Keep an archived assignment visible to a student who has work on it, so
-      // their submission, mark and feedback don't vanish when a tutor archives it
-      // (the classwork page renders it read-only - no resubmit/withdraw).
-      subByAssignment.has(a.id) ||
-      historyByAssignment.has(a.id),
+    (a) => canManage || a.status === 'active' || subByAssignment.has(a.id) || historyByAssignment.has(a.id),
   )
 
-  const [commentsBySub, resourceComments] = await Promise.all([
-    isStudentView
+  const docIds = docsPage.items.map((d) => d.id)
+  const [commentsBySub, docComments, versionsByDoc] = await Promise.all([
+    isStudent
       ? listCommentsForEntities(
           'submission',
           mySubs.map((s) => s.id),
         )
       : Promise.resolve(new Map<string, Comment[]>()),
-    listCommentsForEntities(
-      'resource',
-      materials.items.map((r) => r.id),
-    ),
+    listCommentsForEntities('resource', docIds),
+    listVersionsForDocuments(docIds),
   ])
+
+  const documentsByCategory = Object.fromEntries(
+    DOCUMENT_CATEGORY_VALUES.map((c) => [c, [] as ClassworkDocumentView[]]),
+  ) as Record<DocumentCategory, ClassworkDocumentView[]>
+  for (const document of docsPage.items) {
+    documentsByCategory[document.category].push({
+      document,
+      comments: docComments.get(document.id) ?? [],
+      versions: versionsByDoc.get(document.id) ?? [],
+    })
+  }
 
   const nowMs = Date.now()
   return {
     canManage,
     canManageContent,
-    isStudent: isStudentView,
+    isStudent,
     isArchived,
     now: nowMs,
     classList,
-    materialsPage: effMaterialsPage,
-    materialsQuery,
-    materialsTotal: materials.total,
-    materialsTotalPages,
+    filters,
+    hasActiveFilters,
+    documentsByCategory,
+    documentTotal: docsPage.items.length,
     assignmentViews: visibleAssignments.map((assignment) => {
       const submission = subByAssignment.get(assignment.id)
       return {
@@ -152,10 +187,6 @@ export async function loadClassworkPageData(
         deadlineClosed: assignment.enforce_deadline && Date.parse(assignment.due_date) < nowMs,
       }
     }),
-    resourceViews: materials.items.map((resource) => ({
-      resource,
-      comments: resourceComments.get(resource.id) ?? [],
-    })),
-    archivedResources: archivedPage.items,
+    archivedDocuments: archivedPage.items,
   }
 }

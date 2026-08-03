@@ -4,9 +4,10 @@ import { selectActiveIdsAmong } from '@/lib/data/profiles'
 import {
   selectActiveClassIdsForTutor,
   selectActiveClassIdsForStudent,
-  selectActiveClassIdsForStudents,
-  selectActiveStudentIdsByClassIds,
   selectActiveTutorIdsByClassIds,
+  selectActiveEnrollmentPairsByClassIds,
+  selectActiveEnrollmentPairsByStudentIds,
+  selectActiveTutorPairsByClassIds,
 } from '@/lib/data/class-membership'
 import { selectActivePersonaAssignmentsByProfileIds, selectActiveProfileIdsByPersona } from '@/lib/data/personas'
 import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
@@ -52,13 +53,21 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
 
   if (actorFlags.isTutor) {
     const taughtClassIds = [...new Set(await selectActiveClassIdsForTutor(actor.id))]
-    const studentIds = taughtClassIds.length ? await selectActiveStudentIdsByClassIds(taughtClassIds) : []
+    // One query for every (student, class) edge in the tutor's classes, grouped in
+    // memory - was one query per student. Each pair's class is already a taught
+    // class (the query is scoped to taughtClassIds), so no further filtering.
+    const enrollmentPairs = taughtClassIds.length ? await selectActiveEnrollmentPairsByClassIds(taughtClassIds) : []
     const sharedClassIdsByStudent = new Map<string, string[]>()
-    for (const studentId of studentIds) {
-      const sharedClassIds = (await selectActiveClassIdsForStudent(studentId)).filter((classId) =>
-        taughtClassIds.includes(classId),
-      )
-      sharedClassIdsByStudent.set(studentId, sharedClassIds)
+    for (const { student_id, class_id } of enrollmentPairs) {
+      const classIds = sharedClassIdsByStudent.get(student_id)
+      if (classIds) {
+        if (!classIds.includes(class_id)) classIds.push(class_id)
+      } else {
+        sharedClassIdsByStudent.set(student_id, [class_id])
+      }
+    }
+    const studentIds = [...sharedClassIdsByStudent.keys()]
+    for (const [studentId, sharedClassIds] of sharedClassIdsByStudent) {
       addDirectRecipient(recipients, studentId, { studentIds: [studentId], classIds: sharedClassIds })
     }
 
@@ -84,20 +93,44 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
 
   if (actorFlags.hasMentorAuthority) {
     const menteeIds = await studentIdsOfMentor(actor.id)
+    // One query for all mentees' enrolments, grouped per mentee - was one query
+    // per mentee. Mentees with no enrolment still get added as recipients below.
+    const menteeEnrollmentPairs = menteeIds.length ? await selectActiveEnrollmentPairsByStudentIds(menteeIds) : []
     const studentClassIds = new Map<string, string[]>()
+    for (const { student_id, class_id } of menteeEnrollmentPairs) {
+      const classIds = studentClassIds.get(student_id)
+      if (classIds) {
+        if (!classIds.includes(class_id)) classIds.push(class_id)
+      } else {
+        studentClassIds.set(student_id, [class_id])
+      }
+    }
     for (const studentId of menteeIds) {
-      const classIds = await selectActiveClassIdsForStudent(studentId)
-      studentClassIds.set(studentId, classIds)
-      addDirectRecipient(recipients, studentId, { studentIds: [studentId], classIds })
+      addDirectRecipient(recipients, studentId, {
+        studentIds: [studentId],
+        classIds: studentClassIds.get(studentId) ?? [],
+      })
     }
 
     if (menteeIds.length) {
-      const classIds = [...new Set(await selectActiveClassIdsForStudents(menteeIds))]
-      const tutorIds = classIds.length ? await selectActiveTutorIdsByClassIds(classIds) : []
+      // Distinct classes the mentees are in (union of the per-mentee lists above).
+      const classIds = [...new Set(menteeEnrollmentPairs.map((pair) => pair.class_id))]
+      // One query for every (tutor, class) edge across those classes, grouped per
+      // tutor - was one query per tutor. Each tutor's set is that tutor's taught
+      // classes already intersected with the mentees' classes, which is exactly
+      // what the inner loop needs (a mentee's classes are a subset of these).
+      const tutorPairs = classIds.length ? await selectActiveTutorPairsByClassIds(classIds) : []
+      const menteeClassesByTutor = new Map<string, Set<string>>()
+      for (const { tutor_id, class_id } of tutorPairs) {
+        const classes = menteeClassesByTutor.get(tutor_id)
+        if (classes) classes.add(class_id)
+        else menteeClassesByTutor.set(tutor_id, new Set([class_id]))
+      }
+      const tutorIds = [...menteeClassesByTutor.keys()]
       const sharedStudentsByTutor = new Map<string, Set<string>>()
       const sharedClassesByTutor = new Map<string, Set<string>>()
       for (const tutorId of tutorIds) {
-        const taughtClassIds = new Set(await selectActiveClassIdsForTutor(tutorId))
+        const taughtClassIds = menteeClassesByTutor.get(tutorId) ?? new Set<string>()
         for (const studentId of menteeIds) {
           const sharedClassIds = (studentClassIds.get(studentId) ?? []).filter((classId) => taughtClassIds.has(classId))
           if (sharedClassIds.length === 0) continue
@@ -125,8 +158,11 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
         if (matrixAllows(matrix, persona, targetPersona)) targets.add(targetPersona)
       }
     }
-    for (const persona of targets) {
-      for (const id of await selectActiveProfileIdsByPersona(persona)) addMatrixRecipient(recipients, id)
+    // Resolve every allowed target persona's members in parallel (bounded by the
+    // number of personas, <=5) rather than one sequential query per persona.
+    const personaIdLists = await Promise.all([...targets].map((persona) => selectActiveProfileIdsByPersona(persona)))
+    for (const ids of personaIdLists) {
+      for (const id of ids) addMatrixRecipient(recipients, id)
     }
   }
 

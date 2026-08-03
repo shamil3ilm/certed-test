@@ -19,7 +19,7 @@ export {
   getClassMembers,
   mentorsByStudent,
 } from './queries'
-export type { ClassRow, ClassSummary, ClassMember, ClassMembers, MentorContact } from './queries'
+export type { ClassRow, ClassSummary, ClassMember, ClassMembers, MemberBrief, MentorContact } from './queries'
 
 export {
   createClass,
