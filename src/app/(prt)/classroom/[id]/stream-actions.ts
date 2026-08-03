@@ -35,6 +35,9 @@ export async function createStreamPostAction(formData: FormData) {
         class_id: formData.get('class_id'),
         title: formData.get('title'),
         message: formData.get('message'),
+        attachments: formData.get('attachments'),
+        publish_at: formData.get('publish_at'),
+        expires_at: formData.get('expires_at'),
       })
     }
   } catch (error) {

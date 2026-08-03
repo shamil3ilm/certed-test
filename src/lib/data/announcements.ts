@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeOrIlike } from '@/lib/text/ilike'
+import type { Attachment } from '@/lib/documents/preview'
 
 /**
  * Table access for `announcements`. RLS client throughout - a tutor may post to
@@ -19,6 +20,9 @@ export type AnnouncementRow = {
   class_id: string | null
   title: string
   message: string
+  attachments: Attachment[]
+  publish_at: string | null
+  expires_at: string | null
   author_id: string | null
   status: 'active' | 'archived'
   created_at: string
@@ -28,11 +32,16 @@ type AnnouncementInsert = {
   class_id: string | null
   title: string
   message: string
+  attachments: Attachment[]
+  publish_at: string | null
+  expires_at: string | null
   author_id: string | null
   status: AnnouncementRow['status']
 }
 
-type AnnouncementPatch = Partial<Pick<AnnouncementRow, 'title' | 'message' | 'status'>>
+type AnnouncementPatch = Partial<
+  Pick<AnnouncementRow, 'title' | 'message' | 'status' | 'attachments' | 'publish_at' | 'expires_at'>
+>
 
 /** Newest row from each source (the given classes, and academy-wide), one each. */
 export async function selectNewestForClasses(

@@ -11,6 +11,7 @@ import {
 import { restoreMeetLinkAction } from '../../meetings/actions'
 import { MeetList } from '../../meetings/MeetList'
 import { createStreamPostAction } from './stream-actions'
+import { AttachmentList } from './AttachmentList'
 import {
   AlertBanner,
   ARCHIVED_ROW,
@@ -43,6 +44,10 @@ export default async function ClassStreamPage({
     loadClassStreamViewData(me, course, searchParams),
     loadClassMeetViewData(me, course),
   ])
+  // The scheduled/expired badges read the loader's server render clock rather
+  // than calling the impure Date.now() during render (react-hooks/purity); this
+  // also keeps every badge on the same instant as the loader's isLive filter.
+  const now = data.nowMs
 
   return (
     <div className="space-y-6">
@@ -97,6 +102,27 @@ export default async function ClassStreamPage({
               </Field>
             </div>
           </details>
+          <details className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium text-slate-600">
+              Attachments &amp; scheduling (optional)
+            </summary>
+            <div className="mt-2 space-y-2">
+              <Field
+                label="Attachment links"
+                hint="One Google Drive / external link per line - PDFs and images preview inline."
+              >
+                <Textarea name="attachments" rows={2} placeholder={'https://drive.google.com/file/d/.../view'} />
+              </Field>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Field label="Publish on" hint="Blank = publish now.">
+                  <Input name="publish_at" type="date" />
+                </Field>
+                <Field label="Expires on" hint="Blank = never.">
+                  <Input name="expires_at" type="date" />
+                </Field>
+              </div>
+            </div>
+          </details>
           <SubmitButton pendingLabel="Posting...">Post</SubmitButton>
         </form>
       )}
@@ -132,10 +158,25 @@ export default async function ClassStreamPage({
                 <h3 className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
                   {a.title}
                   {a.class_id === null && <Badge tone="slate">Academy-wide</Badge>}
+                  {a.publish_at && Date.parse(a.publish_at) > now && <Badge tone="warning">Scheduled</Badge>}
+                  {a.expires_at && Date.parse(a.expires_at) <= now && <Badge tone="danger">Expired</Badge>}
                 </h3>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{a.message}</p>
+                <AttachmentList attachments={a.attachments} />
                 <p className="mt-2 text-xs text-slate-400">
                   <LocalTime iso={a.created_at} />
+                  {a.publish_at && Date.parse(a.publish_at) > now && (
+                    <>
+                      {' · publishes '}
+                      <LocalTime iso={a.publish_at} mode="date" />
+                    </>
+                  )}
+                  {a.expires_at && (
+                    <>
+                      {' · expires '}
+                      <LocalTime iso={a.expires_at} mode="date" />
+                    </>
+                  )}
                 </p>
               </div>
               {data.canManageContent && (data.isAdmin || a.class_id === course.id) && (
@@ -157,6 +198,29 @@ export default async function ClassStreamPage({
                       <Field label="Message">
                         <Textarea name="message" defaultValue={a.message} required maxLength={5000} rows={3} />
                       </Field>
+                      <Field label="Attachment links (one per line)">
+                        <Textarea
+                          name="attachments"
+                          defaultValue={a.attachments.map((x) => x.url).join('\n')}
+                          rows={2}
+                        />
+                      </Field>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field label="Publish on">
+                          <Input
+                            name="publish_at"
+                            type="date"
+                            defaultValue={a.publish_at ? a.publish_at.slice(0, 10) : ''}
+                          />
+                        </Field>
+                        <Field label="Expires on">
+                          <Input
+                            name="expires_at"
+                            type="date"
+                            defaultValue={a.expires_at ? a.expires_at.slice(0, 10) : ''}
+                          />
+                        </Field>
+                      </div>
                       <SubmitButton pendingLabel="Saving...">Save</SubmitButton>
                     </form>
                   </EscapableDetails>

@@ -22,6 +22,9 @@ type ClassStreamViewData = {
   activeAnnouncements: Announcement[]
   archivedAnnouncements: Announcement[]
   commentsByAnnouncement: Map<string, Comment[]>
+  // The server render clock, so the page's scheduled/expired badges read one
+  // instant from here instead of calling the impure Date.now() during render.
+  nowMs: number
 }
 
 export function classStreamPageUrl(page: number, search?: string): string {
@@ -79,7 +82,14 @@ export async function loadClassStreamViewData(
           search: streamQ,
         })
 
-  const activeAnnouncements = active.items
+  // A student sees a post only once published and before expiry. RLS enforces
+  // this in prod (0046); this app-layer filter also covers mock mode (no RLS) and
+  // keeps the domain honest. Managers keep every post (the card badges scheduled /
+  // expired ones) so they can review + schedule ahead.
+  const nowMs = Date.now()
+  const isLive = (a: Announcement) =>
+    (!a.publish_at || Date.parse(a.publish_at) <= nowMs) && (!a.expires_at || Date.parse(a.expires_at) > nowMs)
+  const activeAnnouncements = canManage ? active.items : active.items.filter(isLive)
   const archivedAnnouncements = archivedPage.items.filter((a) =>
     canManageAnnouncement(canManage, isAdmin, course.id, a.class_id),
   )
@@ -102,5 +112,6 @@ export async function loadClassStreamViewData(
     activeAnnouncements,
     archivedAnnouncements,
     commentsByAnnouncement,
+    nowMs,
   }
 }

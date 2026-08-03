@@ -5,6 +5,7 @@ export type NavItem = { href: string; label: string }
 const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/dashboard', label: 'Dashboard', capability: 'viewDashboard' },
   { href: '/classroom', label: 'Classes', capability: 'viewClasses' },
+  { href: '/documents', label: 'Documents', capability: 'viewClasses' },
   { href: '/students', label: 'Mentees', capability: 'viewMentees' },
   { href: '/messages', label: 'Messages', capability: 'viewMessages' },
   { href: '/calendar', label: 'Calendar', capability: 'viewCalendar' },

@@ -3,12 +3,32 @@ import { requireClassAccess } from '../../access'
 import { type AttendanceStatus } from '@/lib/services/attendance'
 import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/services/page-data/class-attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
+import { SessionTimesForm } from './SessionTimesForm'
 import { clearAttendanceAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { AlertBanner, Card, EmptyState, Badge, SectionLabel } from '@/lib/ui'
+import { formatMinutes, sessionMetrics, studentMetrics, type SessionTimes } from '@/lib/attendance/hours'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
+}
+
+const EMPTY_SESSION_TIMES: SessionTimes = {
+  scheduled_start: null,
+  scheduled_end: null,
+  actual_start: null,
+  actual_end: null,
+  tutor_join_at: null,
+  tutor_leave_at: null,
+}
+
+function HourStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold text-slate-900">{value}</p>
+    </div>
+  )
 }
 
 export default async function AttendancePage({
@@ -22,6 +42,7 @@ export default async function AttendancePage({
   const data = await loadClassAttendancePageData(me, course.id, searchParams)
 
   if (data.kind === 'student') {
+    const sessionByDate = new Map(data.sessions.map((s) => [s.session_date, s]))
     return (
       <div className="space-y-4">
         <SectionLabel>My attendance</SectionLabel>
@@ -42,15 +63,24 @@ export default async function AttendancePage({
           <EmptyState>No attendance recorded yet.</EmptyState>
         ) : (
           <ul className="space-y-2">
-            {data.rows.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
-              >
-                <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
-                <Badge tone={statusTone(row.status)}>{row.status}</Badge>
-              </li>
-            ))}
+            {data.rows.map((row) => {
+              const s = sessionByDate.get(row.session_date)
+              const learning = s
+                ? studentMetrics(s, { join_at: row.join_at, leave_at: row.leave_at }).learningMinutes
+                : null
+              return (
+                <li
+                  key={row.id}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
+                >
+                  <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
+                  <span className="flex items-center gap-2">
+                    {learning != null && <span className="text-xs text-slate-400">{formatMinutes(learning)}</span>}
+                    <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         )}
         {data.recTotalPages > 1 && (
@@ -76,6 +106,8 @@ export default async function AttendancePage({
     )
   }
 
+  const sessionM = sessionMetrics(data.session ?? EMPTY_SESSION_TIMES)
+
   return (
     <div className="space-y-4">
       <SectionLabel>Mark attendance</SectionLabel>
@@ -99,11 +131,19 @@ export default async function AttendancePage({
         </button>
       </form>
 
+      <SessionTimesForm classId={course.id} date={data.date} session={data.session} />
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <HourStat label="Session" value={formatMinutes(sessionM.sessionMinutes)} />
+        <HourStat label="Scheduled" value={formatMinutes(sessionM.scheduledMinutes)} />
+        <HourStat label="Tutor working" value={formatMinutes(sessionM.tutorWorkingMinutes)} />
+      </div>
+
       {data.roster.length === 0 ? (
         <EmptyState>No students enrolled yet - add students on the People tab first.</EmptyState>
       ) : (
         <>
-          <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} />
+          <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={data.session} />
           {data.hasMarks && (
             <form action={clearAttendanceAction} className="flex justify-end">
               <input type="hidden" name="class_id" value={course.id} />

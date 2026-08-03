@@ -8,7 +8,7 @@ export default async function ClassworkPage({
   searchParams,
 }: {
   params: { id: string }
-  searchParams?: { matPage?: string; matQ?: string; error?: string }
+  searchParams?: { q?: string; cat?: string; subj?: string; from?: string; to?: string; sort?: string; error?: string }
 }) {
   const { me, course } = await requireClassAccess(params.id)
   const data = await loadClassworkPageData(me, course, searchParams)
@@ -31,7 +31,7 @@ export default async function ClassworkPage({
           href="#materials"
           className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
         >
-          Materials
+          Documents
         </a>
         {data.isStudent && (
           <a
