@@ -151,12 +151,12 @@ export function AdminOverview({ data }: { data: AdminDashboardViewData }) {
       load={loadActiveClassesModal}
       viewAllHref="/classroom"
     />,
-    data.revenueLabel ? (
+    data.netLabel ? (
       <StatModalCard
         key="finance"
-        label="Revenue"
-        value={data.revenueLabel}
-        sub={`Payouts ${data.payoutLabel ?? '-'}`}
+        label="Net"
+        value={data.netLabel}
+        sub={`${data.revenueLabel ?? '-'} in · ${data.payoutLabel ?? '-'} out`}
         tone="primary"
         title="Finance"
         load={loadFinanceModal}

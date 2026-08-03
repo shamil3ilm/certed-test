@@ -1,6 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
 import type { Capability } from '@/lib/capabilities'
-import { formatMoneyTotals } from '@/lib/money'
+import { formatMoneyTotals, netMoneyTotals } from '@/lib/money'
 import { todayInZone } from '@/lib/time/format'
 import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
@@ -66,6 +66,7 @@ export type AdminDashboardViewData = {
   perClass: { label: string; value: number }[]
   revenueLabel: string | null
   payoutLabel: string | null
+  netLabel: string | null
 }
 
 export type SubAdminDashboardViewData = {
@@ -126,6 +127,8 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
     perClass,
     revenueLabel: canViewFinance ? formatMoneyTotals(receiptTotals ?? []) : null,
     payoutLabel: canViewFinance ? formatMoneyTotals(payslipTotals ?? []) : null,
+    // Net (revenue minus payout) is the headline finance figure on the card.
+    netLabel: canViewFinance ? formatMoneyTotals(netMoneyTotals(receiptTotals ?? [], payslipTotals ?? [])) : null,
   }
 }
 

@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { lineAmount, computeTotals, formatMoney, currencyDecimals } from '@/lib/money'
+import { lineAmount, computeTotals, formatMoney, currencyDecimals, netMoneyTotals } from '@/lib/money'
+
+describe('netMoneyTotals', () => {
+  const t = (currency: string, live_total: number) => ({ currency, live_total })
+
+  it('subtracts payout from revenue per currency', () => {
+    expect(netMoneyTotals([t('INR', 1200)], [t('INR', 400)])).toEqual([t('INR', 800)])
+  })
+
+  it('keeps currencies present on only one side, and a payout-only one goes negative', () => {
+    const net = netMoneyTotals([t('INR', 1000), t('USD', 50)], [t('INR', 400), t('AED', 100)])
+    expect(net).toEqual(expect.arrayContaining([t('INR', 600), t('USD', 50), t('AED', -100)]))
+    expect(net).toHaveLength(3)
+  })
+
+  it('drops a currency that exactly offsets to zero', () => {
+    expect(netMoneyTotals([t('INR', 500)], [t('INR', 500)])).toEqual([])
+  })
+
+  it('rounds to the currency minor unit (fils for a 3-decimal currency)', () => {
+    expect(netMoneyTotals([t('KWD', 1.235)], [t('KWD', 1.23)])).toEqual([t('KWD', 0.005)])
+  })
+})
 
 describe('currencyDecimals', () => {
   it('defaults to 2 and is case-insensitive', () => {

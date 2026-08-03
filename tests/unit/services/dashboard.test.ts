@@ -6,6 +6,16 @@ vi.mock('@/lib/money', () => ({
   formatMoneyTotals: vi.fn((totals: { currency: string; live_total: number }[]) =>
     totals.length ? totals.map((t) => `${t.currency}:${t.live_total}`).join(' + ') : '-',
   ),
+  netMoneyTotals: vi.fn(
+    (rev: { currency: string; live_total: number }[], pay: { currency: string; live_total: number }[]) => {
+      const m = new Map<string, number>()
+      for (const r of rev) m.set(r.currency, (m.get(r.currency) ?? 0) + r.live_total)
+      for (const p of pay) m.set(p.currency, (m.get(p.currency) ?? 0) - p.live_total)
+      return [...m.entries()]
+        .map(([currency, live_total]) => ({ currency, live_total }))
+        .filter((t) => t.live_total !== 0)
+    },
+  ),
 }))
 vi.mock('@/lib/time/format', () => ({ todayInZone: vi.fn(() => '2026-07-16') }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForTutor: vi.fn() }))
@@ -95,6 +105,7 @@ describe('loadDashboardViewData', () => {
       ],
       revenueLabel: 'INR:1200',
       payoutLabel: 'INR:400',
+      netLabel: 'INR:800',
     })
   })
 
@@ -151,6 +162,7 @@ describe('loadDashboardViewData', () => {
       perClass: [{ label: 'Math', value: 22 }],
       revenueLabel: null,
       payoutLabel: null,
+      netLabel: null,
     })
     expect(countPeople).not.toHaveBeenCalled()
     expect(financeTotals).not.toHaveBeenCalled()
@@ -180,6 +192,7 @@ describe('loadDashboardViewData', () => {
       perClass: [],
       revenueLabel: '-',
       payoutLabel: '-',
+      netLabel: '-',
     })
   })
 

@@ -149,7 +149,7 @@ export function StatModalCard({
                     </li>
                   )
                 })}
-                {g.items.length === 0 && (
+                {g.items.length === 0 && !g.total && (
                   <li className="py-3 text-center text-sm text-slate-400">{empty ?? 'Nothing to show.'}</li>
                 )}
               </ul>

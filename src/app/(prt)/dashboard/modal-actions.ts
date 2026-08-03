@@ -6,7 +6,7 @@ import { listProfilesByFilter } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
 import { financeTotals, listRecentDocs } from '@/lib/services/finance/finance-docs'
-import { formatMoney, formatMoneyTotals } from '@/lib/money'
+import { formatMoney, formatMoneyTotals, netMoneyTotals } from '@/lib/money'
 import { staffRoleLabel } from '@/lib/ui'
 
 /**
@@ -93,6 +93,12 @@ export async function loadFinanceModal() {
   const livePayslips = recentPayslips.filter((p) => !p.voided)
   return {
     sections: [
+      {
+        // Net headline, matching the dashboard card (revenue minus payouts).
+        heading: 'Net - revenue minus payouts',
+        total: formatMoneyTotals(netMoneyTotals(receiptTotals, payslipTotals)),
+        items: [],
+      },
       {
         heading: 'Revenue - receipts',
         total: formatMoneyTotals(receiptTotals),
