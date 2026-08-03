@@ -17,12 +17,23 @@ The source of truth is always:
 
 Never change the meaning of an already-applied migration.
 
+## Regenerating the rebuild snapshot
+
+`rebuild/0000_full_rebuild.sql` is a `pg_dump` of the fully-migrated schema, not a
+hand-maintained file - editing it by hand has drifted it before. Regenerate it
+after adding migrations, from a database that has the whole chain applied:
+
+    supabase db reset            # replay every migration onto a fresh local db
+    npm run db:rebuild-snapshot  # dump that end state back into the snapshot
+
+Then commit the snapshot alongside the migrations it reflects.
+
 ## Current migration chain
 
-The current chain runs from:
-
-- `0001_foundation.sql`
-- through `0029_notifications_readonly_content.sql`
+The chain starts at `0001_foundation.sql`. The current end is always the
+**highest-numbered file in this directory** — list `supabase/migrations/` to see
+it (`ls supabase/migrations | sort | tail -1`) rather than trusting a number
+quoted here, which goes stale the moment a migration is added.
 
 ## Current identity and authorization model
 
