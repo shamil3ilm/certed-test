@@ -13,7 +13,19 @@ import { isAllowedDriveUrl } from '@/lib/drive-link'
  * authorized click. A denied/missing document returns 404 either way, so the
  * route never reveals which of the two it was.
  */
-export async function GET(_req: Request, ctx: { params: { id: string } }) {
+/** A speculative browser fetch (link prefetch / preview) advertises itself in one
+ *  of these headers. Such a request must not count as a real download. */
+function isSpeculativeFetch(req: Request): boolean {
+  const purpose = req.headers.get('sec-purpose') ?? req.headers.get('purpose') ?? req.headers.get('x-purpose') ?? ''
+  return /prefetch|prerender|preview/i.test(purpose)
+}
+
+export async function GET(req: Request, ctx: { params: { id: string } }) {
+  // This GET has a side effect (the download counter + audit), so a prefetch or
+  // link-preview must not trigger it - only a real click should. Answer 204 and
+  // record nothing.
+  if (isSpeculativeFetch(req)) return new Response(null, { status: 204 })
+
   let me
   try {
     // Coarse gate: the same resolved `viewClasses` that opens the class workspace
@@ -38,5 +50,6 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
   // stored before the write-time allowlist can't turn this into an open redirect
   // to an arbitrary host. The write schema now blocks non-Drive links.
   if (!doc.drive_link || !isAllowedDriveUrl(doc.drive_link)) return notFoundText()
-  return Response.redirect(doc.drive_link, 302)
+  // no-store: the URL has a side effect, so it must never be cached or replayed.
+  return new Response(null, { status: 302, headers: { Location: doc.drive_link, 'Cache-Control': 'no-store' } })
 }
