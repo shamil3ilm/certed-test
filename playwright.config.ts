@@ -12,10 +12,31 @@ export default defineConfig({
   timeout: 120000,
   expect: { timeout: 10000 },
   reporter: [['list']],
+  // Reset the mock DB before the server boots so every run starts from the seed.
+  globalSetup: './tests/e2e/global-setup.ts',
   use: {
     baseURL: 'http://app.localhost:3100',
     actionTimeout: 15000,
     navigationTimeout: 20000,
+  },
+  // Build + serve the production app in MOCK MODE so the suite is self-contained
+  // (this is what lets it run in CI). The command clears the mock DB first, so
+  // even a globalSetup/webServer ordering change still boots a clean server.
+  // Locally an already-running :3100 is reused instead of rebuilding.
+  webServer: {
+    command:
+      "node -e \"require('fs').rmSync('.mock-db.json',{force:true})\" && npm run build && npm run start -- -p 3100",
+    port: 3100,
+    reuseExistingServer: !process.env.CI,
+    timeout: 240000,
+    env: {
+      MOCK_MODE: '1',
+      NEXT_PUBLIC_MOCK_MODE: '1',
+      NEXT_PUBLIC_SUPABASE_URL: 'http://mock.local',
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-anon-key',
+      SUPABASE_SECRET_KEY: 'mock-secret',
+      CRON_SECRET: 'mock-cron',
+    },
   },
   projects: [
     {

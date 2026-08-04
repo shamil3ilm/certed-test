@@ -1,0 +1,4 @@
+{
+  "_comment": "Ceiling for total gzipped client JS (.next/static/chunks), enforced by scripts/check-bundle-size.mjs in CI. Ratchet this DOWN when a change reduces the bundle; raising it should be a deliberate, justified decision.",
+  "totalGzipKb": 500
+}

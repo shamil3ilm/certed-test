@@ -30,6 +30,9 @@ const eslintConfig = defineConfig([
     'out/**',
     'build/**',
     'next-env.d.ts',
+    // Generated coverage report (its bundled JS carries its own eslint-disable
+    // directives) - never lint it.
+    'coverage/**',
   ]),
 ])
 

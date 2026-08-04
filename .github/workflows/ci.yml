@@ -68,8 +68,8 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm run test
+      - name: Unit tests (with coverage threshold)
+        run: npm run test:coverage
 
       # A green typecheck doesn't prove the app builds - route data collection,
       # prerendering, and the build-env validator only run here. Dummy public
@@ -80,3 +80,8 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-anon-key
+
+      # Ratchet on the client bundle: fail if total gzipped JS exceeds the recorded
+      # budget, so the payload can't creep up unnoticed. Runs after Build (needs .next).
+      - name: Bundle size budget
+        run: npm run check:bundle
