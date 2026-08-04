@@ -37,17 +37,35 @@ describe('rateLimitShared', () => {
     })
   })
 
-  it('fails OPEN and logs when the store returns an error', async () => {
+  it('degrades to the in-process limiter (allows the first hit) + logs on a store error', async () => {
     vi.mocked(createAdminClient).mockReturnValue(clientWithRpc({ data: null, error: { message: 'db down' } }) as any)
-    expect(await rateLimitShared('k', { limit: 5, windowSeconds: 600 })).toEqual({ ok: true, retryAfterSec: 0 })
+    expect(await rateLimitShared('err-first', { limit: 5, windowSeconds: 600 })).toEqual({ ok: true, retryAfterSec: 0 })
     expect(logError).toHaveBeenCalled()
   })
 
-  it('fails OPEN and logs when the client throws', async () => {
+  it('degrades to the in-process limiter + logs when the client throws', async () => {
     vi.mocked(createAdminClient).mockImplementation(() => {
       throw new Error('boom')
     })
-    expect(await rateLimitShared('k', { limit: 5, windowSeconds: 600 })).toEqual({ ok: true, retryAfterSec: 0 })
+    expect(await rateLimitShared('throw-first', { limit: 5, windowSeconds: 600 })).toEqual({
+      ok: true,
+      retryAfterSec: 0,
+    })
     expect(logError).toHaveBeenCalled()
+  })
+
+  it('does NOT allow unlimited when the RPC is missing - the fallback still enforces a ceiling', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      clientWithRpc({ data: null, error: { code: 'PGRST202', message: 'could not find the function' } }) as any,
+    )
+    const key = `missing-rpc-${Date.now()}` // unique so the shared in-process bucket is fresh
+    const call = () => rateLimitShared(key, { limit: 2, windowSeconds: 600 })
+    expect((await call()).ok).toBe(true) // 1
+    expect((await call()).ok).toBe(true) // 2
+    const third = await call() // over the ceiling
+    expect(third.ok).toBe(false)
+    expect(third.retryAfterSec).toBeGreaterThan(0)
+    // and it flagged the missing RPC distinctly
+    expect(vi.mocked(logError).mock.calls.some((c) => c[0] === 'rateLimitShared:rpc-missing')).toBe(true)
   })
 })

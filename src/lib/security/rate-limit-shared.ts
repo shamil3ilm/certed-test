@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimit } from '@/lib/security/rate-limit'
 import { logError } from '@/lib/observability/log'
 
 /**
@@ -10,12 +11,20 @@ import { logError } from '@/lib/observability/log'
  * per-instance counters would multiply the real limit by the instance count.
  * Authenticated, user-keyed throttles stay on the cheaper in-process limiter.
  *
- * Fail-open: if the store is unreachable we allow the request (and log it).
- * These are abuse mitigations on endpoints that themselves hit the same DB, so
- * a DB outage already degrades them downstream - blocking here would only turn
- * an outage into a broken signup for no security gain.
+ * Degrade, don't disable: if the store is unreachable (or the RPC is missing) we
+ * fall BACK to the in-process rateLimit() rather than allowing unconditionally.
+ * That still bounds an abuser per instance - so a DB outage degrades the limit
+ * (real ceiling = limit x instances) instead of removing it entirely - while
+ * keeping the intent that an outage must not turn signup into a hard failure.
  */
 type SharedRateLimitResult = { ok: boolean; retryAfterSec: number }
+
+/** In-process fallback when the shared store can't answer. Same key + budget, so
+ *  a returning client keeps hitting the same per-instance bucket. */
+function inProcessFallback(key: string, opts: { limit: number; windowSeconds: number }): SharedRateLimitResult {
+  const r = rateLimit(key, { limit: opts.limit, windowMs: opts.windowSeconds * 1000 })
+  return { ok: r.ok, retryAfterSec: r.retryAfterSec }
+}
 
 export async function rateLimitShared(
   key: string,
@@ -37,7 +46,7 @@ export async function rateLimitShared(
         key,
         ...(rpcMissing ? { action: 'apply the rate_limit_counters migration (rate_limit_hit RPC)' } : {}),
       })
-      return { ok: true, retryAfterSec: 0 } // fail open (see the note above)
+      return inProcessFallback(key, opts) // degrade to the per-instance limiter, not unlimited
     }
     // The RPC returns a single-row table; supabase-js surfaces it as an array.
     const row = (Array.isArray(data) ? data[0] : data) as
@@ -46,6 +55,6 @@ export async function rateLimitShared(
     return { ok: row.allowed === true, retryAfterSec: row.retry_after_seconds ?? 0 }
   } catch (error) {
     logError('rateLimitShared', error, { key })
-    return { ok: true, retryAfterSec: 0 }
+    return inProcessFallback(key, opts) // degrade to the per-instance limiter, not unlimited
   }
 }

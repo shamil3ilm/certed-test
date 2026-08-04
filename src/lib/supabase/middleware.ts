@@ -1,4 +1,3 @@
-import { createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 import { isMock } from '@/lib/mock/env'
 import { supabaseAnonEnv } from '@/lib/env'
@@ -18,6 +17,10 @@ export async function updateSession(request: NextRequest, response: NextResponse
 }
 
 async function getUserReal(request: NextRequest, response: NextResponse) {
+  // Lazy-load @supabase/ssr so supabase-js (which references Node-only APIs like
+  // process.version) stays out of the eagerly-parsed Edge middleware bundle and
+  // loads only on the real-auth path, never in mock mode.
+  const { createServerClient } = await import('@supabase/ssr')
   const { url, anonKey } = supabaseAnonEnv()
   const supabase = createServerClient(url, anonKey, {
     cookies: {

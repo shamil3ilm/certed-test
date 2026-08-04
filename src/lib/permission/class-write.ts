@@ -14,9 +14,15 @@ import { teachesClass } from '@/lib/auth/class-scope'
  * global (null class_id) write is admin-only.
  *
  * RLS NOTE: the row-level policies across class-scoped tables gate on
- * teaches_class. Migration 0043_mentor_class_authority widens teaches_class to
- * include a mentor of an enrolled student, so the RLS layer agrees with this app
- * guard in production. (Mock mode has no RLS, so this guard is sufficient there.)
+ * teaches_class. This guard is authoritative on its own; RLS is the second layer.
+ * The two AGREE only on a database migrated through 0043_mentor_class_authority,
+ * which widens teaches_class to include a mentor of an enrolled student. The
+ * rebuild snapshot (supabase/rebuild/0000_full_rebuild.sql) predates 0043, so an
+ * environment provisioned from it has the tutor-only teaches_class and would
+ * RLS-DENY a mentor's write here - stricter than this guard (fail-safe), not a
+ * hole, but a real break: regenerate the snapshot (npm run db:rebuild-snapshot)
+ * so RLS matches before using it. (Mock mode has no RLS, so this guard is
+ * sufficient there.)
  */
 export async function canWriteClass(profile: Profile, classId: string | null): Promise<boolean> {
   const { isAdmin, isTutor, hasMentorAuthority } = await loadPersonaFlags(profile.id)
