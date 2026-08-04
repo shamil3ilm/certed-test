@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+
 import { logError } from '@/lib/observability/log'
 
 afterEach(() => vi.restoreAllMocks())
