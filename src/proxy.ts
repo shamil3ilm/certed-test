@@ -5,7 +5,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 
 const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Until Supabase is configured, the portal is dormant; let the existing
   // marketing site serve every request untouched.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
