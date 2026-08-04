@@ -14,14 +14,26 @@ import * as Sentry from '@sentry/nextjs'
  * Use it in a catch that intentionally does NOT rethrow: the caller's flow is
  * preserved, but the failure stops being silent. Never pass user-facing copy or
  * secrets in `meta`; this goes to server logs only.
+ *
+ * By default it also forwards to Sentry. Pass `{ toSentry: false }` for EXPECTED,
+ * benign best-effort misses (a notification that didn't send) - they belong in
+ * the logs for local diagnosis but would only burn Sentry quota and dilute the
+ * signal there. Reserve Sentry for the failures worth an alert.
  */
-export function logError(context: string, error: unknown, meta?: Record<string, unknown>): void {
+export function logError(
+  context: string,
+  error: unknown,
+  meta?: Record<string, unknown>,
+  opts?: { toSentry?: boolean },
+): void {
   const message = error instanceof Error ? error.message : String(error)
   const detail: Record<string, unknown> = { ...meta }
   if (error instanceof Error && error.stack) detail.stack = error.stack
   console.error(`[${context}] ${message}`, detail)
-  Sentry.captureException(error instanceof Error ? error : new Error(message), {
-    tags: { context },
-    extra: meta,
-  })
+  if (opts?.toSentry !== false) {
+    Sentry.captureException(error instanceof Error ? error : new Error(message), {
+      tags: { context },
+      extra: meta,
+    })
+  }
 }

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 
 import { logError } from '@/lib/observability/log'
+import * as Sentry from '@sentry/nextjs'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -22,5 +23,14 @@ describe('logError', () => {
     const [msg, detail] = spy.mock.calls[0]
     expect(msg).toBe('[apiError] plain string')
     expect(detail).not.toHaveProperty('stack')
+  })
+
+  it('forwards to Sentry by default but not when toSentry:false (benign best-effort miss)', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(Sentry.captureException).mockClear()
+    logError('apiError', new Error('real'))
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    logError('notifyBestEffort', new Error('benign'), {}, { toSentry: false })
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1) // unchanged - benign miss skipped
   })
 })

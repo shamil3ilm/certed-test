@@ -86,7 +86,7 @@ export async function notifyBestEffort(profileIds: string[], input: NotifyInput)
   } catch (error) {
     // deliberately swallowed - see the contract above - but logged so a failing
     // notification write is diagnosable rather than invisible.
-    logError('notifyBestEffort', error, { kind: input.kind, recipients: profileIds.length })
+    logError('notifyBestEffort', error, { kind: input.kind, recipients: profileIds.length }, { toSentry: false })
   }
 }
 
@@ -110,7 +110,7 @@ export async function notifyClassRoleBestEffort(
     )
   } catch (error) {
     // best-effort - never fail the caller's core action, but log the failure.
-    logError('notifyClassRoleBestEffort', error, { classId, role, kind: input.kind })
+    logError('notifyClassRoleBestEffort', error, { classId, role, kind: input.kind }, { toSentry: false })
   }
 }
 
