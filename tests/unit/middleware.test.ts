@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/supabase/middleware', () => ({ updateSession: vi.fn() }))
 vi.mock('@/lib/routing/host', () => ({ resolveHost: vi.fn(() => 'app') }))
 
-import { middleware } from '@/middleware'
+import { proxy } from '@/proxy'
 import { updateSession } from '@/lib/supabase/middleware'
 import { resolveHost } from '@/lib/routing/host'
 
@@ -29,7 +29,7 @@ afterEach(() => {
 describe('middleware auth gate', () => {
   it('stays dormant (passes through) until Supabase env is configured', async () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL
-    const res = await middleware(req('/dashboard'))
+    const res = await proxy(req('/dashboard'))
     expect(res.status).toBe(200)
     expect(location(res)).toBeNull()
     expect(updateSession).not.toHaveBeenCalled()
@@ -37,46 +37,46 @@ describe('middleware auth gate', () => {
 
   it('redirects an unauthenticated user off a protected path to /login', async () => {
     vi.mocked(updateSession).mockResolvedValue(null as any)
-    const res = await middleware(req('/dashboard'))
+    const res = await proxy(req('/dashboard'))
     expect(location(res)).toMatch(/\/login$/)
   })
 
   it('lets an authenticated user reach a protected path', async () => {
     vi.mocked(updateSession).mockResolvedValue({ id: 'u1' } as any)
-    const res = await middleware(req('/dashboard'))
+    const res = await proxy(req('/dashboard'))
     expect(res.status).toBe(200)
     expect(location(res)).toBeNull()
   })
 
   it('lets an unauthenticated user reach an EXACT public path', async () => {
     vi.mocked(updateSession).mockResolvedValue(null as any)
-    const res = await middleware(req('/login'))
+    const res = await proxy(req('/login'))
     expect(res.status).toBe(200)
     expect(location(res)).toBeNull()
   })
 
-  it('does NOT treat a public look-alike as public (FIND-12 guard)', async () => {
+  it('does NOT treat a public look-alike as public', async () => {
     vi.mocked(updateSession).mockResolvedValue(null as any)
-    const res = await middleware(req('/loginx'))
+    const res = await proxy(req('/loginx'))
     expect(location(res)).toMatch(/\/login$/)
   })
 
   it('bounces an authenticated user off /login to the dashboard', async () => {
     vi.mocked(updateSession).mockResolvedValue({ id: 'u1' } as any)
-    const res = await middleware(req('/login'))
+    const res = await proxy(req('/login'))
     expect(location(res)).toMatch(/\/dashboard$/)
   })
 
   it('routes root by auth state', async () => {
     vi.mocked(updateSession).mockResolvedValue(null as any)
-    expect(location(await middleware(req('/')))).toMatch(/\/login$/)
+    expect(location(await proxy(req('/')))).toMatch(/\/login$/)
     vi.mocked(updateSession).mockResolvedValue({ id: 'u1' } as any)
-    expect(location(await middleware(req('/')))).toMatch(/\/dashboard$/)
+    expect(location(await proxy(req('/')))).toMatch(/\/dashboard$/)
   })
 
   it('lets a public API sub-route under a prefix through (/api/cron/keepalive)', async () => {
     vi.mocked(updateSession).mockResolvedValue(null as any)
-    const res = await middleware(req('/api/cron/keepalive'))
+    const res = await proxy(req('/api/cron/keepalive'))
     expect(res.status).toBe(200)
     expect(location(res)).toBeNull()
   })
@@ -88,7 +88,7 @@ describe('middleware host routing', () => {
     process.env.MARKETING_HOSTNAME = 'marketing.example'
     vi.mocked(resolveHost).mockReturnValue('app')
     vi.mocked(updateSession).mockResolvedValue(null as any)
-    const res = await middleware(req('/about'))
+    const res = await proxy(req('/about'))
     expect(location(res)).toContain('marketing.example')
   })
 })
