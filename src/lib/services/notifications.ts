@@ -3,6 +3,8 @@ import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { getClassMembers } from '@/lib/services/classes'
 import { logError } from '@/lib/observability/log'
+import { emailEnabled, sendEmail, escapeHtml } from '@/lib/email/resend'
+import { getProfilesByIds } from '@/lib/services/users'
 import {
   insertNotifications,
   selectRecentNotifications,
@@ -49,23 +51,22 @@ export async function notify(profileIds: string[], input: NotifyInput): Promise<
   await dispatchEmail(ids, input)
 }
 
-/** Whether email delivery is wired. Off until a provider + org opt-in exist, so
- *  the rest of the system is email-ready without one. */
-function emailNotificationsEnabled(): boolean {
-  return process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true'
-}
-
 /**
- * Email channel (future-ready). THE single
- * extension point: when an email provider is added, resolve each profile's
- * address + per-user preference here and send. Kept a no-op until then, so the
- * whole notification pipeline is email-ready without a provider. Always
- * best-effort - email must never fail the core action or the in-app write.
+ * Email channel: mirrors the just-written in-app notification to email via Resend
+ * (src/lib/email/resend). OFF unless emailEnabled() (opt-in flag + RESEND_API_KEY +
+ * EMAIL_FROM), so the pipeline stays email-ready without a provider. Resolves each
+ * recipient's address and sends best-effort; title/body are HTML-escaped and the
+ * link is absolutised via NEXT_PUBLIC_APP_URL. Never fails the core action.
  */
-async function deliverEmailNotifications(_profileIds: string[], _input: NotifyInput): Promise<void> {
-  if (!emailNotificationsEnabled()) return
-  // TODO: resolve verified addresses + per-user email preferences, then send via
-  // the provider (Resend / SES / ...). Intentionally unimplemented.
+async function deliverEmailNotifications(profileIds: string[], input: NotifyInput): Promise<void> {
+  if (!emailEnabled()) return
+  const profiles = await getProfilesByIds(profileIds)
+  const link = input.link ? `${process.env.NEXT_PUBLIC_APP_URL ?? ''}${input.link}` : null
+  const html =
+    `<p>${escapeHtml(input.body ?? input.title)}</p>` +
+    (link ? `<p><a href="${escapeHtml(link)}">Open in Cert-Ed</a></p>` : '')
+  const emails = [...profiles.values()].map((p) => p.email).filter((e): e is string => !!e)
+  await Promise.all(emails.map((email) => sendEmail(email, input.title, html)))
 }
 
 async function dispatchEmail(profileIds: string[], input: NotifyInput): Promise<void> {
