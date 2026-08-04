@@ -11,13 +11,12 @@ import { Avatar, BackLink, Badge, Card, EmptyState, PageHeader } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 import { RenameGroupForm } from './RenameGroupForm'
 
-export default async function ThreadPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams?: { before?: string; q?: string }
+export default async function ThreadPage(props: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ before?: string; q?: string }>
 }) {
+  const searchParams = await props.searchParams
+  const params = await props.params
   const me = await requireCapability('viewMessages')
 
   let data

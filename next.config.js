@@ -34,25 +34,24 @@ const nextConfig = {
     // mock stack.
     NEXT_PUBLIC_MOCK_MODE: process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0',
   },
-  // Keep the headless-Chromium PDF deps out of the bundle (server-only, runtime).
+  // Keep the headless-Chromium PDF deps out of the server bundle (server-only,
+  // loaded at runtime). Moved out of `experimental` in Next 16 (was
+  // experimental.serverComponentsExternalPackages).
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  // The PDF routes readFileSync() the brand fonts/logo from public/, which is NOT
+  // bundled into serverless functions by default — trace them in so the render
+  // doesn't ENOENT on Vercel. Top-level in Next 16 (was experimental.*).
+  outputFileTracingIncludes: {
+    '/api/receipts/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
+    '/api/payslips/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
+    '/api/report-card/[studentId]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
+  },
   experimental: {
-    // The portal is entirely force-dynamic (always fresh server-side), but Next
-    // 14.2's client Router Cache still reuses a dynamic route for ~30s by default -
-    // so after an issue/void the /dashboard Revenue card showed a stale, cached
-    // copy on navigation. `dynamic: 0` disables that reuse, so any navigation to a
-    // dynamic route refetches fresh. This is the real fix for cross-route staleness
-    // (a route-handler/Server-Action revalidatePath can't refresh a route the user
-    // isn't on until its cache entry expires anyway).
+    // The portal is force-dynamic (always fresh server-side), but the client
+    // Router Cache still reuses a dynamic route by default - so after an
+    // issue/void the /dashboard finance card could show a stale cached copy on
+    // navigation. `dynamic: 0` disables that reuse so any navigation refetches.
     staleTimes: { dynamic: 0 },
-    serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
-    // The PDF routes readFileSync() the brand fonts/logo from public/, which is
-    // NOT bundled into serverless functions by default — trace them in so the
-    // render doesn't ENOENT on Vercel. (Verify on a preview deploy.)
-    outputFileTracingIncludes: {
-      '/api/receipts/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
-      '/api/payslips/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
-      '/api/report-card/[studentId]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
-    },
   },
   // Defense-in-depth security headers (HSTS is added at the Vercel edge).
   async headers() {

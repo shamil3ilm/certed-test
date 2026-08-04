@@ -20,7 +20,8 @@ const FOCUSABLE = [
  * so focus has somewhere to land when the dialog has no focusable children.
  */
 export function useFocusTrap(
-  containerRef: RefObject<HTMLElement>,
+  // React 19 types: useRef<T>(null) is RefObject<T | null>, so accept the nullable ref.
+  containerRef: RefObject<HTMLElement | null>,
   { active, onEscape }: { active: boolean; onEscape: () => void },
 ): void {
   const onEscapeRef = useRef(onEscape)

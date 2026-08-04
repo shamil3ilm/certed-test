@@ -56,7 +56,7 @@ export function updateHandler<T>(
   capability: Capability,
   update: (actor: Profile, id: string, raw: unknown) => Promise<T>,
 ) {
-  return async function PATCH(request: Request, { params }: { params: { id: string } }): Promise<Response> {
+  return async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
     let actor: Profile
     try {
       actor = await requireCapabilityApi(capability)
@@ -70,7 +70,8 @@ export function updateHandler<T>(
       return invalidJson()
     }
     try {
-      return ok(await update(actor, params.id, raw))
+      const { id } = await params
+      return ok(await update(actor, id, raw))
     } catch (error) {
       return apiError(error)
     }
@@ -84,7 +85,7 @@ export function deleteHandler<T>(
   remove: (actor: Profile, id: string) => Promise<T>,
   respond: (id: string, result: T) => unknown = (id) => ({ id }),
 ) {
-  return async function DELETE(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
+  return async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
     let actor: Profile
     try {
       actor = await requireCapabilityApi(capability)
@@ -92,8 +93,9 @@ export function deleteHandler<T>(
       return authFail(error)
     }
     try {
-      const result = await remove(actor, params.id)
-      return ok(respond(params.id, result))
+      const { id } = await params
+      const result = await remove(actor, id)
+      return ok(respond(id, result))
     } catch (error) {
       return apiError(error)
     }

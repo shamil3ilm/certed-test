@@ -9,10 +9,8 @@ import { UsersFilterBar } from './UsersFilterBar'
 import { UsersPagination } from './UsersPagination'
 import { MentorshipsPanel } from './MentorshipsPanel'
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: {
+export default async function AdminUsersPage(props: {
+  searchParams: Promise<{
     tab?: string
     page?: string
     q?: string
@@ -20,8 +18,9 @@ export default async function AdminUsersPage({
     sortBy?: string
     sortOrder?: string
     error?: string
-  }
+  }>
 }) {
+  const searchParams = await props.searchParams
   const me = await requireCapability('viewUsers')
   // The page is viewUsers; the row controls (edit/revoke/restore/assign-mentor)
   // all POST to manageUsers-gated actions. Gate them on the resolved manageUsers

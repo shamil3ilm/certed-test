@@ -41,6 +41,11 @@ Rules:
 
 ### 2.2 Feature Layer: `src/features`
 
+> **Status: PLANNED — NOT IMPLEMENTED.** This layer was designed but never built.
+> The codebase currently layers as `src/app → src/lib/services → src/lib/data`.
+> Treat every `src/features` reference in this document as a future target, not
+> the current structure.
+
 Purpose:
 
 - feature-owned UI composition

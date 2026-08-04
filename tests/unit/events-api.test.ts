@@ -54,7 +54,7 @@ describe('events API routes', () => {
   it('PATCH /api/events/[id] maps validation errors from the service helper', async () => {
     updateEventFromApiInput.mockRejectedValueOnce(new ValidationError('Invalid event id'))
     const res = await updateEventRoute(body('http://t/api/events/x', 'PATCH', { title: 'Updated' }), {
-      params: { id: 'bad' },
+      params: Promise.resolve({ id: 'bad' }),
     })
     const json = await res.json()
     expect(res.status).toBe(422)
@@ -63,7 +63,7 @@ describe('events API routes', () => {
 
   it('DELETE /api/events/[id] delegates id validation to the service helper', async () => {
     const res = await deleteEventRoute(new Request('http://t/api/events/x', { method: 'DELETE' }), {
-      params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+      params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }),
     })
     const json = await res.json()
     expect(res.status).toBe(200)

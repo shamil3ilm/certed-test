@@ -6,7 +6,8 @@ import { LocalTime } from '../../LocalTime'
 import { Avatar, BackLink, Card, EmptyState, PageHeader } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 
-export default async function AssignmentDetail({ params }: { params: { id: string } }) {
+export default async function AssignmentDetail(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const me = await requireCapability('viewGrading')
   const data = await loadAssignmentDetailPageData(me, params.id)
   if (!data) notFound()

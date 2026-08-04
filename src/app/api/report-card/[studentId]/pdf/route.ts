@@ -9,7 +9,7 @@ import { rateLimit } from '@/lib/security/rate-limit'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-export async function GET(_req: Request, ctx: { params: { studentId: string } }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ studentId: string }> }) {
   // getActorContext() fails loud (its persona/override reads throw rather than
   // coercing to []), so keep it inside the try - a transient read failure then
   // returns a clean envelope instead of a bare 500, matching the finance PDFs.
@@ -28,7 +28,7 @@ export async function GET(_req: Request, ctx: { params: { studentId: string } })
 
   let out
   try {
-    out = await renderReportCardPdf(actor, ctx.params.studentId)
+    out = await renderReportCardPdf(actor, (await ctx.params).studentId)
   } catch {
     // A headless-Chromium failure (cold start / OOM / timeout) or a DB read error -
     // return a clean message rather than a bare 500.

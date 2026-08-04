@@ -36,6 +36,10 @@ h3,
 
 html {
   scroll-behavior: smooth;
+  /* Never scroll the page sideways: clip any stray few-px overflow (e.g. a wide
+     header/brand element at 320px) at the root. `clip` (not `hidden`) does not
+     establish a scroll container, so the sticky header keeps working. */
+  overflow-x: clip;
 }
 
 /* Custom Scrollbar */

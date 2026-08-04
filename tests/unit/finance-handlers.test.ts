@@ -81,7 +81,7 @@ describe('finance handlers', () => {
   it('voidHandler delegates id parsing to the finance-doc service helper', async () => {
     const POST = voidHandler('receipt')
     const res = await POST(new Request('http://t/api/receipts/x/void', { method: 'POST' }), {
-      params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+      params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }),
     })
     const json = await res.json()
     expect(res.status).toBe(200)
@@ -96,7 +96,7 @@ describe('finance handlers', () => {
     })
     const POST = voidHandler('receipt')
     const res = await POST(new Request('http://t/api/receipts/bad/void', { method: 'POST' }), {
-      params: { id: 'bad' },
+      params: Promise.resolve({ id: 'bad' }),
     })
     const json = await res.json()
     expect(res.status).toBe(422)
@@ -107,7 +107,7 @@ describe('finance handlers', () => {
     profile.role = 'tutor'
     const GET = pdfHandler('receipt')
     const res = await GET(new Request('http://t/api/receipts/doc/pdf'), {
-      params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+      params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }),
     })
     expect(res.status).toBe(200)
     expect(validateFinanceDocId).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000')
@@ -119,7 +119,7 @@ describe('finance handlers', () => {
     renderDocPdf.mockRejectedValueOnce(new ValidationError('missing'))
     const GET = pdfHandler('receipt')
     const res = await GET(new Request('http://t/api/receipts/doc/pdf'), {
-      params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+      params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }),
     })
     expect(res.status).toBe(404)
     await expect(res.text()).resolves.toBe('Not found')

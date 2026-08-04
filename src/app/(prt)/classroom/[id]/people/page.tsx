@@ -58,13 +58,12 @@ function MemberRow({
   )
 }
 
-export default async function ClassPeoplePage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams?: { error?: string; enrolQ?: string }
+export default async function ClassPeoplePage(props: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ error?: string; enrolQ?: string }>
 }) {
+  const searchParams = await props.searchParams
+  const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   const data = await loadClassPeopleViewData(me, course.id, searchParams?.enrolQ)
 

@@ -5,7 +5,8 @@ import { AlertBanner, PageHeader, Panel } from '@/lib/ui'
 import { ChangePasswordForm } from './ChangePasswordForm'
 import { changeEmailAction, changePasswordAction, updateProfileAction } from './actions'
 
-export default async function SettingsPage({ searchParams }: { searchParams: SettingsSearchParams }) {
+export default async function SettingsPage(props: { searchParams: Promise<SettingsSearchParams> }) {
+  const searchParams = await props.searchParams
   // Self-service page: any signed-in active user manages their own profile.
   const me = await requireActiveProfile()
   const data = await loadSettingsPageData(me, searchParams, isMock())

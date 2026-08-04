@@ -22,7 +22,7 @@ export async function registerAction(_prev: RegisterState, formData: FormData): 
     return actionFail('Password registration is only available in production mode.', ERROR_CODES.invalidRequest)
   }
 
-  const rl = await rateLimitShared(`register:${clientIp(headers())}`, { limit: 8, windowSeconds: 10 * 60 })
+  const rl = await rateLimitShared(`register:${clientIp(await headers())}`, { limit: 8, windowSeconds: 10 * 60 })
   if (!rl.ok) {
     return actionFail('Too many attempts. Please wait a few minutes and try again.', ERROR_CODES.rateLimited)
   }

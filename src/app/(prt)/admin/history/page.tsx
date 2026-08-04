@@ -4,11 +4,10 @@ import { historyUrl, loadHistoryPageData } from '@/lib/services/page-data/histor
 import { CARD, PageHeader, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 
-export default async function HistoryPage({
-  searchParams,
-}: {
-  searchParams: { page?: string; action?: string; actor?: string }
+export default async function HistoryPage(props: {
+  searchParams: Promise<{ page?: string; action?: string; actor?: string }>
 }) {
+  const searchParams = await props.searchParams
   await requireCapability('viewHistory')
   const { filters, rows, total, totalPages } = await loadHistoryPageData(searchParams)
 

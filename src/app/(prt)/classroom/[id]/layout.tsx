@@ -4,7 +4,11 @@ import { hasCapability } from '@/lib/capabilities'
 import { BackLink, PageHeader } from '@/lib/ui'
 import { ClassTabs } from './ClassTabs'
 
-export default async function ClassLayout({ params, children }: { params: { id: string }; children: ReactNode }) {
+export default async function ClassLayout(props: { params: Promise<{ id: string }>; children: ReactNode }) {
+  const params = await props.params
+
+  const { children } = props
+
   const { me, course } = await requireClassAccess(params.id)
   const canGrade = hasCapability(me, 'viewGrading')
 

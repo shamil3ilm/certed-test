@@ -5,13 +5,12 @@ import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
 import { Avatar, Badge, EmptyState, FilterBar, FilterField, FILTER_CONTROL, ListRow, SectionLabel, cx } from '@/lib/ui'
 import { LocalTime } from '../../../LocalTime'
 
-export default async function ClassGradingPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams?: { q?: string }
+export default async function ClassGradingPage(props: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ q?: string }>
 }) {
+  const searchParams = await props.searchParams
+  const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   // The Grading tab is a grader-only surface; a student never reaches it even
   // though they can open the class (the tab itself is hidden for them too).

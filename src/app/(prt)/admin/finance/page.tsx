@@ -143,11 +143,17 @@ function SiblingFilterFields({ kind, other }: { kind: 'receipts' | 'payslips'; o
   )
 }
 
-export default async function FinancePage({
-  searchParams,
-}: {
-  searchParams: { rPage?: string; rq?: string; rstatus?: string; pPage?: string; pq?: string; pstatus?: string }
+export default async function FinancePage(props: {
+  searchParams: Promise<{
+    rPage?: string
+    rq?: string
+    rstatus?: string
+    pPage?: string
+    pq?: string
+    pstatus?: string
+  }>
 }) {
+  const searchParams = await props.searchParams
   const me = await requireCapability('viewFinance')
   // Issuing and voiding are STRUCTURAL admin-only (the APIs use requireRoleApi
   // (['admin'])); viewFinance is override-grantable, so a sub_admin/tutor granted

@@ -43,7 +43,7 @@ export async function renderDocPdf(
   kind: FinanceKind,
   id: string,
   viewer: { id: string; role?: string },
-): Promise<{ pdf: Buffer; number: string } | null> {
+): Promise<{ pdf: Buffer; number: string; voided: boolean } | null> {
   const { actorHasCapability } = await import('@/lib/services/authorization')
   const doc = await getDoc(kind, id)
   if (!doc) return null
@@ -68,5 +68,5 @@ export async function renderDocPdf(
     orgInfo(org),
     brandAssets(),
   )
-  return { pdf: await htmlToPdf(html), number: doc.number }
+  return { pdf: await htmlToPdf(html), number: doc.number, voided: doc.voided }
 }

@@ -20,7 +20,7 @@ function isSpeculativeFetch(req: Request): boolean {
   return /prefetch|prerender|preview/i.test(purpose)
 }
 
-export async function GET(req: Request, ctx: { params: { id: string } }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   // This GET has a side effect (the download counter + audit), so a prefetch or
   // link-preview must not trigger it - only a real click should. Answer 204 and
   // record nothing.
@@ -41,7 +41,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
 
   let doc
   try {
-    doc = await recordDownload(me, ctx.params.id)
+    doc = await recordDownload(me, (await ctx.params).id)
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof PermissionError) return notFoundText()
     return textFail('Could not open the document. Please try again in a moment.', 502)

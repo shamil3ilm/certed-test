@@ -30,13 +30,12 @@ import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { EscapableDetails } from '../../EscapableDetails'
 import { CommentThread } from '../../CommentThread'
 
-export default async function ClassStreamPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams?: { streamPage?: string; streamQ?: string; error?: string }
+export default async function ClassStreamPage(props: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ streamPage?: string; streamQ?: string; error?: string }>
 }) {
+  const searchParams = await props.searchParams
+  const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   // One feed, two sources: announcements + meetings live under a single Stream
   // tab. They stay separate rows in the database - we just merge them here.

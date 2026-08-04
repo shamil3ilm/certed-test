@@ -15,7 +15,8 @@ import { LocalTime } from '../LocalTime'
  * (staff see staff-only docs in their classes; students see class-visible ones),
  * so the same page serves everyone. Downloads go through the audited route.
  */
-export default async function DocumentsPage({ searchParams }: { searchParams: DocumentSearchParams }) {
+export default async function DocumentsPage(props: { searchParams: Promise<DocumentSearchParams> }) {
+  const searchParams = await props.searchParams
   await requireCapability('viewClasses')
   const { filters, hasActiveFilters, results, total, totalPages } = await loadDocumentSearchPageData(searchParams)
 

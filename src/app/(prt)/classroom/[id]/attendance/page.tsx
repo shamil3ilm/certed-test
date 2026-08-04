@@ -31,13 +31,12 @@ function HourStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export default async function AttendancePage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams?: { date?: string; recPage?: string; error?: string }
+export default async function AttendancePage(props: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ date?: string; recPage?: string; error?: string }>
 }) {
+  const searchParams = await props.searchParams
+  const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   const data = await loadClassAttendancePageData(me, course.id, searchParams)
 

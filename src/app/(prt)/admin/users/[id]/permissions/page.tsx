@@ -15,7 +15,8 @@ const roleLabel: Record<string, string> = {
   executive: 'Executive',
 }
 
-export default async function UserPermissionsPage({ params }: { params: { id: string } }) {
+export default async function UserPermissionsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   // manageAdminTier is the structural admin marker (a hard rule, never override-
   // granted), so only a genuine admin manages another user's permissions.
   const me = await requireCapability('manageAdminTier')

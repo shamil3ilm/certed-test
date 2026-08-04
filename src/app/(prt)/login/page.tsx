@@ -30,7 +30,8 @@ function DevLogin({ error, demoEmails }: { error: boolean; demoEmails: string[] 
   )
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: LoginSearchParams }) {
+export default async function LoginPage(props: { searchParams: Promise<LoginSearchParams> }) {
+  const searchParams = await props.searchParams
   const data = await loadLoginPageData(await getActorContext(), searchParams, isMock())
   if (data.redirectTo) redirect(data.redirectTo)
 

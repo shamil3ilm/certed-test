@@ -9,8 +9,10 @@ import { rateLimit } from '@/lib/security/rate-limit'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-export async function GET(req: Request, ctx: { params: { type: string; studentId: string } }) {
-  if (!isStudentReportType(ctx.params.type)) return notFoundText()
+export async function GET(req: Request, ctx: { params: Promise<{ type: string; studentId: string }> }) {
+  const { type, studentId } = await ctx.params
+  // Narrow `type` once here so it carries StudentReportType to renderStudentReport.
+  if (!isStudentReportType(type)) return notFoundText()
 
   let actor
   let me
@@ -28,7 +30,7 @@ export async function GET(req: Request, ctx: { params: { type: string; studentId
 
   let out
   try {
-    out = await renderStudentReport(actor, ctx.params.studentId, ctx.params.type, format)
+    out = await renderStudentReport(actor, studentId, type, format)
   } catch {
     return textFail('Could not generate the report. Please try again in a moment.', 502)
   }

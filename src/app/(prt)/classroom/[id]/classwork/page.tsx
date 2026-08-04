@@ -3,13 +3,20 @@ import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
 import { AlertBanner } from '@/lib/ui'
 import { AssignmentsSection, MaterialsSection } from './sections'
 
-export default async function ClassworkPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string }
-  searchParams?: { q?: string; cat?: string; subj?: string; from?: string; to?: string; sort?: string; error?: string }
+export default async function ClassworkPage(props: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{
+    q?: string
+    cat?: string
+    subj?: string
+    from?: string
+    to?: string
+    sort?: string
+    error?: string
+  }>
 }) {
+  const searchParams = await props.searchParams
+  const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   const data = await loadClassworkPageData(me, course, searchParams)
 

@@ -16,14 +16,14 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('GET /api/resources/[id]/download prefetch guard', () => {
   it('answers 204 and records nothing for a prefetch (sec-purpose)', async () => {
-    const res = await GET(req({ 'sec-purpose': 'prefetch' }), { params: { id: 'res-1' } })
+    const res = await GET(req({ 'sec-purpose': 'prefetch' }), { params: Promise.resolve({ id: 'res-1' }) })
     expect(res.status).toBe(204)
     expect(requireCapabilityApi).not.toHaveBeenCalled()
     expect(recordDownload).not.toHaveBeenCalled()
   })
 
   it('also skips a legacy Purpose: prefetch header', async () => {
-    const res = await GET(req({ purpose: 'prefetch' }), { params: { id: 'res-1' } })
+    const res = await GET(req({ purpose: 'prefetch' }), { params: Promise.resolve({ id: 'res-1' }) })
     expect(res.status).toBe(204)
     expect(recordDownload).not.toHaveBeenCalled()
   })
@@ -32,7 +32,7 @@ describe('GET /api/resources/[id]/download prefetch guard', () => {
     // requireCapabilityApi rejects -> route returns an auth failure, but the point
     // is that the guard let it through to auth rather than short-circuiting at 204.
     vi.mocked(requireCapabilityApi).mockRejectedValueOnce(new Error('no-access'))
-    const res = await GET(req(), { params: { id: 'res-1' } })
+    const res = await GET(req(), { params: Promise.resolve({ id: 'res-1' }) })
     expect(res.status).not.toBe(204)
     expect(requireCapabilityApi).toHaveBeenCalledWith('viewClasses')
   })

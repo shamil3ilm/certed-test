@@ -37,6 +37,10 @@ Not allowed:
 
 ## 2.2 `src/features`
 
+> **Status: PLANNED — NOT IMPLEMENTED.** This layer does not exist yet. The code
+> currently layers as `src/app → src/lib/services → src/lib/data`. The rules below
+> are the intended contract for when/if the feature layer is introduced.
+
 Allowed:
 
 - feature-owned components

@@ -89,7 +89,8 @@ function ClassCard({ c, viewerIsStudent }: { c: ClassSummary; viewerIsStudent: b
   )
 }
 
-export default async function ClassroomPage({ searchParams }: { searchParams?: { error?: string } }) {
+export default async function ClassroomPage(props: { searchParams?: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams
   const me = await requireCapability('viewClasses')
   const [classes, flags] = await Promise.all([listMyClasses(me), loadPersonaFlags(me.id)])
   const isAdmin = flags.isAdmin

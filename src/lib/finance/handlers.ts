@@ -62,7 +62,7 @@ export function issueHandler(kind: FinanceKind) {
 
 /** POST /api/{kind}s/[id]/void - void a document (STRUCTURAL admin-only; see note above). */
 export function voidHandler(kind: FinanceKind) {
-  return async function POST(_req: Request, ctx: { params: { id: string } }) {
+  return async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
     let me
     try {
       me = await requireRoleApi(['admin'])
@@ -72,7 +72,7 @@ export function voidHandler(kind: FinanceKind) {
     const rl = rateLimit(`finance-void:${me.id}`, { limit: 30, windowMs: 60 * 1000 })
     if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
     try {
-      const id = validateFinanceDocId(ctx.params.id)
+      const id = validateFinanceDocId((await ctx.params).id)
       const voided = await voidDoc(me.id, kind, id)
       if (!voided) return fail('Document not found or already voided.', 404)
       await auditPrivilegedAction(me, `${kind}.void`, kind, id)
@@ -91,7 +91,7 @@ export function voidHandler(kind: FinanceKind) {
  *  user", not a fixed persona list, so capability overrides are honoured by the
  *  authorization check rather than blocked ahead of it. */
 export function pdfHandler(kind: FinanceKind) {
-  return async function GET(_req: Request, ctx: { params: { id: string } }) {
+  return async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
     let me
     try {
       me = await requireActiveProfileApi()
@@ -104,17 +104,23 @@ export function pdfHandler(kind: FinanceKind) {
     if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
     let out
     try {
-      out = await renderDocPdf(kind, validateFinanceDocId(ctx.params.id), { id: me.id, role: me.role })
+      out = await renderDocPdf(kind, validateFinanceDocId((await ctx.params).id), { id: me.id, role: me.role })
     } catch (e) {
       if (e instanceof ValidationError) return notFoundText()
       return textFail('Could not generate the document. Please try again in a moment.', 502)
     }
     if (!out) return notFoundText()
+    // An issued finance document is immutable except for one one-way change: being
+    // voided (which stamps a VOID badge). So a voided doc is terminal - cache it
+    // hard; a live doc could still be voided, so cache it only briefly. Either way
+    // repeat downloads skip the headless-Chromium re-render. `private`: it's a
+    // per-user authorized document, never a shared/CDN cache.
+    const cacheControl = out.voided ? 'private, max-age=31536000, immutable' : 'private, max-age=300, must-revalidate'
     return new Response(new Uint8Array(out.pdf), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="${out.number}.pdf"`,
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': cacheControl,
       },
     })
   }
