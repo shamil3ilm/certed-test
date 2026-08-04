@@ -1,4 +1,4 @@
--- Notification retention (FIND-26): purge READ notifications older than 90 days.
+-- Notification retention: purge READ notifications older than 90 days.
 --
 -- Policy decision (audit trail is kept indefinitely for compliance; only the
 -- notifications feed is trimmed). Unread notifications are preserved regardless

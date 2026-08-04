@@ -34,13 +34,12 @@ const nextConfig = {
     // mock stack.
     NEXT_PUBLIC_MOCK_MODE: process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0',
   },
-  // Keep the headless-Chromium PDF deps out of the server bundle (server-only,
-  // loaded at runtime). Moved out of `experimental` in Next 16 (was
-  // experimental.serverComponentsExternalPackages).
+  // Keep the headless-Chromium PDF deps out of the server bundle - they load from
+  // node_modules at runtime rather than being bundled.
   serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
-  // The PDF routes readFileSync() the brand fonts/logo from public/, which is NOT
-  // bundled into serverless functions by default — trace them in so the render
-  // doesn't ENOENT on Vercel. Top-level in Next 16 (was experimental.*).
+  // The PDF routes readFileSync() the brand fonts/logo from public/, which serverless
+  // functions don't bundle by default - trace them in so the render doesn't ENOENT
+  // on Vercel.
   outputFileTracingIncludes: {
     '/api/receipts/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
     '/api/payslips/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],

@@ -20,8 +20,8 @@ vi.mock('@/lib/session/actor-context', () => ({
       userId: 'auth-1',
       profile,
       personas,
-      // The POST guard is now requireCapabilityApi('manageClassContent'), so the
-      // actor must carry its resolved capabilities like the real context does.
+      // The POST guard is requireCapabilityApi('manageClassContent'), so the actor
+      // must carry its resolved capabilities like the real context does.
       capabilities: resolveCapabilities({ personas, overrides: [] }),
       accessState: profile.status === 'active' ? 'active' : profile.status === 'disabled' ? 'disabled' : 'pending',
     }

@@ -9,7 +9,7 @@
 create index if not exists audit_log_entity_idx
   on audit_log (entity_type, entity_id, created_at desc);
 
--- Retention (FIND-26) is intentionally NOT added here: how long audit_log is
+-- Retention is intentionally NOT added here: how long audit_log is
 -- kept is a compliance decision, not a mechanical one (audit trails are often
 -- retained deliberately). Once a retention period is chosen, add a scheduled
 -- purge (pg_cron) in its own migration, e.g.:

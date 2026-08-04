@@ -30,8 +30,8 @@ export const metadata: Metadata = {
         media: '(prefers-color-scheme: dark)',
         type: 'image/png',
       },
-      // Unconditional PNG fallbacks - clients that ignore a media-scoped icon (and
-      // the previously-dead `media: 'not all'` 96px entry) now get a real icon.
+      // Unconditional PNG fallbacks so a client that ignores a media-scoped icon
+      // still gets a real icon.
       { url: '/favicon/favicon_16.png?v=5', sizes: '16x16', type: 'image/png' },
       { url: '/favicon/favicon_32.png?v=5', sizes: '32x32', type: 'image/png' },
       { url: '/favicon/favicon_96.png?v=5', sizes: '96x96', type: 'image/png' },

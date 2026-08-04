@@ -32,8 +32,8 @@ export async function listProfilesByFilter(filter: {
   return selectProfilesByFilter(filter)
 }
 
-/** One role-tier's profiles, a page at a time - the Users hub used to fetch every
- *  profile in the academy just to filter down to the open tab. */
+/** One role-tier's profiles, a page at a time - so the Users hub fetches just the
+ *  open tab's page rather than every profile in the academy. */
 export async function listProfilesByRole(
   role: Profile['role'] | ReadonlyArray<Profile['role']>,
   opts: ProfilePageOptions,

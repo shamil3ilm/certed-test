@@ -56,7 +56,7 @@ function mapReplaceSubmissionError(message: string): Error {
 /**
  * Records a submission, superseding any prior active one (kept as history).
  * RLS (enrolled + own) is the enforcement here, not canManageClass - this is
- * a student submitting their own work, unchanged from the original client.
+ * a student submitting their own work.
  */
 export async function recordSubmission(actor: Profile, input: RecordSubmissionInput): Promise<Submission> {
   const assignment = await getAssignment(input.assignment_id)

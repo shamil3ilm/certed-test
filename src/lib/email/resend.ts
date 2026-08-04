@@ -5,7 +5,7 @@ import { logError } from '@/lib/observability/log'
 /**
  * Transactional email via Resend. OFF by default: it sends only when the opt-in
  * flag, the API key, and a verified From address are ALL set, so the rest of the
- * notification pipeline stays email-ready without a provider (see FIND-43). Every
+ * notification pipeline stays email-ready without a provider. Every
  * send is best-effort - it logs and returns false on failure, never throws, since
  * the callers are non-critical notification side effects.
  */
