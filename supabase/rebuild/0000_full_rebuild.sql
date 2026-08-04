@@ -1,14 +1,10 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0026) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0051) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
---
--- This file previously drifted by hand (a stale mentorships.tutor_id, a divergent
--- persona-uniqueness scheme, and a duplicate constraint that made it fail to
--- apply at all); regenerating from the migrations is the only supported update.
 --
 -- Requires the Supabase-provided `auth` schema (auth.users, auth.uid()) and the
 -- anon / authenticated / service_role roles, present on any Supabase project.
@@ -65,6 +61,28 @@ CREATE TYPE public.calendar_event_kind AS ENUM (
 CREATE TYPE public.conversation_kind AS ENUM (
     'direct',
     'group'
+);
+
+
+--
+-- Name: document_category; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.document_category AS ENUM (
+    'question_papers',
+    'practice_sheets',
+    'academic_resources',
+    'general_documents'
+);
+
+
+--
+-- Name: document_visibility; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.document_visibility AS ENUM (
+    'class',
+    'staff'
 );
 
 
@@ -198,6 +216,7 @@ $$;
 
 CREATE FUNCTION public.finance_totals(p_kind text) RETURNS TABLE(currency text, live_total numeric, live_count bigint)
     LANGUAGE sql STABLE
+    SET search_path TO 'public'
     AS $$
   select r.currency, coalesce(sum(r.total), 0)::numeric, count(*)::bigint
   from receipts r
@@ -248,15 +267,18 @@ CREATE FUNCTION public.is_enrolled(p_class_id uuid) RETURNS boolean
     SET search_path TO 'public'
     AS $$
   select exists(
-    select 1 from enrollments e
+    select 1
+    from enrollments e
     join profiles p on p.id = e.student_id
     join persona_assignments pa
       on pa.profile_id = e.student_id
      and pa.persona_name = 'student'::persona_name
      and pa.scope_type = 'global'::persona_scope_type
      and pa.status = 'active'
-    where p.auth_user_id = auth.uid() and p.status = 'active'
-      and e.class_id = p_class_id and e.active
+    where p.auth_user_id = auth.uid()
+      and p.status = 'active'
+      and e.class_id = p_class_id
+      and e.active
   )
 $$;
 
@@ -446,6 +468,35 @@ $$;
 
 
 --
+-- Name: mentors_class(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mentors_class(p_class_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1
+    from mentorships m
+    join profiles p on p.id = m.mentor_id
+    join persona_assignments pa
+      on pa.profile_id = m.mentor_id
+     and pa.persona_name = 'mentor'::persona_name
+     and pa.scope_type = 'student'::persona_scope_type
+     and pa.scope_id = m.student_id
+     and pa.status = 'active'
+    join enrollments e
+      on e.student_id = m.student_id
+     and e.class_id = p_class_id
+     and e.active
+    where p.auth_user_id = auth.uid()
+      and p.status = 'active'
+      and m.active
+  )
+$$;
+
+
+--
 -- Name: mentors_student(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -454,15 +505,19 @@ CREATE FUNCTION public.mentors_student(p_student_id uuid) RETURNS boolean
     SET search_path TO 'public'
     AS $$
   select exists(
-    select 1 from mentorships m
+    select 1
+    from mentorships m
     join profiles p on p.id = m.mentor_id
     join persona_assignments pa
       on pa.profile_id = m.mentor_id
      and pa.persona_name = 'mentor'::persona_name
      and pa.scope_type = 'student'::persona_scope_type
+     and pa.scope_id = m.student_id
      and pa.status = 'active'
-    where p.auth_user_id = auth.uid() and p.status = 'active'
-      and m.student_id = p_student_id and m.active
+    where p.auth_user_id = auth.uid()
+      and p.status = 'active'
+      and m.student_id = p_student_id
+      and m.active
   )
 $$;
 
@@ -484,6 +539,70 @@ begin
   returning last_number into n;
   return n;
 end $$;
+
+
+--
+-- Name: rate_limit_hit(text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.rate_limit_hit(p_key text, p_limit integer, p_window_seconds integer) RETURNS TABLE(allowed boolean, retry_after_seconds integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_now timestamptz := now();
+  v_window_started_at timestamptz;
+  v_hits integer;
+begin
+  -- Atomic fixed-window counter: a single upsert both resets an expired window
+  -- and increments a live one, so concurrent requests can't race a read/modify.
+  insert into public.rate_limit_counters as c (bucket_key, window_started_at, hits)
+    values (p_key, v_now, 1)
+  on conflict (bucket_key) do update
+    set
+      window_started_at = case
+        when c.window_started_at <= v_now - make_interval(secs => p_window_seconds) then v_now
+        else c.window_started_at
+      end,
+      hits = case
+        when c.window_started_at <= v_now - make_interval(secs => p_window_seconds) then 1
+        else c.hits + 1
+      end
+  returning c.window_started_at, c.hits into v_window_started_at, v_hits;
+
+  if v_hits > p_limit then
+    return query
+      select
+        false,
+        greatest(
+          1,
+          ceil(extract(epoch from (v_window_started_at + make_interval(secs => p_window_seconds) - v_now)))
+        )::integer;
+  else
+    return query select true, 0;
+  end if;
+end;
+$$;
+
+
+--
+-- Name: reclassify_submissions_on_due_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reclassify_submissions_on_due_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.due_date is distinct from old.due_date then
+    update submissions set
+      status = case when submitted_at > new.due_date then 'late' else 'submitted' end
+    where assignment_id = new.id
+      and status <> (case when submitted_at > new.due_date then 'late' else 'submitted' end);
+  end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -586,6 +705,46 @@ $$;
 
 
 --
+-- Name: revoke_profile_guarded(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.revoke_profile_guarded(p_target uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_role text;
+  v_status text;
+  v_active_admins int;
+begin
+  -- Serialize every admin-tier revocation on one constant key, so the
+  -- last-admin count and the status flip are a single atomic step across rows.
+  perform pg_advisory_xact_lock(hashtextextended('profiles:admin-tier-guard'::text, 0));
+
+  select role, status into v_role, v_status from profiles where id = p_target;
+  if not found then
+    return 'not_found';
+  end if;
+
+  -- Only an ACTIVE admin counts toward the tier; an already-disabled target is
+  -- a harmless no-op (mirrors the old isLastActiveAdmin, which returned false
+  -- for any target that was not an active admin).
+  if v_role = 'admin' and v_status = 'active' then
+    select count(*) into v_active_admins
+    from profiles
+    where role = 'admin' and status = 'active';
+    if v_active_admins <= 1 then
+      return 'last_admin';
+    end if;
+  end if;
+
+  update profiles set status = 'disabled' where id = p_target;
+  return 'ok';
+end;
+$$;
+
+
+--
 -- Name: set_submission_status(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -603,6 +762,21 @@ end $$;
 
 
 --
+-- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: teaches_class(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -611,16 +785,20 @@ CREATE FUNCTION public.teaches_class(p_class_id uuid) RETURNS boolean
     SET search_path TO 'public'
     AS $$
   select exists(
-    select 1 from class_tutors ct
+    select 1
+    from class_tutors ct
     join profiles p on p.id = ct.tutor_id
     join persona_assignments pa
       on pa.profile_id = ct.tutor_id
      and pa.persona_name = 'tutor'::persona_name
      and pa.scope_type = 'global'::persona_scope_type
      and pa.status = 'active'
-    where p.auth_user_id = auth.uid() and p.status = 'active'
-      and ct.class_id = p_class_id and ct.active
+    where p.auth_user_id = auth.uid()
+      and p.status = 'active'
+      and ct.class_id = p_class_id
+      and ct.active
   )
+  or mentors_class(p_class_id)
 $$;
 
 
@@ -694,7 +872,10 @@ CREATE TABLE public.announcements (
     message text NOT NULL,
     author_id uuid,
     status text DEFAULT 'active'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    attachments jsonb DEFAULT '[]'::jsonb NOT NULL,
+    publish_at timestamp with time zone,
+    expires_at timestamp with time zone
 );
 
 
@@ -714,6 +895,7 @@ CREATE TABLE public.assignments (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     topic text,
     max_marks numeric(6,2),
+    enforce_deadline boolean DEFAULT false NOT NULL,
     CONSTRAINT assignments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
 );
 
@@ -731,6 +913,8 @@ CREATE TABLE public.attendance (
     marked_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    join_at timestamp with time zone,
+    leave_at timestamp with time zone,
     CONSTRAINT attendance_status_check CHECK ((status = ANY (ARRAY['present'::text, 'absent'::text, 'late'::text])))
 );
 
@@ -800,6 +984,26 @@ active, global rows are consumed by resolution today; scoped rows are reserved.'
 
 
 --
+-- Name: class_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.class_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    class_id uuid NOT NULL,
+    session_date date NOT NULL,
+    scheduled_start timestamp with time zone,
+    scheduled_end timestamp with time zone,
+    actual_start timestamp with time zone,
+    actual_end timestamp with time zone,
+    tutor_id uuid,
+    tutor_join_at timestamp with time zone,
+    tutor_leave_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: class_tutors; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -835,7 +1039,7 @@ CREATE TABLE public.comments (
     author_id uuid NOT NULL,
     content text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT comments_entity_type_check CHECK ((entity_type = ANY (ARRAY['submission'::text, 'resource'::text, 'meet'::text])))
+    CONSTRAINT comments_entity_type_check CHECK ((entity_type = ANY (ARRAY['submission'::text, 'resource'::text, 'meet'::text, 'announcement'::text])))
 );
 
 
@@ -912,7 +1116,8 @@ CREATE TABLE public.meet_links (
     description text,
     active boolean DEFAULT true NOT NULL,
     created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    scheduled_at timestamp with time zone
 );
 
 
@@ -986,6 +1191,7 @@ CREATE TABLE public.org_settings (
     timezone text DEFAULT 'Asia/Kolkata'::text NOT NULL,
     receipt_prefix text DEFAULT 'CEA-R'::text NOT NULL,
     payslip_prefix text DEFAULT 'CEA-P'::text NOT NULL,
+    messaging_matrix jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT org_settings_single_row CHECK (id)
 );
 
@@ -1015,7 +1221,7 @@ CREATE TABLE public.persona_assignments (
     scope_type public.persona_scope_type DEFAULT 'global'::public.persona_scope_type NOT NULL,
     scope_id uuid,
     status text DEFAULT 'active'::text NOT NULL,
-    assigned_at timestamp without time zone DEFAULT now() NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT scope_consistency CHECK ((((scope_type = 'global'::public.persona_scope_type) AND (scope_id IS NULL)) OR ((scope_type <> 'global'::public.persona_scope_type) AND (scope_id IS NOT NULL))))
 );
 
@@ -1044,6 +1250,17 @@ CREATE TABLE public.profiles (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     setup_code_hash text,
     setup_code_expires_at timestamp with time zone
+);
+
+
+--
+-- Name: rate_limit_counters; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rate_limit_counters (
+    bucket_key text NOT NULL,
+    window_started_at timestamp with time zone DEFAULT now() NOT NULL,
+    hits integer DEFAULT 0 NOT NULL
 );
 
 
@@ -1077,6 +1294,26 @@ CREATE TABLE public.reminders (
 
 
 --
+-- Name: resource_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.resource_versions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    resource_id uuid NOT NULL,
+    version_no integer NOT NULL,
+    title text NOT NULL,
+    drive_link text,
+    description text,
+    category public.document_category DEFAULT 'general_documents'::public.document_category NOT NULL,
+    subject text,
+    file_type text,
+    created_by uuid,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: resources; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1089,6 +1326,12 @@ CREATE TABLE public.resources (
     status text DEFAULT 'active'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     topic text,
+    category public.document_category DEFAULT 'general_documents'::public.document_category NOT NULL,
+    description text,
+    subject text,
+    file_type text,
+    download_count integer DEFAULT 0 NOT NULL,
+    visibility public.document_visibility DEFAULT 'class'::public.document_visibility NOT NULL,
     CONSTRAINT resources_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
 );
 
@@ -1167,6 +1410,22 @@ ALTER TABLE ONLY public.calendar_events
 
 ALTER TABLE ONLY public.capability_overrides
     ADD CONSTRAINT capability_overrides_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: class_sessions class_sessions_class_id_session_date_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_sessions
+    ADD CONSTRAINT class_sessions_class_id_session_date_key UNIQUE (class_id, session_date);
+
+
+--
+-- Name: class_sessions class_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_sessions
+    ADD CONSTRAINT class_sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -1354,11 +1613,27 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: profiles profiles_email_lowercase; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.profiles
+    ADD CONSTRAINT profiles_email_lowercase CHECK ((email = lower(email))) NOT VALID;
+
+
+--
 -- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profiles
     ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rate_limit_counters rate_limit_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rate_limit_counters
+    ADD CONSTRAINT rate_limit_counters_pkey PRIMARY KEY (bucket_key);
 
 
 --
@@ -1391,6 +1666,22 @@ ALTER TABLE ONLY public.receipts
 
 ALTER TABLE ONLY public.reminders
     ADD CONSTRAINT reminders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: resource_versions resource_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resource_versions
+    ADD CONSTRAINT resource_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: resource_versions resource_versions_resource_id_version_no_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resource_versions
+    ADD CONSTRAINT resource_versions_resource_id_version_no_key UNIQUE (resource_id, version_no);
 
 
 --
@@ -1453,6 +1744,27 @@ CREATE INDEX attendance_student_idx ON public.attendance USING btree (student_id
 
 
 --
+-- Name: audit_log_actor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audit_log_actor_idx ON public.audit_log USING btree (actor_id);
+
+
+--
+-- Name: audit_log_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audit_log_created_idx ON public.audit_log USING btree (created_at DESC);
+
+
+--
+-- Name: audit_log_entity_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audit_log_entity_idx ON public.audit_log USING btree (entity_type, entity_id, created_at DESC);
+
+
+--
 -- Name: calendar_events_class_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1464,6 +1776,13 @@ CREATE INDEX calendar_events_class_idx ON public.calendar_events USING btree (cl
 --
 
 CREATE INDEX calendar_events_date_idx ON public.calendar_events USING btree (event_date);
+
+
+--
+-- Name: class_sessions_class_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX class_sessions_class_idx ON public.class_sessions USING btree (class_id, session_date DESC);
 
 
 --
@@ -1607,6 +1926,13 @@ CREATE INDEX notifications_profile_idx ON public.notifications USING btree (prof
 
 
 --
+-- Name: notifications_unread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_unread_idx ON public.notifications USING btree (profile_id) WHERE (read_at IS NULL);
+
+
+--
 -- Name: payslip_lines_payslip_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1632,6 +1958,13 @@ CREATE INDEX payslips_tutor_idx ON public.payslips USING btree (tutor_id);
 --
 
 CREATE UNIQUE INDEX persona_assignments_global_unique ON public.persona_assignments USING btree (profile_id, persona_name) WHERE (scope_type = 'global'::public.persona_scope_type);
+
+
+--
+-- Name: profiles_role_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX profiles_role_status_idx ON public.profiles USING btree (role, status);
 
 
 --
@@ -1663,10 +1996,31 @@ CREATE INDEX reminders_user_idx ON public.reminders USING btree (user_id);
 
 
 --
+-- Name: resource_versions_resource_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX resource_versions_resource_idx ON public.resource_versions USING btree (resource_id, version_no DESC);
+
+
+--
+-- Name: resources_class_category_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX resources_class_category_idx ON public.resources USING btree (class_id, category, status);
+
+
+--
 -- Name: resources_class_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX resources_class_idx ON public.resources USING btree (class_id);
+
+
+--
+-- Name: resources_subject_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX resources_subject_idx ON public.resources USING btree (subject) WHERE (subject IS NOT NULL);
 
 
 --
@@ -1702,6 +2056,20 @@ CREATE INDEX timetable_slots_class_idx ON public.timetable_slots USING btree (cl
 --
 
 CREATE UNIQUE INDEX uq_capability_overrides_identity ON public.capability_overrides USING btree (profile_id, capability, effect, scope_type, COALESCE((scope_id)::text, 'global'::text));
+
+
+--
+-- Name: capability_overrides trg_capability_overrides_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_capability_overrides_updated_at BEFORE UPDATE ON public.capability_overrides FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: assignments trg_reclassify_on_due_change; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_reclassify_on_due_change AFTER UPDATE OF due_date ON public.assignments FOR EACH ROW EXECUTE FUNCTION public.reclassify_submissions_on_due_change();
 
 
 --
@@ -1813,6 +2181,22 @@ ALTER TABLE ONLY public.capability_overrides
 
 ALTER TABLE ONLY public.capability_overrides
     ADD CONSTRAINT capability_overrides_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: class_sessions class_sessions_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_sessions
+    ADD CONSTRAINT class_sessions_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: class_sessions class_sessions_tutor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_sessions
+    ADD CONSTRAINT class_sessions_tutor_id_fkey FOREIGN KEY (tutor_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 
 --
@@ -2016,6 +2400,22 @@ ALTER TABLE ONLY public.reminders
 
 
 --
+-- Name: resource_versions resource_versions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resource_versions
+    ADD CONSTRAINT resource_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: resource_versions resource_versions_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.resource_versions
+    ADD CONSTRAINT resource_versions_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES public.resources(id) ON DELETE CASCADE;
+
+
+--
 -- Name: resources resources_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2174,7 +2574,7 @@ CREATE POLICY announcements_insert ON public.announcements FOR INSERT WITH CHECK
 -- Name: announcements announcements_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY announcements_read ON public.announcements FOR SELECT USING ((public.is_active_admin() OR ((class_id IS NULL) AND (public.current_status() = 'active'::public.user_status) AND (status = 'active'::text)) OR (public.is_enrolled(class_id) AND (status = 'active'::text)) OR public.teaches_class(class_id)));
+CREATE POLICY announcements_read ON public.announcements FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR ((status = 'active'::text) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((expires_at IS NULL) OR (expires_at > now())) AND (((class_id IS NULL) AND (public.current_status() = 'active'::public.user_status)) OR public.is_enrolled(class_id)))));
 
 
 --
@@ -2280,6 +2680,26 @@ CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_
 ALTER TABLE public.capability_overrides ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: class_sessions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.class_sessions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: class_sessions class_sessions_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR public.is_enrolled(class_id)));
+
+
+--
+-- Name: class_sessions class_sessions_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_sessions_write ON public.class_sessions USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
 -- Name: class_tutors; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2326,18 +2746,31 @@ CREATE POLICY classes_read ON public.classes FOR SELECT USING ((public.is_active
 ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: comments comments_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comments_delete ON public.comments FOR DELETE USING ((public.is_active_admin() OR public.is_self_active(author_id)));
+
+
+--
 -- Name: comments comments_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY comments_insert ON public.comments FOR INSERT WITH CHECK ((public.is_active_admin() OR (public.is_self_active(author_id) AND (((entity_type = 'submission'::text) AND (EXISTS ( SELECT 1
+CREATE POLICY comments_insert ON public.comments FOR INSERT WITH CHECK ((public.is_active_admin() OR ((author_id = ( SELECT p.id
+   FROM public.profiles p
+  WHERE (p.auth_user_id = auth.uid()))) AND (((entity_type = 'submission'::text) AND (EXISTS ( SELECT 1
    FROM public.submissions s
-  WHERE ((s.id = comments.entity_id) AND (public.is_self_active(s.student_id) OR (EXISTS ( SELECT 1
+  WHERE ((s.id = comments.entity_id) AND ((s.student_id = ( SELECT p.id
+           FROM public.profiles p
+          WHERE (p.auth_user_id = auth.uid()))) OR (EXISTS ( SELECT 1
            FROM public.assignments a
           WHERE ((a.id = s.assignment_id) AND public.teaches_class(a.class_id)))) OR public.mentors_student(s.student_id)))))) OR ((entity_type = 'resource'::text) AND (EXISTS ( SELECT 1
    FROM public.resources r
   WHERE ((r.id = comments.entity_id) AND (public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text))))))) OR ((entity_type = 'meet'::text) AND (EXISTS ( SELECT 1
    FROM public.meet_links m
-  WHERE ((m.id = comments.entity_id) AND ((m.class_id IS NULL) OR public.teaches_class(m.class_id) OR public.is_enrolled(m.class_id))))))))));
+  WHERE ((m.id = comments.entity_id) AND ((m.class_id IS NULL) OR public.teaches_class(m.class_id) OR public.is_enrolled(m.class_id)))))) OR ((entity_type = 'announcement'::text) AND (EXISTS ( SELECT 1
+   FROM public.announcements an
+  WHERE ((an.id = comments.entity_id) AND (((an.class_id IS NULL) AND (public.current_status() = 'active'::public.user_status) AND (an.status = 'active'::text)) OR (public.is_enrolled(an.class_id) AND (an.status = 'active'::text)) OR public.teaches_class(an.class_id))))))))));
 
 
 --
@@ -2346,13 +2779,17 @@ CREATE POLICY comments_insert ON public.comments FOR INSERT WITH CHECK ((public.
 
 CREATE POLICY comments_read ON public.comments FOR SELECT USING ((public.is_active_admin() OR ((entity_type = 'submission'::text) AND (EXISTS ( SELECT 1
    FROM public.submissions s
-  WHERE ((s.id = comments.entity_id) AND (public.is_self_active(s.student_id) OR (EXISTS ( SELECT 1
+  WHERE ((s.id = comments.entity_id) AND ((s.student_id = ( SELECT p.id
+           FROM public.profiles p
+          WHERE (p.auth_user_id = auth.uid()))) OR (EXISTS ( SELECT 1
            FROM public.assignments a
           WHERE ((a.id = s.assignment_id) AND public.teaches_class(a.class_id)))) OR public.mentors_student(s.student_id)))))) OR ((entity_type = 'resource'::text) AND (EXISTS ( SELECT 1
    FROM public.resources r
   WHERE ((r.id = comments.entity_id) AND (public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text))))))) OR ((entity_type = 'meet'::text) AND (EXISTS ( SELECT 1
    FROM public.meet_links m
-  WHERE ((m.id = comments.entity_id) AND ((m.class_id IS NULL) OR public.teaches_class(m.class_id) OR public.is_enrolled(m.class_id))))))));
+  WHERE ((m.id = comments.entity_id) AND ((m.class_id IS NULL) OR public.teaches_class(m.class_id) OR public.is_enrolled(m.class_id)))))) OR ((entity_type = 'announcement'::text) AND (EXISTS ( SELECT 1
+   FROM public.announcements an
+  WHERE ((an.id = comments.entity_id) AND (((an.class_id IS NULL) AND (public.current_status() = 'active'::public.user_status) AND (an.status = 'active'::text)) OR (public.is_enrolled(an.class_id) AND (an.status = 'active'::text)) OR public.teaches_class(an.class_id))))))));
 
 
 --
@@ -2598,6 +3035,12 @@ CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (((auth_u
 
 
 --
+-- Name: rate_limit_counters; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.rate_limit_counters ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: receipt_lines; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2654,6 +3097,21 @@ CREATE POLICY reminders_all ON public.reminders USING (public.is_self_active(use
 
 
 --
+-- Name: resource_versions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.resource_versions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: resource_versions resource_versions_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY resource_versions_read ON public.resource_versions FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM public.resources r
+  WHERE ((r.id = resource_versions.resource_id) AND (public.is_active_admin() OR public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text) AND (r.visibility = 'class'::public.document_visibility)))))));
+
+
+--
 -- Name: resources; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2670,7 +3128,7 @@ CREATE POLICY resources_insert ON public.resources FOR INSERT WITH CHECK ((publi
 -- Name: resources resources_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY resources_read ON public.resources FOR SELECT USING ((public.is_active_admin() OR (public.is_enrolled(class_id) AND (status = 'active'::text)) OR public.teaches_class(class_id)));
+CREATE POLICY resources_read ON public.resources FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR (public.is_enrolled(class_id) AND (status = 'active'::text) AND (visibility = 'class'::public.document_visibility))));
 
 
 --
@@ -2710,7 +3168,7 @@ CREATE POLICY submissions_read ON public.submissions FOR SELECT USING ((public.i
 -- Name: submissions submissions_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR (public.is_self_active(student_id) AND is_active = true AND score IS NULL AND graded_at IS NULL))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
+CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR (public.is_self_active(student_id) AND (is_active = true) AND (score IS NULL) AND (graded_at IS NULL)))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
 
 
 --
@@ -2734,10 +3192,75 @@ CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_
 
 
 --
+-- Name: FUNCTION current_app_role(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_app_role() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_app_role() TO authenticated;
+
+
+--
+-- Name: FUNCTION current_profile_id(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_profile_id() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_profile_id() TO authenticated;
+
+
+--
+-- Name: FUNCTION current_status(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_status() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_status() TO authenticated;
+
+
+--
 -- Name: FUNCTION edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION finance_totals(p_kind text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.finance_totals(p_kind text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.finance_totals(p_kind text) TO authenticated;
+
+
+--
+-- Name: FUNCTION is_active_admin(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.is_active_admin() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.is_active_admin() TO authenticated;
+
+
+--
+-- Name: FUNCTION is_conversation_member(p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.is_conversation_member(p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.is_conversation_member(p_conversation_id uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION is_enrolled(p_class_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.is_enrolled(p_class_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.is_enrolled(p_class_id uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION is_self_active(p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.is_self_active(p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.is_self_active(p_id uuid) TO authenticated;
 
 
 --
@@ -2757,11 +3280,41 @@ GRANT ALL ON FUNCTION public.issue_receipt_doc(p_party_id uuid, p_party_name tex
 
 
 --
+-- Name: FUNCTION mentors_class(p_class_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.mentors_class(p_class_id uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION mentors_student(p_student_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mentors_student(p_student_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mentors_student(p_student_id uuid) TO authenticated;
+
+
+--
 -- Name: FUNCTION next_document_number(p_doc_type text, p_year integer); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.next_document_number(p_doc_type text, p_year integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.next_document_number(p_doc_type text, p_year integer) TO service_role;
+
+
+--
+-- Name: FUNCTION rate_limit_hit(p_key text, p_limit integer, p_window_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rate_limit_hit(p_key text, p_limit integer, p_window_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rate_limit_hit(p_key text, p_limit integer, p_window_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION reclassify_submissions_on_due_change(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reclassify_submissions_on_due_change() FROM PUBLIC;
 
 
 --
@@ -2822,6 +3375,29 @@ GRANT ALL ON FUNCTION public.replace_own_submission(p_assignment_id uuid, p_driv
 
 
 --
+-- Name: FUNCTION revoke_profile_guarded(p_target uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.revoke_profile_guarded(p_target uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.revoke_profile_guarded(p_target uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION set_submission_status(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_submission_status() FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION teaches_class(p_class_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.teaches_class(p_class_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.teaches_class(p_class_id uuid) TO authenticated;
+
+
+--
 -- Name: FUNCTION user_has_persona(p_user_id uuid, p_persona public.persona_name, p_scope_type public.persona_scope_type, p_scope_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -2860,14 +3436,6 @@ GRANT UPDATE(read_at) ON TABLE public.notifications TO authenticated;
 --
 
 GRANT UPDATE(full_name) ON TABLE public.profiles TO authenticated;
-
-
---
--- Name: COLUMN profiles.class_level; Type: ACL; Schema: public; Owner: -
---
-
--- GRANT UPDATE(class_level) removed per migration 0033: class_level is admin-controlled
--- (a self-grant let a student PATCH their own grade via the Data API). Self-update is full_name only.
 
 
 --

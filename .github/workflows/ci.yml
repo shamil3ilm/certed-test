@@ -35,17 +35,21 @@ jobs:
           fi
           echo "Migration version prefixes are unique."
 
-      # The rebuild snapshot is a pg_dump that can only be regenerated from a live
-      # DB (npm run db:rebuild-snapshot), so this warns rather than fails - flip the
-      # warnings to 'exit 1' once the snapshot is regenerated and kept in sync.
-      - name: Rebuild snapshot freshness (warn only)
+      # The rebuild snapshot is a pg_dump regenerated from a live DB
+      # (npm run db:rebuild-snapshot). Now that it is in sync with the chain, this
+      # is a HARD gate: adding a migration without regenerating the snapshot fails
+      # CI, so the one-shot provisioning file can never silently drift from the
+      # chain again (the drift that let a snapshot-built env miss later behaviour).
+      - name: Rebuild snapshot freshness (must match chain head)
         run: |
           latest=$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' | sort | tail -1)
           snap=$(grep -oE '0001\.\.[0-9]{4}' supabase/rebuild/0000_full_rebuild.sql | head -1 | sed -E 's/0001\.\.//')
           if [ -z "$snap" ]; then
-            echo "::warning::rebuild snapshot has no 0001..NNNN marker; run 'npm run db:rebuild-snapshot'"
+            echo "::error::rebuild snapshot has no 0001..NNNN marker; run 'npm run db:rebuild-snapshot'"
+            exit 1
           elif [ "$snap" != "$latest" ]; then
-            echo "::warning::rebuild snapshot is stale (snapshot=$snap, migrations head=$latest); run 'supabase db reset && npm run db:rebuild-snapshot'"
+            echo "::error::rebuild snapshot is stale (snapshot=$snap, migrations head=$latest); run 'supabase db reset && npm run db:rebuild-snapshot' and commit the regenerated file"
+            exit 1
           else
             echo "Rebuild snapshot is current ($snap)."
           fi
