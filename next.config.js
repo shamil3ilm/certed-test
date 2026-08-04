@@ -33,6 +33,12 @@ const nextConfig = {
     // features such as the Drive picker use the same toggle as the server-side
     // mock stack.
     NEXT_PUBLIC_MOCK_MODE: process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0',
+    // Derived build-time literal ('0'/'1') for whether a Sentry DSN is present at
+    // build. instrumentation-client gates the SDK import on this literal so the
+    // bundler can fold the branch and keep the ~145 KB Sentry SDK out of the client
+    // bundle entirely when it is unset (an unset NEXT_PUBLIC_* var is not inlined,
+    // so gating on the DSN itself would not fold).
+    NEXT_PUBLIC_SENTRY_ENABLED: process.env.NEXT_PUBLIC_SENTRY_DSN ? '1' : '0',
   },
   // Keep the headless-Chromium PDF deps out of the server bundle - they load from
   // node_modules at runtime rather than being bundled.
