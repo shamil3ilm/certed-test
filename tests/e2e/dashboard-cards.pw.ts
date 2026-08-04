@@ -30,7 +30,7 @@ test('ADMIN dashboard cards and CTAs are interactive', async ({ page }) => {
   await expectUrlContains(page, '/calendar')
 
   await page.goto('/dashboard')
-  await page.getByRole('button', { name: /Revenue/i }).click()
+  await page.getByRole('button', { name: /\bNet\b/i }).click() // finance card headline is Net (revenue - payouts)
   await expect(page.getByRole('dialog')).toBeVisible()
   const financeRow = page.getByRole('link', { name: /R-/i }).first()
   if (await financeRow.count()) {
@@ -59,8 +59,8 @@ test('TUTOR dashboard cards and CTAs are interactive', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Upcoming classes' })).toBeVisible()
 
-  // "Review all" now lands on the class list (grading moved from a top-level
-  // queue to a per-class Classroom -> Grading tab).
+  // "Review all" links to the class list; grading lives in a per-class
+  // Classroom -> Grading tab.
   const reviewAll = page.getByRole('link', { name: /Review all/i })
   if (await reviewAll.count()) {
     await reviewAll.first().click()

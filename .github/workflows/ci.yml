@@ -87,12 +87,8 @@ jobs:
         run: npm run check:bundle
 
   # E2E gate. globalSetup resets .mock-db.json and the webServer builds + starts the
-  # mock app on :3100, so these run deterministically (the QA-2026-001/005 flakiness
-  # is fixed). We gate the STABLE specs only; the persona/journey/messaging/
-  # notification specs are stale after the UI refactor (required-Title stream
-  # composer, two-step messaging, Documents rename, 0043 mentor-class-authority) and
-  # are quarantined here until rewritten to the current UI. responsive.pw.ts carries
-  # the horizontal-overflow gate (FIND-30 / QA-2026-004).
+  # mock app on :3100, so the whole suite runs deterministically. responsive.pw.ts
+  # checks each persona's pages for horizontal overflow at narrow widths.
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -105,5 +101,5 @@ jobs:
         run: npm ci
       - name: Install Playwright (chromium)
         run: npx playwright install --with-deps chromium
-      - name: E2E (stable specs)
-        run: npx playwright test --project=chromium tests/e2e/responsive.pw.ts tests/e2e/marketing-links.pw.ts tests/e2e/admin-permissions.pw.ts
+      - name: E2E
+        run: npx playwright test --project=chromium

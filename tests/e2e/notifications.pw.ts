@@ -2,9 +2,16 @@ import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './support'
 
 async function pickRecipient(page: Page, name: string) {
+  await page
+    .getByRole('button', { name: /new chat|start new chat/i })
+    .first()
+    .click()
   const search = page.getByRole('searchbox', { name: 'To (pick one for a direct message, or several for a group)' })
   await search.fill(name)
-  await page.getByRole('button', { name: new RegExp(`${name}.*(Selected|Tap to add)`) }).click()
+  await page
+    .getByRole('button', { name: new RegExp(name) })
+    .first()
+    .click()
   await search.fill('')
 }
 

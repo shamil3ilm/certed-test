@@ -26,7 +26,7 @@ test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', 
 
   // Post an announcement to the class Stream
   await page.goto(`/classroom/${classId}`)
-  const post = page.locator('form:has-text("Post an announcement")')
+  const post = page.locator('form:has-text("Post to the class")')
   await post.locator('input[name=title]').fill('Welcome to Physics')
   await post.locator('textarea[name=message]').fill('First class Monday.')
   await submitAndReload(page, () => post.getByRole('button', { name: 'Post', exact: true }).click())
@@ -37,7 +37,12 @@ test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', 
   const rec = page.locator('section:has-text("Issue fee receipt")').locator('form', {
     has: page.getByRole('button', { name: 'Issue', exact: true }),
   })
-  await rec.locator('select').first().selectOption({ label: 'Sara Student' })
+  // The receipt student picker is a typeahead that searches parties by name/email.
+  await rec.getByPlaceholder('Search by name or email...').fill('Sara')
+  await rec
+    .getByRole('option', { name: /Sara Student/ })
+    .first()
+    .click()
   // The line-item inputs are label-based (aria-label), not placeholder-based.
   await rec
     .getByLabel(/Subject for line/)
@@ -78,6 +83,7 @@ test('TUTOR -- create assignment + comment on a student submission', async ({ pa
   const af = page.locator('form:has-text("Create assignment")')
   await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill('E2E Trigonometry HW')
   await af.locator('input[type=datetime-local]').fill('2026-12-01T10:00')
+  await af.getByPlaceholder('e.g. 20').fill('20') // max marks is required
   await af.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'E2E Trigonometry HW' })).toBeVisible()
 
@@ -99,14 +105,15 @@ test('STUDENT -- submit an assignment (Drive link)', async ({ page }) => {
   await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
 })
 
-test('MENTOR -- sees assigned mentees; a dedicated mentor has no class access', async ({ page }) => {
+test('MENTOR -- sees assigned mentees and can reach their classes', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
   await page.goto('/students')
   await expect(page.getByText('Sara Student').first()).toBeVisible()
   await expect(page.getByText('Sam Student').first()).toBeVisible()
-  // A dedicated mentor (role mentor) holds no viewClasses, so /classroom redirects.
+  // A mentor holds scoped access to the classes their mentees are enrolled in, so
+  // /classroom loads for them rather than redirecting to the dashboard.
   await page.goto('/classroom')
-  await expect(page).toHaveURL(/\/dashboard/)
+  await expect(page).not.toHaveURL(/\/dashboard/)
 })
 
 test('SCOPING -- student is blocked from admin finance', async ({ page }) => {
@@ -115,11 +122,11 @@ test('SCOPING -- student is blocked from admin finance', async ({ page }) => {
   await expect(page.getByText('Issue fee receipt')).toHaveCount(0)
 })
 
-test('SCOPING -- a dedicated mentor (no viewClasses) is redirected from a class page', async ({ page }) => {
+test('SCOPING -- a mentor can reach a class their mentee is enrolled in', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
+  // Sara (a mentee) is enrolled in Math, so the mentor has scoped access to it.
   await page.goto(`/classroom/${SEED.math}`)
-  await expect(page).toHaveURL(/\/dashboard/)
-  await expect(page.getByRole('link', { name: 'Classwork' })).toHaveCount(0)
+  await expect(page).not.toHaveURL(/\/dashboard/)
 })
 
 // The actionable dashboard lead widgets render per persona: student "Due work",

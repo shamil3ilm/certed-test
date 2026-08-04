@@ -9,7 +9,10 @@ async function pickRecipients(page: Page, names: string[]) {
   const search = page.getByRole('searchbox', { name: 'To (pick one for a direct message, or several for a group)' })
   for (const name of names) {
     await search.fill(name)
-    await page.getByRole('button', { name: new RegExp(`${name}.*(Selected|Tap to add)`) }).click()
+    await page
+      .getByRole('button', { name: new RegExp(name) })
+      .first()
+      .click()
   }
   await search.fill('')
 }
@@ -43,7 +46,7 @@ test('MESSAGING -- a tutor composes a direct message, opens the thread, and find
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('E2E direct hello').first()).toBeVisible()
 
-  // The conversation is now listed in the inbox, titled with the other party.
+  // The conversation is listed in the inbox, titled with the other party.
   await page.goto('/messages')
   const row = page.locator(`a[href="/messages/${convId}"]`)
   await expect(row).toBeVisible()

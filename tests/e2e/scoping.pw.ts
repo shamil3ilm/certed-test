@@ -58,13 +58,12 @@ test('page -- tutor is blocked from admin areas', async ({ page }) => {
   await assertAdminBlocked(page, 'tutor@mock.test')
 })
 
-test('page -- a dedicated mentor (no viewClasses) is redirected from a class page', async ({ page }) => {
-  // A mentor is an independent role that teaches nothing, so it lacks viewClasses:
-  // the class-page guard redirects to the dashboard (capability gate), rather than
-  // reaching the per-class 404 a non-teaching *tutor* would have hit.
+test('page -- a mentor can reach a class their mentee is enrolled in (0043 scoped authority)', async ({ page }) => {
+  // A mentor holds tutor-level authority over the classes their mentees are
+  // enrolled in, so the class page loads (no redirect).
   await loginAs(page, 'mentor@mock.test')
   await page.goto(`/classroom/${SEED.math}`, { waitUntil: 'domcontentloaded', timeout: 45000 })
-  await expect(page, 'mentor lacks viewClasses -> class page redirects to dashboard').toHaveURL(/\/dashboard/)
+  await expect(page, 'mentor has scoped class access -> no dashboard redirect').not.toHaveURL(/\/dashboard/)
 })
 
 test('page -- a mentor can open their mentees list (viewMentees success path)', async ({ page }) => {
@@ -81,10 +80,12 @@ test('api -- a student cannot create a calendar event', async ({ page }) => {
   expect(r.status).toBe(403)
 })
 
-test('api -- a mentor (teaches no class) cannot create an event', async ({ page }) => {
+test('api -- a mentor may create an event for a class their mentee is in (0043)', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
+  // Sara (a mentee) is enrolled in Math, so the mentor has tutor-level authority
+  // there - the same canWriteClass path a class tutor takes (201).
   const r = await apiCall(page, 'POST', '/api/events', evt(SEED.math))
-  expect(r.status).toBe(403)
+  expect(r.status).toBe(201)
 })
 
 // ---------- API class-scope gate ----------

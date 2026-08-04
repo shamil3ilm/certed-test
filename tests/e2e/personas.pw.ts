@@ -34,12 +34,12 @@ test('TUTOR -- shares a meet link, a resource, and comments on the resource', as
   await submitAndReload(page, () => composer.getByRole('button', { name: 'Post' }).click())
   await expect(page.getByText('E2E Doubt Session').first()).toBeVisible()
 
-  // Share a resource in Classwork -> Materials
+  // Share a document in the Classwork -> Documents section
   await page.goto(`/classroom/${SEED.math}/classwork`)
-  const upload = page.locator('form:has-text("Share a resource")')
-  await upload.getByPlaceholder('e.g. Chapter 4 Practice Questions').fill('E2E Worksheet PDF')
+  const upload = page.locator('form:has-text("Upload a document")')
+  await upload.getByPlaceholder('e.g. Term 1 Question Paper').fill('E2E Worksheet PDF')
   await upload.getByPlaceholder('https://drive.google.com/...').fill('https://drive.google.com/file/e2e-res')
-  await submitAndReload(page, () => upload.getByRole('button', { name: 'Share link' }).click())
+  await submitAndReload(page, () => upload.getByRole('button', { name: 'Upload document' }).click())
   await expect(page.getByText('E2E Worksheet PDF').first()).toBeVisible()
 
   // Comment on that resource
@@ -58,6 +58,7 @@ test('TUTOR -- creates an assignment, grades homework + comments on it', async (
   const af = page.locator('form:has-text("Create assignment")')
   await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill('E2E Persona HW')
   await af.locator('input[type=datetime-local]').fill('2026-12-05T10:00')
+  await af.getByPlaceholder('e.g. 20').fill('20') // max marks is required
   await af.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'E2E Persona HW' }).first()).toBeVisible()
 
@@ -134,12 +135,15 @@ test('STUDENT -- full journey: timetable, submit homework, materials, grade, att
   // See the tutor's material + the grade in Math
   await page.goto(`/classroom/${SEED.math}/classwork`)
   await expect(page.getByText('E2E Worksheet PDF').first()).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Open Link' }).first()).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open' }).first()).toBeVisible()
   await expect(page.getByText(/Marked: 18/).first()).toBeVisible()
 
-  // See attendance + download the report card
+  // See attendance
   await page.goto(`/classroom/${SEED.math}/attendance`)
   await expect(page.getByRole('heading', { name: 'My attendance' })).toBeVisible()
+
+  // Download the report card; its link is on the Classwork page
+  await page.goto(`/classroom/${SEED.math}/classwork`)
   const href = await page.getByRole('link', { name: 'Download report card' }).getAttribute('href')
   const result = await page.evaluate(async (u) => {
     const r = await fetch(u)
