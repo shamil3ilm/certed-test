@@ -36,7 +36,10 @@ export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {mentees.map((mentee) => (
-              <li key={mentee.id}>
+              // min-w-0: a grid item defaults to min-width:auto and won't shrink
+              // below the row's content width, so the ListRow's own truncate can't
+              // engage and a long name overflows the 320px viewport. Let it shrink.
+              <li key={mentee.id} className="min-w-0">
                 <ListRow
                   href={`/students/${mentee.id}`}
                   leading={<Avatar name={mentee.name} role="student" />}
