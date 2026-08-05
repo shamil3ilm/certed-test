@@ -1,60 +1,43 @@
-# Security operations: secrets, rotation, backup & recovery
+# Security operations: secrets, rotation, backup and recovery
 
-Operational runbook for the people who hold the keys. Pairs with the security posture
-described in the architecture audit and the RLS inventory.
+Operational runbook for the people who hold the keys.
 
 ## Secrets inventory
 
-| Secret                                          | Where it lives                   | Used by                               | Exposure if leaked                             |
-| ----------------------------------------------- | -------------------------------- | ------------------------------------- | ---------------------------------------------- |
-| `SUPABASE_SECRET_KEY` (service role)            | Hosting env (server only)        | `createAdminClient`, migrations, cron | Full DB read/write, bypasses RLS — **highest** |
-| `NEXT_PUBLIC_SUPABASE_URL` / `…PUBLISHABLE_KEY` | Hosting env (build-time, public) | Browser + server Supabase client      | Low — public anon key, RLS still applies       |
-| `CRON_SECRET`                                   | Hosting env (server only)        | `/api/cron/*` keepalive guard         | Lets an attacker trigger cron routes           |
-| Supabase project DB password                    | Supabase dashboard               | Direct `psql` / migrations            | Full DB access                                 |
-| OAuth / SMTP provider keys (when added)         | Hosting env                      | Auth, email delivery                  | Provider-scoped                                |
+| Secret                                                              | Where it lives                   | Used by                               | Exposure if leaked                         |
+| ------------------------------------------------------------------- | -------------------------------- | ------------------------------------- | ------------------------------------------ |
+| `SUPABASE_SECRET_KEY`                                               | Hosting env (server only)        | `createAdminClient`, migrations, cron | Full DB read/write, bypasses RLS - highest |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Hosting env (build-time, public) | Browser and server Supabase client    | Low - public key, RLS still applies        |
+| `CRON_SECRET`                                                       | Hosting env (server only)        | `/api/cron/*` keepalive guard         | Lets an attacker trigger cron routes       |
+| Supabase project DB password                                        | Supabase dashboard               | Direct `psql` / migrations            | Full DB access                             |
+| OAuth / SMTP provider keys                                          | Hosting env                      | Auth, email delivery                  | Provider-scoped                            |
 
 Rules:
 
-- Never hardcode a secret in source. Read from `process.env`; the build fails fast via
-  `scripts/validate-build-env.mjs` when a required public var is missing.
-- `NEXT_PUBLIC_*` are build-time and public — must **not** be marked "Sensitive" in the
-  host, or they will not inline into the build. Everything else is server-only.
+- Never hardcode a secret in source.
+- Read secrets from `process.env`.
+- `NEXT_PUBLIC_*` values are build-time public vars and must be present at build time.
 - The service-role key must never reach the client bundle or logs.
 
 ## Rotation
 
-Rotate on a schedule (recommended: every 90 days) and immediately on any suspected leak or
-departure of someone with access.
+Rotate on a schedule and immediately on any suspected leak.
 
-1. **Service-role / publishable keys** — in the Supabase dashboard, roll the key, update
-   the hosting env, and trigger a fresh (no-cache) build so a rotated `NEXT_PUBLIC_*`
-   value re-inlines. Verify the app still authenticates before removing the old value.
-2. **`CRON_SECRET`** — generate a new random value, update the host env and the scheduler
-   config together, then confirm a cron run succeeds.
-3. **DB password** — reset in the dashboard; update any external tooling that connects
-   directly. App traffic uses the API keys, not the password.
+1. Service-role and publishable keys: roll in Supabase, update hosting env, and trigger a fresh build so rotated `NEXT_PUBLIC_*` values are re-inlined
+2. `CRON_SECRET`: generate a new random value, update the host env and scheduler config together, then confirm a cron run succeeds
+3. DB password: reset in the dashboard and update any external tooling that connects directly
 
-After any rotation, grep recent logs to confirm the old secret is no longer referenced.
+After any rotation, review recent logs to confirm the old secret is no longer referenced.
 
-## Backup & disaster recovery
+## Backup and disaster recovery
 
-- **Backups:** Supabase provides automated daily backups (and point-in-time recovery on
-  paid tiers). Confirm the retention window in the project's Database → Backups settings.
-- **Schema as code:** the authoritative schema is `supabase/migrations/` plus the rebuild
-  snapshot in `supabase/rebuild/`. A database can be reconstructed from these alone.
-- **Restore drill (do at least once):**
-  1. Create a scratch Supabase project.
-  2. Apply the migration chain (or the rebuild snapshot) and run
-     `npx ts-node scripts/verify-migrations.ts` to confirm tables/policies exist.
-  3. Restore the most recent data backup into it and smoke-test sign-in + a class page.
-- **RPO/RTO:** with daily backups the recovery point is up to 24h of data; document the
-  acceptable target and upgrade the Supabase tier if a tighter RPO is required.
+- Supabase provides automated backups depending on tier and configuration
+- The authoritative schema is `supabase/migrations/` plus the rebuild snapshot in `supabase/rebuild/`
+- A restore drill should verify that a scratch environment can be rebuilt and smoke-tested from the migration chain plus backup data
 
-## Incident response (short form)
+## Incident response
 
-1. Rotate the implicated secret first (see above).
-2. Review `audit_log` and the observability logs (`src/lib/observability/log.ts`) for the
-   affected window.
-3. If RLS or a guard is implicated, disable the affected capability via admin override
-   while a fix ships.
-4. Record the incident and any follow-up as an issue.
+1. Rotate the implicated secret first
+2. Review `audit_log` and observability logs for the affected window
+3. If RLS or a guard is implicated, disable the affected capability via admin override while a fix ships
+4. Record the incident and follow-up actions

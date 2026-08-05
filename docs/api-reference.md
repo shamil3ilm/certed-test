@@ -1,8 +1,6 @@
 # API route reference
 
-Every route under `src/app/api`. "Guard" is the primary access check at the entry point;
-most reads are additionally scoped by RLS, and class-scoped writes re-check class
-authority inside the service. Authenticated guards use `requireCapabilityApi(...)`.
+Every route under `src/app/api`. "Guard" is the primary access check at the entry point; most reads are additionally scoped by RLS, and class-scoped writes re-check class authority inside the service. Authenticated guards use `requireCapabilityApi(...)`.
 
 ## Authenticated (app host)
 
@@ -27,16 +25,14 @@ authority inside the service. Authenticated guards use `requireCapabilityApi(...
 | `/api/receipts/export`             | GET           | finance capability + rate limit                                                                                                 |
 | `/api/logout`                      | POST          | active session                                                                                                                  |
 
-## Public / infrastructure
+## Public and infrastructure
 
 | Route                 | Method(s) | Guard                                                |
 | --------------------- | --------- | ---------------------------------------------------- |
-| `/api/contact`        | POST      | none (public form) — shared IP rate limit + honeypot |
-| `/api/health`         | GET       | none — trivial DB read for an uptime pinger          |
+| `/api/contact`        | POST      | none (public form) - shared IP rate limit + honeypot |
+| `/api/health`         | GET       | none - trivial DB read for an uptime pinger          |
 | `/api/cron/keepalive` | GET       | `CRON_SECRET` (fails closed)                         |
-| `/api/dev/login`      | GET, POST | dev/mock only — no-op unless mock mode               |
+| `/api/dev/login`      | GET, POST | dev/mock only - no-op unless mock mode               |
 | `/api/dev/logout`     | GET       | dev/mock only                                        |
 
-The public routes above are the allowlist in
-[`src/lib/routing/public-paths.ts`](../src/lib/routing/public-paths.ts); everything else on
-the app host requires a session (middleware) and a capability (the route/page guard).
+The public routes above are the allowlist in [`src/lib/routing/public-paths.ts`](../src/lib/routing/public-paths.ts); everything else on the app host requires a session (middleware) and a capability (the route/page guard).

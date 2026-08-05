@@ -3,8 +3,7 @@
 - Status: Current-state reference
 - Purpose: Record the workflow rules that must remain true across code, RLS, and admin operations.
 
-This document is for rules that are easy to break during refactors because they
-span multiple files, tables, or personas.
+This document is for rules that are easy to break during refactors because they span multiple files, tables, or personas.
 
 ## 1. Identity and Access
 

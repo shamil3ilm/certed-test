@@ -13,7 +13,7 @@ The live application depends primarily on:
 Important:
 
 - the authoritative database setup is the full migration chain in `supabase/migrations`
-- the current migration chain runs from `0001` through `0029`
+- the current migration chain starts at `0001` and ends at the highest-numbered file in `supabase/migrations`
 
 ## 1. Local development
 
@@ -43,7 +43,7 @@ Collect:
 Apply the migrations in order:
 
 - `0001_foundation.sql`
-- through `0029_notifications_readonly_content.sql`
+- through the current highest-numbered migration in `supabase/migrations`
 
 Do not stop at the early migrations from older documentation.
 
@@ -85,14 +85,14 @@ CRON_SECRET=
 
 Optional values depend on which integrations are enabled, for example:
 
-- contact form URL
+- contact form configuration
 - Drive Picker client values
 
 ## 6. Production verification checklist
 
 Before calling an environment usable:
 
-1. apply migrations `0001` through `0029`
+1. apply the full migration chain from `0001` through the current highest-numbered migration
 2. confirm the first admin can sign in
 3. confirm persona resolution works
 4. confirm nav and dashboard render correctly for active users

@@ -19,21 +19,18 @@ Never change the meaning of an already-applied migration.
 
 ## Regenerating the rebuild snapshot
 
-`rebuild/0000_full_rebuild.sql` is a `pg_dump` of the fully-migrated schema, not a
-hand-maintained file - editing it by hand has drifted it before. Regenerate it
-after adding migrations, from a database that has the whole chain applied:
+`rebuild/0000_full_rebuild.sql` is a `pg_dump` of the fully migrated schema, not a hand-maintained file. Regenerate it after adding migrations, from a database that has the whole chain applied:
 
-    supabase db reset            # replay every migration onto a fresh local db
-    npm run db:rebuild-snapshot  # dump that end state back into the snapshot
+```bash
+supabase db reset
+npm run db:rebuild-snapshot
+```
 
 Then commit the snapshot alongside the migrations it reflects.
 
 ## Current migration chain
 
-The chain starts at `0001_foundation.sql`. The current end is always the
-**highest-numbered file in this directory** — list `supabase/migrations/` to see
-it (`ls supabase/migrations | sort | tail -1`) rather than trusting a number
-quoted here, which goes stale the moment a migration is added.
+The chain starts at `0001_foundation.sql`. The current end is always the highest-numbered file in this directory.
 
 ## Current identity and authorization model
 
@@ -64,12 +61,11 @@ Authorization:
 ## Current notable migration groups
 
 - `0014` to `0017`: persona model introduction and hardening
-- `0018`: messaging
-- `0019` to `0021`: tutor rename, capability overrides, independent mentor role
-- `0022` to `0024`: persona and self-read hardening
-- `0025` and `0028`: messaging performance and direct-thread integrity
-- `0026`: unified admin authority
-- `0027` and `0029`: notifications and notification content hardening
+- `0018` to `0024`: messaging, capability overrides, mentor support, and authorization hardening
+- `0025` to `0034`: persona uniqueness, atomic assignment edits, hot-path indexes, schema consistency, and RPC hardening
+- `0035` to `0044`: assignment deadline enforcement, mentor/class authority, messaging activity hardening, comments, and announcement attachments
+- `0045` to `0051`: document management, attendance working hours, document versions, shared rate limits, audit indexing, and notification retention
+- `0052` to `0055`: one-active-student enforcement, session feedback, tags, and tag-entity RLS hardening
 
 ## Related docs
 

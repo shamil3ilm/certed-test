@@ -37,8 +37,8 @@ Not allowed:
 
 ## 2.2 `src/features`
 
-> **Status: PLANNED — NOT IMPLEMENTED.** This layer does not exist yet. The code
-> currently layers as `src/app → src/lib/services → src/lib/data`. The rules below
+> **Status: PLANNED - NOT IMPLEMENTED.** This layer does not exist yet. The code
+> currently layers as `src/app -> src/lib/services -> src/lib/data`. The rules below
 > are the intended contract for when/if the feature layer is introduced.
 
 Allowed:
@@ -569,7 +569,7 @@ Recommended early extraction:
 2. Logs, audit records, exports, and debugging helpers must avoid leaking sensitive personal or financial data unnecessarily.
 3. Retention-sensitive workflows should define whether data is archived, redacted, retained, or deleted.
 4. Developer tooling and mock data must not normalize unsafe handling of real user data.
-5. Data export, report generation, and admin views should expose only the fields needed for the user’s authorized purpose.
+5. Data export, report generation, and admin views should expose only the fields needed for the user's authorized purpose.
 
 ---
 

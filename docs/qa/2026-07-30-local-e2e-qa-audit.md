@@ -1,5 +1,7 @@
 # Cert-Ed Academia QA Audit
 
+Historical note: this file records the repo state and runtime behavior on 2026-07-30. Treat it as a dated audit artifact, not a current architecture or toolchain reference.
+
 - Date: 2026-07-30
 - Environment: local Windows workspace, production build, mock mode, `app.localhost:3100`
 - Auditor: Codex acting as senior QA engineer and test architect
@@ -406,7 +408,7 @@ npx playwright test
 - Steps:
   1. Open portal page
   2. Inspect footer text in browser artifact
-- Expected: `© 2026 ...`
+- Expected: `(c) 2026 ...`
 - Actual: artifact shows `Â© 2026 ...`
 - Severity: Minor
 - Priority: Medium

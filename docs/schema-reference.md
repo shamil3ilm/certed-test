@@ -24,17 +24,9 @@ For those, use the migration chain directly.
 
 ## Current migration range
 
-The active migration chain runs from:
+The active migration chain starts at `0001` and ends at the highest-numbered file in `supabase/migrations/`.
 
-- `0001`
-- through `0031`
-
-Recent additions: `0027` grants EXECUTE on `edit_assignment_and_reclassify` to
-`service_role` (0026 omitted it); `0028` narrows `submissions_update` so a student
-can only flip `is_active` on their own active+ungraded row; `0029` adds hot-path
-indexes (profiles role/status, audit_log, notifications unread); `0030` fixes
-`persona_assignments.assigned_at` to `timestamptz` and adds a lowercase-email
-CHECK on `profiles`.
+Read the directory rather than trusting a hard-coded end number in prose.
 
 ## Core identity model
 

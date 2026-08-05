@@ -22,13 +22,9 @@ For those, use the migrations directly.
 
 ## Current migration range
 
-The chain starts at `0001`; the current end is the **highest-numbered file in
-`supabase/migrations/`**. Read the directory rather than trusting a number quoted
-here — it drifts every time a migration is added.
+The chain starts at `0001`; the current end is the highest-numbered file in `supabase/migrations/`.
 
-Note: `0028` narrows the `submissions_update` policy so a student may only update
-their own submission while it is still active and ungraded (closing a direct
-PostgREST bypass of the withdraw invariant).
+Read the directory rather than trusting a hard-coded end number in prose.
 
 ## Verification query
 
@@ -179,8 +175,8 @@ This is the current functional inventory. It is intentionally grouped by purpose
 
 1. expected tables have policies
 2. no stale duplicate policies remain from replaced migrations
-3. admin helper policy rewrites match the post-`0022` and post-`0026` authority model
-4. notifications policies reflect the read-only content hardening from `0029`
+3. admin helper policy rewrites match the current authority model
+4. notifications policies reflect the current read-state and content-hardening model
 5. messaging policies reflect the current messaging schema
 
 ## Required follow-up on schema changes
