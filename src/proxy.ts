@@ -70,6 +70,6 @@ export const config = {
   // through session refresh and login redirect. Page guards remain the
   // authoritative security boundary; this gate is a convenience redirect on top.
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|css|js|woff2?|ttf|otf|map)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|css|js|woff2?|ttf|otf|map)$).*)',
   ],
 }
