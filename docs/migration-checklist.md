@@ -45,10 +45,22 @@ Update any affected docs in the same workstream:
 - `docs/persona-model.md`
 - `supabase/README.md`
 
-## 5. Rebuild alignment
+## 5. Rebuild alignment (required in the SAME change that adds a migration)
 
-1. Does `supabase/rebuild/0000_full_rebuild.sql` need to be updated?
-2. Does the rebuild still represent the end state of the live migration chain?
+A migration that advances the chain head changes the snapshot's expected `0001..NNNN`
+marker, and CI's rebuild-freshness check is now a **blocking gate** (`exit 1`, no longer
+warn-only). Regenerate the snapshot **in the same change that adds the migration** — not
+"later" — or the gate blocks the next, unrelated PR (this is exactly how the snapshot
+drifted 4 migrations behind before the gate was made blocking):
+
+1. `supabase db reset` — replay the full chain (`0001..NNNN`) onto a fresh local DB.
+2. `npm run db:rebuild-snapshot` — dump that end state into `supabase/rebuild/0000_full_rebuild.sql`
+   (the script re-derives the `0001..NNNN` marker the CI check parses).
+3. `git diff supabase/rebuild/0000_full_rebuild.sql` — review, then commit it **alongside** the migration.
+
+If you cannot run a local DB, the migration is **not ready to merge**: the snapshot would
+drift and the freshness gate would block the next PR. Regeneration needs the Supabase CLI +
+local Postgres.
 
 ## 6. Test alignment
 
@@ -69,4 +81,6 @@ A migration change is not complete until:
 1. schema is correct
 2. docs are updated
 3. tests are aligned
-4. rebuild state is aligned if needed
+4. the rebuild snapshot has been regenerated in this same change whenever the migration
+   advanced the chain head (§5) — this is a hard requirement now that the freshness check
+   blocks CI, not an "if needed"
