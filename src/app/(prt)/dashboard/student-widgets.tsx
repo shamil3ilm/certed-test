@@ -56,7 +56,10 @@ export async function LatestGradeWidget({ studentId }: { studentId: string }) {
           {formatMark(Number(submission.score), assignment?.max_marks != null ? Number(assignment.max_marks) : null)}
         </p>
         <p className="mt-1 truncate text-xs text-slate-400">{assignment?.title ?? 'Assignment'}</p>
-        <span className="btn btn-sm btn-soft mt-3 min-h-10 px-3 py-2 text-sm font-semibold">View feedback &rarr;</span>
+        <span className={WIDGET_CTA_LINK}>View feedback &rarr;</span>
+      </Link>
+      <Link href="/grades" className="mt-2 block text-xs font-medium text-primary transition hover:underline">
+        All grades &rarr;
       </Link>
     </Panel>
   )
@@ -80,9 +83,7 @@ export async function LatestAnnouncementWidget({
         <Link href={`/classroom/${announcement.class_id}`} className="group block">
           <p className="font-medium text-slate-800 transition group-hover:text-primary">{announcement.title}</p>
           <p className="mt-1 line-clamp-2 text-sm text-slate-500">{announcement.message}</p>
-          <span className="btn btn-sm btn-soft mt-3 min-h-10 px-3 py-2 text-sm font-semibold">
-            Open class stream &rarr;
-          </span>
+          <span className={WIDGET_CTA_LINK}>Open class stream &rarr;</span>
         </Link>
       ) : (
         <>

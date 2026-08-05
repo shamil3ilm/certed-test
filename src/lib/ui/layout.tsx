@@ -171,27 +171,56 @@ export function StatGrid({
   )
 }
 
-/** A headline metric tile. */
+/** A headline metric tile. Pass `href` to make it a navigable card (keyboard
+ *  focusable, with a hover lift + arrow affordance); otherwise it's static. */
 export function StatCard({
   label,
   value,
   sub,
   tone = 'default',
+  href,
 }: {
   label: string
   value: string | number
   sub?: string
   tone?: 'default' | 'primary'
+  href?: string
 }) {
-  return (
-    <div
-      className={`rounded-2xl border p-4 shadow-sm ${
-        tone === 'primary' ? 'border-primary/20 bg-primary/5' : 'border-slate-200 bg-white'
-      }`}
-    >
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+  const base = cx(
+    'block rounded-2xl border p-4 shadow-sm',
+    tone === 'primary' ? 'border-primary/20 bg-primary/5' : 'border-slate-200 bg-white',
+  )
+  const inner = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        {href && (
+          <svg
+            className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-primary"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        )}
+      </div>
       <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
-    </div>
+    </>
+  )
+  if (!href) return <div className={base}>{inner}</div>
+  return (
+    <Link
+      href={href}
+      className={cx(
+        base,
+        'group min-h-24 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+      )}
+    >
+      {inner}
+    </Link>
   )
 }

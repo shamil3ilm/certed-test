@@ -63,8 +63,8 @@ export function SubAdminDashboard({
   )
 }
 
-export function AdminDashboard({ data }: { data: AdminDashboardViewData }) {
-  return <AdminOverview data={data} />
+export function AdminDashboard({ data, me }: { data: AdminDashboardViewData; me: Profile }) {
+  return <AdminOverview data={data} me={me} />
 }
 
 export function TutorDashboard({

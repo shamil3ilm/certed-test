@@ -20,5 +20,5 @@ export { AlertBanner, BackLink, Card, EmptyState, PageHeader, Panel, StatGrid, S
 export { ListRow, RowChevron } from './list'
 export { FILTER_CONTROL, FilterField, FilterBar } from './forms'
 export { pillButtonClass, segmentedButtonClass, SEGMENTED_GROUP } from './toggles'
-export { LegendDot, MiniBars } from './charts'
+export { LegendDot, MiniBars, ColumnChart, LineChart, type ChartPoint } from './charts'
 export { createClientId } from './client-id'

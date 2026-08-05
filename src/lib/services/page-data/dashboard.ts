@@ -12,6 +12,7 @@ import { financeTotals } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders, type Reminder } from '@/lib/services/reminders'
 import { countPeople, displayName, getProfilesByIds } from '@/lib/services/users'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
+import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 
 export type DashboardMentee = { id: string; name: string; subtitle?: string }
 
@@ -25,12 +26,15 @@ export async function loadDashboardMentees(me: Profile): Promise<DashboardMentee
   const ids = await studentIdsOfMentor(me.id)
   if (ids.length === 0) return []
   const profiles = await getProfilesByIds(ids)
+  const subtitles = await buildStudentRelationshipSubtitles(
+    ids.map((id) => ({ id, classLevel: profiles.get(id)?.class_level ?? null })),
+  )
   return ids.map((id) => {
     const profile = profiles.get(id)
     return {
       id,
       name: profile ? displayName(profile) : id,
-      subtitle: profile?.class_level ?? undefined,
+      subtitle: subtitles.get(id),
     }
   })
 }
@@ -157,11 +161,9 @@ export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capab
   const teaches = flags.isTutor || (await selectActiveClassIdsForTutor(me.id)).length > 0
   const mentees = flags.hasMentorAuthority ? await loadDashboardMentees(me) : []
 
-  // Mentor authority - not a non-empty mentee list - is what makes this the mentor
-  // view. A freshly-provisioned dedicated mentor (or one whose mentees were all
-  // removed) has authority but zero mentees; MentorDashboard renders that fine
-  // (empty mentees panel + reminders), so don't fall through to the throw and 500
-  // the landing page for a valid, default account state.
+  // Mentor authority - not a non-empty mentee list - is what makes this the
+  // mentor view. A dedicated mentor with zero active mentees is still a valid
+  // mentor dashboard state, so keep them on that view.
   if (flags.hasMentorAuthority || mentees.length > 0) return { kind: 'mentor', mentees, teaches, now }
   if (teaches) return { kind: 'tutor', now }
   if (flags.isStudent) return { kind: 'student', now }

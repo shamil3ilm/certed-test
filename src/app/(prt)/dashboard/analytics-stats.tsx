@@ -16,9 +16,9 @@ export async function AdminAnalyticsStats() {
   const { resources, announcements, downloads } = await getAdminAnalytics()
   return (
     <StatGrid cols={3}>
-      <StatCard label="Documents" value={resources} sub="in the library" />
-      <StatCard label="Announcements" value={announcements} />
-      <StatCard label="Downloads" value={downloads} sub="all documents" />
+      <StatCard label="Documents" value={resources} sub="in the library" href="/documents" />
+      <StatCard label="Announcements" value={announcements} href="/classroom" />
+      <StatCard label="Downloads" value={downloads} sub="all documents" href="/documents" />
     </StatGrid>
   )
 }
@@ -28,10 +28,10 @@ export async function TutorAnalyticsStats({ me }: { me: Profile }) {
   const { teachingHours, sessionsHeld, resourcesUploaded, attendanceRate } = await getTutorAnalytics(me)
   return (
     <StatGrid>
-      <StatCard label="Teaching hours" value={teachingHours} tone="primary" sub="recorded sessions" />
-      <StatCard label="Sessions held" value={sessionsHeld} />
-      <StatCard label="Documents uploaded" value={resourcesUploaded} />
-      <StatCard label="Attendance" value={`${attendanceRate}%`} sub="across your classes" />
+      <StatCard label="Teaching hours" value={teachingHours} tone="primary" sub="recorded sessions" href="/classroom" />
+      <StatCard label="Sessions held" value={sessionsHeld} href="/classroom" />
+      <StatCard label="Documents uploaded" value={resourcesUploaded} href="/documents" />
+      <StatCard label="Attendance" value={`${attendanceRate}%`} sub="across your classes" href="/classroom" />
     </StatGrid>
   )
 }
@@ -41,10 +41,10 @@ export async function StudentAnalyticsStats({ me }: { me: Profile }) {
   const { learningHours, sessionsAttended, attendanceRate, downloads } = await getStudentAnalytics(me)
   return (
     <StatGrid>
-      <StatCard label="Learning hours" value={learningHours} tone="primary" sub="time in class" />
-      <StatCard label="Sessions attended" value={sessionsAttended} />
-      <StatCard label="Attendance" value={`${attendanceRate}%`} />
-      <StatCard label="Documents downloaded" value={downloads} />
+      <StatCard label="Learning hours" value={learningHours} tone="primary" sub="time in class" href="/classroom" />
+      <StatCard label="Sessions attended" value={sessionsAttended} href="/classroom" />
+      <StatCard label="Attendance" value={`${attendanceRate}%`} href="/classroom" />
+      <StatCard label="Documents downloaded" value={downloads} href="/documents" />
     </StatGrid>
   )
 }

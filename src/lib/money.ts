@@ -94,8 +94,8 @@ export function totalByCurrency(rows: { total: number; currency: string; voided:
 }
 
 /** Renders already-aggregated per-currency totals into one display string, with a
- *  dash fallback when there are none. Shared by the dashboard finance card and its
- *  drill-down modal (was duplicated in both). */
+ *  dash fallback when there are none. Shared anywhere the UI needs the same
+ *  per-currency total presentation. */
 export function formatMoneyTotals(totals: ReadonlyArray<{ currency: string; live_total: number }>): string {
   return totals.length ? totals.map((t) => formatMoney(t.live_total, t.currency)).join(' + ') : EMPTY_MONEY
 }

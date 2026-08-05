@@ -12,9 +12,8 @@ import {
 } from './views'
 
 export default async function Dashboard() {
-  // Entry page: guarded by the capability, not a fixed role list, so the guard
-  // stays in step with the capability-driven nav and with any persona (now or
-  // future) that legitimately holds viewDashboard.
+  // Entry page: guarded by capability rather than a fixed role list, so the
+  // route stays aligned with the resolved access model.
   const me = await requireCapability('viewDashboard')
   const actor = await getActorContext() // request-cached; already loaded by the header
   const data = await loadDashboardViewData(me, actor.capabilities.allowed)
@@ -26,7 +25,7 @@ export default async function Dashboard() {
         description={`${personaLabel(actor.personas)} - Cert-Ed Academia portal`}
       />
 
-      {data.kind === 'admin' && <AdminDashboard data={data} />}
+      {data.kind === 'admin' && <AdminDashboard data={data} me={me} />}
       {data.kind === 'sub_admin' && (
         <SubAdminDashboard
           data={data}

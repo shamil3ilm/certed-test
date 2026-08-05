@@ -26,6 +26,7 @@ vi.mock('@/lib/services/classes', () => ({ countActiveClasses: vi.fn(), listClas
 vi.mock('@/lib/services/enrollments', () => ({ countEnrollmentsPerClass: vi.fn() }))
 vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotals: vi.fn() }))
 vi.mock('@/lib/services/reminders', () => ({ listMyPastReminders: vi.fn(), listMyReminders: vi.fn() }))
+vi.mock('@/lib/services/student-relationship-subtitles', () => ({ buildStudentRelationshipSubtitles: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({
   countPeople: vi.fn(),
   getProfilesByIds: vi.fn(),
@@ -40,6 +41,7 @@ import { countActiveClasses, listClassesByIds } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
 import { financeTotals } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders } from '@/lib/services/reminders'
+import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 import { countPeople, getProfilesByIds } from '@/lib/services/users'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { loadDashboardViewData, loadDashboardMentees } from '@/lib/services/page-data/dashboard'
@@ -243,11 +245,12 @@ describe('loadDashboardViewData', () => {
         ['s-1', { id: 's-1', full_name: 'Sara', email: 'sara@test.dev', role: 'student', class_level: 'Grade 10' }],
       ]) as any,
     )
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map([['s-1', 'Grade 10 - Algebra']]))
 
     await expect(loadDashboardViewData({ id: 'mentor-1', role: 'tutor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
       now: expect.any(Number),
-      mentees: [{ id: 's-1', name: 'Sara', subtitle: 'Grade 10' }],
+      mentees: [{ id: 's-1', name: 'Sara', subtitle: 'Grade 10 - Algebra' }],
       teaches: true, // a tutor who mentors keeps the teaching widgets
     })
   })
@@ -261,13 +264,19 @@ describe('loadDashboardViewData', () => {
         ['s-2', { id: 's-2', full_name: 'Sam', email: 'sam@test.dev', role: 'student', class_level: 'Grade 9' }],
       ]),
     )
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(
+      new Map([
+        ['s-1', 'Grade 10 - Algebra'],
+        ['s-2', 'Grade 9 - Science'],
+      ]),
+    )
 
     await expect(loadDashboardViewData({ id: 'maya-mentor', role: 'mentor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
       now: expect.any(Number),
       mentees: [
-        { id: 's-1', name: 'Sara', subtitle: 'Grade 10' },
-        { id: 's-2', name: 'Sam', subtitle: 'Grade 9' },
+        { id: 's-1', name: 'Sara', subtitle: 'Grade 10 - Algebra' },
+        { id: 's-2', name: 'Sam', subtitle: 'Grade 9 - Science' },
       ],
       teaches: false, // a dedicated mentor teaches nothing
     })
@@ -298,11 +307,12 @@ describe('loadDashboardViewData', () => {
         ['s-1', { id: 's-1', full_name: 'Sara', email: 'sara@test.dev', role: 'student', class_level: 'Grade 10' }],
       ]) as any,
     )
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map([['s-1', 'Grade 10 - Algebra']]))
 
     await expect(loadDashboardViewData({ id: 'mentor-1', role: 'mentor' } as any, caps())).resolves.toEqual({
       kind: 'mentor',
       now: expect.any(Number),
-      mentees: [{ id: 's-1', name: 'Sara', subtitle: 'Grade 10' }],
+      mentees: [{ id: 's-1', name: 'Sara', subtitle: 'Grade 10 - Algebra' }],
       teaches: true,
     })
   })
@@ -339,9 +349,15 @@ describe('loadDashboardMentees', () => {
         ['s-2', { id: 's-2', full_name: 'Sam', email: 'sam@test.dev', role: 'student', class_level: 'Grade 9' }],
       ]),
     )
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(
+      new Map([
+        ['s-1', 'Grade 10 - Algebra'],
+        ['s-2', 'Grade 9 - Science'],
+      ]),
+    )
     await expect(loadDashboardMentees({ id: 'mentor-1' } as any)).resolves.toEqual([
-      { id: 's-1', name: 'Sara', subtitle: 'Grade 10' },
-      { id: 's-2', name: 'Sam', subtitle: 'Grade 9' },
+      { id: 's-1', name: 'Sara', subtitle: 'Grade 10 - Algebra' },
+      { id: 's-2', name: 'Sam', subtitle: 'Grade 9 - Science' },
     ])
   })
 })

@@ -8,9 +8,12 @@ import type {
 } from '@/lib/services/page-data/dashboard'
 import { Avatar, Card, ListRow, MiniBars, Panel, StatGrid } from '@/lib/ui'
 import { StatModalCard } from '../StatModalCard'
+import type { Profile } from '@/lib/auth/profile'
 import { AdminAnalyticsStats } from './analytics-stats'
+import { DashboardChartsSection } from './charts-section'
 import { WidgetSkeleton } from './widgets'
 import { ReminderPanel } from './ReminderPanel'
+import { WIDGET_CTA_LINK, WIDGET_ROW_LINK, WIDGET_ROW_META } from './widget-shared'
 import {
   loadActiveClassesModal,
   loadFinanceModal,
@@ -121,7 +124,7 @@ export function SubAdminOverview({
   )
 }
 
-export function AdminOverview({ data }: { data: AdminDashboardViewData }) {
+export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: Profile }) {
   const statCards = [
     data.peopleCounts ? (
       <StatModalCard
@@ -156,7 +159,7 @@ export function AdminOverview({ data }: { data: AdminDashboardViewData }) {
         key="finance"
         label="Net"
         value={data.netLabel}
-        sub={`${data.revenueLabel ?? '-'} in · ${data.payoutLabel ?? '-'} out`}
+        sub={`${data.revenueLabel ?? '-'} in - ${data.payoutLabel ?? '-'} out`}
         tone="primary"
         title="Finance"
         load={loadFinanceModal}
@@ -179,7 +182,7 @@ export function AdminOverview({ data }: { data: AdminDashboardViewData }) {
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel title="Students per class">
           <MiniBars data={data.perClass} />
-          <Link href="/classroom" className="btn btn-sm btn-soft mt-3 min-h-10 px-3 py-2 text-sm font-semibold">
+          <Link href="/classroom" className={WIDGET_CTA_LINK}>
             Open classes &rarr;
           </Link>
         </Panel>
@@ -188,6 +191,7 @@ export function AdminOverview({ data }: { data: AdminDashboardViewData }) {
         </Panel>
         <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={data.now} />
       </section>
+      <DashboardChartsSection me={me} />
     </>
   )
 }
@@ -208,12 +212,9 @@ function Upcoming({ events }: { events: CalendarEvent[] }) {
     <ul className="space-y-1 text-sm">
       {events.map((event) => (
         <li key={event.id}>
-          <a
-            href="/calendar"
-            className="flex items-center justify-between gap-3 rounded-md py-1 text-slate-700 transition hover:text-primary"
-          >
+          <a href="/calendar" className={WIDGET_ROW_LINK}>
             <span className="min-w-0 truncate">{event.title}</span>
-            <span className="shrink-0 text-xs text-slate-400">
+            <span className={WIDGET_ROW_META}>
               {event.event_date} - {event.kind}
             </span>
           </a>
