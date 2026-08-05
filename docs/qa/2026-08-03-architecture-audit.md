@@ -77,15 +77,17 @@ That is the correct direction, and it is the kind of cleanup teams almost never 
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | **NEW-11** | The Sentry browser SDK is imported unconditionally into the client bundle — ~148 KB gzipped in one chunk, roughly the entire budget overage. The DSN guard prevents _sending_, not _shipping_. | 🟠 High  |
 
-### Still open
-
-**NEW-09** (bundle budget red) persists, now correctly measured and with a root cause
-(NEW-11).
-
 ### Closed this pass
 
 **FIND-02** is resolved. The snapshot was regenerated from the full `0001..0051` chain and its
 marker now matches the chain head; the CI freshness check is a hard gate. See the detail below.
+
+**NEW-11 / NEW-09** are resolved. `instrumentation-client.ts` now gates the Sentry SDK import on
+a build-time literal (`NEXT_PUBLIC_SENTRY_ENABLED`, derived in `next.config.js`), so an
+unconfigured build folds the branch and never emits the ~273 KB SDK into the always-loaded graph.
+The bundle ratchet was reworked to measure **first-load shared JS** (`rootMainFiles`) rather than
+the whole `.next/static` tree, which correctly credits code-splitting. First-load shared is now
+**127.4 KB, under the 145 KB budget** — the gate is green. See the detail below.
 
 Also unchanged: dark mode (FIND-29), restore drill not performed (FIND-35), no queue
 (FIND-33), PDF re-render (FIND-20).
@@ -327,7 +329,13 @@ was not run in this environment.
 
 ---
 
-### NEW-11 · The Sentry browser SDK ships unconditionally — 🟠 High
+### NEW-11 · The Sentry browser SDK ships unconditionally — ✅ RESOLVED
+
+> **Fixed.** `instrumentation-client.ts` gates `import('@sentry/nextjs')` on the build-time
+> literal `NEXT_PUBLIC_SENTRY_ENABLED` (derived in `next.config.js` from whether a DSN is set at
+> build). The condition sits directly in the `if` test so the bundler folds it at parse time and
+> never emits the ~273 KB SDK when Sentry is unconfigured; when a DSN is present it loads as an
+> async chunk off the first-load path. The diagnosis below is retained for context.
 
 **Affected:** [src/instrumentation-client.ts](src/instrumentation-client.ts)
 
@@ -376,7 +384,13 @@ brings NEW-09 within reach of a modest, honest budget.
 
 ---
 
-### NEW-09 · Bundle budget fails — 🟠 High _(carried, corrected)_
+### NEW-09 · Bundle budget fails — ✅ RESOLVED
+
+> **Fixed.** The ratchet now measures first-load shared JS (build-manifest `rootMainFiles`)
+> instead of the whole `.next/static` tree, so code-split/async chunks (the lazy Sentry chunk,
+> route-split FullCalendar) are correctly excluded. With NEW-11 fixed, first-load shared is
+> **127.4 KB across 4 chunks, under the 145 KB budget** — CI is green. The diagnosis below
+> (which measured total static JS) is retained for context.
 
 ```
 $ rm -rf .next && npm run build && node scripts/check-bundle-size.mjs ; echo $?

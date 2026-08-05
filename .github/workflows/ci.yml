@@ -85,9 +85,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-anon-key
 
-      # Ratchet on the client bundle: fail if total gzipped JS exceeds the recorded
-      # budget, so the payload can't creep up unnoticed. Runs after Build (needs .next).
-      - name: Bundle size budget
+      # Ratchet on first-load JS: fail if the gzipped shared bundle every page
+      # loads exceeds the budget, so per-page-load weight can't creep up (e.g. an
+      # SDK imported unconditionally instead of code-split). Runs after Build.
+      - name: First-load bundle budget
         run: npm run check:bundle
 
   # E2E gate. globalSetup resets .mock-db.json and the webServer builds + starts the
