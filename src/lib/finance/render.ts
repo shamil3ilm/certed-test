@@ -27,29 +27,44 @@ function orgInfo(org: OrgSettings): OrgInfo {
   }
 }
 
+type FinanceDoc = NonNullable<Awaited<ReturnType<typeof getDoc>>>
+
 /**
- * Render a finance document to PDF bytes. Returns null if the caller isn't the
- * owner or a finance viewer. The check is explicit (in code) so access never
- * depends on RLS alone - a bare `/api/{kind}s/[id]/pdf` request for someone
- * else's receipt/pay slip returns 404, matching the assignment-review pattern.
+ * Authorize + fetch the document META only - the cheap half, no headless
+ * Chromium. Returns null if the caller isn't the owner or a finance viewer, so a
+ * bare `/api/{kind}s/[id]/pdf` request for someone else's receipt/pay slip
+ * returns 404 (the check is explicit in code, never RLS alone), matching the
+ * assignment-review pattern.
  *
  * Authorization is keyed on viewFinance (the same capability that gates the
  * /admin/finance ledger and the CSV export), NOT the admin persona alone - so a
  * user granted viewFinance by override can open the per-row PDF for any row they
  * can already see, and the three finance surfaces stay in step. The party may
  * always fetch their own document.
+ *
+ * Splitting this out lets the route compute a cache validator and answer a
+ * conditional request (304) WITHOUT paying for the render - the caller must still
+ * run this authorization before trusting an If-None-Match, so a 304 is only ever
+ * returned to someone who is allowed to see the document.
  */
-export async function renderDocPdf(
+export async function resolveDocForViewer(
   kind: FinanceKind,
   id: string,
   viewer: { id: string; role?: string },
-): Promise<{ pdf: Buffer; number: string; voided: boolean } | null> {
+): Promise<FinanceDoc | null> {
   const { actorHasCapability } = await import('@/lib/services/authorization')
   const doc = await getDoc(kind, id)
   if (!doc) return null
   const canViewFinance = await actorHasCapability(viewer.id, 'viewFinance')
   if (!canViewFinance && doc.party_id !== viewer.id) return null
-  const [lines, org] = await Promise.all([getDocLines(kind, id), getOrgSettings()])
+  return doc
+}
+
+/** Render an ALREADY-authorized document (from resolveDocForViewer) to PDF bytes
+ *  - the expensive half (line items + org settings + template + headless
+ *  Chromium). Never call this without resolving/authorizing first. */
+export async function renderResolvedDocPdf(kind: FinanceKind, doc: FinanceDoc): Promise<Buffer> {
+  const [lines, org] = await Promise.all([getDocLines(kind, doc.id), getOrgSettings()])
   const build = kind === 'receipt' ? buildReceiptHtml : buildPayslipHtml
   const html = build(
     {
@@ -68,5 +83,17 @@ export async function renderDocPdf(
     orgInfo(org),
     brandAssets(),
   )
-  return { pdf: await htmlToPdf(html), number: doc.number, voided: doc.voided }
+  return htmlToPdf(html)
+}
+
+/** Compose: resolve (authorize + meta) then render. Retained for callers that
+ *  just want the bytes and don't need the meta for cache validation. */
+export async function renderDocPdf(
+  kind: FinanceKind,
+  id: string,
+  viewer: { id: string; role?: string },
+): Promise<{ pdf: Buffer; number: string; voided: boolean } | null> {
+  const doc = await resolveDocForViewer(kind, id, viewer)
+  if (!doc) return null
+  return { pdf: await renderResolvedDocPdf(kind, doc), number: doc.number, voided: doc.voided }
 }

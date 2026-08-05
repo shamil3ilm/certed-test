@@ -29,9 +29,17 @@ vi.mock('@/lib/services/finance/finance-docs', () => ({
   validateFinanceDocId: (...args: any[]) => validateFinanceDocId(...args),
 }))
 
-const renderDocPdf: any = vi.fn(async () => ({ pdf: Buffer.from('pdf'), number: 'CEA-R-2026-0001' }))
+const resolveDocForViewer: any = vi.fn(async () => ({
+  id: 'doc-1',
+  number: 'CEA-R-2026-0001',
+  voided: false,
+  party_id: 'admin-1',
+}))
+const renderResolvedDocPdf: any = vi.fn(async () => Buffer.from('%PDF-1.4 fake'))
 vi.mock('@/lib/finance/render', () => ({
-  renderDocPdf: (...args: any[]) => renderDocPdf(...args),
+  resolveDocForViewer: (...args: any[]) => resolveDocForViewer(...args),
+  renderResolvedDocPdf: (...args: any[]) => renderResolvedDocPdf(...args),
+  renderDocPdf: vi.fn(),
 }))
 
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn(async () => {}) }))
@@ -103,7 +111,7 @@ describe('finance handlers', () => {
     expect(json.success).toBe(false)
   })
 
-  it('pdfHandler also validates the document id before rendering', async () => {
+  it('pdfHandler validates the id, renders on a cache miss, and sets a private ETag + no-cache', async () => {
     profile.role = 'tutor'
     const GET = pdfHandler('receipt')
     const res = await GET(new Request('http://t/api/receipts/doc/pdf'), {
@@ -111,15 +119,63 @@ describe('finance handlers', () => {
     })
     expect(res.status).toBe(200)
     expect(validateFinanceDocId).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000')
-    expect(renderDocPdf).toHaveBeenCalled()
+    expect(renderResolvedDocPdf).toHaveBeenCalled()
+    expect(res.headers.get('content-type')).toBe('application/pdf')
+    expect(res.headers.get('etag')).toBe('"receipt-doc-1-live"')
+    expect(res.headers.get('cache-control')).toBe('private, no-cache')
   })
 
-  it('pdfHandler maps validation misses to the shared plain-text not-found response', async () => {
+  it('pdfHandler answers 304 WITHOUT rendering when If-None-Match matches the ETag', async () => {
     profile.role = 'tutor'
-    renderDocPdf.mockRejectedValueOnce(new ValidationError('missing'))
+    const GET = pdfHandler('receipt')
+    const res = await GET(
+      new Request('http://t/api/receipts/doc/pdf', { headers: { 'if-none-match': '"receipt-doc-1-live"' } }),
+      { params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }) },
+    )
+    expect(res.status).toBe(304)
+    expect(renderResolvedDocPdf).not.toHaveBeenCalled()
+    expect(res.headers.get('etag')).toBe('"receipt-doc-1-live"')
+  })
+
+  it('pdfHandler re-renders after a void (ETag flips) instead of serving the stale cached copy', async () => {
+    profile.role = 'tutor'
+    resolveDocForViewer.mockResolvedValueOnce({
+      id: 'doc-1',
+      number: 'CEA-R-2026-0001',
+      voided: true,
+      party_id: 'admin-1',
+    })
+    const GET = pdfHandler('receipt')
+    // Client still presents the pre-void validator; it must NOT satisfy the request.
+    const res = await GET(
+      new Request('http://t/api/receipts/doc/pdf', { headers: { 'if-none-match': '"receipt-doc-1-live"' } }),
+      { params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }) },
+    )
+    expect(res.status).toBe(200)
+    expect(renderResolvedDocPdf).toHaveBeenCalled()
+    expect(res.headers.get('etag')).toBe('"receipt-doc-1-void"')
+    expect(res.headers.get('cache-control')).toBe('private, max-age=31536000, immutable')
+  })
+
+  it('pdfHandler returns 404 and never renders when the viewer is not authorized for the document', async () => {
+    profile.role = 'tutor'
+    resolveDocForViewer.mockResolvedValueOnce(null)
     const GET = pdfHandler('receipt')
     const res = await GET(new Request('http://t/api/receipts/doc/pdf'), {
       params: Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+    })
+    expect(res.status).toBe(404)
+    expect(renderResolvedDocPdf).not.toHaveBeenCalled()
+  })
+
+  it('pdfHandler maps an invalid document id to the shared plain-text not-found response', async () => {
+    profile.role = 'tutor'
+    validateFinanceDocId.mockImplementationOnce(() => {
+      throw new ValidationError('Invalid finance document id')
+    })
+    const GET = pdfHandler('receipt')
+    const res = await GET(new Request('http://t/api/receipts/bad/pdf'), {
+      params: Promise.resolve({ id: 'bad' }),
     })
     expect(res.status).toBe(404)
     await expect(res.text()).resolves.toBe('Not found')

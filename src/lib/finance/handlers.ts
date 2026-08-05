@@ -13,7 +13,7 @@ import {
 import { requireActiveProfileApi, requireCapabilityApi, requireRoleApi } from '@/lib/auth/require-role'
 import { ValidationError } from '@/lib/errors'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
-import { renderDocPdf } from '@/lib/finance/render'
+import { resolveDocForViewer, renderResolvedDocPdf } from '@/lib/finance/render'
 import { validateFinanceDocId, voidDoc, listAllDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -91,36 +91,54 @@ export function voidHandler(kind: FinanceKind) {
  *  user", not a fixed persona list, so capability overrides are honoured by the
  *  authorization check rather than blocked ahead of it. */
 export function pdfHandler(kind: FinanceKind) {
-  return async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  return async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
     let me
     try {
       me = await requireActiveProfileApi()
     } catch (e) {
       return authTextFail(e)
     }
-    // Each render spins up headless Chromium - throttle per user to deter casual
-    // bursts (per-instance; not a hard distributed cap).
-    const rl = rateLimit(`pdf:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
-    if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
-    let out
+    // Authorize + fetch meta FIRST (cheap) - never render before this, so a 304
+    // below is only ever answered to a viewer allowed to see the document.
+    let doc
     try {
-      out = await renderDocPdf(kind, validateFinanceDocId((await ctx.params).id), { id: me.id, role: me.role })
+      doc = await resolveDocForViewer(kind, validateFinanceDocId((await ctx.params).id), { id: me.id, role: me.role })
     } catch (e) {
       if (e instanceof ValidationError) return notFoundText()
       return textFail('Could not generate the document. Please try again in a moment.', 502)
     }
-    if (!out) return notFoundText()
+    if (!doc) return notFoundText()
+
     // An issued finance document is immutable except for one one-way change: being
-    // voided (which stamps a VOID badge). So a voided doc is terminal - cache it
-    // hard; a live doc could still be voided, so cache it only briefly. Either way
-    // repeat downloads skip the headless-Chromium re-render. `private`: it's a
-    // per-user authorized document, never a shared/CDN cache.
-    const cacheControl = out.voided ? 'private, max-age=31536000, immutable' : 'private, max-age=300, must-revalidate'
-    return new Response(new Uint8Array(out.pdf), {
+    // voided (which stamps a VOID badge). So the rendered bytes change only when
+    // `voided` flips - that's the whole cache validator. A voided doc is terminal
+    // (cache immutable); a live doc revalidates every request but the ETag lets us
+    // answer 304 WITHOUT re-rendering, and a void flips the ETag so the next fetch
+    // re-renders exactly once. `private`: per-user authorized document, never a
+    // shared/CDN cache.
+    const etag = `"${kind}-${doc.id}-${doc.voided ? 'void' : 'live'}"`
+    const cacheControl = doc.voided ? 'private, max-age=31536000, immutable' : 'private, no-cache'
+    if (req.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cacheControl } })
+    }
+
+    // Only an actual render is worth throttling - a 304 above costs no Chromium, so
+    // cache revalidations don't burn the per-user render budget.
+    const rl = rateLimit(`pdf:${me.id}`, { limit: 20, windowMs: 60 * 1000 })
+    if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
+
+    let pdf
+    try {
+      pdf = await renderResolvedDocPdf(kind, doc)
+    } catch {
+      return textFail('Could not generate the document. Please try again in a moment.', 502)
+    }
+    return new Response(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${out.number}.pdf"`,
+        'Content-Disposition': `inline; filename="${doc.number}.pdf"`,
         'Cache-Control': cacheControl,
+        ETag: etag,
       },
     })
   }
