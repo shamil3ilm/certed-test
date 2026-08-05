@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0051) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0055) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -999,7 +999,9 @@ CREATE TABLE public.class_sessions (
     tutor_join_at timestamp with time zone,
     tutor_leave_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    summary text,
+    student_feedback text
 );
 
 
@@ -1100,6 +1102,19 @@ CREATE TABLE public.enrollments (
     student_id uuid NOT NULL,
     class_id uuid NOT NULL,
     active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: entity_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.entity_tags (
+    tag_id uuid NOT NULL,
+    entity_type text NOT NULL,
+    entity_id uuid NOT NULL,
+    created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -1337,6 +1352,19 @@ CREATE TABLE public.resources (
 
 
 --
+-- Name: tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tags (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    color text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: timetable_slots; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1506,6 +1534,14 @@ ALTER TABLE ONLY public.enrollments
 
 ALTER TABLE ONLY public.enrollments
     ADD CONSTRAINT enrollments_student_id_class_id_key UNIQUE (student_id, class_id);
+
+
+--
+-- Name: entity_tags entity_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.entity_tags
+    ADD CONSTRAINT entity_tags_pkey PRIMARY KEY (tag_id, entity_type, entity_id);
 
 
 --
@@ -1701,6 +1737,14 @@ ALTER TABLE ONLY public.submissions
 
 
 --
+-- Name: tags tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tags
+    ADD CONSTRAINT tags_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: timetable_slots timetable_slots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1821,10 +1865,31 @@ CREATE INDEX enrollments_class_idx ON public.enrollments USING btree (class_id, 
 
 
 --
+-- Name: enrollments_one_active_student_per_class; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX enrollments_one_active_student_per_class ON public.enrollments USING btree (class_id) WHERE active;
+
+
+--
 -- Name: enrollments_student_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX enrollments_student_idx ON public.enrollments USING btree (student_id, active);
+
+
+--
+-- Name: entity_tags_entity_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX entity_tags_entity_idx ON public.entity_tags USING btree (entity_type, entity_id);
+
+
+--
+-- Name: entity_tags_tag_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX entity_tags_tag_idx ON public.entity_tags USING btree (tag_id);
 
 
 --
@@ -2035,6 +2100,13 @@ CREATE UNIQUE INDEX submissions_one_active ON public.submissions USING btree (as
 --
 
 CREATE INDEX submissions_student_idx ON public.submissions USING btree (student_id, is_active);
+
+
+--
+-- Name: tags_name_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX tags_name_unique ON public.tags USING btree (lower(name));
 
 
 --
@@ -2272,6 +2344,22 @@ ALTER TABLE ONLY public.enrollments
 
 
 --
+-- Name: entity_tags entity_tags_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.entity_tags
+    ADD CONSTRAINT entity_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: entity_tags entity_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.entity_tags
+    ADD CONSTRAINT entity_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.tags(id) ON DELETE CASCADE;
+
+
+--
 -- Name: meet_links meet_links_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2453,6 +2541,14 @@ ALTER TABLE ONLY public.submissions
 
 ALTER TABLE ONLY public.submissions
     ADD CONSTRAINT submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tags tags_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tags
+    ADD CONSTRAINT tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 
 --
@@ -2859,6 +2955,12 @@ CREATE POLICY enrollments_read ON public.enrollments FOR SELECT USING ((public.i
 
 
 --
+-- Name: entity_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.entity_tags ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: meet_links; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3169,6 +3271,19 @@ CREATE POLICY submissions_read ON public.submissions FOR SELECT USING ((public.i
 --
 
 CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR (public.is_self_active(student_id) AND (is_active = true) AND (score IS NULL) AND (graded_at IS NULL)))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
+
+
+--
+-- Name: tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tags tags_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tags_read ON public.tags FOR SELECT USING ((public.current_status() = 'active'::public.user_status));
 
 
 --
