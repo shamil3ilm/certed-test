@@ -83,19 +83,24 @@ insert into classes(id,name,status) values
 insert into class_tutors(tutor_id,class_id,active) values
  ('a0000000-0000-4000-8000-000000000010','c0000000-0000-4000-8000-000000000001',true),
  ('a0000000-0000-4000-8000-000000000011','c0000000-0000-4000-8000-000000000002',true);
+-- 0052: a class holds at most one ACTIVE student, so each class gets one. S2 is
+-- intentionally left UNENROLLED - it exists only to prove profile-scoped isolation
+-- (reminders / notifications / messages / personas), which needs no class.
 insert into enrollments(student_id,class_id,active) values
  ('a0000000-0000-4000-8000-000000000030','c0000000-0000-4000-8000-000000000001',true),
- ('a0000000-0000-4000-8000-000000000031','c0000000-0000-4000-8000-000000000001',true),
  ('a0000000-0000-4000-8000-000000000032','c0000000-0000-4000-8000-000000000002',true);
 insert into mentorships(mentor_id,student_id,active) values
  ('a0000000-0000-4000-8000-000000000020','a0000000-0000-4000-8000-000000000030',true);
--- assignment in c1 + two submissions (s1, s2)
+-- One assignment + one submission PER CLASS (0052: one student per class). S1's
+-- submission lives in C1, S3's in C2, so cross-student isolation is now the
+-- CROSS-CLASS case - the only student-vs-student leak the model still allows.
 insert into assignments(id,class_id,title,due_date,status) values
- ('d0000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','A1','2999-01-01T00:00:00Z','active');
+ ('d0000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','A1','2999-01-01T00:00:00Z','active'),
+ ('d0000000-0000-4000-8000-000000000002','c0000000-0000-4000-8000-000000000002','A2','2999-01-01T00:00:00Z','active');
 alter table submissions disable trigger trg_submission_status;
 insert into submissions(id,assignment_id,student_id,status,submitted_at,is_active) values
  ('e0000000-0000-4000-8000-000000000001','d0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','submitted',now(),true),
- ('e0000000-0000-4000-8000-000000000002','d0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000031','submitted',now(),true);
+ ('e0000000-0000-4000-8000-000000000002','d0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000032','submitted',now(),true);
 alter table submissions enable trigger trg_submission_status;
 -- announcements: class c1 + global
 insert into announcements(id,class_id,title,message,status) values
@@ -142,13 +147,15 @@ check "reminders: S1 cannot see S2's"          $S1 "select count(*) from reminde
 # notifications: self only
 check "notifications: S1 sees own"             $S1 "select count(*) from notifications" 1
 check "notifications: S2 cannot see S1's"      $S2 "select count(*) from notifications where title='n1'" 0
-# submissions: student own / tutor-of-class / mentor-of-student
+# submissions (0052 makes this CROSS-class: S1 in C1, S3 in C2): a student sees
+# only their own, a tutor only their class's, a mentor only their mentee's.
 check "submissions: S1 sees own"               $S1 "select count(*) from submissions where student_id='$S1'" 1
-check "submissions: S1 cannot see S2's"        $S1 "select count(*) from submissions where student_id='$S2'" 0
-check "submissions: T1 sees both in C1"        $T1 "select count(*) from submissions" 2
-check "submissions: T2 sees none of C1"        $T2 "select count(*) from submissions" 0
+check "submissions: S1 cannot see S3's (C2)"   $S1 "select count(*) from submissions where student_id='$S3'" 0
+check "submissions: T1 sees only C1's"         $T1 "select count(*) from submissions" 1
+check "submissions: T2 sees only C2's"         $T2 "select count(*) from submissions" 1
+check "submissions: T2 cannot see C1's"        $T2 "select count(*) from submissions where student_id='$S1'" 0
 check "submissions: mentor sees mentee S1"     $M  "select count(*) from submissions where student_id='$S1'" 1
-check "submissions: mentor cannot see S2"      $M  "select count(*) from submissions where student_id='$S2'" 0
+check "submissions: mentor cannot see S3"      $M  "select count(*) from submissions where student_id='$S3'" 0
 # announcements: class + global
 check "announcements: S1 sees class C1"        $S1 "select count(*) from announcements where title='AnnC1'" 1
 check "announcements: S1 sees global"          $S1 "select count(*) from announcements where title='AnnGlobal'" 1
