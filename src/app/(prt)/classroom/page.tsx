@@ -2,8 +2,21 @@ import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMyClasses, type ClassSummary } from '@/lib/services/classes'
-import { AlertBanner, PageHeader, EmptyState, RowChevron, CARD, classBanner, cx } from '@/lib/ui'
+import { listTags, tagsForEntities, entityIdsForTag, type Tag } from '@/lib/services/tags'
+import {
+  AlertBanner,
+  PageHeader,
+  EmptyState,
+  RowChevron,
+  CARD,
+  FilterBar,
+  FilterField,
+  FILTER_CONTROL,
+  classBanner,
+  cx,
+} from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../form'
+import { TagChips } from '../tags/TagChips'
 import { createClassAction } from './class-actions'
 
 function NewClass() {
@@ -32,7 +45,7 @@ function memberSummary(members: ClassSummary['students'], count: number, noun: s
   return `${count} ${noun}${count !== 1 ? 's' : ''}`
 }
 
-function ClassCard({ c, viewerIsStudent }: { c: ClassSummary; viewerIsStudent: boolean }) {
+function ClassCard({ c, viewerIsStudent, tags }: { c: ClassSummary; viewerIsStudent: boolean; tags: Tag[] }) {
   // The person a card leads with depends on who's looking: a student wants to see
   // their tutor; staff/mentors want to see the student the class is for.
   const primary = viewerIsStudent
@@ -52,23 +65,11 @@ function ClassCard({ c, viewerIsStudent }: { c: ClassSummary; viewerIsStudent: b
           {c.name.slice(0, 1).toUpperCase()}
         </span>
       </div>
-      <div className="flex items-center gap-4 px-4 py-3 text-xs text-slate-500 sm:px-5">
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <svg
-            className="h-4 w-4 shrink-0 text-slate-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5a3 3 0 100 6 3 3 0 000-6zM4 19a8 8 0 0116 0" />
-          </svg>
-          <span className="truncate">{primary}</span>
-        </span>
-        {!viewerIsStudent && (
-          <span className="inline-flex shrink-0 items-center gap-1.5">
+      <div className="px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-4 text-xs text-slate-500">
+          <span className="inline-flex min-w-0 items-center gap-1.5">
             <svg
-              className="h-4 w-4 text-slate-400"
+              className="h-4 w-4 shrink-0 text-slate-400"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -77,25 +78,53 @@ function ClassCard({ c, viewerIsStudent }: { c: ClassSummary; viewerIsStudent: b
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5"
+                d="M12 4.5a3 3 0 100 6 3 3 0 000-6zM4 19a8 8 0 0116 0"
               />
             </svg>
-            {memberSummary(c.tutors, c.tutorCount, 'tutor')}
+            <span className="truncate">{primary}</span>
           </span>
-        )}
-        <RowChevron className="ml-auto shrink-0" />
+          {!viewerIsStudent && (
+            <span className="inline-flex shrink-0 items-center gap-1.5">
+              <svg
+                className="h-4 w-4 text-slate-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5"
+                />
+              </svg>
+              {memberSummary(c.tutors, c.tutorCount, 'tutor')}
+            </span>
+          )}
+          <RowChevron className="ml-auto shrink-0" />
+        </div>
+        {tags.length > 0 && <TagChips tags={tags} className="mt-2.5" />}
       </div>
     </Link>
   )
 }
 
-export default async function ClassroomPage(props: { searchParams?: Promise<{ error?: string }> }) {
+export default async function ClassroomPage(props: { searchParams?: Promise<{ error?: string; tag?: string }> }) {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewClasses')
-  const [classes, flags] = await Promise.all([listMyClasses(me), loadPersonaFlags(me.id)])
+  const [allClasses, flags, allTags] = await Promise.all([listMyClasses(me), loadPersonaFlags(me.id), listTags()])
   const isAdmin = flags.isAdmin
   const isStudent = flags.isStudent
   const isTeacher = flags.isTutor
+
+  // Optional tag filter: narrow to the classes carrying the selected tag.
+  const tagFilter = searchParams?.tag ?? ''
+  const taggedIds = tagFilter ? new Set(await entityIdsForTag('class', tagFilter)) : null
+  const classes = taggedIds ? allClasses.filter((c) => taggedIds.has(c.id)) : allClasses
+  const tagsByClass = await tagsForEntities(
+    'class',
+    classes.map((c) => c.id),
+  )
 
   // Student and tutor are mutually exclusive (role is fixed and single; a student
   // is never granted a tutor persona and vice-versa), so there is no learner+teacher
@@ -118,20 +147,37 @@ export default async function ClassroomPage(props: { searchParams?: Promise<{ er
         </AlertBanner>
       )}
 
+      {allTags.length > 0 && (
+        <FilterBar className="mb-4" clearHref="/classroom" showClear={Boolean(tagFilter)}>
+          <FilterField label="Tag">
+            <select name="tag" defaultValue={tagFilter} className={FILTER_CONTROL}>
+              <option value="">All tags</option>
+              {allTags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        </FilterBar>
+      )}
+
       {classes.length === 0 ? (
         <EmptyState>
-          {isAdmin
-            ? 'No classes yet - create one with + New class above.'
-            : isStudent
-              ? 'You are not enrolled in any classes yet. An admin will add you.'
-              : isTeacher
-                ? 'No classes assigned to you yet. An admin will assign you to a class.'
-                : 'No classes are available to this account yet.'}
+          {tagFilter
+            ? 'No classes carry this tag.'
+            : isAdmin
+              ? 'No classes yet - create one with + New class above.'
+              : isStudent
+                ? 'You are not enrolled in any classes yet. An admin will add you.'
+                : isTeacher
+                  ? 'No classes assigned to you yet. An admin will assign you to a class.'
+                  : 'No classes are available to this account yet.'}
         </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {classes.map((c) => (
-            <ClassCard key={c.id} c={c} viewerIsStudent={isStudent} />
+            <ClassCard key={c.id} c={c} viewerIsStudent={isStudent} tags={tagsByClass.get(c.id) ?? []} />
           ))}
         </div>
       )}

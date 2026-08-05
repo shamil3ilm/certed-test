@@ -1,10 +1,12 @@
 import { requireClassAccess } from '../../access'
 import type { ClassMember } from '@/lib/services/classes'
 import { loadClassPeopleViewData } from '@/lib/services/page-data/class-people'
+import { listTags, tagsForEntity } from '@/lib/services/tags'
 import { AlertBanner, Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { MessageUserButton } from '../../../messages/MessageUserButton'
+import { TagEditor } from '../../../tags/TagEditor'
 import {
   renameClassAction,
   archiveClassAction,
@@ -66,6 +68,9 @@ export default async function ClassPeoplePage(props: {
   const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   const data = await loadClassPeopleViewData(me, course.id, searchParams?.enrolQ)
+  const [classTags, allTags] = data.canManage
+    ? await Promise.all([tagsForEntity('class', course.id), listTags()])
+    : [[], []]
 
   return (
     <div className="space-y-8">
@@ -93,6 +98,16 @@ export default async function ClassPeoplePage(props: {
               ))}
             </ul>
           </div>
+        </Card>
+      )}
+
+      {data.canManage && (
+        <Card className="space-y-3 p-4">
+          <SectionLabel>Tags</SectionLabel>
+          <p className="text-xs text-slate-500">
+            Organise classes with labels - filter by them on the Classes list. Also available on documents.
+          </p>
+          <TagEditor type="class" entityId={course.id} tags={classTags} suggestions={allTags} />
         </Card>
       )}
 
@@ -161,7 +176,7 @@ export default async function ClassPeoplePage(props: {
               key={t.id}
               m={t}
               classId={course.id}
-              showEmail={data.canManage}
+              showEmail={data.isAdmin}
               removeAction={data.isAdmin ? removeTutorAction : undefined}
               removeName="tutor_id"
             />
@@ -172,56 +187,64 @@ export default async function ClassPeoplePage(props: {
 
       <section className="space-y-3">
         <SectionLabel count={data.students.length}>Students</SectionLabel>
-        {data.canManage && (data.addableStudents.length > 0 || data.enrolSearch || data.studentsCapped) && (
-          <div className={cx(CARD, 'space-y-3 p-3')}>
-            {/* GET form: server-side search so the picker never ships the whole
-                student roster. Narrows the enrol list below via ?enrolQ=. */}
-            <form className="flex flex-wrap items-end gap-2">
-              <Field label="Find a student to enrol" className="min-w-0 flex-1 sm:max-w-xs">
-                <Input
-                  type="search"
-                  name="enrolQ"
-                  defaultValue={data.enrolSearch}
-                  placeholder="Search by name or email..."
-                />
-              </Field>
-              <button type="submit" className="btn btn-sm btn-soft">
-                Search
-              </button>
-            </form>
-            {data.addableStudents.length > 0 ? (
-              <form action={enrolStudentAction} className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="class_id" value={course.id} />
-                <Field label="Enrol a student" className="min-w-0 flex-1 sm:max-w-xs">
-                  <Select name="student_id" required defaultValue="">
-                    <option value="" disabled>
-                      Select student...
-                    </option>
-                    {data.addableStudents.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <SubmitButton className="btn-sm btn-soft" pendingLabel="Enrolling...">
-                  Enrol
-                </SubmitButton>
-              </form>
-            ) : (
-              <p className="text-sm text-slate-500">
-                {data.enrolSearch
-                  ? `No students to enrol match "${data.enrolSearch}".`
-                  : 'Every listed student is already enrolled - search to find others.'}
-              </p>
-            )}
-            {data.studentsCapped && (
-              <p className="text-xs text-slate-400">
-                More students exist than are shown here - search by name or email to find them.
-              </p>
-            )}
-          </div>
+        {data.canManage && data.students.length > 0 && (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+            A class is one-to-one - it has a single student. To assign this student to another tutor, create a separate
+            class; to change the student, remove the current one below first.
+          </p>
         )}
+        {data.canManage &&
+          data.students.length === 0 &&
+          (data.addableStudents.length > 0 || data.enrolSearch || data.studentsCapped) && (
+            <div className={cx(CARD, 'space-y-3 p-3')}>
+              {/* GET form: server-side search so the picker never ships the whole
+                student roster. Narrows the enrol list below via ?enrolQ=. */}
+              <form className="flex flex-wrap items-end gap-2">
+                <Field label="Find a student to enrol" className="min-w-0 flex-1 sm:max-w-xs">
+                  <Input
+                    type="search"
+                    name="enrolQ"
+                    defaultValue={data.enrolSearch}
+                    placeholder="Search by name or email..."
+                  />
+                </Field>
+                <button type="submit" className="btn btn-sm btn-soft">
+                  Search
+                </button>
+              </form>
+              {data.addableStudents.length > 0 ? (
+                <form action={enrolStudentAction} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="class_id" value={course.id} />
+                  <Field label="Enrol a student" className="min-w-0 flex-1 sm:max-w-xs">
+                    <Select name="student_id" required defaultValue="">
+                      <option value="" disabled>
+                        Select student...
+                      </option>
+                      {data.addableStudents.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <SubmitButton className="btn-sm btn-soft" pendingLabel="Enrolling...">
+                    Enrol
+                  </SubmitButton>
+                </form>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  {data.enrolSearch
+                    ? `No students to enrol match "${data.enrolSearch}".`
+                    : 'Every listed student is already enrolled - search to find others.'}
+                </p>
+              )}
+              {data.studentsCapped && (
+                <p className="text-xs text-slate-400">
+                  More students exist than are shown here - search by name or email to find them.
+                </p>
+              )}
+            </div>
+          )}
         <ul className="space-y-2">
           {data.students.map((s) => (
             <MemberRow
@@ -229,7 +252,7 @@ export default async function ClassPeoplePage(props: {
               m={s}
               subtitle={s.subtitle}
               classId={course.id}
-              showEmail={data.canManage}
+              showEmail={data.isAdmin}
               removeAction={data.canManage ? removeStudentAction : undefined}
               removeName="student_id"
             />
