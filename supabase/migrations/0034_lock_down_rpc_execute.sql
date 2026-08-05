@@ -27,7 +27,6 @@ grant  execute on function public.edit_assignment_and_reclassify(uuid, text, tex
 -- fire on DML regardless of EXECUTE grants, so revoking all is safe.
 revoke execute on function public.set_submission_status() from public, anon, authenticated;
 revoke execute on function public.reclassify_submissions_on_due_change() from public, anon, authenticated;
-revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
 
 -- ── search_path hardening (the one function the linter flagged as mutable) ─────
 alter function public.finance_totals(text) set search_path = public;
