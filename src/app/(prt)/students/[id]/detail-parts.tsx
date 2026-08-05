@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
+import { metricPercentLabel } from '@/lib/services/mentees-shared'
 import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Avatar, Badge, Card, FILTER_CONTROL, FilterBar, FilterField, SectionLabel, StatCard, StatGrid } from '@/lib/ui'
 import { STUDENT_REPORTS } from '@/lib/reports/registry'
@@ -160,13 +161,13 @@ export function EvaluationOverview({
       <StatGrid cols={4}>
         <StatCard
           label="Grade average"
-          value={evaluations.grading.periodAverage == null ? '-' : `${evaluations.grading.periodAverage}%`}
+          value={metricPercentLabel(evaluations.grading.periodAverage)}
           sub={comparisonLabel(evaluations.grading.previousAverage, evaluations.grading.delta)}
           tone="primary"
         />
         <StatCard
           label="Attendance rate"
-          value={evaluations.attendance.periodRate == null ? '-' : `${evaluations.attendance.periodRate}%`}
+          value={metricPercentLabel(evaluations.attendance.periodRate)}
           sub={comparisonLabel(evaluations.attendance.previousRate, evaluations.attendance.delta)}
           tone="primary"
         />
@@ -176,7 +177,7 @@ export function EvaluationOverview({
           sub={
             evaluations.grading.overallAverage == null
               ? 'No graded work yet'
-              : `Overall avg ${evaluations.grading.overallAverage}%`
+              : `Overall avg ${metricPercentLabel(evaluations.grading.overallAverage)}`
           }
         />
         <StatCard
@@ -185,7 +186,7 @@ export function EvaluationOverview({
           sub={
             evaluations.attendance.overallRate == null
               ? 'No attendance yet'
-              : `Overall rate ${evaluations.attendance.overallRate}%`
+              : `Overall rate ${metricPercentLabel(evaluations.attendance.overallRate)}`
           }
         />
       </StatGrid>

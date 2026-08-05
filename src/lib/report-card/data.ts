@@ -10,6 +10,7 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
 import { canMentor } from '@/lib/services/mentees'
 import { summarizeAttendance, type AttendanceSummary } from '@/lib/services/attendance'
+import { weightedAveragePercent } from '@/lib/grades'
 
 type ReportMark = {
   className: string
@@ -117,14 +118,13 @@ export async function getReportCardData(actor: ActorContext, studentId: string):
   // then drop the maximum to 50, and this item would contribute 180% and drag
   // the whole average above 100 without the clamp.
   const weightable = marks.filter((m) => m.maxMarks != null && (m.maxMarks as number) > 0)
-  const totalMax = weightable.reduce((sum, m) => sum + (m.maxMarks as number), 0)
-  const totalScore = weightable.reduce((sum, m) => sum + Math.min(m.score, m.maxMarks as number), 0)
+  const weightedAverage = weightedAveragePercent(weightable)
   const average =
-    weightable.length && totalMax > 0
+    weightedAverage != null
       ? {
           // One decimal place, not a whole number: rounding 99.6% up to 100% on a
           // document a parent reads as fact would falsely claim a perfect score.
-          percent: Math.round((totalScore / totalMax) * 1000) / 10,
+          percent: Math.round(weightedAverage * 10) / 10,
           gradedCount: weightable.length,
           excludedNoPercent: marks.length - weightable.length,
         }

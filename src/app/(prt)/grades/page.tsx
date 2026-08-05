@@ -1,0 +1,56 @@
+import { requireCapability } from '@/lib/auth/require-role'
+import { loadPersonaFlags } from '@/lib/permission/personas'
+import { getActorContext } from '@/lib/session/actor-context'
+import { getReportCardData } from '@/lib/report-card/data'
+import { STUDENT_REPORTS } from '@/lib/reports/registry'
+import { PageHeader, EmptyState } from '@/lib/ui'
+import { redirect } from 'next/navigation'
+import { Gradecard } from './Gradecard'
+
+/**
+ * A student's own grade card: their marks across every class, filterable and
+ * sortable on screen (the staff/mentor equivalent lives on /students/[id]).
+ * Reads through getReportCardData, which allows a student to see their own.
+ */
+export default async function GradesPage() {
+  const me = await requireCapability('viewClasses')
+  const flags = await loadPersonaFlags(me.id)
+  if (!flags.isStudent) {
+    redirect('/dashboard')
+  }
+  const actor = await getActorContext()
+  const data = await getReportCardData(actor, me.id)
+  const marks = data?.marks ?? []
+
+  return (
+    <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="My grades"
+        description="Your marks across all your classes - filter, search and sort. Download a report card any time."
+        action={
+          marks.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {STUDENT_REPORTS.map((report) => (
+                <a
+                  key={report.type}
+                  href={report.pdfPath(me.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-sm btn-soft"
+                >
+                  {report.label}
+                </a>
+              ))}
+            </div>
+          ) : undefined
+        }
+      />
+
+      {marks.length === 0 ? (
+        <EmptyState>Your grades will appear here once your tutors mark your work.</EmptyState>
+      ) : (
+        <Gradecard marks={marks} />
+      )}
+    </main>
+  )
+}
