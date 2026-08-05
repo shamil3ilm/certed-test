@@ -27,16 +27,21 @@ export default async function ClassworkPage(props: {
       )}
       {/* In-tab jump nav: Classwork keeps Assignments + Materials together (the
           familiar grouping) but lets you hop straight to either section. */}
-      <nav aria-label="Classwork sections" className="flex gap-2 border-b border-slate-100 pb-3 text-sm">
+      {/* Center-aligned + wraps on small screens, so the pills line up with the
+          report-card button and it flows below rather than squashing the row. */}
+      <nav
+        aria-label="Classwork sections"
+        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
+      >
         <a
           href="#assignments"
-          className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
         >
           Assignments
         </a>
         <a
           href="#materials"
-          className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
         >
           Documents
         </a>

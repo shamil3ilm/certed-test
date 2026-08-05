@@ -21,6 +21,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v15h5.5a1.5 1.5 0 0 0 1.5-1.5V5.5Z" />
     </>
   ),
+  '/documents': (
+    <>
+      <path d="M6 3h7l5 5v13H6Z" />
+      <path d="M13 3v5h5M9 13h6M9 17h4" />
+    </>
+  ),
   '/calendar': (
     <>
       <rect x="3.5" y="5" width="17" height="15" rx="2" />
@@ -63,6 +69,13 @@ const ICONS: Record<string, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  // Access management: a shield-check (permissions / who-can-do-what).
+  '/admin/messaging': (
+    <>
+      <path d="M12 3l7 2.5v5.5c0 4.4-3 7.4-7 8.5-4-1.1-7-4.1-7-8.5V5.5Z" />
+      <path d="M9 12l2 2 4-4.5" />
     </>
   ),
 }
