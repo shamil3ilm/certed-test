@@ -1,9 +1,9 @@
 /**
- * Fixed document taxonomy - the FOUR predefined categories (no user-created
+ * Fixed document taxonomy - the four predefined categories (no user-created
  * tags) and the two visibility levels. Shared by the data layer, services, the
- * RBAC guard, and the UI, so the enum in migration 0045 has exactly one
- * TypeScript mirror. Presentation-only (no server imports) so client components
- * can render the labels.
+ * RBAC guard, and the UI so the application uses one TypeScript definition.
+ * Presentation-only (no server imports) so client components can render the
+ * labels.
  */
 
 export const DOCUMENT_CATEGORIES = [

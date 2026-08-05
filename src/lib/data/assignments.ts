@@ -171,11 +171,10 @@ type EditAssignmentFields = {
 }
 
 /**
- * Atomically update an assignment AND re-derive its submissions' lateness, via
- * the edit_assignment_and_reclassify function (migration 0026). Both happen in
- * ONE database transaction, so the assignment's due date and its submissions'
- * stamped statuses can never disagree - no app-side rollback, no stale-snapshot
- * overwrite. Service-role: the domain has already asserted canManageClass.
+ * Atomically update an assignment AND re-derive its submissions' lateness in
+ * one database transaction, so the assignment's due date and its submissions'
+ * stamped statuses can never disagree. Service-role: the domain has already
+ * asserted canManageClass.
  */
 export async function callEditAssignmentAndReclassify(id: string, fields: EditAssignmentFields): Promise<void> {
   const admin = createAdminClient()

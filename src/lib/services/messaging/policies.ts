@@ -33,9 +33,8 @@ export async function assertStillMessageable(
   }
 }
 
-/** Canonical key for a 1:1 pair - sorted, so the pair maps to exactly one value no
- *  matter who started the thread. Must match the 0028 backfill's ordering
- *  (string_agg(profile_id::text ORDER BY profile_id::text)). */
+/** Canonical key for a 1:1 pair - sorted, so the pair maps to exactly one value
+ *  no matter who started the thread. */
 export function directKeyFor(a: string, b: string): string {
   return [a, b].sort().join(':')
 }

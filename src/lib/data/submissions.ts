@@ -9,10 +9,9 @@
  * sit outside submissions RLS, and the *AsService read serves the pastoral
  * mentee view.
  */
-// Re-deriving submission lateness after a deadline move now happens atomically
-// inside the edit_assignment_and_reclassify DB function (migration 0026), so the
-// former app-side selectStatusRowsByAssignment/updateSubmissionStatus pair is
-// gone - see src/lib/data/assignments.ts callEditAssignmentAndReclassify.
+// Assignment edits that affect submission lateness are handled by the database
+// function called from src/lib/data/assignments.ts, so this module exports only
+// the row-access concerns that belong to submissions.
 
 export * from './submissions-shared'
 export * from './submissions-reads'

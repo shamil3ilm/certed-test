@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 /**
  * Web app manifest (Next.js App Router serves this at /manifest.webmanifest and
- * links it automatically). Adds the Android/PWA "add to home screen" icons, the
- * brand theme colour, and an app name - none of which existed before.
+ * links it automatically). Defines the Android/PWA "add to home screen" icons,
+ * brand theme colour, and app name.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

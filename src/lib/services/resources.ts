@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Profile } from '@/lib/auth/profile'
 import {
   incrementResourceDownloadCount,
   insertResource,
@@ -11,7 +12,6 @@ import {
   type ResourceEditPatch,
   type ResourceRow,
 } from '@/lib/data/resources'
-import { listClassesByIds } from '@/lib/services/classes'
 import {
   insertVersion,
   selectVersionByIdAsService,
@@ -19,18 +19,18 @@ import {
   selectVersionsForResources,
   type ResourceVersionRow,
 } from '@/lib/data/resource-versions'
-import type { Profile } from '@/lib/auth/profile'
+import { documentCategoryLabel, type DocumentCategory } from '@/lib/documents/categories'
+import { isAllowedDriveUrl } from '@/lib/drive-link'
+import { NotFoundError, ValidationError } from '@/lib/errors'
 import { assertClassActive } from '@/lib/permission'
 import { assertCanDocument } from '@/lib/permission/documents'
-import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
-import { NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
-import { linkUrl } from '@/lib/validation/url'
-import { isAllowedDriveUrl } from '@/lib/drive-link'
+import { listClassesByIds } from '@/lib/services/classes'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { titleField } from '@/lib/validation/fields'
 import { validateUuidField } from '@/lib/validation/id'
-import { documentCategoryLabel, type DocumentCategory } from '@/lib/documents/categories'
+import { linkUrl } from '@/lib/validation/url'
 import { z } from 'zod'
 
 /** Tell a class's students a document was posted/updated. Best-effort (the write
@@ -160,7 +160,7 @@ export function validateResourceIdInput(input: { id?: FormDataEntryValue | null 
   return validateUuidField(input.id, 'Invalid document id')
 }
 
-// ── Shared metadata validation (create + edit never drift) ───────────────────
+// Shared metadata validation for both create and edit flows.
 const categoryField = z.enum(['question_papers', 'practice_sheets', 'academic_resources', 'general_documents'])
 const visibilityField = z.enum(['class', 'staff'])
 const optionalText = (max: number) =>
@@ -274,8 +274,8 @@ export async function editDocument(actor: Profile, input: EditDocumentInput): Pr
   const doc = await getResource(input.id)
   if (!doc) throw new NotFoundError('Document not found')
   await assertCanDocument(actor, 'edit', doc)
-  // Replacing the Drive link is a new version of the document: keep the prior
-  // link + metadata in history first (metadata-only tweaks don't clutter it).
+  // Replacing the Drive link creates a new document version; metadata-only edits
+  // update the live row without adding a history entry.
   if (input.drive_link !== doc.drive_link) await snapshotDocument(doc, 'Replaced')
   const patch: ResourceEditPatch = {
     title: input.title,

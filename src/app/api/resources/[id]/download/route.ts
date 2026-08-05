@@ -46,9 +46,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     if (error instanceof NotFoundError || error instanceof PermissionError) return notFoundText()
     return textFail('Could not open the document. Please try again in a moment.', 502)
   }
-  // Defence in depth: re-verify the host at redirect time, so even a legacy row
-  // stored before the write-time allowlist can't turn this into an open redirect
-  // to an arbitrary host. The write schema now blocks non-Drive links.
+  // Defence in depth: re-verify the host at redirect time, so the redirect
+  // target cannot escape the Drive/Docs allowlist even if bad data reaches the
+  // row.
   if (!doc.drive_link || !isAllowedDriveUrl(doc.drive_link)) return notFoundText()
   // no-store: the URL has a side effect, so it must never be cached or replayed.
   return new Response(null, { status: 302, headers: { Location: doc.drive_link, 'Cache-Control': 'no-store' } })

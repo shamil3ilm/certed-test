@@ -40,9 +40,9 @@ export type AddUserInput = z.infer<typeof addUserSchema>
  * Editing a user updates profile details only - never their role. Personas are
  * fixed identities (a student is not converted into staff, nor staff into a
  * student), so role reassignment is deliberately excluded from the everyday
- * Users hub. If reassignment is ever required it must be a separate, audited
- * admin-only migration that also reconciles class memberships, mentorships,
- * scoped personas, and finance expectations.
+ * Users hub. Any future reassignment flow must be a separate, audited admin
+ * operation that reconciles class memberships, mentorships, scoped personas,
+ * and finance expectations.
  */
 export const editUserSchema = z.object({
   full_name: z.string().max(120).nullable().optional(),

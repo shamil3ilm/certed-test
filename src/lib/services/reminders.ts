@@ -40,9 +40,7 @@ export async function listMyReminders(userId: string): Promise<Reminder[]> {
   return selectPendingForUser(userId)
 }
 
-/** Reminders the user has marked done, most recently done first - previously
- *  had no view at all (is_sent flips to true with nothing anywhere to read
- *  it back). */
+/** Reminders the user has marked done, most recently done first. */
 export async function listMyPastReminders(userId: string, limit = 20): Promise<Reminder[]> {
   return selectSentForUser(userId, limit)
 }
@@ -110,8 +108,7 @@ export async function deleteReminder(actorId: string, id: string): Promise<void>
   await deleteReminderRow(id)
 }
 
-/** Marks a reminder done - the only thing that ever sets is_sent, since
- *  nothing in the app currently auto-fires reminders. Ownership-checked like delete. */
+/** Marks a reminder done. Ownership-checked like delete. */
 export async function markReminderSent(actorId: string, id: string): Promise<void> {
   await assertReminderOwner(actorId, id)
   await markSent(id)

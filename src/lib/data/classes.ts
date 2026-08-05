@@ -80,8 +80,7 @@ export async function insertClass(name: string): Promise<ClassRow> {
  * These writes `.select('id')` and assert a row came back, so a rename/archive
  * against a stale or already-deleted class id fails loudly with NotFound instead
  * of matching 0 rows, returning no error, and letting the caller audit a
- * mutation that never happened. Mirrors the `if not found` guard the assignment
- * RPC uses (migration 0026).
+ * mutation that never happened.
  */
 export async function updateClassName(id: string, name: string): Promise<void> {
   const admin = createAdminClient()

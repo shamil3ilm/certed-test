@@ -50,8 +50,8 @@ export async function createClassAction(formData: FormData) {
 // Whole-class management (rename, archive/restore, co-tutor add/remove) is
 // ADMIN-ONLY - a single tutor shouldn't be able to rename/hide a shared class or
 // change its teaching staff. Day-to-day student enrolment (below) stays with tutors.
-// Permission check + audit for every mutation below now happen inside the
-// relevant service - not swallowed to a no-op here.
+// These actions stay transport-thin: permission, validation, and audit live in
+// the domain services, and ServiceError is surfaced back onto the people page.
 
 export async function renameClassAction(formData: FormData) {
   const me = await requireRole(['admin'])

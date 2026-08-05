@@ -65,11 +65,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Exclude Next internals and real static-asset EXTENSIONS only - not "any path
-  // with a dot", which previously skipped dotted dynamic params (e.g. an id like
-  // `a.b`) and let them bypass the session-refresh + login redirect. Page guards
-  // remain the authoritative security boundary; this gate is a convenience
-  // redirect layered on top.
+  // Exclude Next internals and real static-asset extensions only - not every
+  // path containing a dot. Dotted dynamic params such as `a.b` must still pass
+  // through session refresh and login redirect. Page guards remain the
+  // authoritative security boundary; this gate is a convenience redirect on top.
   matcher: [
     '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|css|js|woff2?|ttf|otf|map)$).*)',
   ],

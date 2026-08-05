@@ -24,8 +24,8 @@ export async function createAuthUser(email: string, password: string): Promise<C
   return { id: data.user.id }
 }
 
-/** Delete an auth account - used to undo a created login when binding it to the
- *  profile loses a concurrent claim. */
+/** Delete an auth account when registration cannot safely finish after the auth
+ *  user is created. */
 export async function deleteAuthUser(authUserId: string): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin.auth.admin.deleteUser(authUserId)

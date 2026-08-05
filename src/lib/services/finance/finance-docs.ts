@@ -25,13 +25,10 @@ import {
  * Table access lives in src/lib/data/finance-docs, which also owns the
  * receipt/payslip shape difference so nothing here touches a raw column name.
  *
- * Issuing and voiding now enforce their OWN permission check. This module used
- * to be a documented exception - its mutations relied on each caller gating
- * first - which held only as long as every future caller remembered. They gate
- * on manageAdminTier, the hard-rule admin-tier marker that is never
- * override-grantable, so the effective rule is exactly the admin-only one the
- * API routes already applied; those routes keep their requireRoleApi check as
- * the transport-level gate, making this defence in depth rather than a move.
+ * Issuing and voiding enforce their own permission check on manageAdminTier,
+ * the hard-rule admin-tier marker that is never override-grantable. Route-level
+ * guards remain the transport gate; the service keeps the domain rule with the
+ * write itself.
  */
 
 export const FINANCE_DENIED = 'You are not allowed to manage finance documents.'

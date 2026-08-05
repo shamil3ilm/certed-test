@@ -62,8 +62,8 @@ export async function disablePersonasForProfile(profileId: string): Promise<void
 }
 
 /**
- * Re-activate a user's global persona (for restoration). Self-healing: the upsert
- * recreates the row if data drift removed it, so restore always makes auth work.
+ * Re-activate a user's global persona on restore. Upsert is used so the
+ * required row exists whether it was merely deactivated or missing.
  */
 export async function restorePersonasForProfile(profileId: string, role: Profile['role']): Promise<void> {
   await upsertGlobalPersona(profileId, roleToPersona(role))
@@ -74,11 +74,10 @@ export async function restorePersonasForProfile(profileId: string, role: Profile
   if ((await selectActiveClassIdsForTutor(profileId)).length > 0) {
     await upsertGlobalPersona(profileId, 'tutor')
   }
-  // Revocation deactivates EVERY persona, including the student-scoped mentor rows
-  // that carry mentee access. Restoring only the global persona would hand back a
-  // half-working account - login returns, but mentee visibility, messaging reach and
-  // the mentor workflow stay dead. The mentorship graph itself survives revocation,
-  // so rebuild the scoped personas from it.
+  // Revocation deactivates every persona, including the student-scoped mentor
+  // rows that carry mentee access. Restoring the global persona alone would not
+  // restore mentor reach, so rebuild the scoped personas from the surviving
+  // mentorship graph too.
   for (const studentId of await selectActiveMenteeIds(profileId)) {
     await upsertScopedMentorPersona(profileId, studentId)
   }

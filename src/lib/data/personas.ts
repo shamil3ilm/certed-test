@@ -9,7 +9,7 @@ import { selectActiveIdsAmong } from '@/lib/data/profiles'
  * src/lib/services/users/personas.ts.
  *
  * Service-role throughout: persona rows are the authorization source, and RLS
- * restricts them to self-read plus admin management (0014/0022/0024).
+ * restricts them to self-read plus admin management.
  */
 
 /** The 3-column conflict target matching the DB's uniqueness on a persona row. */
@@ -46,7 +46,7 @@ export async function deactivateOtherGlobalPersonas(profileId: string, keepPerso
  * (each revoke/restore or role-flip accumulating another orphan row). So:
  * reactivate the existing global row in place, and insert only when there was
  * none. The DB-level backstop is the partial unique index on
- * (profile_id, persona_name) WHERE scope_type='global' (migration 0025).
+ * (profile_id, persona_name) WHERE scope_type='global'.
  */
 export async function upsertGlobalPersona(profileId: string, personaName: string): Promise<void> {
   const admin = createAdminClient()
@@ -185,9 +185,9 @@ export async function selectActivePersonaAssignments(profileId: string): Promise
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('persona_assignments')
-    // NB: no created_at - the column is `assigned_at` (migration 0014) and this
-    // list is never consumed for it, so selecting created_at would error against
-    // real Postgres (masked in mock mode, which does not validate columns).
+    // NB: no created_at - the column is `assigned_at` and this list is never
+    // consumed for it, so selecting created_at would fail against the real
+    // table shape.
     .select('profile_id, persona_name, scope_type, scope_id, status')
     .eq('profile_id', profileId)
     .eq('status', 'active')
@@ -217,9 +217,8 @@ export async function selectActivePersonaAssignmentsByProfileIds(
  * policy - the session bootstrap's trust boundary, not the service-role one
  * selectActivePersonaAssignments uses for reading about someone else.
  *
- * THROWS on error, and that is load-bearing. Coercing a failed read to [] strips
- * every capability from a healthy user (the 0022 recursion outage: blank nav and
- * dashboard) - so this fails closed AND loud.
+ * THROWS on error, and that is load-bearing. Coercing a failed read to []
+ * strips every capability from a healthy user, so this fails closed and loud.
  */
 export async function selectOwnActivePersonas(profileId: string): Promise<PersonaAssignmentRow[]> {
   const supabase = await createClient()

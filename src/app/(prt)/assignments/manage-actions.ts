@@ -13,8 +13,8 @@ import {
 } from '@/lib/services/resources'
 import { classErrorUrl } from '../action-redirect'
 
-// Permission check + audit on every mutation now happens inside each service
-// and action-input parsing lives with the owning domain service.
+// Keep actions transport-thin: authorization, validation, auditing, and write
+// orchestration live in the owning domain services.
 
 // The archive/restore controls below are native `<form action>`s: a service
 // error (e.g. acting on a row deleted in a concurrent session) would otherwise

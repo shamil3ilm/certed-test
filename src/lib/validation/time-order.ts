@@ -7,9 +7,9 @@ import { ValidationError } from '@/lib/errors'
  *  - end_time must be after start_time (whenever both are present), and
  *  - end_time requires a start_time (only when `endRequiresStart`).
  *
- * Kept in ONE place so a create schema and its partial `update` variant can never
- * drift - an update schema silently missing this check was a recurring bug, and a
- * calendar_events row has no DB CHECK to catch it.
+ * Kept in one place so create and partial-update schemas enforce the same
+ * interval rule, including tables that do not have a database-level time-order
+ * check.
  *
  * `partial: true` (for update/patch schemas) treats an ABSENT start_time as
  * "unchanged" rather than "missing": only an explicit `null` (clearing the start
@@ -36,10 +36,8 @@ export function refineTimeOrder(
  * start/end can't be validated against the other. Callers resolve the EFFECTIVE
  * pair (patch value merged over the existing row) and pass it here.
  *
- * Matters most for calendar_events, which has NO DB time-order CHECK: without
- * this, a crafted { end_time } that inverts the interval would persist a
- * negative-duration event. Throws ValidationError (a clean 400) on an invalid
- * pair, same rules as refineTimeOrder.
+ * Throws ValidationError on an invalid effective pair, using the same rules as
+ * refineTimeOrder.
  */
 export function assertTimeOrder(start: string | null | undefined, end: string | null | undefined): void {
   if (end != null && start == null) {

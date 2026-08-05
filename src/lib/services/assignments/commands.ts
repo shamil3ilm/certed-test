@@ -122,10 +122,9 @@ export async function editAssignment(actor: Profile, id: string, patch: Assignme
   if (patch.due_date !== undefined && new Date(patch.due_date).getTime() !== new Date(existing.due_date).getTime()) {
     // A moved deadline invalidates every stamped on-time/late verdict on this
     // assignment's submissions. Update the assignment AND re-derive those
-    // verdicts in ONE database transaction (edit_assignment_and_reclassify,
-    // migration 0026), so the two can never disagree - no app-side rollback, no
-    // stale-snapshot overwrite. The full field set is sent (patch value where
-    // present, else the current value) since the RPC rewrites the whole row.
+    // verdicts in one database transaction, so the two can never disagree. The
+    // full field set is sent (patch value where present, else the current
+    // value) since the RPC rewrites the whole row.
     const field = <K extends keyof AssignmentPatch>(key: K): NonNullable<AssignmentPatch[K]> | null =>
       (patch[key] !== undefined ? patch[key] : (existing[key as keyof Assignment] as AssignmentPatch[K])) ?? null
     await editAssignmentAndReclassify(id, {

@@ -68,8 +68,8 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     // riding on general manageUsers. It stays override-grantable, so an admin can
     // delegate it to a sub_admin explicitly and with an audited reason.
     'manageMentorships',
-    // Self-service finance docs default to admin only for now. Other personas can
-    // be granted them later through explicit capability overrides.
+    // Self-service finance docs default to admin only. Other personas receive
+    // them through explicit capability overrides when needed.
     'viewPayslips',
     'viewReceipts',
     'manageAdminTier',
@@ -102,16 +102,9 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewMentees',
   ]),
   student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar']),
-  // RESERVED, INTENTIONALLY NOT LISTED: `guardian`, `finance_operator`,
-  // `assistant`, `executive` exist in the persona_name DB enum (migration 0014)
-  // as forward-looking headroom, but nothing in the app can assign them
-  // (roleToPersona yields only the four base personas; assignMentorPersona yields
-  // only `mentor`). Advertising capabilities for personas no profile can hold
-  // would misrepresent what the routes/loaders honor -- and reads as a live
-  // access path that doesn't exist. When one of these becomes real, wire it end
-  // to end (PersonaName, an assignment path, the dashboard loader, and its route
-  // guards) and add its entry here in the same change. An unrecognized persona
-  // aggregates to no capabilities (fail-closed) until then.
+  // Reserved personas are intentionally omitted here until the app can assign
+  // and route them end to end. An unrecognized persona aggregates to no
+  // capabilities (fail-closed).
 }
 
 // Capabilities for a single profile keyed by its role - the fixed identity a

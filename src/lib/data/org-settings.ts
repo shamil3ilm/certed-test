@@ -33,9 +33,8 @@ export type OrgSettingsRow = {
   timezone: string
   receipt_prefix: string
   payslip_prefix: string
-  /** Admin-configured messaging matrix ({ "a|b": true }). Absent/null before the
-   *  0034 migration runs - callers treat that as an empty matrix (direct contacts
-   *  only), so the code is safe to ship ahead of the schema change. */
+  /** Admin-configured messaging matrix ({ "a|b": true }). Null means no extra
+   *  cross-persona pairs are enabled beyond the direct relationship defaults. */
   messaging_matrix: Record<string, boolean> | null
 }
 
