@@ -5,20 +5,55 @@ import {
   getSession,
   listAttendanceForClassDate,
   listAttendanceForStudentPage,
+  listAttendanceHistoryForClass,
   listRecentSessions,
-  listSessionSummariesForClass,
   summarizeAttendanceForStudent,
   type AttendanceStatus,
   type ClassSession,
-  type SessionSummary,
 } from '@/lib/services/attendance'
 import { getClassMembers } from '@/lib/services/classes'
+import { getProfileNamesByIds } from '@/lib/services/users'
 import { isCalendarDate, todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 
 const RECORD_PAGE_SIZE = 20
 
-type AttendanceSearchParams = { date?: string; recPage?: string }
+type AttendanceSearchParams = {
+  date?: string
+  recPage?: string
+  aStatus?: string
+  aFrom?: string
+  aTo?: string
+}
+
+export type AttendanceHistoryFilterState = { status: AttendanceStatus | ''; from: string; to: string }
+export type AttendanceHistoryRow = {
+  session_date: string
+  status: AttendanceStatus
+  name: string
+  join_at: string | null
+  leave_at: string | null
+}
+
+const ATTENDANCE_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent']
+const asStatus = (v: string | undefined): AttendanceStatus | '' =>
+  ATTENDANCE_STATUSES.includes(v as AttendanceStatus) ? (v as AttendanceStatus) : ''
+
+/** Builds an attendance URL preserving the current Details filters, changing only
+ *  the keys in `patch`. Keeps the marking `date` param untouched. */
+export function attendanceHistoryUrl(
+  current: AttendanceHistoryFilterState & { date?: string },
+  patch: Partial<AttendanceHistoryFilterState>,
+): string {
+  const next = { ...current, ...patch }
+  const sp = new URLSearchParams()
+  if (current.date) sp.set('date', current.date)
+  if (next.status) sp.set('aStatus', next.status)
+  if (next.from) sp.set('aFrom', next.from)
+  if (next.to) sp.set('aTo', next.to)
+  const q = sp.toString()
+  return q ? `?${q}` : '?'
+}
 
 type StudentAttendancePageData = {
   kind: 'student'
@@ -48,7 +83,9 @@ type ManagerAttendancePageData = {
   // The clear control keys off this (not "is a current enrollee marked") so a
   // session whose marked students were later unenrolled can still be cleared.
   hasMarks: boolean
-  sessions: SessionSummary[]
+  historyFilters: AttendanceHistoryFilterState
+  hasHistoryFilters: boolean
+  history: AttendanceHistoryRow[]
 }
 
 type ClassAttendancePageData = StudentAttendancePageData | ManagerAttendancePageData
@@ -90,18 +127,39 @@ export async function loadClassAttendancePageData(
   }
 
   const date = attendanceSessionDate(searchParams?.date, await getInstituteTimeZone())
-  const [{ students }, marks, sessions, session] = await Promise.all([
+  const historyFilters: AttendanceHistoryFilterState = {
+    status: asStatus(searchParams?.aStatus),
+    from: isCalendarDate(searchParams?.aFrom ?? '') ? (searchParams!.aFrom as string) : '',
+    to: isCalendarDate(searchParams?.aTo ?? '') ? (searchParams!.aTo as string) : '',
+  }
+  const [{ students }, marks, session, historyRows] = await Promise.all([
     getClassMembers(courseId),
     listAttendanceForClassDate(courseId, date),
-    listSessionSummariesForClass(courseId),
     getSession(courseId, date),
+    listAttendanceHistoryForClass(courseId, {
+      status: historyFilters.status || undefined,
+      from: historyFilters.from || undefined,
+      to: historyFilters.to || undefined,
+    }),
   ])
   const byStudent = new Map(marks.map((m) => [m.student_id, m]))
+  const historyStudentIds = [...new Set(historyRows.map((row) => row.student_id))]
+  const historicalNames = await getProfileNamesByIds(historyStudentIds)
+  const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
 
   return {
     kind: 'manager',
     date,
     session,
+    historyFilters,
+    hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
+    history: historyRows.map((r) => ({
+      session_date: r.session_date,
+      status: r.status,
+      name: nameById.get(r.student_id) ?? 'Student',
+      join_at: r.join_at,
+      leave_at: r.leave_at,
+    })),
     roster: students.map((s) => {
       const mark = byStudent.get(s.id)
       return {
@@ -113,6 +171,5 @@ export async function loadClassAttendancePageData(
       }
     }),
     hasMarks: marks.length > 0,
-    sessions,
   }
 }

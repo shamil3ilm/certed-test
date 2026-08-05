@@ -16,12 +16,13 @@ export {
   listAttendanceForStudentPage,
   summarizeAttendanceForStudent,
   listSessionSummariesForClass,
+  listAttendanceHistoryForClass,
 } from './queries'
-export type { AttendanceRow, PaginatedAttendance, SessionSummary } from './queries'
+export type { AttendanceRow, PaginatedAttendance, SessionSummary, AttendanceHistoryFilters } from './queries'
 
 export { markAttendance, clearAttendanceSession } from './marking'
 export type { MarkAttendanceInput } from './marking'
 export type { AttendanceMark } from '@/lib/data/attendance'
 
-export { saveSessionTimes, getSession, listRecentSessions } from './sessions'
-export type { ClassSession, SaveSessionActionInput } from './sessions'
+export { saveSessionTimes, saveSessionFeedback, getSession, listRecentSessions } from './sessions'
+export type { ClassSession, SaveSessionActionInput, SaveFeedbackActionInput } from './sessions'

@@ -7,6 +7,7 @@ import {
   clearAttendanceSession,
   markAttendance,
   saveSessionTimes,
+  saveSessionFeedback,
   type MarkAttendanceInput,
 } from '@/lib/services/attendance'
 import { PermissionError, ServiceError } from '@/lib/errors'
@@ -67,6 +68,25 @@ export async function saveSessionAction(formData: FormData): Promise<ActionResul
       actual_end: formData.get('actual_end'),
       tutor_join_at: formData.get('tutor_join_at'),
       tutor_leave_at: formData.get('tutor_leave_at'),
+      summary: formData.get('summary'),
+    })
+    revalidatePath(`/classroom/${classId}/attendance`)
+    return actionOk({ ok: true })
+  } catch (e) {
+    return toActionError(e)
+  }
+}
+
+/** A student saves their feedback for one of their own class sessions. The
+ *  service gates it on the actor being the class's enrolled student. */
+export async function saveFeedbackAction(formData: FormData): Promise<ActionResult<{ ok: true }>> {
+  const me = await requireCapability('viewClasses')
+  const classId = String(formData.get('class_id') ?? '')
+  try {
+    await saveSessionFeedback(me, {
+      classId,
+      sessionDate: formData.get('session_date'),
+      feedback: formData.get('feedback'),
     })
     revalidatePath(`/classroom/${classId}/attendance`)
     return actionOk({ ok: true })

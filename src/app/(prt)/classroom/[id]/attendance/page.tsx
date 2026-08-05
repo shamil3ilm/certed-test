@@ -4,10 +4,28 @@ import { type AttendanceStatus } from '@/lib/services/attendance'
 import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/services/page-data/class-attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { SessionTimesForm } from './SessionTimesForm'
+import { SessionFeedbackForm } from './SessionFeedbackForm'
 import { clearAttendanceAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
-import { AlertBanner, Card, EmptyState, Badge, SectionLabel } from '@/lib/ui'
-import { formatMinutes, sessionMetrics, studentMetrics, type SessionTimes } from '@/lib/attendance/hours'
+import {
+  AlertBanner,
+  Card,
+  EmptyState,
+  Badge,
+  SectionLabel,
+  FilterBar,
+  FilterField,
+  FILTER_CONTROL,
+  CARD,
+  cx,
+} from '@/lib/ui'
+import {
+  formatMinutes,
+  minutesBetween,
+  sessionMetrics,
+  studentMetrics,
+  type SessionTimes,
+} from '@/lib/attendance/hours'
 
 function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
   return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
@@ -68,15 +86,35 @@ export default async function AttendancePage(props: {
                 ? studentMetrics(s, { join_at: row.join_at, leave_at: row.leave_at }).learningMinutes
                 : null
               return (
-                <li
-                  key={row.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
-                >
-                  <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
-                  <span className="flex items-center gap-2">
-                    {learning != null && <span className="text-xs text-slate-400">{formatMinutes(learning)}</span>}
-                    <Badge tone={statusTone(row.status)}>{row.status}</Badge>
-                  </span>
+                <li key={row.id} className="rounded-xl border border-slate-200 bg-white">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
+                    <span className="flex items-center gap-2">
+                      {learning != null && <span className="text-xs text-slate-400">{formatMinutes(learning)}</span>}
+                      <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                    </span>
+                  </div>
+                  <details className="border-t border-slate-100 px-4 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-primary transition hover:underline">
+                      Summary &amp; feedback
+                    </summary>
+                    {s?.summary ? (
+                      <div className="mt-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Tutor&apos;s summary
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{s.summary}</p>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-400">No summary from your tutor for this session yet.</p>
+                    )}
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Your feedback</p>
+                    <SessionFeedbackForm
+                      classId={course.id}
+                      date={row.session_date}
+                      initial={s?.student_feedback ?? null}
+                    />
+                  </details>
                 </li>
               )
             })}
@@ -161,32 +199,77 @@ export default async function AttendancePage(props: {
       )}
 
       <div className="pt-2">
-        <SectionLabel>Recent sessions</SectionLabel>
-        {data.sessions.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-400">No attendance marked yet.</p>
+        <SectionLabel>Attendance details</SectionLabel>
+        {/* GET form: status + date-range filters run server-side. Keeps the marking
+            `date` so applying a filter doesn't reset the session above. */}
+        <FilterBar className="mt-2" clearHref={`?date=${data.date}`} showClear={data.hasHistoryFilters}>
+          <input type="hidden" name="date" value={data.date} />
+          <FilterField label="Status">
+            <select name="aStatus" defaultValue={data.historyFilters.status} className={FILTER_CONTROL}>
+              <option value="">All statuses</option>
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+              <option value="absent">Absent</option>
+            </select>
+          </FilterField>
+          <FilterField label="From">
+            <input type="date" name="aFrom" defaultValue={data.historyFilters.from} className={FILTER_CONTROL} />
+          </FilterField>
+          <FilterField label="To">
+            <input type="date" name="aTo" defaultValue={data.historyFilters.to} className={FILTER_CONTROL} />
+          </FilterField>
+        </FilterBar>
+
+        {data.history.length === 0 ? (
+          <EmptyState className="mt-3">
+            {data.hasHistoryFilters ? 'No records match these filters.' : 'No attendance recorded yet.'}
+          </EmptyState>
         ) : (
-          <ul className="mt-2 space-y-1.5">
-            {data.sessions.map((session) => (
-              <li key={session.session_date}>
-                <a
-                  href={`?date=${session.session_date}`}
-                  className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-sm transition hover:border-primary hover:bg-primary/5 ${
-                    session.session_date === data.date ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <span className="font-medium text-slate-700">{session.session_date}</span>
-                  <span className="flex items-center gap-2 text-xs">
-                    <Badge tone={session.rate >= 75 ? 'success' : session.rate >= 50 ? 'warning' : 'danger'}>
-                      {session.rate}%
-                    </Badge>
-                    <span className="text-slate-400">
-                      {session.present + session.late}/{session.total} attended
-                    </span>
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
+            <table className="data-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th scope="col" className="text-left">
+                    Date
+                  </th>
+                  <th scope="col" className="text-left">
+                    Student
+                  </th>
+                  <th scope="col" className="text-left">
+                    Status
+                  </th>
+                  <th scope="col" className="text-left">
+                    Time in class
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.history.map((row, i) => {
+                  const learned = minutesBetween(row.join_at, row.leave_at)
+                  return (
+                    <tr key={`${row.session_date}-${row.name}-${i}`}>
+                      <td className="whitespace-nowrap">
+                        <a
+                          href={`?date=${row.session_date}`}
+                          className="font-medium text-slate-700 transition hover:text-primary"
+                          title="Open this session"
+                        >
+                          {row.session_date}
+                        </a>
+                      </td>
+                      <td className="whitespace-nowrap text-slate-600">{row.name}</td>
+                      <td className="whitespace-nowrap">
+                        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                      </td>
+                      <td className="whitespace-nowrap text-slate-500">
+                        {learned != null ? formatMinutes(learned) : '-'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

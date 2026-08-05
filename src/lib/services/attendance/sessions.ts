@@ -4,8 +4,22 @@ import { canManageClass } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
-import { selectRecentSessions, selectSession, upsertSession, type ClassSessionRow } from '@/lib/data/class-sessions'
+import {
+  selectRecentSessions,
+  selectSession,
+  upsertSession,
+  upsertSessionStudentFeedback,
+  type ClassSessionRow,
+} from '@/lib/data/class-sessions'
+import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { z } from 'zod'
+
+/** A free-text session note: trimmed, bounded, empty -> null (clears it). */
+const noteField = z
+  .string()
+  .trim()
+  .max(2000)
+  .transform((v) => v || null)
 
 /** Recording a class session's timing (scheduled + actual window, tutor
  *  join/leave). canManageClass-gated + audited, like marking. */
@@ -38,6 +52,7 @@ export type SaveSessionActionInput = {
   actual_end?: FormDataEntryValue | null
   tutor_join_at?: FormDataEntryValue | null
   tutor_leave_at?: FormDataEntryValue | null
+  summary?: FormDataEntryValue | null
 }
 
 export async function saveSessionTimes(actor: Profile, input: SaveSessionActionInput): Promise<ClassSession> {
@@ -69,9 +84,36 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     session_date: sessionDate,
     tutor_id: tutorId,
     ...parsed.data,
+    summary: noteField.parse(String(input.summary ?? '')),
   })
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId)
   return saved
+}
+
+export type SaveFeedbackActionInput = {
+  classId?: FormDataEntryValue | null
+  sessionDate?: FormDataEntryValue | null
+  feedback?: FormDataEntryValue | null
+}
+
+/**
+ * A student leaves feedback on one of their own class sessions. Gated on the
+ * actor being the class's enrolled student (staff use the summary field instead),
+ * then written to that session's row - creating it if the tutor hasn't recorded
+ * times yet.
+ */
+export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackActionInput): Promise<void> {
+  const classId = String(input.classId ?? '')
+  const sessionDate = String(input.sessionDate ?? '')
+  if (!isCalendarDate(sessionDate)) {
+    throw new ValidationError('Invalid session date.')
+  }
+  const enrolledClassIds = await selectActiveClassIdsForStudent(actor.id)
+  if (!enrolledClassIds.includes(classId)) {
+    throw new PermissionError('Only the enrolled student can leave feedback for this class.')
+  }
+  await upsertSessionStudentFeedback(classId, sessionDate, noteField.parse(String(input.feedback ?? '')))
+  await auditPrivilegedAction(actor, 'attendance.feedback', 'class', classId)
 }
 
 export async function getSession(classId: string, date: string): Promise<ClassSession | null> {

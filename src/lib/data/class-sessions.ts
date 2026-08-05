@@ -21,14 +21,24 @@ export type ClassSessionRow = {
   tutor_id: string | null
   tutor_join_at: string | null
   tutor_leave_at: string | null
+  summary: string | null
+  student_feedback: string | null
   created_at: string
   updated_at: string
 }
 
-export type ClassSessionUpsert = Omit<ClassSessionRow, 'id' | 'created_at' | 'updated_at'>
+// summary/student_feedback are written through their own paths (staff summary via
+// the session save, student feedback via upsertSessionStudentFeedback), so they
+// are optional here and an omitted field is left untouched on conflict.
+export type ClassSessionUpsert = Omit<
+  ClassSessionRow,
+  'id' | 'created_at' | 'updated_at' | 'summary' | 'student_feedback'
+> & {
+  summary?: string | null
+}
 
 const COLUMNS =
-  'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, tutor_join_at, tutor_leave_at, created_at, updated_at'
+  'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, tutor_join_at, tutor_leave_at, summary, student_feedback, created_at, updated_at'
 
 /** The timing record for one class session, or null if none yet. */
 export async function selectSession(classId: string, date: string): Promise<ClassSessionRow | null> {
@@ -53,6 +63,28 @@ export async function upsertSession(row: ClassSessionUpsert): Promise<ClassSessi
     .single()
   if (error) throw new Error(`classSessions.upsert: ${error.message}`)
   return data as ClassSessionRow
+}
+
+/** Set ONLY a session's student feedback (creating the row if the tutor hasn't
+ *  recorded times yet). Service role - the domain gates it on the caller being
+ *  the class's enrolled student. Times/summary are not in the payload, so the
+ *  on-conflict update leaves them untouched. */
+export async function upsertSessionStudentFeedback(
+  classId: string,
+  date: string,
+  feedback: string | null,
+): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('class_sessions').upsert(
+    {
+      class_id: classId,
+      session_date: date,
+      student_feedback: feedback,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'class_id,session_date' },
+  )
+  if (error) throw new Error(`classSessions.feedback: ${error.message}`)
 }
 
 /** Recent sessions for a class, newest first - bounded for the summaries + the

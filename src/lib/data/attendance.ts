@@ -55,6 +55,26 @@ export async function selectForClassDate(classId: string, date: string): Promise
   return (data ?? []) as AttendanceRow[]
 }
 
+/** Filterable, date-wise attendance history for a class (newest first). Powers
+ *  the Attendance Details view - status + date-range filters run SQL-side. */
+export async function selectHistoryForClass(
+  classId: string,
+  opts: { status?: AttendanceStatus; from?: string; to?: string; limit?: number },
+): Promise<AttendanceRow[]> {
+  const supabase = await createClient()
+  let query = supabase
+    .from('attendance')
+    .select(ATTENDANCE_COLUMNS)
+    .eq('class_id', classId)
+    .order('session_date', { ascending: false })
+  if (opts.status) query = query.eq('status', opts.status)
+  if (opts.from) query = query.gte('session_date', opts.from)
+  if (opts.to) query = query.lte('session_date', opts.to)
+  const { data, error } = await query.limit(opts.limit ?? 200)
+  if (error) throw new Error(`attendance.historyForClass: ${error.message}`)
+  return (data ?? []) as AttendanceRow[]
+}
+
 /** Which of `classIds` already have ANY mark on `date` - one query instead of
  *  one-per-class (the tutor dashboard's pending-attendance widget). */
 export async function selectMarkedClassIds(classIds: string[], date: string): Promise<string[]> {

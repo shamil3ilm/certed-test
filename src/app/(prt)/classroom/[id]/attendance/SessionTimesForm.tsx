@@ -50,17 +50,19 @@ export function SessionTimesForm({
 }: {
   classId: string
   date: string
-  session: SessionTimes | null
+  session: (SessionTimes & { summary?: string | null; student_feedback?: string | null }) | null
 }) {
   const router = useRouter()
   const { toast } = useUI()
   const [times, setTimes] = useState<Record<string, string>>({})
+  const [summary, setSummary] = useState('')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     const seed: Record<string, string> = {}
     for (const f of FIELDS) seed[f.key] = isoToLocalTime(session?.[f.key] ?? null)
     setTimes(seed)
+    setSummary(session?.summary ?? '')
   }, [session])
 
   async function onSubmit(event: FormEvent) {
@@ -70,10 +72,11 @@ export function SessionTimesForm({
     formData.set('class_id', classId)
     formData.set('session_date', date)
     for (const f of FIELDS) formData.set(f.key, localTimeToIso(date, times[f.key] ?? ''))
+    formData.set('summary', summary.trim())
 
     try {
-      assertActionOk(await saveSessionAction(formData), 'Could not save session times')
-      toast('Session times saved', 'success')
+      assertActionOk(await saveSessionAction(formData), 'Could not save session')
+      toast('Session saved', 'success')
       router.refresh()
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not save session times', 'error')
@@ -98,8 +101,28 @@ export function SessionTimesForm({
           </label>
         ))}
       </div>
+
+      <label className="block text-xs font-medium text-slate-500">
+        Session summary <span className="font-normal text-slate-400">(optional - shared with the student)</span>
+        <textarea
+          value={summary}
+          onChange={(event) => setSummary(event.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="What did this session cover? Topics, homework, how it went..."
+          className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+        />
+      </label>
+
+      {session?.student_feedback && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Student feedback</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{session.student_feedback}</p>
+        </div>
+      )}
+
       <button type="submit" disabled={busy} className="btn btn-sm btn-primary">
-        {busy ? 'Saving...' : 'Save session times'}
+        {busy ? 'Saving...' : 'Save session'}
       </button>
     </form>
   )

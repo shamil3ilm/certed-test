@@ -4,11 +4,24 @@ import {
   countStatusesForStudent,
   RECENT_CLASS_MARKS_CAP,
   selectForClassDate,
+  selectHistoryForClass,
   selectMarkedClassIds,
   selectRecentForClass,
   selectStudentPage,
   type AttendanceRow,
 } from '@/lib/data/attendance'
+import type { AttendanceStatus } from '@/lib/attendance/summary'
+
+export type AttendanceHistoryFilters = { status?: AttendanceStatus; from?: string; to?: string }
+
+/** Filterable, date-wise attendance history for a class (the Details view). RLS
+ *  scopes it; the page gates who reaches it. */
+export async function listAttendanceHistoryForClass(
+  classId: string,
+  filters: AttendanceHistoryFilters,
+): Promise<AttendanceRow[]> {
+  return selectHistoryForClass(classId, filters)
+}
 
 /** Reading attendance: one session, a student's history, and the per-session
  *  breakdowns. Table access is in src/lib/data/attendance. */
