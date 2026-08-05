@@ -1,5 +1,10 @@
 import type { Profile } from '@/lib/auth/profile'
-import { deactivateEnrollment, selectAllActiveEnrollmentRefs, upsertEnrollment } from '@/lib/data/class-membership'
+import {
+  deactivateEnrollment,
+  selectActiveEnrollmentRefsByClassIds,
+  selectAllActiveEnrollmentRefs,
+  upsertEnrollment,
+} from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
 import { canManageClass } from '@/lib/permission'
 import { getProfileById } from '@/lib/services/users'
@@ -9,10 +14,7 @@ import { z } from 'zod'
 
 /**
  * Active-enrollment count per class, for the "students per class" dashboard
- * chart. Selects only `class_id` refs instead of full enrollment rows
- * and aggregates in one O(n) pass, instead of the dashboard's old pattern of
- * pulling every enrollment and re-filtering it once per class (O(classes x
- * enrollments)).
+ * chart. Selects only `class_id` refs and aggregates them in one O(n) pass.
  */
 export async function countEnrollmentsPerClass(): Promise<Map<string, number>> {
   const counts = new Map<string, number>()
@@ -57,6 +59,15 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
   // Don't add members to an archived class (soft-deleted state).
   if ((await selectClassStatus(params.classId)) !== 'active') {
     throw new ValidationError('That class is archived - restore it before enrolling students.')
+  }
+  // One-to-one rule: a class has at most ONE active student. A student takes
+  // several classes (one per tutor/subject); a tutor teaches one student per
+  // class. Re-enrolling the SAME student is fine (idempotent).
+  const activeStudentIds = (await selectActiveEnrollmentRefsByClassIds([params.classId])).map((r) => r.student_id)
+  if (activeStudentIds.some((id) => id !== params.studentId)) {
+    throw new ValidationError(
+      'This class already has a student. Each class is one-to-one - create a separate class to assign this student to another tutor.',
+    )
   }
   await upsertEnrollment(params.studentId, params.classId)
   await auditPrivilegedAction(actor, 'class.enroll', 'enrollment', params.classId)

@@ -49,9 +49,10 @@ describe('enrolStudent', () => {
   it('enrolls and audits class.enroll for a manager + active student', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
-    // One client per data-layer call: the class-status read, then the upsert.
+    // One client per data-layer call: class-status read, active-students check, upsert.
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // no active student yet
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertEnrollment
     await enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
@@ -60,6 +61,31 @@ describe('enrolStudent', () => {
       entity_type: 'enrollment',
       entity_id: 'class-1',
     })
+  })
+
+  it('rejects a SECOND student - a class is one-to-one', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(
+        makeClient({ data: [{ class_id: 'class-1', student_id: 'other-student' }], error: null }) as any,
+      ) // already has a different active student
+    await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('allows re-enrolling the SAME student (idempotent)', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: [{ class_id: 'class-1', student_id: 'stud-1' }], error: null }) as any) // same student
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertEnrollment
+    await enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
+    expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'class.enroll' }))
   })
 })
 
@@ -133,9 +159,10 @@ describe('enrollment action-input helpers', () => {
   it('delegates enrol/remove student after validation', async () => {
     vi.mocked(canManageClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
-    // One client per data-layer call: the class-status read, then the upsert.
+    // One client per data-layer call: class-status read, active-students check, upsert.
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // no active student yet
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertEnrollment
     await enrolStudentFromActionInput(tutor, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
