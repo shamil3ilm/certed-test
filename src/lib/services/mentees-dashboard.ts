@@ -8,15 +8,18 @@ import {
   selectEvaluatedSubmissionsForStudentAsService,
 } from '@/lib/data/submissions'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
+import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 import { displayName, getProfilesByIds } from '@/lib/services/users'
 import {
   average,
+  buildMenteeGradeRows,
   DAY_MS,
   type MenteeGradeItem,
   type MenteeWorkItem,
   type MentorDashboardCards,
   type MentorDashboardMentee,
   rateFromStatuses,
+  roundedWeightedAverage,
   roundMetric,
 } from './mentees-shared'
 
@@ -66,30 +69,14 @@ async function menteeSignals(studentId: string): Promise<MenteeSignals> {
     ...new Set(gradedSubs.map((submission) => submission.assignment_id)),
   ])
   const metaById = new Map(meta.map((assignment) => [assignment.id, assignment]))
-  const grades: MenteeGradeItem[] = gradedSubs
-    .map((submission) => {
-      const assignment = metaById.get(submission.assignment_id)
-      const maxMarks = assignment?.max_marks != null ? Number(assignment.max_marks) : null
-      const percent =
-        maxMarks && maxMarks > 0 ? Math.round((Math.min(submission.score, maxMarks) / maxMarks) * 100) : null
-      return {
-        assignmentTitle: assignment?.title ?? 'Assignment',
-        classLabel: assignment ? (classLabel.get(assignment.class_id) ?? 'Class') : 'Class',
-        score: submission.score,
-        maxMarks,
-        percent,
-        gradedAt: submission.graded_at,
-      }
-    })
+  const grades: MenteeGradeItem[] = buildMenteeGradeRows(gradedSubs, metaById, classLabel)
+    .map(({ gradedAtMs: _gradedAtMs, ...grade }) => grade)
     .sort((left, right) => (left.gradedAt < right.gradedAt ? 1 : -1))
-
-  const gradeValues = grades
-    .map((grade) => grade.percent ?? grade.score)
-    .filter((value): value is number => value != null)
+  const avgGrade = roundedWeightedAverage(grades)
 
   return {
     attendanceRate: roundMetric(rateFromStatuses(attendanceRows.map((row) => row.status))),
-    avgGrade: roundMetric(average(gradeValues)),
+    avgGrade,
     overdue: overdue.sort((left, right) => (left.dueDate < right.dueDate ? 1 : -1)),
     dueSoon: dueSoon.sort((left, right) => (left.dueDate < right.dueDate ? -1 : 1)),
     grades,
@@ -120,11 +107,14 @@ export async function getMentorDashboard(me: Profile): Promise<MentorDashboardCa
 
   const signals = await Promise.all(ids.map((id) => menteeSignals(id)))
   const per = ids.map((id, index) => ({ id, name: nameOf(id), ...signals[index] }))
+  const subtitles = await buildStudentRelationshipSubtitles(
+    ids.map((id) => ({ id, classLevel: profiles.get(id)?.class_level ?? null })),
+  )
 
   const mentees: MentorDashboardMentee[] = per.map((mentee) => ({
     id: mentee.id,
     name: mentee.name,
-    subtitle: profiles.get(mentee.id)?.class_level ?? null,
+    subtitle: subtitles.get(mentee.id) ?? null,
     attendanceRate: mentee.attendanceRate,
     avgGrade: mentee.avgGrade,
     overdueCount: mentee.overdue.length,

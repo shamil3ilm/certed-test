@@ -11,17 +11,18 @@ import {
 import { canMentor } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
+import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 import { displayName, getProfileById, getProfilesByIds } from '@/lib/services/users'
 import { getMentorDashboard } from './mentees-dashboard'
 import {
-  average,
-  buildComparison,
+  buildMenteeGradeRows,
   DAY_MS,
   EVALUATION_PERIODS,
   EVALUATION_SORTS,
   normalizeEvaluationFilters,
   periodDays,
   rateFromStatuses,
+  roundedWeightedAverage,
   roundMetric,
   sortGradeRows,
   type EvaluationPeriod,
@@ -59,6 +60,9 @@ export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
     ? [...new Set((await listMentorships()).map((link) => link.student_id))]
     : await studentIdsOfMentor(me.id)
   const profiles = await getProfilesByIds(ids)
+  const subtitles = await buildStudentRelationshipSubtitles(
+    ids.map((id) => ({ id, classLevel: profiles.get(id)?.class_level ?? null })),
+  )
 
   return {
     isOversight,
@@ -71,7 +75,7 @@ export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
       return {
         id,
         name: profile ? displayName(profile) : id,
-        subtitle: profile?.class_level ?? undefined,
+        subtitle: subtitles.get(id),
       }
     }),
   }
@@ -137,31 +141,7 @@ export async function getMenteeOverview(
   const assignmentMetaById = new Map(assignmentMeta.map((assignment) => [assignment.id, assignment]))
   const classFilterSet = normalizedFilters.classId ? new Set([normalizedFilters.classId]) : null
 
-  const gradeRows: RawGradeRow[] = gradedSubs
-    .map((submission) => {
-      const assignment = assignmentMetaById.get(submission.assignment_id)
-      if (!assignment) return null
-      if (classFilterSet && !classFilterSet.has(assignment.class_id)) return null
-
-      const maxMarks = assignment.max_marks != null ? Number(assignment.max_marks) : null
-      const percent =
-        maxMarks && maxMarks > 0 ? Math.round((Math.min(submission.score, maxMarks) / maxMarks) * 100) : null
-
-      return {
-        assignmentId: submission.assignment_id,
-        assignmentTitle: assignment.title,
-        classLabel: classLabel.get(assignment.class_id) ?? 'Class',
-        submittedAt: submission.submitted_at,
-        gradedAt: submission.graded_at,
-        gradedAtMs: Date.parse(submission.graded_at),
-        score: submission.score,
-        maxMarks,
-        percent,
-        status: submission.status,
-        driveLink: submission.drive_link,
-      }
-    })
-    .filter(Boolean) as RawGradeRow[]
+  const gradeRows: RawGradeRow[] = buildMenteeGradeRows(gradedSubs, assignmentMetaById, classLabel, classFilterSet)
 
   const currentGradeRows =
     currentStart == null
@@ -171,7 +151,8 @@ export async function getMenteeOverview(
     previousStart == null || currentStart == null
       ? []
       : gradeRows.filter((row) => row.gradedAtMs >= previousStart && row.gradedAtMs < currentStart)
-  const gradeComparison = buildComparison(currentGradeRows, previousGradeRows, (row) => row.percent ?? row.score)
+  const currentGradeAverage = roundedWeightedAverage(currentGradeRows)
+  const previousGradeAverage = roundedWeightedAverage(previousGradeRows)
 
   const attendanceEvaluationRows: RawAttendanceRow[] = attendanceRows
     .filter((row) => !classFilterSet || classFilterSet.has(row.class_id))
@@ -194,16 +175,7 @@ export async function getMenteeOverview(
   const currentAttendanceRate = rateFromStatuses(currentAttendanceRows.map((row) => row.status))
   const previousAttendanceRate = rateFromStatuses(previousAttendanceRows.map((row) => row.status))
 
-  const overallGradeValues = gradedSubs
-    .map((submission) => {
-      const assignment = assignmentMetaById.get(submission.assignment_id)
-      if (!assignment) return null
-      const maxMarks = assignment.max_marks != null ? Number(assignment.max_marks) : null
-      return maxMarks && maxMarks > 0
-        ? Math.round((Math.min(submission.score, maxMarks) / maxMarks) * 100)
-        : submission.score
-    })
-    .filter((value): value is number => value != null)
+  const overallGradeAverage = roundedWeightedAverage(gradeRows)
 
   return {
     student,
@@ -213,10 +185,15 @@ export async function getMenteeOverview(
     evaluations: {
       filters: normalizedFilters,
       grading: {
-        overallAverage: roundMetric(average(overallGradeValues)),
-        periodAverage: gradeComparison.current,
-        previousAverage: currentStart == null ? null : gradeComparison.previous,
-        delta: currentStart == null ? null : gradeComparison.delta,
+        overallAverage: overallGradeAverage,
+        periodAverage: currentGradeAverage,
+        previousAverage: currentStart == null ? null : previousGradeAverage,
+        delta:
+          currentStart == null
+            ? null
+            : currentGradeAverage == null && previousGradeAverage == null
+              ? null
+              : roundMetric((currentGradeAverage ?? 0) - (previousGradeAverage ?? 0)),
         gradedCount: currentGradeRows.length,
         rows: sortGradeRows(currentGradeRows, normalizedFilters.sort)
           .slice(0, 20)

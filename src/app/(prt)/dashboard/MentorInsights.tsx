@@ -1,13 +1,10 @@
 import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { getMentorDashboard, type MentorDashboardMentee } from '@/lib/services/mentees'
+import { metricPercentLabel } from '@/lib/services/mentees-shared'
 import { Panel, StatGrid } from '@/lib/ui'
 import { StatModalCard } from '../StatModalCard'
 import { LocalTime } from '../LocalTime'
-
-function pct(value: number | null): string {
-  return value == null ? '-' : `${value}%`
-}
 
 // Worst-first: lowest figure at the top (what a mentor should look at), mentees
 // with no data yet at the bottom.
@@ -72,11 +69,11 @@ export async function MentorInsights({ me }: { me: Profile }) {
         />
         <StatModalCard
           label="Avg attendance"
-          value={pct(data.avgAttendance)}
+          value={metricPercentLabel(data.avgAttendance)}
           title="Attendance by mentee"
           items={attendanceSorted.map((mentee) => ({
             primary: mentee.name,
-            secondary: pct(mentee.attendanceRate),
+            secondary: metricPercentLabel(mentee.attendanceRate),
             href: menteeHref(mentee.id),
           }))}
           empty="No attendance yet."
@@ -85,11 +82,11 @@ export async function MentorInsights({ me }: { me: Profile }) {
         />
         <StatModalCard
           label="Avg grade"
-          value={pct(data.avgGrade)}
+          value={metricPercentLabel(data.avgGrade)}
           title="Average grade by mentee"
           items={gradeSorted.map((mentee) => ({
             primary: mentee.name,
-            secondary: pct(mentee.avgGrade),
+            secondary: metricPercentLabel(mentee.avgGrade),
             href: menteeHref(mentee.id),
           }))}
           empty="No grades yet."
@@ -106,7 +103,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
                 <li key={mentee.id}>
                   <Link href={menteeHref(mentee.id)} className={rowLink}>
                     <span className="min-w-0 truncate text-sm font-medium text-slate-700">{mentee.name}</span>
-                    <span className="shrink-0 text-xs font-medium text-red-600">{mentee.reasons.join(' · ')}</span>
+                    <span className="shrink-0 text-xs font-medium text-red-600">{mentee.reasons.join(' - ')}</span>
                   </Link>
                 </li>
               ))}

@@ -4,6 +4,7 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/permission', () => ({ canMentor: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), studentIdsOfMentor: vi.fn() }))
+vi.mock('@/lib/services/student-relationship-subtitles', () => ({ buildStudentRelationshipSubtitles: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/services/users', async () => {
   const actual = await vi.importActual<typeof import('@/lib/services/users')>('@/lib/services/users')
@@ -18,6 +19,7 @@ vi.mock('@/lib/services/users', async () => {
 import { canMentor } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
+import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 import { getProfileById } from '@/lib/services/users'
 import { getProfilesByIds } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -110,14 +112,20 @@ describe('getMenteeListView', () => {
         ],
       ]) as any,
     )
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(
+      new Map([
+        ['stud-1', 'Grade 8 - Maths'],
+        ['stud-2', 'Grade 7 - Science'],
+      ]),
+    )
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
       isOversight: true,
       title: 'Mentees',
       description: 'Students currently linked through mentor assignments across the academy.',
       items: [
-        { id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8' },
-        { id: 'stud-2', name: 'Sam Student', subtitle: 'Grade 7' },
+        { id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8 - Maths' },
+        { id: 'stud-2', name: 'Sam Student', subtitle: 'Grade 7 - Science' },
       ],
     })
   })
@@ -133,12 +141,13 @@ describe('getMenteeListView', () => {
         ],
       ]) as any,
     )
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map([['stud-1', 'Grade 8 - Maths']]))
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
       isOversight: false,
       title: 'Mentees',
       description: 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
-      items: [{ id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8' }],
+      items: [{ id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8 - Maths' }],
     })
   })
 })
