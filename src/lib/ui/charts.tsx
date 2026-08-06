@@ -1,4 +1,5 @@
 /* Dependency-free chart primitives and their legend key. */
+import { cx } from './core'
 
 /** Coloured dot + label, e.g. a calendar/legend key. */
 export function LegendDot({ color, label }: { color: string; label: string }) {
@@ -13,88 +14,168 @@ export function LegendDot({ color, label }: { color: string; label: string }) {
 export type ChartPoint = { label: string; value: number }
 type Fmt = (n: number) => string
 
-/** Dependency-free vertical column chart. Good for a few labelled categories or a
- *  short time series. Bars share one scale (max of the set). */
+const fmt = (v: number, f?: Fmt) => (f ? f(v) : String(v))
+
+/**
+ * Evenly-spaced indices (always including the first and last) for thinning a
+ * dense axis. A date axis with many buckets would otherwise overlap or truncate
+ * its labels; a short categorical axis (<= max) keeps every label.
+ */
+function tickIndices(n: number, max: number): number[] {
+  if (n <= max) return Array.from({ length: n }, (_, i) => i)
+  const out = new Set<number>()
+  for (let k = 0; k < max; k++) out.add(Math.round((k * (n - 1)) / (max - 1)))
+  return [...out]
+}
+
+function NoData() {
+  return <p className="text-sm text-slate-400">No data yet.</p>
+}
+
+/**
+ * Dependency-free vertical column chart. Handles negatives with a zero baseline
+ * (positive bars grow up, negative down), and keeps the value label as its own
+ * row above a fixed-height plot so the tallest bar never overflows the box.
+ */
 export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt }) {
-  if (data.length === 0) return <p className="text-sm text-slate-400">No data yet.</p>
-  const max = Math.max(1, ...data.map((d) => d.value))
+  if (data.length === 0) return <NoData />
+  const values = data.map((d) => d.value)
+  const posMax = Math.max(0, ...values)
+  const negMax = Math.max(0, ...values.map((v) => -v))
+  const total = posMax + negMax || 1
+  const zeroFromTop = (posMax / total) * 100 // where the value=0 line sits in the plot
+  const labelAt = new Set(tickIndices(data.length, 5)) // thin a dense (date) axis
+
   return (
-    <div className="flex h-44 items-end gap-2">
-      {data.map((d) => (
-        <div key={d.label} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-1">
-          <span className="text-center text-[10px] tabular-nums text-slate-500">
-            {format ? format(d.value) : d.value}
-          </span>
-          <div
-            className="w-full rounded-t bg-gradient-to-t from-primary to-secondary"
-            style={{ height: `${Math.max(2, Math.round((d.value / max) * 100))}%` }}
-            title={`${d.label}: ${format ? format(d.value) : d.value}`}
-          />
-          <span className="w-full truncate text-center text-[10px] text-slate-400" title={d.label}>
-            {d.label}
-          </span>
-        </div>
-      ))}
+    <div
+      className="flex h-48 items-stretch gap-2"
+      role="img"
+      aria-label={data.map((d) => `${d.label}: ${fmt(d.value, format)}`).join(', ')}
+    >
+      {data.map((d, i) => {
+        const isNeg = d.value < 0
+        const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
+        return (
+          <div key={d.label} className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="truncate text-center text-[10px] tabular-nums text-slate-500">{fmt(d.value, format)}</span>
+            <div className="relative flex-1">
+              {negMax > 0 && (
+                <div
+                  className="absolute inset-x-0 border-t border-dashed border-slate-200"
+                  style={{ top: `${zeroFromTop}%` }}
+                  aria-hidden
+                />
+              )}
+              <div
+                className={cx(
+                  'absolute inset-x-0',
+                  isNeg ? 'rounded-b-sm bg-rose-400/80' : 'rounded-t-sm bg-gradient-to-t from-primary to-secondary',
+                )}
+                style={
+                  isNeg
+                    ? { top: `${zeroFromTop}%`, height: `${magPct}%` }
+                    : { bottom: `${100 - zeroFromTop}%`, height: `${magPct}%` }
+                }
+                title={`${d.label}: ${fmt(d.value, format)}`}
+              />
+            </div>
+            <span className="w-full truncate text-center text-[10px] text-slate-400" title={d.label}>
+              {labelAt.has(i) ? d.label : ' '}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-/** Dependency-free line chart (SVG). Best for a trend over time. */
+/**
+ * Dependency-free line chart. The line is a stretched SVG (fills the width), but
+ * the data-point markers are HTML dots positioned in screen space, so they stay
+ * ROUND (an SVG circle in a non-uniformly scaled viewBox would draw as an ellipse).
+ */
 export function LineChart({ data, format }: { data: ChartPoint[]; format?: Fmt }) {
-  if (data.length === 0) return <p className="text-sm text-slate-400">No data yet.</p>
+  if (data.length === 0) return <NoData />
   const values = data.map((d) => d.value)
   const max = Math.max(1, ...values)
   const min = Math.min(0, ...values)
   const span = max - min || 1
-  const W = 100
-  const H = 40
-  const x = (i: number) => (data.length > 1 ? (i / (data.length - 1)) * W : W / 2)
-  const y = (v: number) => H - ((v - min) / span) * H
-  const points = data.map((d, i) => `${x(i).toFixed(2)},${y(d.value).toFixed(2)}`).join(' ')
+  const px = (i: number) => (data.length > 1 ? (i / (data.length - 1)) * 100 : 50)
+  const py = (v: number) => (1 - (v - min) / span) * 100
+  const points = data.map((d, i) => `${px(i).toFixed(2)},${py(d.value).toFixed(2)}`).join(' ')
+  const ticks = tickIndices(data.length, 5) // spread the date axis across the width, not just its ends
+  const last = data.length - 1
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-44 w-full text-primary" role="img">
-        <polyline
-          points={points}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
+      <div
+        className="relative h-44 w-full"
+        role="img"
+        aria-label={data.map((d) => `${d.label}: ${fmt(d.value, format)}`).join(', ')}
+      >
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full text-primary">
+          <polyline
+            points={points}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
         {data.map((d, i) => (
-          <circle key={d.label} cx={x(i)} cy={y(d.value)} r="1.4" fill="currentColor" vectorEffect="non-scaling-stroke">
-            <title>{`${d.label}: ${format ? format(d.value) : d.value}`}</title>
-          </circle>
+          <span
+            key={d.label}
+            className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-white"
+            style={{ left: `${px(i)}%`, top: `${py(d.value)}%` }}
+            title={`${d.label}: ${fmt(d.value, format)}`}
+          />
         ))}
-      </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-        <span>{data[0]?.label}</span>
-        <span>{data[data.length - 1]?.label}</span>
+      </div>
+      <div className="relative mt-1 h-4 text-[10px] text-slate-400">
+        {ticks.map((i) => (
+          <span
+            key={i}
+            className={cx(
+              'absolute whitespace-nowrap',
+              i === 0 ? 'left-0' : i === last ? 'right-0' : '-translate-x-1/2',
+            )}
+            style={i === 0 || i === last ? undefined : { left: `${px(i)}%` }}
+          >
+            {data[i]?.label}
+          </span>
+        ))}
       </div>
     </div>
   )
 }
 
-/** Dependency-free horizontal bar chart. */
-export function MiniBars({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.value))
-  if (data.length === 0) return <p className="text-sm text-slate-400">No data yet.</p>
+/** Dependency-free horizontal bar chart. Scales on the max magnitude and shows the
+ *  formatted value in an auto-sized column (a negative value reads as its label with
+ *  an empty bar rather than a wrong-width one). */
+export function MiniBars({ data, format }: { data: ChartPoint[]; format?: Fmt }) {
+  if (data.length === 0) return <NoData />
+  const max = Math.max(1, ...data.map((d) => Math.abs(d.value)))
   return (
-    <div className="space-y-2">
+    <div
+      className="space-y-2"
+      role="img"
+      aria-label={data.map((d) => `${d.label}: ${fmt(d.value, format)}`).join(', ')}
+    >
       {data.map((d) => (
         <div key={d.label} className="flex items-center gap-2 text-sm">
-          <span className="w-32 shrink-0 truncate text-slate-500" title={d.label}>
+          <span className="w-28 shrink-0 truncate text-slate-500 sm:w-32" title={d.label}>
             {d.label}
           </span>
           <div className="h-3 flex-1 rounded-full bg-slate-100">
             <div
               className="h-3 rounded-full bg-gradient-to-r from-primary to-secondary"
-              style={{ width: `${Math.round((d.value / max) * 100)}%` }}
+              style={{ width: `${Math.max(0, Math.round((d.value / max) * 100))}%` }}
             />
           </div>
-          <span className="w-8 text-right tabular-nums text-slate-600">{d.value}</span>
+          <span className="min-w-[3rem] shrink-0 whitespace-nowrap text-right tabular-nums text-slate-600">
+            {fmt(d.value, format)}
+          </span>
         </div>
       ))}
     </div>

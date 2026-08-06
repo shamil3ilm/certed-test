@@ -8,7 +8,7 @@
  *  - labels    role/persona display labels, Badge, SectionLabel
  *  - layout    Card, EmptyState, PageHeader, Panel, StatGrid, StatCard
  *  - list      ListRow, RowChevron
- *  - forms     FilterBar, FilterField, FILTER_CONTROL
+ *  - forms     FilterBar, FilterField, SearchFilterField, FILTER_CONTROL, FILTER_SEARCH_FIELD
  *  - charts    LegendDot, MiniBars, Donut
  *
  * These are presentation only: no domain, data or Supabase imports.
@@ -16,9 +16,17 @@
 export { cx, CARD, ARCHIVED_ROW } from './core'
 export { initials, roleTone, classBanner, Avatar } from './identity'
 export { roleLabel, staffRoleLabel, personaLabel, Badge, SectionLabel } from './labels'
-export { AlertBanner, BackLink, Card, EmptyState, PageHeader, Panel, StatGrid, StatCard } from './layout'
+export { AlertBanner, BackLink, Card, EmptyState, PageHeader, Panel, StatGrid, StatCard, PaginationBar } from './layout'
 export { ListRow, RowChevron } from './list'
-export { FILTER_CONTROL, FilterField, FilterBar } from './forms'
+export {
+  FILTER_CONTROL,
+  FILTER_SEARCH_FIELD,
+  FilterField,
+  SearchFilterField,
+  SelectFilterField,
+  DateFilterField,
+  FilterBar,
+} from './forms'
 export { pillButtonClass, segmentedButtonClass, SEGMENTED_GROUP } from './toggles'
 export { LegendDot, MiniBars, ColumnChart, LineChart, type ChartPoint } from './charts'
 export { createClientId } from './client-id'

@@ -224,3 +224,43 @@ export function StatCard({
     </Link>
   )
 }
+
+/** Shared page-through bar for portal index/search screens. */
+export function PaginationBar({
+  page,
+  totalPages,
+  total,
+  previousHref,
+  nextHref,
+  separator = '-',
+  className = '',
+}: {
+  page: number
+  totalPages: number
+  total: number
+  previousHref?: string
+  nextHref?: string
+  separator?: string
+  className?: string
+}) {
+  if (totalPages <= 1) return null
+  return (
+    <div className={cx('mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500', className)}>
+      <span>
+        Page {page} of {totalPages} {separator} {total} total
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {previousHref && (
+          <Link href={previousHref} className="btn btn-sm btn-soft">
+            Previous
+          </Link>
+        )}
+        {nextHref && (
+          <Link href={nextHref} className="btn btn-sm btn-soft">
+            Next
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}

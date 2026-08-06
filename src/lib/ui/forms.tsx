@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { cx } from './core'
 
 /* The shared GET filter/search bar used by the Users hub, grading queue,
@@ -8,8 +8,10 @@ import { cx } from './core'
  *  flexible search box. */
 export const FILTER_CONTROL = 'mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm'
 
-/** A labeled control inside a FilterBar. `className` sizes the field (e.g.
- *  `min-w-0 flex-1 sm:max-w-xs` for a search box). */
+/** Standard width treatment for the primary search field in a FilterBar. */
+export const FILTER_SEARCH_FIELD = 'min-w-0 flex-[2_1_18rem] sm:min-w-[18rem]'
+
+/** A labeled control inside a FilterBar. `className` sizes the field. */
 export function FilterField({
   label,
   className = '',
@@ -24,6 +26,66 @@ export function FilterField({
       {label}
       {children}
     </label>
+  )
+}
+
+/** Shared search field for FilterBar layouts. Keeps the label, width treatment,
+ *  and control styling consistent across portal search/filter screens. */
+export function SearchFilterField({
+  label = 'Search',
+  className = '',
+  inputClassName = '',
+  ...props
+}: {
+  label?: string
+  className?: string
+  inputClassName?: string
+} & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <FilterField label={label} className={cx(FILTER_SEARCH_FIELD, className)}>
+      <input type="search" className={cx(FILTER_CONTROL, 'w-full', inputClassName)} {...props} />
+    </FilterField>
+  )
+}
+
+/** Shared select field for FilterBar layouts. Keeps label spacing and select
+ *  styling identical across portal filter screens. */
+export function SelectFilterField({
+  label,
+  className = '',
+  selectClassName = '',
+  children,
+  ...props
+}: {
+  label: string
+  className?: string
+  selectClassName?: string
+  children: ReactNode
+} & SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <FilterField label={label} className={className}>
+      <select className={cx(FILTER_CONTROL, selectClassName)} {...props}>
+        {children}
+      </select>
+    </FilterField>
+  )
+}
+
+/** Shared date field for FilterBar layouts. */
+export function DateFilterField({
+  label,
+  className = '',
+  inputClassName = '',
+  ...props
+}: {
+  label: string
+  className?: string
+  inputClassName?: string
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  return (
+    <FilterField label={label} className={className}>
+      <input type="date" className={cx(FILTER_CONTROL, inputClassName)} {...props} />
+    </FilterField>
   )
 }
 
