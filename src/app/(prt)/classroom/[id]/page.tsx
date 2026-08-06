@@ -1,34 +1,33 @@
-import Link from 'next/link'
 import { requireClassAccess } from '../access'
 import { classStreamPageUrl, loadClassStreamViewData } from '@/lib/services/page-data/class-stream'
 import { loadClassMeetViewData } from '@/lib/services/page-data/class-meet'
 import { LocalTime } from '../../LocalTime'
 import {
   archiveAnnouncementAction,
-  restoreAnnouncementAction,
   editAnnouncementAction,
+  restoreAnnouncementAction,
 } from '../../announcements/actions'
+import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { CommentThread } from '../../CommentThread'
+import { EscapableDetails } from '../../EscapableDetails'
+import { Field, Input, Select, SubmitButton, Textarea } from '../../form'
 import { restoreMeetLinkAction } from '../../meetings/actions'
 import { MeetList } from '../../meetings/MeetList'
-import { createStreamPostAction } from './stream-actions'
 import { AttachmentList } from './AttachmentList'
+import { createStreamPostAction } from './stream-actions'
 import {
   AlertBanner,
   ARCHIVED_ROW,
+  Badge,
   CARD,
   Card,
   EmptyState,
-  Badge,
-  SectionLabel,
   FilterBar,
-  FilterField,
-  FILTER_CONTROL,
+  PaginationBar,
+  SearchFilterField,
+  SectionLabel,
   cx,
 } from '@/lib/ui'
-import { Field, Input, Select, Textarea, SubmitButton } from '../../form'
-import { ConfirmSubmit } from '../../ConfirmSubmit'
-import { EscapableDetails } from '../../EscapableDetails'
-import { CommentThread } from '../../CommentThread'
 
 export default async function ClassStreamPage(props: {
   params: Promise<{ id: string }>
@@ -38,21 +37,17 @@ export default async function ClassStreamPage(props: {
   const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   // One feed, two sources: announcements + meetings live under a single Stream
-  // tab. They stay separate rows in the database - we just merge them here.
+  // tab. They stay separate rows in the database; the page keeps them in two
+  // explicit sections, using the same jump-nav pattern as Classwork.
   const [data, meet] = await Promise.all([
     loadClassStreamViewData(me, course, searchParams),
     loadClassMeetViewData(me, course),
   ])
-  // The scheduled/expired badges read the loader's server render clock rather
-  // than calling the impure Date.now() during render (react-hooks/purity); this
-  // also keeps every badge on the same instant as the loader's isLive filter.
   const now = data.nowMs
 
   return (
-    <div className="space-y-6">
-      <SectionLabel>Stream</SectionLabel>
-
-      {searchParams?.error && (
+    <div className="space-y-8">
+      {searchParams?.error === '1' && (
         <AlertBanner>That change couldn&apos;t be saved. Please check the details and try again.</AlertBanner>
       )}
 
@@ -63,9 +58,29 @@ export default async function ClassStreamPage(props: {
         </AlertBanner>
       )}
 
+      <nav
+        aria-label="Stream sections"
+        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
+      >
+        {meet.meetLinks.length > 0 && (
+          <a
+            href="#meetings"
+            className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+          >
+            Meetings
+          </a>
+        )}
+        <a
+          href="#announcements"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+        >
+          Announcements
+        </a>
+      </nav>
+
       {data.canManageContent && (
         <form action={createStreamPostAction} className={cx(CARD, 'space-y-2 p-4')}>
-          <h3 className="font-medium text-slate-900">Post to the class</h3>
+          <h2 className="font-medium text-slate-900">Post to the class</h2>
           <input type="hidden" name="stream_class_id" value={course.id} />
           {data.isAdmin ? (
             <Field label="Post to">
@@ -89,8 +104,6 @@ export default async function ClassStreamPage(props: {
               rows={3}
             />
           </Field>
-          {/* Attach a join link to turn this post into a meeting (with its own
-              Q&A thread). Leave blank for a plain announcement. */}
           <details className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
             <summary className="cursor-pointer text-sm font-medium text-slate-600">
               Add a meeting link (optional)
@@ -108,9 +121,9 @@ export default async function ClassStreamPage(props: {
             <div className="mt-2 space-y-2">
               <Field
                 label="Attachment links"
-                hint="One Google Drive / external link per line - PDFs and images preview inline."
+                hint="One Google Drive / external link per line. PDFs and images preview inline."
               >
-                <Textarea name="attachments" rows={2} placeholder={'https://drive.google.com/file/d/.../view'} />
+                <Textarea name="attachments" rows={2} placeholder="https://drive.google.com/file/d/.../view" />
               </Field>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Field label="Publish on" hint="Blank = publish now.">
@@ -127,152 +140,146 @@ export default async function ClassStreamPage(props: {
       )}
 
       {meet.meetLinks.length > 0 && (
-        <MeetList
-          meetLinks={meet.meetLinks}
-          initialComments={meet.commentsByMeet}
-          me={{ id: me.id, email: me.email, full_name: me.full_name, role: me.role }}
-          classes={meet.classList}
-          canManage={meet.canManage}
-          isAdmin={meet.isAdmin}
-        />
+        <section id="meetings" className="scroll-mt-20 space-y-4">
+          <SectionLabel>Meetings</SectionLabel>
+          <MeetList
+            meetLinks={meet.meetLinks}
+            initialComments={meet.commentsByMeet}
+            me={{ id: me.id, email: me.email, full_name: me.full_name, role: me.role }}
+            classes={meet.classList}
+            canManage={meet.canManage}
+            isAdmin={meet.isAdmin}
+          />
+        </section>
       )}
 
-      <FilterBar clearHref="?" showClear={Boolean(data.streamQ)} applyLabel="Search">
-        <FilterField label="Search posts" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
+      <section id="announcements" className="scroll-mt-20 space-y-4">
+        <SectionLabel>Announcements</SectionLabel>
+
+        <FilterBar clearHref="?" showClear={Boolean(data.streamQ)} applyLabel="Search">
+          <SearchFilterField
+            label="Search posts"
             name="streamQ"
             defaultValue={data.streamQ ?? ''}
             placeholder="Title or message..."
-            className={cx(FILTER_CONTROL, 'w-full')}
           />
-        </FilterField>
-      </FilterBar>
+        </FilterBar>
 
-      <ul className="space-y-3">
-        {data.activeAnnouncements.map((a) => (
-          <Card as="li" key={a.id} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
-                  {a.title}
-                  {a.class_id === null && <Badge tone="slate">Academy-wide</Badge>}
-                  {a.publish_at && Date.parse(a.publish_at) > now && <Badge tone="warning">Scheduled</Badge>}
-                  {a.expires_at && Date.parse(a.expires_at) <= now && <Badge tone="danger">Expired</Badge>}
-                </h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{a.message}</p>
-                <AttachmentList attachments={a.attachments} />
-                <p className="mt-2 text-xs text-slate-400">
-                  <LocalTime iso={a.created_at} />
-                  {a.publish_at && Date.parse(a.publish_at) > now && (
-                    <>
-                      {' · publishes '}
-                      <LocalTime iso={a.publish_at} mode="date" />
-                    </>
-                  )}
-                  {a.expires_at && (
-                    <>
-                      {' · expires '}
-                      <LocalTime iso={a.expires_at} mode="date" />
-                    </>
-                  )}
-                </p>
-              </div>
-              {data.canManageContent && (data.isAdmin || a.class_id === course.id) && (
-                <div className="flex shrink-0 gap-2">
-                  <EscapableDetails
-                    className="relative text-xs"
-                    summaryClassName="cursor-pointer btn btn-sm btn-soft"
-                    summary="Edit"
-                  >
-                    <form
-                      action={editAnnouncementAction}
-                      className="absolute right-0 z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-slate-50 p-2 shadow-md"
+        <ul className="space-y-3">
+          {data.activeAnnouncements.map((a) => (
+            <Card as="li" key={a.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                    {a.title}
+                    {a.class_id === null && <Badge tone="slate">Academy-wide</Badge>}
+                    {a.publish_at && Date.parse(a.publish_at) > now && <Badge tone="warning">Scheduled</Badge>}
+                    {a.expires_at && Date.parse(a.expires_at) <= now && <Badge tone="danger">Expired</Badge>}
+                  </h3>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{a.message}</p>
+                  <AttachmentList attachments={a.attachments} />
+                  <p className="mt-2 text-xs text-slate-400">
+                    <LocalTime iso={a.created_at} />
+                    {a.publish_at && Date.parse(a.publish_at) > now && (
+                      <>
+                        {' · publishes '}
+                        <LocalTime iso={a.publish_at} mode="date" />
+                      </>
+                    )}
+                    {a.expires_at && (
+                      <>
+                        {' · expires '}
+                        <LocalTime iso={a.expires_at} mode="date" />
+                      </>
+                    )}
+                  </p>
+                </div>
+                {data.canManageContent && (data.isAdmin || a.class_id === course.id) && (
+                  <div className="flex shrink-0 gap-2">
+                    <EscapableDetails
+                      className="relative text-xs"
+                      summaryClassName="cursor-pointer btn btn-sm btn-soft"
+                      summary="Edit"
                     >
+                      <form
+                        action={editAnnouncementAction}
+                        className="absolute right-0 z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-slate-50 p-2 shadow-md"
+                      >
+                        <input type="hidden" name="id" value={a.id} />
+                        <input type="hidden" name="stream_class_id" value={course.id} />
+                        <Field label="Title">
+                          <Input name="title" defaultValue={a.title} required maxLength={200} />
+                        </Field>
+                        <Field label="Message">
+                          <Textarea name="message" defaultValue={a.message} required maxLength={5000} rows={3} />
+                        </Field>
+                        <Field label="Attachment links (one per line)">
+                          <Textarea
+                            name="attachments"
+                            defaultValue={a.attachments.map((x) => x.url).join('\n')}
+                            rows={2}
+                          />
+                        </Field>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Field label="Publish on">
+                            <Input
+                              name="publish_at"
+                              type="date"
+                              defaultValue={a.publish_at ? a.publish_at.slice(0, 10) : ''}
+                            />
+                          </Field>
+                          <Field label="Expires on">
+                            <Input
+                              name="expires_at"
+                              type="date"
+                              defaultValue={a.expires_at ? a.expires_at.slice(0, 10) : ''}
+                            />
+                          </Field>
+                        </div>
+                        <SubmitButton pendingLabel="Saving...">Save</SubmitButton>
+                      </form>
+                    </EscapableDetails>
+                    <form action={archiveAnnouncementAction}>
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="stream_class_id" value={course.id} />
-                      <Field label="Title">
-                        <Input name="title" defaultValue={a.title} required maxLength={200} />
-                      </Field>
-                      <Field label="Message">
-                        <Textarea name="message" defaultValue={a.message} required maxLength={5000} rows={3} />
-                      </Field>
-                      <Field label="Attachment links (one per line)">
-                        <Textarea
-                          name="attachments"
-                          defaultValue={a.attachments.map((x) => x.url).join('\n')}
-                          rows={2}
-                        />
-                      </Field>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Field label="Publish on">
-                          <Input
-                            name="publish_at"
-                            type="date"
-                            defaultValue={a.publish_at ? a.publish_at.slice(0, 10) : ''}
-                          />
-                        </Field>
-                        <Field label="Expires on">
-                          <Input
-                            name="expires_at"
-                            type="date"
-                            defaultValue={a.expires_at ? a.expires_at.slice(0, 10) : ''}
-                          />
-                        </Field>
-                      </div>
-                      <SubmitButton pendingLabel="Saving...">Save</SubmitButton>
+                      <ConfirmSubmit
+                        className="btn btn-sm btn-warning"
+                        title="Archive this post?"
+                        message="It's hidden from the class but kept on record; you can restore it."
+                        confirmLabel="Archive"
+                      >
+                        Archive
+                      </ConfirmSubmit>
                     </form>
-                  </EscapableDetails>
-                  <form action={archiveAnnouncementAction}>
-                    <input type="hidden" name="id" value={a.id} />
-                    <input type="hidden" name="stream_class_id" value={course.id} />
-                    <ConfirmSubmit
-                      className="btn btn-sm btn-warning"
-                      title="Archive this post?"
-                      message="It's hidden from the class but kept on record - you can restore it."
-                      confirmLabel="Archive"
-                    >
-                      Archive
-                    </ConfirmSubmit>
-                  </form>
-                </div>
-              )}
-            </div>
-            <CommentThread
-              entityType="announcement"
-              entityId={a.id}
-              me={{ id: me.id, role: me.role }}
-              initialComments={data.commentsByAnnouncement.get(a.id) ?? []}
-              placeholder="Ask a question or discuss..."
-            />
-          </Card>
-        ))}
-        {data.streamTotal === 0 && (
-          <EmptyState as="li">
-            {data.streamQ ? `No posts match "${data.streamQ}".` : 'Nothing posted to the class stream yet.'}
-          </EmptyState>
-        )}
-      </ul>
+                  </div>
+                )}
+              </div>
+              <CommentThread
+                entityType="announcement"
+                entityId={a.id}
+                me={{ id: me.id, role: me.role }}
+                initialComments={data.commentsByAnnouncement.get(a.id) ?? []}
+                placeholder="Ask a question or discuss..."
+              />
+            </Card>
+          ))}
+          {data.streamTotal === 0 && (
+            <EmptyState as="li">
+              {data.streamQ ? `No posts match "${data.streamQ}".` : 'Nothing posted to the class stream yet.'}
+            </EmptyState>
+          )}
+        </ul>
 
-      {data.streamTotalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
-          <span>
-            Page {data.streamPage} of {data.streamTotalPages} - {data.streamTotal} total
-          </span>
-          <div className="flex gap-2">
-            {data.streamPage > 1 && (
-              <Link href={classStreamPageUrl(data.streamPage - 1, data.streamQ)} className="btn btn-sm btn-soft">
-                Previous
-              </Link>
-            )}
-            {data.streamPage < data.streamTotalPages && (
-              <Link href={classStreamPageUrl(data.streamPage + 1, data.streamQ)} className="btn btn-sm btn-soft">
-                Next
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+        <PaginationBar
+          page={data.streamPage}
+          totalPages={data.streamTotalPages}
+          total={data.streamTotal}
+          previousHref={data.streamPage > 1 ? classStreamPageUrl(data.streamPage - 1, data.streamQ) : undefined}
+          nextHref={
+            data.streamPage < data.streamTotalPages ? classStreamPageUrl(data.streamPage + 1, data.streamQ) : undefined
+          }
+        />
+      </section>
 
       {data.canManage && (data.archivedAnnouncements.length > 0 || meet.archivedMeetLinks.length > 0) && (
         <details className="text-sm">
