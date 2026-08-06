@@ -20,8 +20,12 @@ describe('nav dead-route guardrail', () => {
     expect(items.length).toBeGreaterThan(0)
   })
 
-  it('labels the mentees link generically for every actor', () => {
-    expect(navFor(allCaps).find((item) => item.href === '/students')?.label).toBe('Mentees')
+  it('labels /students by authority — Mentoring for the admin oversight view (viewUsers), Mentees for a mentor', () => {
+    // Admin tier holds viewUsers: /students is a whole-academy mentor-oversight list.
+    expect(navFor(allCaps).find((item) => item.href === '/students')?.label).toBe('Mentoring')
+    // A mentor (viewMentees, no admin Users hub): /students is their own mentees.
+    const mentorCaps = new Set([...ALL_CAPABILITIES].filter((c) => c !== 'viewUsers'))
+    expect(navFor(mentorCaps).find((item) => item.href === '/students')?.label).toBe('Mentees')
   })
 
   it('collapses self-service finance items when the finance hub is present', () => {
