@@ -35,31 +35,31 @@ export default async function ThreadPage(props: {
           not silently clear the unread flag on newer ones. */}
       {data.isLatestWindow && <MarkRead conversationId={params.id} />}
       <BackLink href="/messages">Back to messages</BackLink>
-      <div className="flex items-start justify-between gap-3">
-        <PageHeader
-          title={data.title}
-          description={
-            data.searchQuery
-              ? `Showing results for "${data.searchQuery}"`
-              : data.conversation.kind === 'group'
-                ? `${data.participants.length} participants`
-                : undefined
-          }
-        />
-        {data.conversation.kind === 'group' && (
-          <form action={leaveConversationAction} className="shrink-0 pt-1">
-            <input type="hidden" name="conversation_id" value={params.id} />
-            <ConfirmSubmit
-              className="btn btn-sm btn-ghost text-red-600"
-              title="Leave conversation?"
-              message="It disappears from your inbox and you can no longer read or reply. Others keep the thread."
-              confirmLabel="Leave"
-            >
-              Leave
-            </ConfirmSubmit>
-          </form>
-        )}
-      </div>
+      <PageHeader
+        title={data.title}
+        description={
+          data.searchQuery
+            ? `Showing results for "${data.searchQuery}"`
+            : data.conversation.kind === 'group'
+              ? `${data.participants.length} participants`
+              : undefined
+        }
+        action={
+          data.conversation.kind === 'group' ? (
+            <form action={leaveConversationAction} className="shrink-0 pt-1">
+              <input type="hidden" name="conversation_id" value={params.id} />
+              <ConfirmSubmit
+                className="btn btn-sm btn-ghost text-red-600"
+                title="Leave conversation?"
+                message="It disappears from your inbox and you can no longer read or reply. Others keep the thread."
+                confirmLabel="Leave"
+              >
+                Leave
+              </ConfirmSubmit>
+            </form>
+          ) : undefined
+        }
+      />
 
       {data.conversation.kind === 'group' && (
         <Card className="mt-4 p-4">

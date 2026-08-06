@@ -28,18 +28,21 @@ export default async function NotificationsPage() {
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
-      <div className="flex items-start justify-between gap-3">
-        <PageHeader title="Notifications" />
-        {hasUnread && (
-          <form action={markAllNotificationsReadAction} className="shrink-0 pt-1">
-            <button type="submit" className="btn btn-sm btn-soft">
-              Mark all read
-            </button>
-          </form>
-        )}
-      </div>
+      <PageHeader
+        title="Notifications"
+        description="Messages, grades, announcements and other updates in one place."
+        action={
+          hasUnread ? (
+            <form action={markAllNotificationsReadAction} className="shrink-0 pt-1">
+              <button type="submit" className="btn btn-sm btn-soft">
+                Mark all read
+              </button>
+            </form>
+          ) : undefined
+        }
+      />
 
-      <ul className="mt-4 space-y-2">
+      <ul className="space-y-2">
         {items.length === 0 && (
           <EmptyState as="li">Nothing yet - grades, messages and class announcements show up here.</EmptyState>
         )}

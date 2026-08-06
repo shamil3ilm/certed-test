@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireClassAccess } from '../../access'
 import { hasCapability } from '@/lib/capabilities'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
-import { Avatar, Badge, EmptyState, FilterBar, FilterField, FILTER_CONTROL, ListRow, SectionLabel, cx } from '@/lib/ui'
+import { Avatar, Badge, EmptyState, FilterBar, ListRow, SearchFilterField, SectionLabel } from '@/lib/ui'
 import { LocalTime } from '../../../LocalTime'
 
 export default async function ClassGradingPage(props: {
@@ -29,15 +29,7 @@ export default async function ClassGradingPage(props: {
       </div>
 
       <FilterBar clearHref={`/classroom/${course.id}/grading`} showClear={Boolean(searchParams?.q)}>
-        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            name="q"
-            defaultValue={searchParams?.q ?? ''}
-            placeholder="Student or assignment..."
-            className={cx(FILTER_CONTROL, 'w-full')}
-          />
-        </FilterField>
+        <SearchFilterField name="q" defaultValue={searchParams?.q ?? ''} placeholder="Student or assignment..." />
       </FilterBar>
 
       {items.length === 0 ? (

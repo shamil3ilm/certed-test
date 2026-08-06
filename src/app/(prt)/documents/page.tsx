@@ -1,12 +1,21 @@
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
+import { DOCUMENT_CATEGORIES, documentCategoryLabel } from '@/lib/documents/categories'
 import {
   documentSearchUrl,
   loadDocumentSearchPageData,
   type DocumentSearchParams,
 } from '@/lib/services/page-data/document-search'
-import { DOCUMENT_CATEGORIES, documentCategoryLabel } from '@/lib/documents/categories'
-import { Badge, Card, EmptyState, FILTER_CONTROL, FilterBar, FilterField, PageHeader, cx } from '@/lib/ui'
+import {
+  Badge,
+  Card,
+  DateFilterField,
+  EmptyState,
+  FilterBar,
+  PageHeader,
+  PaginationBar,
+  SearchFilterField,
+  SelectFilterField,
+} from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 
 /**
@@ -28,46 +37,29 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
       />
 
       <FilterBar className="mt-2" clearHref="/documents" showClear={hasActiveFilters}>
-        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.q}
-            placeholder="Title, description, subject..."
-            className={cx(FILTER_CONTROL, 'w-full')}
-          />
-        </FilterField>
-        <FilterField label="Category">
-          <select name="cat" defaultValue={filters.category} className={FILTER_CONTROL}>
-            <option value="">All categories</option>
-            {DOCUMENT_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </FilterField>
-        <FilterField label="Subject">
-          <input
-            type="search"
-            name="subj"
-            defaultValue={filters.subject}
-            placeholder="e.g. Maths"
-            className={cx(FILTER_CONTROL, 'sm:w-40')}
-          />
-        </FilterField>
-        <FilterField label="From">
-          <input type="date" name="from" defaultValue={filters.from} className={FILTER_CONTROL} />
-        </FilterField>
-        <FilterField label="To">
-          <input type="date" name="to" defaultValue={filters.to} className={FILTER_CONTROL} />
-        </FilterField>
-        <FilterField label="Sort">
-          <select name="sort" defaultValue={filters.sort} className={FILTER_CONTROL}>
-            <option value="latest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-          </select>
-        </FilterField>
+        <SearchFilterField name="q" defaultValue={filters.q} placeholder="Title, description, subject..." />
+        <SelectFilterField label="Category" name="cat" defaultValue={filters.category}>
+          <option value="">All categories</option>
+          {DOCUMENT_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </SelectFilterField>
+        <SearchFilterField
+          label="Subject"
+          name="subj"
+          defaultValue={filters.subject}
+          placeholder="e.g. Maths"
+          className="sm:w-40"
+          inputClassName="sm:w-40"
+        />
+        <DateFilterField label="From" name="from" defaultValue={filters.from} />
+        <DateFilterField label="To" name="to" defaultValue={filters.to} />
+        <SelectFilterField label="Sort" name="sort" defaultValue={filters.sort}>
+          <option value="latest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </SelectFilterField>
       </FilterBar>
 
       {results.length === 0 ? (
@@ -106,25 +98,14 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
         </ul>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-          <span>
-            Page {filters.page} of {totalPages} · {total} total
-          </span>
-          <div className="flex gap-2">
-            {filters.page > 1 && (
-              <Link href={documentSearchUrl(filters, { page: filters.page - 1 })} className="btn btn-sm btn-soft">
-                Previous
-              </Link>
-            )}
-            {filters.page < totalPages && (
-              <Link href={documentSearchUrl(filters, { page: filters.page + 1 })} className="btn btn-sm btn-soft">
-                Next
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={filters.page}
+        totalPages={totalPages}
+        total={total}
+        previousHref={filters.page > 1 ? documentSearchUrl(filters, { page: filters.page - 1 }) : undefined}
+        nextHref={filters.page < totalPages ? documentSearchUrl(filters, { page: filters.page + 1 }) : undefined}
+        separator="·"
+      />
     </main>
   )
 }

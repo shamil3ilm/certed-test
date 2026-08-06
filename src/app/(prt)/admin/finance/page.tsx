@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { isAdminTier } from '@/lib/capabilities'
 import {
@@ -10,7 +9,7 @@ import {
 import { IssueForm } from './IssueForm'
 import { searchFinanceStudentsAction } from './actions'
 import { VoidButton } from './VoidButton'
-import { PageHeader, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
+import { FilterBar, PageHeader, PaginationBar, SearchFilterField, SelectFilterField } from '@/lib/ui'
 
 function DocTable({
   title,
@@ -39,26 +38,20 @@ function DocTable({
         clearHref={financeUrl(kind, { page: 1 }, other)}
         showClear={Boolean(filters.q || filters.status)}
       >
-        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            name={kind === 'receipts' ? 'rq' : 'pq'}
-            defaultValue={filters.q ?? ''}
-            placeholder="Number or name..."
-            className={cx(FILTER_CONTROL, 'w-full')}
-          />
-        </FilterField>
-        <FilterField label="Status">
-          <select
-            name={kind === 'receipts' ? 'rstatus' : 'pstatus'}
-            defaultValue={filters.status ?? ''}
-            className={FILTER_CONTROL}
-          >
-            <option value="">All</option>
-            <option value="active">Active</option>
-            <option value="voided">Voided</option>
-          </select>
-        </FilterField>
+        <SearchFilterField
+          name={kind === 'receipts' ? 'rq' : 'pq'}
+          defaultValue={filters.q ?? ''}
+          placeholder="Number or name..."
+        />
+        <SelectFilterField
+          label="Status"
+          name={kind === 'receipts' ? 'rstatus' : 'pstatus'}
+          defaultValue={filters.status ?? ''}
+        >
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="voided">Voided</option>
+        </SelectFilterField>
         <SiblingFilterFields kind={kind} other={other} />
       </FilterBar>
 
@@ -110,25 +103,13 @@ function DocTable({
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
-          <span>
-            Page {page} of {totalPages} - {total} total
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {page > 1 && (
-              <Link href={financeUrl(kind, { ...filters, page: page - 1 }, other)} className="btn btn-sm btn-soft">
-                Previous
-              </Link>
-            )}
-            {page < totalPages && (
-              <Link href={financeUrl(kind, { ...filters, page: page + 1 }, other)} className="btn btn-sm btn-soft">
-                Next
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        previousHref={page > 1 ? financeUrl(kind, { ...filters, page: page - 1 }, other) : undefined}
+        nextHref={page < totalPages ? financeUrl(kind, { ...filters, page: page + 1 }, other) : undefined}
+      />
     </div>
   )
 }

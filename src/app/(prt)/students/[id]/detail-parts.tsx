@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { metricPercentLabel } from '@/lib/services/mentees-shared'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { Avatar, Badge, Card, FILTER_CONTROL, FilterBar, FilterField, SectionLabel, StatCard, StatGrid } from '@/lib/ui'
+import { Avatar, Badge, Card, FilterBar, SectionLabel, SelectFilterField, StatCard, StatGrid } from '@/lib/ui'
 import { STUDENT_REPORTS } from '@/lib/reports/registry'
 import { comparisonLabel } from './detail-shared'
 
@@ -128,34 +128,28 @@ export function EvaluationOverview({
         clearHref={`/students/${studentId}`}
         showClear={Boolean(evaluations.filters.classId || searchParams?.period || searchParams?.sort)}
       >
-        <FilterField label="Period">
-          <select name="period" defaultValue={evaluations.filters.period} className={FILTER_CONTROL}>
-            {PERIOD_OPTIONS.map((period) => (
-              <option key={period.value} value={period.value}>
-                {period.label}
-              </option>
-            ))}
-          </select>
-        </FilterField>
-        <FilterField label="Class">
-          <select name="classId" defaultValue={evaluations.filters.classId ?? ''} className={FILTER_CONTROL}>
-            <option value="">All classes</option>
-            {classes.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </select>
-        </FilterField>
-        <FilterField label="Sort grades">
-          <select name="sort" defaultValue={evaluations.filters.sort} className={FILTER_CONTROL}>
-            {SORT_OPTIONS.map((sort) => (
-              <option key={sort.value} value={sort.value}>
-                {sort.label}
-              </option>
-            ))}
-          </select>
-        </FilterField>
+        <SelectFilterField label="Period" name="period" defaultValue={evaluations.filters.period}>
+          {PERIOD_OPTIONS.map((period) => (
+            <option key={period.value} value={period.value}>
+              {period.label}
+            </option>
+          ))}
+        </SelectFilterField>
+        <SelectFilterField label="Class" name="classId" defaultValue={evaluations.filters.classId ?? ''}>
+          <option value="">All classes</option>
+          {classes.map((course) => (
+            <option key={course.id} value={course.id}>
+              {course.name}
+            </option>
+          ))}
+        </SelectFilterField>
+        <SelectFilterField label="Sort grades" name="sort" defaultValue={evaluations.filters.sort}>
+          {SORT_OPTIONS.map((sort) => (
+            <option key={sort.value} value={sort.value}>
+              {sort.label}
+            </option>
+          ))}
+        </SelectFilterField>
       </FilterBar>
 
       <StatGrid cols={4}>

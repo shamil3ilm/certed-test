@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { requireClassAccess } from '../../access'
 import { type AttendanceStatus } from '@/lib/services/attendance'
 import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/services/page-data/class-attendance'
@@ -13,10 +12,11 @@ import {
   EmptyState,
   Badge,
   SectionLabel,
+  DateFilterField,
   FilterBar,
-  FilterField,
-  FILTER_CONTROL,
   CARD,
+  PaginationBar,
+  SelectFilterField,
   cx,
 } from '@/lib/ui'
 import {
@@ -120,25 +120,13 @@ export default async function AttendancePage(props: {
             })}
           </ul>
         )}
-        {data.recTotalPages > 1 && (
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>
-              Page {data.recPage} of {data.recTotalPages} - {data.recTotal} total
-            </span>
-            <div className="flex gap-2">
-              {data.recPage > 1 && (
-                <Link href={attendanceRecordPageUrl(data.recPage - 1)} className="btn btn-sm btn-soft">
-                  Previous
-                </Link>
-              )}
-              {data.recPage < data.recTotalPages && (
-                <Link href={attendanceRecordPageUrl(data.recPage + 1)} className="btn btn-sm btn-soft">
-                  Next
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
+        <PaginationBar
+          page={data.recPage}
+          totalPages={data.recTotalPages}
+          total={data.recTotal}
+          previousHref={data.recPage > 1 ? attendanceRecordPageUrl(data.recPage - 1) : undefined}
+          nextHref={data.recPage < data.recTotalPages ? attendanceRecordPageUrl(data.recPage + 1) : undefined}
+        />
       </div>
     )
   }
@@ -146,78 +134,92 @@ export default async function AttendancePage(props: {
   const sessionM = sessionMetrics(data.session ?? EMPTY_SESSION_TIMES)
 
   return (
-    <div className="space-y-4">
-      <SectionLabel>Mark attendance</SectionLabel>
+    <div className="space-y-8">
+      <nav
+        aria-label="Attendance sections"
+        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
+      >
+        <a
+          href="#mark-attendance"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+        >
+          Mark attendance
+        </a>
+        <a
+          href="#attendance-history"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+        >
+          Attendance details
+        </a>
+      </nav>
 
-      {searchParams?.error === '1' && (
-        <AlertBanner>That change couldn&apos;t be applied. Please check the date and try again.</AlertBanner>
-      )}
+      <section id="mark-attendance" className="scroll-mt-20 space-y-4">
+        <SectionLabel>Mark attendance</SectionLabel>
 
-      <form className="flex flex-wrap items-end gap-2">
-        <label className="text-xs font-medium text-slate-500">
-          Session date
-          <input
-            type="date"
-            name="date"
-            defaultValue={data.date}
-            className="mt-1 block rounded border border-slate-200 px-2 py-1 text-sm"
-          />
-        </label>
-        <button type="submit" className="btn btn-sm btn-soft">
-          Load
-        </button>
-      </form>
+        {searchParams?.error === '1' && (
+          <AlertBanner>That change couldn&apos;t be applied. Please check the date and try again.</AlertBanner>
+        )}
 
-      <SessionTimesForm classId={course.id} date={data.date} session={data.session} />
+        <form className="flex flex-wrap items-end gap-2">
+          <label className="text-xs font-medium text-slate-500">
+            Session date
+            <input
+              type="date"
+              name="date"
+              defaultValue={data.date}
+              className="mt-1 block rounded border border-slate-200 px-2 py-1 text-sm"
+            />
+          </label>
+          <button type="submit" className="btn btn-sm btn-soft">
+            Load
+          </button>
+        </form>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <HourStat label="Session" value={formatMinutes(sessionM.sessionMinutes)} />
-        <HourStat label="Scheduled" value={formatMinutes(sessionM.scheduledMinutes)} />
-        <HourStat label="Tutor working" value={formatMinutes(sessionM.tutorWorkingMinutes)} />
-      </div>
+        <SessionTimesForm classId={course.id} date={data.date} session={data.session} />
 
-      {data.roster.length === 0 ? (
-        <EmptyState>No students enrolled yet - add students on the People tab first.</EmptyState>
-      ) : (
-        <>
-          <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={data.session} />
-          {data.hasMarks && (
-            <form action={clearAttendanceAction} className="flex justify-end">
-              <input type="hidden" name="class_id" value={course.id} />
-              <input type="hidden" name="session_date" value={data.date} />
-              <ConfirmSubmit
-                className="btn btn-sm btn-ghost text-red-600"
-                title="Clear this session?"
-                message={`This removes every mark for ${data.date}. You can re-mark it afterwards.`}
-                confirmLabel="Clear session"
-              >
-                Clear this session
-              </ConfirmSubmit>
-            </form>
-          )}
-        </>
-      )}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <HourStat label="Session" value={formatMinutes(sessionM.sessionMinutes)} />
+          <HourStat label="Scheduled" value={formatMinutes(sessionM.scheduledMinutes)} />
+          <HourStat label="Tutor working" value={formatMinutes(sessionM.tutorWorkingMinutes)} />
+        </div>
 
-      <div className="pt-2">
+        {data.roster.length === 0 ? (
+          <EmptyState>No students enrolled yet - add students on the People tab first.</EmptyState>
+        ) : (
+          <>
+            <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={data.session} />
+            {data.hasMarks && (
+              <form action={clearAttendanceAction} className="flex justify-end">
+                <input type="hidden" name="class_id" value={course.id} />
+                <input type="hidden" name="session_date" value={data.date} />
+                <ConfirmSubmit
+                  className="btn btn-sm btn-ghost text-red-600"
+                  title="Clear this session?"
+                  message={`This removes every mark for ${data.date}. You can re-mark it afterwards.`}
+                  confirmLabel="Clear session"
+                >
+                  Clear this session
+                </ConfirmSubmit>
+              </form>
+            )}
+          </>
+        )}
+      </section>
+
+      <section id="attendance-history" className="scroll-mt-20 space-y-3">
         <SectionLabel>Attendance details</SectionLabel>
         {/* GET form: status + date-range filters run server-side. Keeps the marking
             `date` so applying a filter doesn't reset the session above. */}
-        <FilterBar className="mt-2" clearHref={`?date=${data.date}`} showClear={data.hasHistoryFilters}>
+        <FilterBar clearHref={`?date=${data.date}`} showClear={data.hasHistoryFilters}>
           <input type="hidden" name="date" value={data.date} />
-          <FilterField label="Status">
-            <select name="aStatus" defaultValue={data.historyFilters.status} className={FILTER_CONTROL}>
-              <option value="">All statuses</option>
-              <option value="present">Present</option>
-              <option value="late">Late</option>
-              <option value="absent">Absent</option>
-            </select>
-          </FilterField>
-          <FilterField label="From">
-            <input type="date" name="aFrom" defaultValue={data.historyFilters.from} className={FILTER_CONTROL} />
-          </FilterField>
-          <FilterField label="To">
-            <input type="date" name="aTo" defaultValue={data.historyFilters.to} className={FILTER_CONTROL} />
-          </FilterField>
+          <SelectFilterField label="Status" name="aStatus" defaultValue={data.historyFilters.status}>
+            <option value="">All statuses</option>
+            <option value="present">Present</option>
+            <option value="late">Late</option>
+            <option value="absent">Absent</option>
+          </SelectFilterField>
+          <DateFilterField label="From" name="aFrom" defaultValue={data.historyFilters.from} />
+          <DateFilterField label="To" name="aTo" defaultValue={data.historyFilters.to} />
         </FilterBar>
 
         {data.history.length === 0 ? (
@@ -271,7 +273,7 @@ export default async function AttendancePage(props: {
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

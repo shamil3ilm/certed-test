@@ -1,7 +1,6 @@
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { historyUrl, loadHistoryPageData } from '@/lib/services/page-data/history'
-import { CARD, PageHeader, EmptyState, FilterBar, FilterField, FILTER_CONTROL, cx } from '@/lib/ui'
+import { CARD, PageHeader, EmptyState, FilterBar, PaginationBar, SearchFilterField, cx } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 
 export default async function HistoryPage(props: {
@@ -19,24 +18,18 @@ export default async function HistoryPage(props: {
       />
 
       <FilterBar className="mt-2" clearHref="/admin/history" showClear={Boolean(filters.action || filters.actor)}>
-        <FilterField label="Action" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            name="action"
-            defaultValue={filters.action ?? ''}
-            placeholder="e.g. grade, revoke, void..."
-            className={cx(FILTER_CONTROL, 'w-full')}
-          />
-        </FilterField>
-        <FilterField label="Actor" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            name="actor"
-            defaultValue={filters.actor ?? ''}
-            placeholder="Name or email..."
-            className={cx(FILTER_CONTROL, 'w-full')}
-          />
-        </FilterField>
+        <SearchFilterField
+          label="Action"
+          name="action"
+          defaultValue={filters.action ?? ''}
+          placeholder="e.g. grade, revoke, void..."
+        />
+        <SearchFilterField
+          label="Actor"
+          name="actor"
+          defaultValue={filters.actor ?? ''}
+          placeholder="Name or email..."
+        />
       </FilterBar>
 
       {rows.length === 0 ? (
@@ -86,31 +79,21 @@ export default async function HistoryPage(props: {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-          <span>
-            Page {filters.page} of {totalPages} - {total} total
-          </span>
-          <div className="flex gap-2">
-            {filters.page > 1 && (
-              <Link
-                href={historyUrl({ page: filters.page - 1, action: filters.action, actor: filters.actor })}
-                className="btn btn-sm btn-soft"
-              >
-                Previous
-              </Link>
-            )}
-            {filters.page < totalPages && (
-              <Link
-                href={historyUrl({ page: filters.page + 1, action: filters.action, actor: filters.actor })}
-                className="btn btn-sm btn-soft"
-              >
-                Next
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={filters.page}
+        totalPages={totalPages}
+        total={total}
+        previousHref={
+          filters.page > 1
+            ? historyUrl({ page: filters.page - 1, action: filters.action, actor: filters.actor })
+            : undefined
+        }
+        nextHref={
+          filters.page < totalPages
+            ? historyUrl({ page: filters.page + 1, action: filters.action, actor: filters.actor })
+            : undefined
+        }
+      />
     </main>
   )
 }

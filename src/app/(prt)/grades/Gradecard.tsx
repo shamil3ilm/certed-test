@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { EmptyState, FILTER_CONTROL, FilterField, StatCard, StatGrid } from '@/lib/ui'
+import { EmptyState, FILTER_CONTROL, FilterField, SearchFilterField, StatCard, StatGrid } from '@/lib/ui'
 import { formatMark, markPercent, weightedAveragePercent } from '@/lib/grades'
 
 export type GradecardMark = {
@@ -60,15 +60,11 @@ export function Gradecard({ marks }: { marks: GradecardMark[] }) {
             ))}
           </select>
         </FilterField>
-        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Assignment or topic..."
-            className={FILTER_CONTROL}
-          />
-        </FilterField>
+        <SearchFilterField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Assignment or topic..."
+        />
         <FilterField label="Sort">
           <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className={FILTER_CONTROL}>
             <option value="class">By class</option>

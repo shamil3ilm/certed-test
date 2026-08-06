@@ -1,29 +1,29 @@
 import type { Profile } from '@/lib/auth/profile'
-import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
-import {
-  ARCHIVED_ROW,
-  Badge,
-  Card,
-  EmptyState,
-  FILTER_CONTROL,
-  FilterBar,
-  FilterField,
-  SectionLabel,
-  cx,
-} from '@/lib/ui'
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_CATEGORY_VALUES,
   documentCategoryLabel,
   type DocumentCategory,
 } from '@/lib/documents/categories'
+import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
+import {
+  ARCHIVED_ROW,
+  Badge,
+  Card,
+  DateFilterField,
+  EmptyState,
+  FilterBar,
+  SearchFilterField,
+  SectionLabel,
+  SelectFilterField,
+} from '@/lib/ui'
 import { deleteResourceAction, restoreResourceAction } from '../../../assignments/manage-actions'
 import { CommentThread } from '../../../CommentThread'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { SubmitButton } from '../../../form'
 import { LocalTime } from '../../../LocalTime'
-import { UploadForm } from '../../../resources/UploadForm'
 import { EditResource } from '../../../resources/EditResource'
+import { UploadForm } from '../../../resources/UploadForm'
 import { VersionHistory } from '../../../resources/VersionHistory'
 
 type ClassworkPageData = Awaited<ReturnType<typeof loadClassworkPageData>>
@@ -148,40 +148,29 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
       {data.canManageContent && <UploadForm classes={data.classList} />}
 
       <FilterBar clearHref="?" showClear={data.hasActiveFilters} applyLabel="Apply">
-        <FilterField label="Search" className="min-w-0 flex-1 sm:max-w-xs">
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.q}
-            placeholder="Title, subject, description..."
-            className={cx(FILTER_CONTROL, 'w-full')}
-          />
-        </FilterField>
-        <FilterField label="Category">
-          <select name="cat" defaultValue={filters.category} className={FILTER_CONTROL}>
-            <option value="">All categories</option>
-            {DOCUMENT_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </FilterField>
-        <FilterField label="Subject">
-          <input name="subj" defaultValue={filters.subject} placeholder="e.g. Maths" className={FILTER_CONTROL} />
-        </FilterField>
-        <FilterField label="From">
-          <input type="date" name="from" defaultValue={filters.from} className={FILTER_CONTROL} />
-        </FilterField>
-        <FilterField label="To">
-          <input type="date" name="to" defaultValue={filters.to} className={FILTER_CONTROL} />
-        </FilterField>
-        <FilterField label="Sort">
-          <select name="sort" defaultValue={filters.sort} className={FILTER_CONTROL}>
-            <option value="latest">Latest first</option>
-            <option value="oldest">Oldest first</option>
-          </select>
-        </FilterField>
+        <SearchFilterField name="q" defaultValue={filters.q} placeholder="Title, subject, description..." />
+        <SelectFilterField label="Category" name="cat" defaultValue={filters.category}>
+          <option value="">All categories</option>
+          {DOCUMENT_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </SelectFilterField>
+        <SearchFilterField
+          label="Subject"
+          name="subj"
+          defaultValue={filters.subject}
+          placeholder="e.g. Maths"
+          className="sm:w-40"
+          inputClassName="sm:w-40"
+        />
+        <DateFilterField label="From" name="from" defaultValue={filters.from} />
+        <DateFilterField label="To" name="to" defaultValue={filters.to} />
+        <SelectFilterField label="Sort" name="sort" defaultValue={filters.sort}>
+          <option value="latest">Latest first</option>
+          <option value="oldest">Oldest first</option>
+        </SelectFilterField>
       </FilterBar>
 
       {data.documentTotal === 0 ? (

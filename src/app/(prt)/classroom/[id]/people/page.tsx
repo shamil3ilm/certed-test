@@ -78,6 +78,40 @@ export default async function ClassPeoplePage(props: {
         <AlertBanner>That change couldn&apos;t be applied. Please check the details and try again.</AlertBanner>
       )}
 
+      <nav
+        aria-label="People sections"
+        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
+      >
+        {data.canManage && (
+          <a
+            href="#tags"
+            className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+          >
+            Tags
+          </a>
+        )}
+        {data.isAdmin && (
+          <a
+            href="#settings"
+            className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+          >
+            Class settings
+          </a>
+        )}
+        <a
+          href="#teachers"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+        >
+          Teachers
+        </a>
+        <a
+          href="#students"
+          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
+        >
+          Students
+        </a>
+      </nav>
+
       {!data.canManage && data.myMentors.length > 0 && (
         <Card className="flex items-center gap-3 p-4">
           <div className="flex -space-x-2">
@@ -102,7 +136,7 @@ export default async function ClassPeoplePage(props: {
       )}
 
       {data.canManage && (
-        <Card className="space-y-3 p-4">
+        <Card id="tags" className="scroll-mt-20 space-y-3 p-4">
           <SectionLabel>Tags</SectionLabel>
           <p className="text-xs text-slate-500">
             Organise classes with labels - filter by them on the Classes list. Also available on documents.
@@ -112,7 +146,7 @@ export default async function ClassPeoplePage(props: {
       )}
 
       {data.isAdmin && (
-        <Card className="space-y-3 p-4">
+        <Card id="settings" className="scroll-mt-20 space-y-3 p-4">
           <SectionLabel>Class settings</SectionLabel>
           <div className="flex flex-wrap items-end gap-2">
             <form action={renameClassAction} className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
@@ -148,7 +182,7 @@ export default async function ClassPeoplePage(props: {
         </Card>
       )}
 
-      <section className="space-y-3">
+      <section id="teachers" className="scroll-mt-20 space-y-3">
         <SectionLabel count={data.tutors.length}>Teachers</SectionLabel>
         {data.isAdmin && data.addableTutors.length > 0 && (
           <form action={addTutorAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
@@ -185,7 +219,7 @@ export default async function ClassPeoplePage(props: {
         </ul>
       </section>
 
-      <section className="space-y-3">
+      <section id="students" className="scroll-mt-20 space-y-3">
         <SectionLabel count={data.students.length}>Students</SectionLabel>
         {data.canManage && data.students.length > 0 && (
           <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">

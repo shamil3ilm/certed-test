@@ -10,8 +10,7 @@ import {
   RowChevron,
   CARD,
   FilterBar,
-  FilterField,
-  FILTER_CONTROL,
+  SelectFilterField,
   classBanner,
   cx,
 } from '@/lib/ui'
@@ -149,16 +148,14 @@ export default async function ClassroomPage(props: { searchParams?: Promise<{ er
 
       {allTags.length > 0 && (
         <FilterBar className="mb-4" clearHref="/classroom" showClear={Boolean(tagFilter)}>
-          <FilterField label="Tag">
-            <select name="tag" defaultValue={tagFilter} className={FILTER_CONTROL}>
-              <option value="">All tags</option>
-              {allTags.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </FilterField>
+          <SelectFilterField label="Tag" name="tag" defaultValue={tagFilter}>
+            <option value="">All tags</option>
+            {allTags.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </SelectFilterField>
         </FilterBar>
       )}
 
