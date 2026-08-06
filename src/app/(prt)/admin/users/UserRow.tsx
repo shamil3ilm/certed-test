@@ -5,6 +5,7 @@ import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Card, Avatar, staffRoleLabel } from '@/lib/ui'
 import { SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { EscapableDetails } from '../../EscapableDetails'
 
 /**
  * One person in the users list, with their management controls.
@@ -59,35 +60,44 @@ export function UserRow({
         </div>
         {manageable ? (
           <>
-            <form action={editUserAction} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="id" value={p.id} />
-              <label className="text-xs">
-                Name
-                <input
-                  name="full_name"
-                  defaultValue={p.full_name ?? ''}
-                  className="mt-1 block rounded border px-2 py-1 text-sm"
-                />
-              </label>
-              {/* Role is a fixed identity - set at account creation, never edited here. */}
-              <span className="text-xs text-slate-400">
-                Role: <span className="font-medium text-slate-600">{visibleRoleLabel}</span>
-              </span>
-              {isStudent && (
-                <label className="text-xs">
-                  Class
-                  <input
-                    name="class_level"
-                    defaultValue={p.class_level ?? ''}
-                    className="mt-1 block w-20 rounded border px-2 py-1 text-sm"
-                  />
-                </label>
-              )}
-              <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving...">
-                Save
-              </SubmitButton>
-            </form>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <EscapableDetails
+                className="relative text-xs"
+                summaryClassName="cursor-pointer btn btn-sm btn-ghost"
+                summary="Edit details"
+              >
+                <form
+                  action={editUserAction}
+                  className="absolute right-0 z-10 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
+                >
+                  <input type="hidden" name="id" value={p.id} />
+                  <label className="block text-xs font-medium text-slate-500">
+                    Name
+                    <input
+                      name="full_name"
+                      defaultValue={p.full_name ?? ''}
+                      className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  {/* Role is a fixed identity - set at account creation, never edited here. */}
+                  <p className="text-xs text-slate-400">
+                    Role: <span className="font-medium text-slate-600">{visibleRoleLabel}</span>
+                  </p>
+                  {isStudent && (
+                    <label className="block text-xs font-medium text-slate-500">
+                      Class
+                      <input
+                        name="class_level"
+                        defaultValue={p.class_level ?? ''}
+                        className="mt-1 block w-full min-w-[10rem] rounded border px-2 py-1.5 text-sm"
+                      />
+                    </label>
+                  )}
+                  <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving...">
+                    Save
+                  </SubmitButton>
+                </form>
+              </EscapableDetails>
               {canEditPermissions && !self && (
                 <Link href={`/admin/users/${p.id}/permissions`} className="btn btn-sm btn-ghost">
                   Permissions

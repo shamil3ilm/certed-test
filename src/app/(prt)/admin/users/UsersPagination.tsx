@@ -1,11 +1,12 @@
-import Link from 'next/link'
 import { totalPages as pageCount } from '@/lib/pagination'
-import { USERS_PAGE_SIZE, usersUrl, type UsersTab } from '@/lib/services/page-data/admin-users'
+import { USERS_PAGE_SIZE, usersUrl, type RoleFilter, type UsersTab } from '@/lib/services/page-data/admin-users'
+import { PaginationBar } from '@/lib/ui'
 
 /** Page-through for the users list. Renders nothing when everything fits on one
  *  page, so the caller doesn't have to check. */
 export function UsersPagination({
   tab,
+  role,
   page,
   total,
   q,
@@ -14,6 +15,7 @@ export function UsersPagination({
   sortOrder,
 }: {
   tab: UsersTab
+  role: RoleFilter
   page: number
   total: number
   q?: string
@@ -22,24 +24,14 @@ export function UsersPagination({
   sortOrder?: string
 }) {
   const totalPages = pageCount(total, USERS_PAGE_SIZE)
-  if (totalPages <= 1) return null
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-      <span>
-        Page {page} of {totalPages} - {total} total
-      </span>
-      <div className="flex gap-2">
-        {page > 1 && (
-          <Link href={usersUrl({ tab, page: page - 1, q, status, sortBy, sortOrder })} className="btn btn-sm btn-soft">
-            Previous
-          </Link>
-        )}
-        {page < totalPages && (
-          <Link href={usersUrl({ tab, page: page + 1, q, status, sortBy, sortOrder })} className="btn btn-sm btn-soft">
-            Next
-          </Link>
-        )}
-      </div>
-    </div>
+    <PaginationBar
+      page={page}
+      totalPages={totalPages}
+      total={total}
+      previousHref={page > 1 ? usersUrl({ tab, role, page: page - 1, q, status, sortBy, sortOrder }) : undefined}
+      nextHref={page < totalPages ? usersUrl({ tab, role, page: page + 1, q, status, sortBy, sortOrder }) : undefined}
+      className="mt-4"
+    />
   )
 }

@@ -27,11 +27,35 @@ import {
 
 beforeEach(() => vi.resetAllMocks())
 
+function primeMocks(isSuper = true) {
+  vi.mocked(isAdminTier).mockReturnValue(isSuper as any)
+  vi.mocked(countUsersHubStats).mockResolvedValue({ students: 0, tutors: 0, adminTier: 0 } as any)
+  vi.mocked(listActiveMentorCandidates).mockResolvedValue([] as any)
+  vi.mocked(listMentorshipsForUsersHub).mockResolvedValue([] as any)
+  vi.mocked(listProfilesByRole).mockResolvedValue({ items: [], total: 0 } as any)
+  vi.mocked(getProfilesByIds).mockResolvedValue(new Map() as any)
+  vi.mocked(activeTeachingProfileIds).mockResolvedValue([] as any)
+  vi.mocked(activeMentorProfileIds).mockResolvedValue([] as any)
+}
+
 describe('usersUrl', () => {
-  it('builds a users hub URL preserving tab filters', () => {
-    expect(usersUrl({ tab: 'students', page: 2, q: 'sara', status: 'active', sortBy: 'name', sortOrder: 'asc' })).toBe(
-      '/admin/users?tab=students&page=2&q=sara&status=active&sortBy=name&sortOrder=asc',
-    )
+  it('builds a People URL with the role filter and preserves the other filters', () => {
+    expect(
+      usersUrl({
+        tab: 'people',
+        role: 'staff',
+        page: 2,
+        q: 'sara',
+        status: 'active',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      }),
+    ).toBe('/admin/users?tab=people&role=staff&page=2&q=sara&status=active&sortBy=name&sortOrder=asc')
+  })
+
+  it('omits the role when it is the default (all)', () => {
+    expect(usersUrl({ tab: 'people', role: 'all' })).toBe('/admin/users?tab=people')
+    expect(usersUrl({ tab: 'people' })).toBe('/admin/users?tab=people')
   })
 })
 
@@ -73,7 +97,8 @@ describe('loadAdminUsersPageData', () => {
     })
 
     expect(result.filters).toEqual({
-      tab: 'students',
+      tab: 'people',
+      role: 'student',
       page: 2,
       q: 'sara',
       status: 'active',
@@ -117,7 +142,8 @@ describe('loadAdminUsersPageData', () => {
     )
 
     expect(result.filters).toEqual({
-      tab: 'students',
+      tab: 'people',
+      role: 'all',
       page: 1,
       q: undefined,
       status: undefined,
@@ -125,5 +151,37 @@ describe('loadAdminUsersPageData', () => {
       sortOrder: undefined,
     })
     expect(result.roleOptions).toEqual(['student', 'tutor'])
+  })
+
+  it('maps the role filter to the roles it loads (staff spans tutor + mentor; admin spans admin + sub_admin; all spans everyone)', async () => {
+    primeMocks()
+    await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'people', role: 'staff' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['tutor', 'mentor'], expect.objectContaining({ page: 1 }))
+
+    vi.mocked(listProfilesByRole).mockClear()
+    primeMocks()
+    await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'people', role: 'admin' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['admin', 'sub_admin'], expect.objectContaining({ page: 1 }))
+
+    vi.mocked(listProfilesByRole).mockClear()
+    await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'people' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(
+      ['student', 'tutor', 'mentor', 'admin', 'sub_admin'],
+      expect.objectContaining({ page: 1 }),
+    )
+  })
+
+  it('always loads students on the Mentor-assignments tab, ignoring the role filter', async () => {
+    primeMocks()
+    const result = await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'mentors', role: 'admin' })
+    expect(result.filters.tab).toBe('mentors')
+    expect(listProfilesByRole).toHaveBeenLastCalledWith('student', expect.objectContaining({ page: 1 }))
+  })
+
+  it('maps a legacy ?tab=tutors bookmark onto the People list filtered to academic staff', async () => {
+    primeMocks()
+    const result = await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'tutors' } as any)
+    expect(result.filters).toMatchObject({ tab: 'people', role: 'staff' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['tutor', 'mentor'], expect.objectContaining({ page: 1 }))
   })
 })

@@ -17,20 +17,36 @@ export const STATUS_OPTIONS = ['active', 'pending', 'disabled'] as const
 type UsersStatus = (typeof STATUS_OPTIONS)[number]
 type UsersSortBy = 'name' | 'email' | 'created_at'
 type UsersSortOrder = 'asc' | 'desc'
-export type UsersTab = 'students' | 'tutors' | 'mentors' | 'admins'
+export type UsersTab = 'people' | 'mentors'
+export type RoleFilter = 'all' | 'staff' | 'student' | 'tutor' | 'mentor' | 'admin'
 
 export const USER_TABS: { key: UsersTab; label: string }[] = [
-  { key: 'students', label: 'Students' },
-  // The 'tutors' tab lists academic staff accounts - tutors and (independent)
-  // mentors. The 'mentors' tab is the student<->mentor assignment view, not an
-  // account list.
-  { key: 'tutors', label: 'Tutors & mentors' },
+  // One account list for everyone - the Role filter narrows it, so you never have
+  // to know a person's role to find them. The 'mentors' tab is the separate
+  // student<->mentor ASSIGNMENT view, not an account list.
+  { key: 'people', label: 'People' },
   { key: 'mentors', label: 'Mentor assignments' },
-  { key: 'admins', label: 'Admins' },
 ]
+
+/** Role narrowing for the People list. 'admin' spans the admin tier (admin +
+ *  sub_admin); the rest map to a single account role. */
+export const ROLE_FILTERS: { key: RoleFilter; label: string }[] = [
+  { key: 'all', label: 'All roles' },
+  { key: 'staff', label: 'Tutors & mentors' },
+  { key: 'student', label: 'Students' },
+  { key: 'tutor', label: 'Tutors' },
+  { key: 'mentor', label: 'Mentors' },
+  { key: 'admin', label: 'Admins' },
+]
+
+const ROLE_FILTER_KEYS = ROLE_FILTERS.map((r) => r.key)
+// Old per-role tabs -> People + role filter, so existing dashboard links, modal
+// "view all" hrefs and bookmarks keep resolving after the tabs were merged.
+const LEGACY_TAB_ROLE: Record<string, RoleFilter> = { students: 'student', tutors: 'staff', admins: 'admin' }
 
 type UsersPageFilters = {
   tab: UsersTab
+  role: RoleFilter
   page: number
   q?: string
   status?: UsersStatus
@@ -61,6 +77,7 @@ export type AdminUsersPageData = {
 
 export function usersUrl(params: {
   tab: UsersTab
+  role?: RoleFilter
   page?: number
   q?: string
   status?: string
@@ -69,6 +86,8 @@ export function usersUrl(params: {
 }): string {
   const sp = new URLSearchParams()
   sp.set('tab', params.tab)
+  // 'all' is the default; omit it so the canonical URL stays clean.
+  if (params.role && params.role !== 'all') sp.set('role', params.role)
   if (params.page && params.page > 1) sp.set('page', String(params.page))
   if (params.q) sp.set('q', params.q)
   if (params.status) sp.set('status', params.status)
@@ -79,14 +98,31 @@ export function usersUrl(params: {
 
 function parseFilters(searchParams: {
   tab?: string
+  role?: string
   page?: string
   q?: string
   status?: string
   sortBy?: string
   sortOrder?: string
 }): UsersPageFilters {
+  const rawTab = searchParams.tab
+  let tab: UsersTab
+  let role: RoleFilter
+  if (rawTab === 'mentors') {
+    tab = 'mentors'
+    role = 'all'
+  } else if (rawTab && rawTab in LEGACY_TAB_ROLE) {
+    // Back-compat: a bookmarked ?tab=students|tutors|admins becomes the People
+    // list pre-filtered to that role.
+    tab = 'people'
+    role = LEGACY_TAB_ROLE[rawTab]
+  } else {
+    tab = 'people'
+    role = ROLE_FILTER_KEYS.includes(searchParams.role as RoleFilter) ? (searchParams.role as RoleFilter) : 'all'
+  }
   return {
-    tab: (USER_TABS.find((t) => t.key === searchParams.tab)?.key ?? 'students') as UsersTab,
+    tab,
+    role,
     page: parsePageParam(searchParams.page),
     q: searchParams.q?.trim() || undefined,
     status: STATUS_OPTIONS.includes(searchParams.status as UsersStatus)
@@ -101,9 +137,21 @@ function parseFilters(searchParams: {
   }
 }
 
-function roleForTab(tab: UsersTab): Profile['role'] | ReadonlyArray<Profile['role']> {
-  // 'tutors' lists academic staff accounts: tutors AND independent mentors.
-  return tab === 'tutors' ? ['tutor', 'mentor'] : tab === 'admins' ? ['admin', 'sub_admin'] : 'student'
+function rolesForFilter(role: RoleFilter): Profile['role'] | ReadonlyArray<Profile['role']> {
+  switch (role) {
+    case 'staff':
+      return ['tutor', 'mentor']
+    case 'student':
+      return 'student'
+    case 'tutor':
+      return 'tutor'
+    case 'mentor':
+      return 'mentor'
+    case 'admin':
+      return ['admin', 'sub_admin']
+    default:
+      return ['student', 'tutor', 'mentor', 'admin', 'sub_admin']
+  }
 }
 
 function groupMentorsByStudent(links: UsersHubMentorLink[]): Map<string, UsersHubMentorLink[]> {
@@ -120,6 +168,7 @@ export async function loadAdminUsersPageData(
   me: Profile,
   searchParams: {
     tab?: string
+    role?: string
     page?: string
     q?: string
     status?: string
@@ -135,11 +184,14 @@ export async function loadAdminUsersPageData(
   // limited to students and tutors.
   const roleOptions = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor']
 
+  // The Mentor-assignments tab is student-centric (each row is a student + their
+  // mentor links), so it always loads students regardless of the People role filter.
+  const rolesToLoad = filters.tab === 'mentors' ? 'student' : rolesForFilter(filters.role)
   const [stats, mentorCandidates, links, { items: tabProfiles, total: tabTotal }] = await Promise.all([
     countUsersHubStats(),
     listActiveMentorCandidates(),
     listMentorshipsForUsersHub(),
-    listProfilesByRole(roleForTab(filters.tab), {
+    listProfilesByRole(rolesToLoad, {
       page: filters.page,
       pageSize: USERS_PAGE_SIZE,
       search: filters.q,

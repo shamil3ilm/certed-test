@@ -98,6 +98,7 @@ export function MentorshipsPanel({
       {data.tabProfiles.length === 0 && <EmptyState>No students to mentor yet.</EmptyState>}
       <UsersPagination
         tab={data.filters.tab}
+        role={data.filters.role}
         page={data.filters.page}
         total={data.tabTotal}
         q={data.filters.q}

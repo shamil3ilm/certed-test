@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
-import { loadAdminUsersPageData, USER_TABS } from '@/lib/services/page-data/admin-users'
-import { AlertBanner, PageHeader, StatCard, StatGrid, EmptyState, FILTER_CONTROL, cx } from '@/lib/ui'
+import { loadAdminUsersPageData, USER_TABS, usersUrl } from '@/lib/services/page-data/admin-users'
+import { AlertBanner, PageHeader, StatCard, StatGrid, EmptyState, cx } from '@/lib/ui'
 import { AddUserForm } from './AddUserForm'
 import { UserRow } from './UserRow'
 import { UsersFilterBar } from './UsersFilterBar'
@@ -12,6 +12,7 @@ import { MentorshipsPanel } from './MentorshipsPanel'
 export default async function AdminUsersPage(props: {
   searchParams: Promise<{
     tab?: string
+    role?: string
     page?: string
     q?: string
     status?: string
@@ -45,7 +46,10 @@ export default async function AdminUsersPage(props: {
       )}
 
       <StatGrid cols={4}>
-        <StatCard label="Students" value={data.stats.students} />
+        {/* Students/Admins map to exactly one role filter, so they double as a
+            one-click drill-in. "Tutors & mentors" spans two role filters and
+            "With a mentor" is a status (not a role), so those stay plain. */}
+        <StatCard label="Students" value={data.stats.students} href={usersUrl({ tab: 'people', role: 'student' })} />
         <StatCard label="Tutors & mentors" value={data.stats.tutors} />
         <StatCard
           label="With a mentor"
@@ -53,7 +57,7 @@ export default async function AdminUsersPage(props: {
           tone="primary"
           sub={`${Math.max(0, data.stats.students - data.assignedStudents)} without`}
         />
-        <StatCard label="Admins" value={data.stats.adminTier} />
+        <StatCard label="Admins" value={data.stats.adminTier} href={usersUrl({ tab: 'people', role: 'admin' })} />
       </StatGrid>
 
       {canManage && (
@@ -77,114 +81,51 @@ export default async function AdminUsersPage(props: {
         ))}
       </nav>
 
-      <UsersFilterBar tab={data.filters.tab} q={data.filters.q} status={data.filters.status} />
-
-      <form className="mt-2 flex flex-wrap items-end gap-2">
-        <input type="hidden" name="tab" value={data.filters.tab} />
-        <input type="hidden" name="q" value={data.filters.q ?? ''} />
-        <input type="hidden" name="status" value={data.filters.status ?? ''} />
-        <label className="text-xs font-medium text-slate-500">
-          Sort by
-          <select name="sortBy" defaultValue={data.filters.sortBy ?? 'created_at'} className={FILTER_CONTROL}>
-            <option value="created_at">Date added</option>
-            <option value="name">Name</option>
-            <option value="email">Email</option>
-          </select>
-        </label>
-        <label className="text-xs font-medium text-slate-500">
-          Order
-          <select name="sortOrder" defaultValue={data.filters.sortOrder ?? 'desc'} className={FILTER_CONTROL}>
-            <option value="desc">Newest first</option>
-            <option value="asc">Oldest first</option>
-          </select>
-        </label>
-        <button type="submit" className="btn btn-sm btn-soft">
-          Sort
-        </button>
-      </form>
+      {data.filters.tab === 'people' && (
+        <UsersFilterBar
+          tab={data.filters.tab}
+          role={data.filters.role}
+          q={data.filters.q}
+          status={data.filters.status}
+          sortBy={data.filters.sortBy}
+          sortOrder={data.filters.sortOrder}
+        />
+      )}
 
       <div className="mt-6">
-        {data.filters.tab === 'students' && (
+        {data.filters.tab === 'people' && (
           <>
             <ul className="space-y-2">
-              {data.tabProfiles.map((s) => {
-                const links = data.mentorsByStudent.get(s.id) ?? []
-                const subtitle = links.length
-                  ? `mentor: ${links.map((l) => data.mentorNames.get(l.mentor_id) ?? '-').join(', ')}`
-                  : 'no mentor'
+              {data.tabProfiles.map((p) => {
+                const isStudent = p.role === 'student'
+                const isAdminTierRow = p.role === 'admin' || p.role === 'sub_admin'
+                // A student's mentor(s) travel in the subtitle; staff/admin rows have none.
+                const links = isStudent ? (data.mentorsByStudent.get(p.id) ?? []) : []
+                const mentorSubtitle = isStudent
+                  ? links.length
+                    ? `mentor: ${links.map((l) => data.mentorNames.get(l.mentor_id) ?? '-').join(', ')}`
+                    : 'no mentor'
+                  : undefined
                 return (
                   <UserRow
-                    key={s.id}
-                    p={s}
-                    self={s.id === me.id}
-                    manageable={canManage}
+                    key={p.id}
+                    p={p}
+                    self={p.id === me.id}
+                    // Admin-tier accounts are editable only by a Super Admin; every
+                    // other row is manageable by any user manager.
+                    manageable={canManage && (isAdminTierRow ? data.isSuper : true)}
                     canEditPermissions={data.isSuper}
-                    mentorSubtitle={subtitle}
-                    teaches={data.teachingStaffIds.has(s.id)}
-                    mentors={data.mentoringStaffIds.has(s.id)}
+                    mentorSubtitle={mentorSubtitle}
+                    teaches={data.teachingStaffIds.has(p.id)}
+                    mentors={data.mentoringStaffIds.has(p.id)}
                   />
                 )
               })}
-              {data.tabProfiles.length === 0 && <EmptyState as="li">No students yet.</EmptyState>}
+              {data.tabProfiles.length === 0 && <EmptyState as="li">No people match these filters.</EmptyState>}
             </ul>
             <UsersPagination
               tab={data.filters.tab}
-              page={data.filters.page}
-              total={data.tabTotal}
-              q={data.filters.q}
-              status={data.filters.status}
-              sortBy={data.filters.sortBy}
-              sortOrder={data.filters.sortOrder}
-            />
-          </>
-        )}
-
-        {data.filters.tab === 'tutors' && (
-          <>
-            <ul className="space-y-2">
-              {data.tabProfiles.map((t) => (
-                <UserRow
-                  key={t.id}
-                  p={t}
-                  self={t.id === me.id}
-                  manageable={canManage}
-                  canEditPermissions={data.isSuper}
-                  teaches={data.teachingStaffIds.has(t.id)}
-                  mentors={data.mentoringStaffIds.has(t.id)}
-                />
-              ))}
-              {data.tabProfiles.length === 0 && <EmptyState as="li">No tutors yet.</EmptyState>}
-            </ul>
-            <UsersPagination
-              tab={data.filters.tab}
-              page={data.filters.page}
-              total={data.tabTotal}
-              q={data.filters.q}
-              status={data.filters.status}
-              sortBy={data.filters.sortBy}
-              sortOrder={data.filters.sortOrder}
-            />
-          </>
-        )}
-
-        {data.filters.tab === 'admins' && (
-          <>
-            <ul className="space-y-2">
-              {data.tabProfiles.map((a) => (
-                <UserRow
-                  key={a.id}
-                  p={a}
-                  self={a.id === me.id}
-                  manageable={canManage && data.isSuper}
-                  canEditPermissions={data.isSuper}
-                  teaches={data.teachingStaffIds.has(a.id)}
-                  mentors={data.mentoringStaffIds.has(a.id)}
-                />
-              ))}
-              {data.tabProfiles.length === 0 && <EmptyState as="li">No admins yet.</EmptyState>}
-            </ul>
-            <UsersPagination
-              tab={data.filters.tab}
+              role={data.filters.role}
               page={data.filters.page}
               total={data.tabTotal}
               q={data.filters.q}
