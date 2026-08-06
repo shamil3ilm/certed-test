@@ -1,7 +1,7 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadDashboardViewData } from '@/lib/services/page-data/dashboard'
-import { PageHeader, personaLabel } from '@/lib/ui'
+import { AlertBanner, PageHeader, personaLabel } from '@/lib/ui'
 import {
   AdminDashboard,
   GenericDashboard,
@@ -11,15 +11,23 @@ import {
   TutorDashboard,
 } from './views'
 
-export default async function Dashboard() {
+export default async function Dashboard(props: { searchParams: Promise<{ denied?: string }> }) {
   // Entry page: guarded by capability rather than a fixed role list, so the
   // route stays aligned with the resolved access model.
   const me = await requireCapability('viewDashboard')
   const actor = await getActorContext() // request-cached; already loaded by the header
   const data = await loadDashboardViewData(me, actor.capabilities.allowed)
+  // A capability guard elsewhere bounces here with ?denied=1 (the route was never
+  // in this persona's nav) - show a brief notice rather than a silent redirect.
+  const { denied } = await props.searchParams
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
+      {denied && (
+        <AlertBanner tone="warning" className="mb-4">
+          You don&apos;t have access to that page.
+        </AlertBanner>
+      )}
       <PageHeader
         title={`Welcome, ${me.full_name ?? me.email}`}
         description={`${personaLabel(actor.personas)} - Cert-Ed Academia portal`}

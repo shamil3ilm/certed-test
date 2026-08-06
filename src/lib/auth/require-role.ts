@@ -71,7 +71,9 @@ export async function requireActiveProfileApi(): Promise<Profile> {
 export async function requireCapability(capability: Capability): Promise<Profile> {
   const actor = await getActorContext()
   if (!actor.profile || actor.accessState !== 'active') redirectForAccessState(actor)
-  if (!actor.capabilities.allowed.has(capability)) redirect('/dashboard')
+  // Send them home, but flag WHY so the dashboard can show a brief "no access"
+  // notice instead of a silent bounce (the route was never in their nav).
+  if (!actor.capabilities.allowed.has(capability)) redirect('/dashboard?denied=1')
   return actor.profile
 }
 
