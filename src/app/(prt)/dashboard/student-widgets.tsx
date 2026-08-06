@@ -9,8 +9,21 @@ import { Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_LINK, resolveClassIds } from './widget-shared'
 
-export async function AttendanceRateWidget({ studentId }: { studentId: string }) {
-  const { rate, present, late, total } = await summarizeAttendanceForStudent(studentId)
+export async function AttendanceRateWidget({
+  studentId,
+  classIdsPromise,
+}: {
+  studentId: string
+  classIdsPromise: Promise<string[]>
+}) {
+  const [{ rate, present, late, total }, classIds] = await Promise.all([
+    summarizeAttendanceForStudent(studentId),
+    classIdsPromise,
+  ])
+  // A student takes one class per subject; when they have exactly one, this
+  // attendance panel opens that class's Attendance tab directly rather than the
+  // class list. (Reuses the dashboard's already-resolved class ids - no extra query.)
+  const singleClassId = classIds.length === 1 ? classIds[0] : null
 
   return (
     <Panel title="Attendance">
@@ -27,8 +40,8 @@ export async function AttendanceRateWidget({ studentId }: { studentId: string })
           </p>
         </>
       )}
-      <Link href="/classroom" className={WIDGET_CTA_LINK}>
-        Open classes &rarr;
+      <Link href={singleClassId ? `/classroom/${singleClassId}/attendance` : '/classroom'} className={WIDGET_CTA_LINK}>
+        {singleClassId ? 'Open attendance' : 'Open classes'} &rarr;
       </Link>
     </Panel>
   )

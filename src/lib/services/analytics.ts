@@ -1,6 +1,8 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { myClassIds } from '@/lib/services/classes'
+import { listAssignments } from '@/lib/services/assignments'
+import { listMyActiveSubmissions, listUngradedSubmissions } from '@/lib/services/submissions'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { summarizeAttendance, type AttendanceStatus } from '@/lib/attendance/summary'
 import { formatHours, minutesBetween, sumMinutes } from '@/lib/attendance/hours'
@@ -46,15 +48,21 @@ export type TutorAnalytics = {
   sessionsHeld: number
   resourcesUploaded: number
   attendanceRate: number
+  toGrade: number
+  // Returned so the stat cards can deep-link to a single class's tab without a
+  // second myClassIds() round-trip.
+  classIds: string[]
 }
 
 export async function getTutorAnalytics(me: Profile): Promise<TutorAnalytics> {
   const classIds = await myClassIds(me)
-  const [sessions, statuses, resourcesUploaded] = await Promise.all([
+  const [sessions, statuses, resourcesUploaded, assignments] = await Promise.all([
     selectSessionsForClasses(classIds),
     selectAttendanceStatusesForClasses(classIds),
     countResourcesByUploader(me.id),
+    classIds.length ? listAssignments({ classIds, activeOnly: true }) : Promise.resolve([]),
   ])
+  const ungraded = assignments.length ? await listUngradedSubmissions(assignments.map((a) => a.id)) : []
   const teachingMinutes = sumMinutes(sessions.map((s) => minutesBetween(s.tutor_join_at, s.tutor_leave_at)))
   const attendance = summarizeAttendance(statuses as ReadonlyArray<{ status: AttendanceStatus }>)
   return {
@@ -62,6 +70,8 @@ export async function getTutorAnalytics(me: Profile): Promise<TutorAnalytics> {
     sessionsHeld: sessions.length,
     resourcesUploaded,
     attendanceRate: attendance.rate,
+    toGrade: ungraded.length,
+    classIds,
   }
 }
 
@@ -70,14 +80,22 @@ export type StudentAnalytics = {
   sessionsAttended: number
   attendanceRate: number
   downloads: number
+  dueWork: number
+  // Returned so the stat cards can deep-link to a single class's tab.
+  classIds: string[]
 }
 
 export async function getStudentAnalytics(me: Profile): Promise<StudentAnalytics> {
-  const [timed, attendance, downloads] = await Promise.all([
+  const classIds = await myClassIds(me)
+  const [timed, attendance, downloads, assignments, mySubs] = await Promise.all([
     selectTimedAttendanceForStudent(me.id),
     summarizeAttendanceForStudent(me.id),
     countAuditByActorAction(me.id, 'resource.download'),
+    classIds.length ? listAssignments({ classIds }) : Promise.resolve([]),
+    listMyActiveSubmissions(me.id),
   ])
+  const submittedIds = new Set(mySubs.map((s) => s.assignment_id))
+  const dueWork = assignments.filter((a) => a.status === 'active' && !submittedIds.has(a.id)).length
   const learningMinutes = sumMinutes(timed.map((r) => minutesBetween(r.join_at, r.leave_at)))
   return {
     learningHours: formatHours(learningMinutes),
@@ -85,5 +103,7 @@ export async function getStudentAnalytics(me: Profile): Promise<StudentAnalytics
     sessionsAttended: attendance.present + attendance.late,
     attendanceRate: attendance.rate,
     downloads,
+    dueWork,
+    classIds,
   }
 }

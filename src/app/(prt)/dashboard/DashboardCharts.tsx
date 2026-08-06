@@ -77,7 +77,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
         ) : effectiveStyle === 'line' ? (
           <LineChart data={active.data} format={format} />
         ) : (
-          <MiniBars data={active.data} />
+          <MiniBars data={active.data} format={format} />
         )}
       </div>
     </Panel>

@@ -7,6 +7,7 @@ import { MentorInsights } from './MentorInsights'
 import { StudentAnalyticsStats, TutorAnalyticsStats } from './analytics-stats'
 import { DashboardChartsSection } from './charts-section'
 import { CapabilityNotice, MenteesPanel } from './dashboard-panels'
+import { DashboardSection, DashboardWidgetGrid } from './dashboard-layout'
 import {
   AttendanceRateWidget,
   DueWorkWidget,
@@ -48,11 +49,11 @@ export function MentorDashboardContent({
       {teaches ? (
         <TutorDashboardContent me={me} now={now} canViewClasses={canViewClasses} canViewGrading={canViewGrading} />
       ) : (
-        <section className="mt-6">
+        <DashboardSection>
           <Suspense fallback={<WidgetSkeleton />}>
             <RemindersWidget me={me} now={now} />
           </Suspense>
-        </section>
+        </DashboardSection>
       )}
     </>
   )
@@ -71,14 +72,14 @@ export function TutorDashboardContent({
 }) {
   if (!canViewClasses && !canViewGrading) {
     return (
-      <section className="mt-6">
+      <DashboardSection>
         <CapabilityNotice message="Class and grading widgets are hidden because this account does not currently have those features enabled." />
-        <section className="mt-6">
+        <DashboardSection>
           <Suspense fallback={<WidgetSkeleton />}>
             <RemindersWidget me={me} now={now} />
           </Suspense>
-        </section>
-      </section>
+        </DashboardSection>
+      </DashboardSection>
     )
   }
 
@@ -87,13 +88,13 @@ export function TutorDashboardContent({
   return (
     <>
       {canViewClasses && (
-        <section className="mt-6">
+        <DashboardSection>
           <Suspense fallback={<WidgetSkeleton />}>
             <TutorAnalyticsStats me={me} />
           </Suspense>
-        </section>
+        </DashboardSection>
       )}
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <DashboardWidgetGrid>
         {canViewClasses && (
           <Suspense fallback={<WidgetSkeleton />}>
             <TutorUpcomingClasses me={me} now={now} title="Upcoming classes" sharedDataPromise={sharedDataPromise} />
@@ -114,13 +115,13 @@ export function TutorDashboardContent({
             <TutorRecentUploads me={me} sharedDataPromise={sharedDataPromise} />
           </Suspense>
         )}
-      </section>
+      </DashboardWidgetGrid>
       {canViewClasses && <DashboardChartsSection me={me} />}
-      <section className="mt-6">
+      <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
           <RemindersWidget me={me} now={now} />
         </Suspense>
-      </section>
+      </DashboardSection>
     </>
   )
 }
@@ -136,14 +137,14 @@ export function StudentDashboardContent({
 }) {
   if (!canViewClasses) {
     return (
-      <section className="mt-6">
+      <DashboardSection>
         <CapabilityNotice message="Class widgets are hidden because this account does not currently have class access enabled." />
-        <section className="mt-6">
+        <DashboardSection>
           <Suspense fallback={<WidgetSkeleton />}>
             <RemindersWidget me={me} now={now} />
           </Suspense>
-        </section>
-      </section>
+        </DashboardSection>
+      </DashboardSection>
     )
   }
 
@@ -151,12 +152,12 @@ export function StudentDashboardContent({
 
   return (
     <>
-      <section className="mt-6">
+      <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentAnalyticsStats me={me} />
         </Suspense>
-      </section>
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      </DashboardSection>
+      <DashboardWidgetGrid>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />
         </Suspense>
@@ -164,18 +165,18 @@ export function StudentDashboardContent({
           <LatestGradeWidget studentId={me.id} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
-          <AttendanceRateWidget studentId={me.id} />
+          <AttendanceRateWidget studentId={me.id} classIdsPromise={classIdsPromise} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentLatestAnnouncement me={me} classIdsPromise={classIdsPromise} />
         </Suspense>
-      </section>
+      </DashboardWidgetGrid>
       <DashboardChartsSection me={me} />
-      <section className="mt-6">
+      <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
           <RemindersWidget me={me} now={now} />
         </Suspense>
-      </section>
+      </DashboardSection>
     </>
   )
 }
@@ -183,14 +184,14 @@ export function StudentDashboardContent({
 export function GenericDashboardContent({ me, now }: { me: Profile; now: number }) {
   return (
     <>
-      <section className="mt-6">
+      <DashboardSection>
         <CapabilityNotice message="This account is active, but it does not yet have a persona-specific dashboard. Personal reminders remain available while feature access is being configured." />
-      </section>
-      <section className="mt-6">
+      </DashboardSection>
+      <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
           <RemindersWidget me={me} now={now} />
         </Suspense>
-      </section>
+      </DashboardSection>
     </>
   )
 }

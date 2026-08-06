@@ -6,11 +6,13 @@ import type {
   DashboardMentee,
   SubAdminDashboardViewData,
 } from '@/lib/services/page-data/dashboard'
+import { usersUrl } from '@/lib/services/page-data/admin-users'
 import { Avatar, Card, ListRow, MiniBars, Panel, StatGrid } from '@/lib/ui'
 import { StatModalCard } from '../StatModalCard'
 import type { Profile } from '@/lib/auth/profile'
 import { AdminAnalyticsStats } from './analytics-stats'
 import { DashboardChartsSection } from './charts-section'
+import { DashboardSection } from './dashboard-layout'
 import { WidgetSkeleton } from './widgets'
 import { ReminderPanel } from './ReminderPanel'
 import { WIDGET_CTA_LINK, WIDGET_ROW_LINK, WIDGET_ROW_META } from './widget-shared'
@@ -24,7 +26,7 @@ import {
 
 export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   return (
-    <section className="mt-6">
+    <DashboardSection>
       <Panel title="Your mentees">
         <p className="mb-3 text-sm text-slate-500">
           Students you look after across subjects. Open one to review their overall progress.
@@ -51,7 +53,7 @@ export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
           </ul>
         )}
       </Panel>
-    </section>
+    </DashboardSection>
   )
 }
 
@@ -85,7 +87,7 @@ export function SubAdminOverview({
           value={data.students}
           title="Students"
           load={loadStudentsModal}
-          viewAllHref="/admin/users?tab=students"
+          viewAllHref={usersUrl({ tab: 'people', role: 'student' })}
           empty="No students yet."
         />
         <StatModalCard
@@ -93,7 +95,7 @@ export function SubAdminOverview({
           value={data.tutors}
           title="Tutors & mentors"
           load={loadTutorsModal}
-          viewAllHref="/admin/users?tab=tutors"
+          viewAllHref={usersUrl({ tab: 'people', role: 'staff' })}
           empty="No tutors yet."
         />
         <StatModalCard
@@ -102,7 +104,7 @@ export function SubAdminOverview({
           title="Pending access"
           tone={data.pending > 0 ? 'primary' : undefined}
           load={loadPendingModal}
-          viewAllHref="/admin/users?status=pending"
+          viewAllHref={usersUrl({ tab: 'people', status: 'pending' })}
           empty="Nobody waiting for access."
         />
       </StatGrid>
@@ -136,7 +138,7 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
         value={data.peopleCounts.students}
         title="Students"
         load={loadStudentsModal}
-        viewAllHref="/admin/users?tab=students"
+        viewAllHref={usersUrl({ tab: 'people', role: 'student' })}
       />
     ) : null,
     data.peopleCounts ? (
@@ -146,7 +148,7 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
         value={data.peopleCounts.tutors}
         title="Tutors & mentors"
         load={loadTutorsModal}
-        viewAllHref="/admin/users?tab=tutors"
+        viewAllHref={usersUrl({ tab: 'people', role: 'staff' })}
       />
     ) : null,
     <StatModalCard
@@ -177,12 +179,12 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
       <StatGrid cols={4} className="mt-6">
         {statCards}
       </StatGrid>
-      <section className="mt-6">
+      <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
           <AdminAnalyticsStats />
         </Suspense>
-      </section>
-      <section className="mt-6 grid gap-4 lg:grid-cols-3">
+      </DashboardSection>
+      <DashboardSection className="grid gap-4 lg:grid-cols-3">
         <Panel title="Students per class">
           <MiniBars data={data.perClass} />
           <Link href="/classroom" className={WIDGET_CTA_LINK}>
@@ -193,7 +195,7 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
           <Upcoming events={data.upcoming} />
         </Panel>
         <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={data.now} />
-      </section>
+      </DashboardSection>
       <DashboardChartsSection me={me} />
     </>
   )

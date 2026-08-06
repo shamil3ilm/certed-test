@@ -144,6 +144,14 @@ export async function SubmissionsToReviewWidget({
   const top = ungraded.slice(0, 3)
   const names = await getProfileNamesByIds(top.map((submission) => submission.student_id))
   const titleById = new Map(assignments.map((assignment) => [assignment.id, assignment.title]))
+  // Grading is a per-class tab now, so when all the pending work sits in ONE class
+  // the CTA opens that class's Grading tab directly; only a genuinely cross-class
+  // queue falls back to the class list.
+  const classIdByAssignment = new Map(assignments.map((assignment) => [assignment.id, assignment.class_id]))
+  const gradingClassIds = [
+    ...new Set(ungraded.map((submission) => classIdByAssignment.get(submission.assignment_id)).filter(Boolean)),
+  ]
+  const reviewHref = gradingClassIds.length === 1 ? `/classroom/${gradingClassIds[0]}/grading` : '/classroom'
 
   return (
     <Panel title="Submissions to review">
@@ -166,7 +174,7 @@ export async function SubmissionsToReviewWidget({
               </li>
             ))}
           </ul>
-          <Link href="/classroom" className={WIDGET_CTA_LINK}>
+          <Link href={reviewHref} className={WIDGET_CTA_LINK}>
             Review all {ungraded.length} &rarr;
           </Link>
         </>

@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/classes', () => ({ myClassIds: vi.fn() }))
 vi.mock('@/lib/services/attendance', () => ({ summarizeAttendanceForStudent: vi.fn() }))
+vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
+vi.mock('@/lib/services/submissions', () => ({
+  listUngradedSubmissions: vi.fn(),
+  listMyActiveSubmissions: vi.fn(),
+}))
 vi.mock('@/lib/data/analytics', () => ({
   countActiveResources: vi.fn(),
   countActiveAnnouncements: vi.fn(),
@@ -15,6 +20,8 @@ vi.mock('@/lib/data/analytics', () => ({
 
 import { myClassIds } from '@/lib/services/classes'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
+import { listAssignments } from '@/lib/services/assignments'
+import { listUngradedSubmissions, listMyActiveSubmissions } from '@/lib/services/submissions'
 import {
   countActiveResources,
   countActiveAnnouncements,
@@ -41,7 +48,7 @@ describe('getAdminAnalytics', () => {
 })
 
 describe('getTutorAnalytics', () => {
-  it('sums tutor working time into hours, counts sessions + uploads, and rates attendance', async () => {
+  it('sums working time, counts sessions/uploads/ungraded, rates attendance, and returns class ids', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
     vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([
       { tutor_join_at: '2026-07-01T10:00:00Z', tutor_leave_at: '2026-07-01T11:00:00Z' },
@@ -54,17 +61,21 @@ describe('getTutorAnalytics', () => {
       { status: 'absent' },
     ])
     vi.mocked(countResourcesByUploader).mockResolvedValueOnce(5)
+    vi.mocked(listAssignments).mockResolvedValueOnce([{ id: 'a1' }, { id: 'a2' }] as any)
+    vi.mocked(listUngradedSubmissions).mockResolvedValueOnce([{ id: 's1' }, { id: 's2' }, { id: 's3' }] as any)
 
     await expect(getTutorAnalytics(me)).resolves.toEqual({
       teachingHours: '2.0h', // 60 + 60 minutes
       sessionsHeld: 2,
       resourcesUploaded: 5,
       attendanceRate: 75, // (present 2 + late 1) / 4
+      toGrade: 3,
+      classIds: ['c1'],
     })
     expect(countResourcesByUploader).toHaveBeenCalledWith('user-1')
   })
 
-  it('reports a dash for teaching hours when no session times are recorded', async () => {
+  it('reports a dash for teaching hours and skips the assignment scan when there are no classes', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce([])
     vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([])
     vi.mocked(selectAttendanceStatusesForClasses).mockResolvedValueOnce([])
@@ -75,12 +86,16 @@ describe('getTutorAnalytics', () => {
       sessionsHeld: 0,
       resourcesUploaded: 0,
       attendanceRate: 0,
+      toGrade: 0,
+      classIds: [],
     })
+    expect(listAssignments).not.toHaveBeenCalled()
   })
 })
 
 describe('getStudentAnalytics', () => {
-  it('sums learning time, counts attended (present+late) sessions, and passes downloads through', async () => {
+  it('sums learning time, counts attended sessions + due work, passes downloads, returns class ids', async () => {
+    vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
     vi.mocked(selectTimedAttendanceForStudent).mockResolvedValueOnce([
       { join_at: '2026-07-01T10:00:00Z', leave_at: '2026-07-01T11:30:00Z' }, // 90m
       { join_at: '2026-07-02T10:00:00Z', leave_at: '2026-07-02T10:30:00Z' }, // 30m
@@ -93,12 +108,20 @@ describe('getStudentAnalytics', () => {
       rate: 80,
     })
     vi.mocked(countAuditByActorAction).mockResolvedValueOnce(7)
+    // a1 + a2 active; a1 already submitted -> only a2 is due.
+    vi.mocked(listAssignments).mockResolvedValueOnce([
+      { id: 'a1', status: 'active' },
+      { id: 'a2', status: 'active' },
+    ] as any)
+    vi.mocked(listMyActiveSubmissions).mockResolvedValueOnce([{ assignment_id: 'a1' }] as any)
 
     await expect(getStudentAnalytics(me)).resolves.toEqual({
       learningHours: '2.0h', // 90 + 30 minutes
       sessionsAttended: 4, // present 3 + late 1
       attendanceRate: 80,
       downloads: 7,
+      dueWork: 1,
+      classIds: ['c1'],
     })
     expect(countAuditByActorAction).toHaveBeenCalledWith('user-1', 'resource.download')
   })
