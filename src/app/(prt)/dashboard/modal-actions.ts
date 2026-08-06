@@ -2,6 +2,7 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import { activeTeachingProfileIds, activeMentorProfileIds } from '@/lib/services/class-tutors'
 import { financeUrl } from '@/lib/services/finance/admin-finance'
+import { usersUrl } from '@/lib/services/page-data/admin-users'
 import { listProfilesByFilter } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
@@ -49,7 +50,7 @@ export async function loadTutorsModal() {
     items: staff.map((p) => ({
       primary: p.full_name ?? p.email,
       secondary: `${staffRoleLabel({ role: p.role, teaches: teachingStaffIds.has(p.id), mentors: mentoringStaffIds.has(p.id) })} - ${p.email}`,
-      href: `/admin/users?tab=tutors&q=${encodeURIComponent(p.email)}`,
+      href: usersUrl({ tab: 'people', role: 'staff', q: p.email }),
     })),
   }
 }
@@ -61,7 +62,7 @@ export async function loadPendingModal() {
     items: pending.map((p) => ({
       primary: p.full_name ?? p.email,
       secondary: p.email,
-      href: `/admin/users?status=pending&q=${encodeURIComponent(p.email)}`,
+      href: usersUrl({ tab: 'people', status: 'pending', q: p.email }),
     })),
   }
 }

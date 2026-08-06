@@ -40,9 +40,9 @@ export const ROLE_FILTERS: { key: RoleFilter; label: string }[] = [
 ]
 
 const ROLE_FILTER_KEYS = ROLE_FILTERS.map((r) => r.key)
-// Old per-role tabs -> People + role filter, so existing dashboard links, modal
-// "view all" hrefs and bookmarks keep resolving after the tabs were merged.
-const LEGACY_TAB_ROLE: Record<string, RoleFilter> = { students: 'student', tutors: 'staff', admins: 'admin' }
+// Convenience aliases: a ?tab=students|tutors|admins link opens the People list
+// pre-filtered to that role, so those hrefs and bookmarks resolve directly.
+const TAB_ROLE_ALIASES: Record<string, RoleFilter> = { students: 'student', tutors: 'staff', admins: 'admin' }
 
 type UsersPageFilters = {
   tab: UsersTab
@@ -111,11 +111,10 @@ function parseFilters(searchParams: {
   if (rawTab === 'mentors') {
     tab = 'mentors'
     role = 'all'
-  } else if (rawTab && rawTab in LEGACY_TAB_ROLE) {
-    // Back-compat: a bookmarked ?tab=students|tutors|admins becomes the People
-    // list pre-filtered to that role.
+  } else if (rawTab && rawTab in TAB_ROLE_ALIASES) {
+    // A ?tab=students|tutors|admins link opens People pre-filtered to that role.
     tab = 'people'
-    role = LEGACY_TAB_ROLE[rawTab]
+    role = TAB_ROLE_ALIASES[rawTab]
   } else {
     tab = 'people'
     role = ROLE_FILTER_KEYS.includes(searchParams.role as RoleFilter) ? (searchParams.role as RoleFilter) : 'all'

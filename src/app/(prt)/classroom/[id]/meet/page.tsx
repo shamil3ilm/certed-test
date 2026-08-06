@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 
-// Meetings merged back into the class Stream (a post with a join link IS a
-// meeting), so the standalone Meet tab is gone. Keep the route working by
-// sending any old link to the stream.
+// A meeting is just a Stream post carrying a join link, so the class Stream is
+// the single home for meetings; this route resolves /classroom/[id]/meet to it.
 export default async function ClassMeetRedirect(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
   redirect(`/classroom/${params.id}`)
