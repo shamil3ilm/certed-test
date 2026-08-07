@@ -79,6 +79,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
         ) : (
           <MiniBars data={active.data} format={format} />
         )}
+        {active.note && <p className="mt-2 text-xs text-amber-600">{active.note}</p>}
       </div>
     </Panel>
   )

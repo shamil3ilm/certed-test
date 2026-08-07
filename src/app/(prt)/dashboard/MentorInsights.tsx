@@ -2,9 +2,11 @@ import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { getMentorDashboard, type MentorDashboardMentee } from '@/lib/services/mentees'
 import { metricPercentLabel } from '@/lib/services/mentees-shared'
+import { formatMark } from '@/lib/grades'
 import { Panel, StatGrid } from '@/lib/ui'
 import { StatModalCard } from '../StatModalCard'
 import { LocalTime } from '../LocalTime'
+import { DashboardSection } from './dashboard-layout'
 
 // Worst-first: lowest figure at the top (what a mentor should look at), mentees
 // with no data yet at the bottom.
@@ -96,7 +98,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
       </StatGrid>
 
       {data.needsAttention.length > 0 && (
-        <section className="mt-6">
+        <DashboardSection>
           <Panel title="Needs attention">
             <ul className="space-y-0.5">
               {data.needsAttention.map((mentee) => (
@@ -109,10 +111,10 @@ export async function MentorInsights({ me }: { me: Profile }) {
               ))}
             </ul>
           </Panel>
-        </section>
+        </DashboardSection>
       )}
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      <DashboardSection className="grid gap-4 lg:grid-cols-2">
         <Panel title="Recent results">
           {data.recentResults.length === 0 ? (
             <p className="text-sm text-slate-400">No graded work yet.</p>
@@ -126,9 +128,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
                       <span className="text-slate-400"> - {row.assignmentTitle}</span>
                     </span>
                     <span className="shrink-0 text-xs font-semibold text-slate-600">
-                      {row.percent != null
-                        ? `${row.percent}%`
-                        : `${row.score}${row.maxMarks != null ? `/${row.maxMarks}` : ''}`}
+                      {formatMark(row.score, row.maxMarks)}
                     </span>
                   </Link>
                 </li>
@@ -139,7 +139,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
 
         <Panel title="Overdue & due soon">
           {data.work.length === 0 ? (
-            <p className="text-sm text-slate-400">Nothing outstanding - nice.</p>
+            <p className="text-sm text-slate-400">Nothing outstanding.</p>
           ) : (
             <ul className="space-y-0.5 text-sm">
               {data.work.map((row) => (
@@ -161,7 +161,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
             </ul>
           )}
         </Panel>
-      </section>
+      </DashboardSection>
     </>
   )
 }

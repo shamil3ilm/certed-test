@@ -3,49 +3,10 @@ import type { Profile } from '@/lib/auth/profile'
 import { formatMark } from '@/lib/grades'
 import { getLatestAnnouncementForClasses } from '@/lib/services/announcements'
 import { getAssignment, listAssignments } from '@/lib/services/assignments'
-import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { getLatestGrade, listMyActiveSubmissions } from '@/lib/services/submissions'
 import { Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_LINK, resolveClassIds } from './widget-shared'
-
-export async function AttendanceRateWidget({
-  studentId,
-  classIdsPromise,
-}: {
-  studentId: string
-  classIdsPromise: Promise<string[]>
-}) {
-  const [{ rate, present, late, total }, classIds] = await Promise.all([
-    summarizeAttendanceForStudent(studentId),
-    classIdsPromise,
-  ])
-  // A student takes one class per subject; when they have exactly one, this
-  // attendance panel opens that class's Attendance tab directly rather than the
-  // class list. (Reuses the dashboard's already-resolved class ids - no extra query.)
-  const singleClassId = classIds.length === 1 ? classIds[0] : null
-
-  return (
-    <Panel title="Attendance">
-      {total === 0 ? (
-        <p className="text-sm text-slate-400">No attendance recorded yet.</p>
-      ) : (
-        <>
-          <p className="text-3xl font-bold text-slate-800">{rate}%</p>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${rate}%` }} />
-          </div>
-          <p className="mt-1.5 text-xs text-slate-400">
-            {present + late} of {total} sessions attended
-          </p>
-        </>
-      )}
-      <Link href={singleClassId ? `/classroom/${singleClassId}/attendance` : '/classroom'} className={WIDGET_CTA_LINK}>
-        {singleClassId ? 'Open attendance' : 'Open classes'} &rarr;
-      </Link>
-    </Panel>
-  )
-}
 
 export async function LatestGradeWidget({ studentId }: { studentId: string }) {
   const submission = await getLatestGrade(studentId)

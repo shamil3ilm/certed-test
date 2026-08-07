@@ -107,7 +107,7 @@ export async function RecentUploadsWidget({
   return (
     <Panel title="Recent uploads">
       {resources.length === 0 ? (
-        <p className="text-sm text-slate-400">No resources uploaded yet.</p>
+        <p className="text-sm text-slate-400">No materials uploaded yet.</p>
       ) : (
         <ul className="space-y-2 text-sm">
           {resources.map((resource) => (

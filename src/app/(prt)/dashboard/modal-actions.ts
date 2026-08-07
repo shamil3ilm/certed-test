@@ -6,8 +6,8 @@ import { usersUrl } from '@/lib/services/page-data/admin-users'
 import { listProfilesByFilter } from '@/lib/services/users'
 import { listClasses } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
-import { financeTotals, listRecentDocs } from '@/lib/services/finance/finance-docs'
-import { formatMoney, formatMoneyTotals, netMoneyTotals } from '@/lib/money'
+import { financeTotalsBase, listRecentDocs } from '@/lib/services/finance/finance-docs'
+import { formatMoney, EMPTY_MONEY } from '@/lib/money'
 import { staffRoleLabel } from '@/lib/ui'
 
 /**
@@ -84,37 +84,48 @@ export async function loadActiveClassesModal() {
 
 export async function loadFinanceModal() {
   await requireCapability('viewFinance')
-  const [receiptTotals, payslipTotals, recentReceipts, recentPayslips] = await Promise.all([
-    financeTotals('receipt'),
-    financeTotals('payslip'),
+  const [receiptBase, payslipBase, recentReceipts, recentPayslips] = await Promise.all([
+    financeTotalsBase('receipt'),
+    financeTotalsBase('payslip'),
     listRecentDocs('receipt', 100),
     listRecentDocs('payslip', 100),
   ])
   const liveReceipts = recentReceipts.filter((r) => !r.voided)
   const livePayslips = recentPayslips.filter((p) => !p.voided)
+  const base = receiptBase.base_currency || payslipBase.base_currency || 'INR'
+  const receiptDocs = receiptBase.converted_count + receiptBase.unconverted_count
+  const payslipDocs = payslipBase.converted_count + payslipBase.unconverted_count
+  // Nothing issued reads as "-" rather than a hard zero, like the dashboard card.
+  const headline = (total: number, docs: number) => (docs > 0 ? formatMoney(total, base) : EMPTY_MONEY)
+  // A per-document line shows its own currency, plus the base equivalent when it
+  // differs and has been converted.
+  const secondary = (total: number, currency: string, baseTotal: number | null, baseCurrency: string | null) =>
+    baseTotal != null && baseCurrency && baseCurrency !== currency
+      ? `${formatMoney(total, currency)} ≈ ${formatMoney(baseTotal, baseCurrency)}`
+      : formatMoney(total, currency)
   return {
     sections: [
       {
-        // Net headline, matching the dashboard card (revenue minus payouts).
+        // Net headline in the base currency, matching the dashboard card.
         heading: 'Net - revenue minus payouts',
-        total: formatMoneyTotals(netMoneyTotals(receiptTotals, payslipTotals)),
+        total: headline(receiptBase.base_total - payslipBase.base_total, receiptDocs + payslipDocs),
         items: [],
       },
       {
         heading: 'Revenue - receipts',
-        total: formatMoneyTotals(receiptTotals),
+        total: headline(receiptBase.base_total, receiptDocs),
         items: liveReceipts.map((r) => ({
           primary: r.number,
-          secondary: formatMoney(Number(r.total), r.currency),
+          secondary: secondary(Number(r.total), r.currency, r.base_total, r.base_currency),
           href: financeUrl('receipts', { page: 1, q: r.number }, { page: 1 }),
         })),
       },
       {
         heading: 'Payouts - pay slips',
-        total: formatMoneyTotals(payslipTotals),
+        total: headline(payslipBase.base_total, payslipDocs),
         items: livePayslips.map((p) => ({
           primary: p.number,
-          secondary: formatMoney(Number(p.total), p.currency),
+          secondary: secondary(Number(p.total), p.currency, p.base_total, p.base_currency),
           href: financeUrl('payslips', { page: 1, q: p.number }, { page: 1 }),
         })),
       },

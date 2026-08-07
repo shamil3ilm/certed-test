@@ -7,7 +7,7 @@ import { selectAllClassIds } from '@/lib/data/classes'
 import { selectSessionsForClasses, selectAttendanceStatusesForClasses } from '@/lib/data/analytics'
 import { summarizeAttendance, type AttendanceStatus } from '@/lib/attendance/summary'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
-import { financeTotals } from '@/lib/services/finance/finance-docs'
+import { financeTotalsBase } from '@/lib/services/finance/finance-docs'
 
 /**
  * Chart data for the dashboard's dynamic chart panel. Each persona gets a few
@@ -24,6 +24,9 @@ export type ChartSeries = {
   unit?: 'count' | 'hours' | 'money'
   styles?: ChartStyle[]
   moneyPrefix?: string
+  /** A caveat shown under the chart, e.g. that some amounts are not yet converted
+   *  into the base currency, so the figures understate. */
+  note?: string
 }
 
 const CURRENCY_PREFIX: Record<string, string> = { INR: '\u20B9', USD: '$', AED: 'AED ', SAR: 'SAR ', QAR: 'QAR ' }
@@ -72,37 +75,39 @@ export async function loadDashboardChartSeries(me: Profile): Promise<ChartSeries
   const series: ChartSeries[] = []
 
   if (flags.isAdmin) {
-    const [receipts, payslips, classIds] = await Promise.all([
-      financeTotals('receipt'),
-      financeTotals('payslip'),
+    const [receiptBase, payslipBase, classIds] = await Promise.all([
+      financeTotalsBase('receipt'),
+      financeTotalsBase('payslip'),
       selectAllClassIds(),
     ])
-    // Revenue vs payout in the most-used currency (usually one for the academy).
-    const primary = [...receipts, ...payslips].sort((a, b) => b.live_total - a.live_total)[0]?.currency ?? 'INR'
-    const rev = receipts.find((t) => t.currency === primary)?.live_total ?? 0
-    const pay = payslips.find((t) => t.currency === primary)?.live_total ?? 0
+    // Revenue vs payout in the academy base currency, so the chart's Net always
+    // agrees with the Net card (both sum the same per-document base amounts).
+    const base = receiptBase.base_currency || payslipBase.base_currency || 'INR'
+    const rev = receiptBase.base_total
+    const pay = payslipBase.base_total
+    // If any document isn't yet priced into the base currency, the figures
+    // understate - say so, same as the Net card, rather than implying a total.
+    const unconverted = receiptBase.unconverted_count + payslipBase.unconverted_count
     series.push({
       key: 'revenue',
       label: 'Revenue',
       unit: 'money',
-      moneyPrefix: CURRENCY_PREFIX[primary] ?? `${primary} `,
+      moneyPrefix: CURRENCY_PREFIX[base] ?? `${base} `,
       styles: ['column', 'bar'],
       data: [
         { label: 'Revenue', value: rev },
         { label: 'Payout', value: pay },
         { label: 'Net', value: rev - pay },
       ],
+      note:
+        unconverted > 0
+          ? `${unconverted} document${unconverted === 1 ? '' : 's'} not yet converted to ${base} - add a rate to include ${unconverted === 1 ? 'it' : 'them'}.`
+          : undefined,
     })
     series.push(await weeklySessionsSeries(classIds))
-    series.push({
-      key: 'attendance',
-      label: 'Attendance',
-      unit: 'count',
-      styles: ['column', 'bar'],
-      data: attendanceMix(
-        summarizeAttendance((await selectAttendanceStatusesForClasses(classIds)) as { status: AttendanceStatus }[]),
-      ),
-    })
+    // Admin dashboards should stay operational and cross-academy. Raw attendance
+    // mix is more useful in class / mentor / student contexts than as a global
+    // homepage metric for an admin.
     return series
   }
 

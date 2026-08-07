@@ -8,11 +8,8 @@ vi.mock('@/lib/services/submissions', () => ({
   listMyActiveSubmissions: vi.fn(),
 }))
 vi.mock('@/lib/data/analytics', () => ({
-  countActiveResources: vi.fn(),
   countActiveAnnouncements: vi.fn(),
   sumResourceDownloads: vi.fn(),
-  countResourcesByUploader: vi.fn(),
-  countAuditByActorAction: vi.fn(),
   selectSessionsForClasses: vi.fn(),
   selectAttendanceStatusesForClasses: vi.fn(),
   selectTimedAttendanceForStudent: vi.fn(),
@@ -21,13 +18,10 @@ vi.mock('@/lib/data/analytics', () => ({
 import { myClassIds } from '@/lib/services/classes'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { listAssignments } from '@/lib/services/assignments'
-import { listUngradedSubmissions, listMyActiveSubmissions } from '@/lib/services/submissions'
+import { listMyActiveSubmissions, listUngradedSubmissions } from '@/lib/services/submissions'
 import {
-  countActiveResources,
   countActiveAnnouncements,
   sumResourceDownloads,
-  countResourcesByUploader,
-  countAuditByActorAction,
   selectSessionsForClasses,
   selectAttendanceStatusesForClasses,
   selectTimedAttendanceForStudent,
@@ -39,16 +33,15 @@ const me = { id: 'user-1' } as any
 beforeEach(() => vi.resetAllMocks())
 
 describe('getAdminAnalytics', () => {
-  it('surfaces the academy content + activity totals', async () => {
-    vi.mocked(countActiveResources).mockResolvedValueOnce(12)
+  it('surfaces the academy announcement total and document-download count', async () => {
     vi.mocked(countActiveAnnouncements).mockResolvedValueOnce(4)
-    vi.mocked(sumResourceDownloads).mockResolvedValueOnce(99)
-    await expect(getAdminAnalytics()).resolves.toEqual({ resources: 12, announcements: 4, downloads: 99 })
+    vi.mocked(sumResourceDownloads).mockResolvedValueOnce(37)
+    await expect(getAdminAnalytics()).resolves.toEqual({ announcements: 4, documentDownloads: 37 })
   })
 })
 
 describe('getTutorAnalytics', () => {
-  it('sums working time, counts sessions/uploads/ungraded, rates attendance, and returns class ids', async () => {
+  it('sums working time, counts ungraded work, rates attendance, and returns class ids', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
     vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([
       { tutor_join_at: '2026-07-01T10:00:00Z', tutor_leave_at: '2026-07-01T11:00:00Z' },
@@ -60,31 +53,26 @@ describe('getTutorAnalytics', () => {
       { status: 'late' },
       { status: 'absent' },
     ])
-    vi.mocked(countResourcesByUploader).mockResolvedValueOnce(5)
     vi.mocked(listAssignments).mockResolvedValueOnce([{ id: 'a1' }, { id: 'a2' }] as any)
     vi.mocked(listUngradedSubmissions).mockResolvedValueOnce([{ id: 's1' }, { id: 's2' }, { id: 's3' }] as any)
 
     await expect(getTutorAnalytics(me)).resolves.toEqual({
       teachingHours: '2.0h', // 60 + 60 minutes
       sessionsHeld: 2,
-      resourcesUploaded: 5,
       attendanceRate: 75, // (present 2 + late 1) / 4
       toGrade: 3,
       classIds: ['c1'],
     })
-    expect(countResourcesByUploader).toHaveBeenCalledWith('user-1')
   })
 
   it('reports a dash for teaching hours and skips the assignment scan when there are no classes', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce([])
     vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([])
     vi.mocked(selectAttendanceStatusesForClasses).mockResolvedValueOnce([])
-    vi.mocked(countResourcesByUploader).mockResolvedValueOnce(0)
 
     await expect(getTutorAnalytics(me)).resolves.toEqual({
       teachingHours: '-',
       sessionsHeld: 0,
-      resourcesUploaded: 0,
       attendanceRate: 0,
       toGrade: 0,
       classIds: [],
@@ -94,7 +82,7 @@ describe('getTutorAnalytics', () => {
 })
 
 describe('getStudentAnalytics', () => {
-  it('sums learning time, counts attended sessions + due work, passes downloads, returns class ids', async () => {
+  it('sums learning time, counts attended sessions + graded work, and returns class ids', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
     vi.mocked(selectTimedAttendanceForStudent).mockResolvedValueOnce([
       { join_at: '2026-07-01T10:00:00Z', leave_at: '2026-07-01T11:30:00Z' }, // 90m
@@ -107,22 +95,18 @@ describe('getStudentAnalytics', () => {
       total: 5,
       rate: 80,
     })
-    vi.mocked(countAuditByActorAction).mockResolvedValueOnce(7)
-    // a1 + a2 active; a1 already submitted -> only a2 is due.
-    vi.mocked(listAssignments).mockResolvedValueOnce([
-      { id: 'a1', status: 'active' },
-      { id: 'a2', status: 'active' },
+    vi.mocked(listMyActiveSubmissions).mockResolvedValueOnce([
+      { assignment_id: 'a1', score: 18, graded_at: '2026-08-01T00:00:00Z' },
+      { assignment_id: 'a2', score: null, graded_at: null },
+      { assignment_id: 'a3', score: 16, graded_at: '2026-08-03T00:00:00Z' },
     ] as any)
-    vi.mocked(listMyActiveSubmissions).mockResolvedValueOnce([{ assignment_id: 'a1' }] as any)
 
     await expect(getStudentAnalytics(me)).resolves.toEqual({
       learningHours: '2.0h', // 90 + 30 minutes
       sessionsAttended: 4, // present 3 + late 1
       attendanceRate: 80,
-      downloads: 7,
-      dueWork: 1,
+      gradedWork: 2,
       classIds: ['c1'],
     })
-    expect(countAuditByActorAction).toHaveBeenCalledWith('user-1', 'resource.download')
   })
 })

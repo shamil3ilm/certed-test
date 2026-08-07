@@ -9,7 +9,6 @@ import { DashboardChartsSection } from './charts-section'
 import { CapabilityNotice, MenteesPanel } from './dashboard-panels'
 import { DashboardSection, DashboardWidgetGrid } from './dashboard-layout'
 import {
-  AttendanceRateWidget,
   DueWorkWidget,
   LatestAnnouncementWidget,
   LatestGradeWidget,
@@ -47,7 +46,15 @@ export function MentorDashboardContent({
         </Suspense>
       )}
       {teaches ? (
-        <TutorDashboardContent me={me} now={now} canViewClasses={canViewClasses} canViewGrading={canViewGrading} />
+        <TutorDashboardContent
+          me={me}
+          now={now}
+          canViewClasses={canViewClasses}
+          canViewGrading={canViewGrading}
+          showSummary={false}
+          showCharts={false}
+          includeRecentUploads={false}
+        />
       ) : (
         <DashboardSection>
           <Suspense fallback={<WidgetSkeleton />}>
@@ -64,11 +71,17 @@ export function TutorDashboardContent({
   now,
   canViewClasses,
   canViewGrading,
+  showSummary = true,
+  showCharts = true,
+  includeRecentUploads = true,
 }: {
   me: Profile
   now: number
   canViewClasses: boolean
   canViewGrading: boolean
+  showSummary?: boolean
+  showCharts?: boolean
+  includeRecentUploads?: boolean
 }) {
   if (!canViewClasses && !canViewGrading) {
     return (
@@ -87,7 +100,7 @@ export function TutorDashboardContent({
 
   return (
     <>
-      {canViewClasses && (
+      {canViewClasses && showSummary && (
         <DashboardSection>
           <Suspense fallback={<WidgetSkeleton />}>
             <TutorAnalyticsStats me={me} />
@@ -110,13 +123,13 @@ export function TutorDashboardContent({
             <TutorSubmissionsToReview me={me} sharedDataPromise={sharedDataPromise} />
           </Suspense>
         )}
-        {canViewClasses && (
+        {canViewClasses && includeRecentUploads && (
           <Suspense fallback={<WidgetSkeleton />}>
             <TutorRecentUploads me={me} sharedDataPromise={sharedDataPromise} />
           </Suspense>
         )}
       </DashboardWidgetGrid>
-      {canViewClasses && <DashboardChartsSection me={me} />}
+      {canViewClasses && showCharts && <DashboardChartsSection me={me} />}
       <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
           <RemindersWidget me={me} now={now} />
@@ -163,9 +176,6 @@ export function StudentDashboardContent({
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <LatestGradeWidget studentId={me.id} />
-        </Suspense>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <AttendanceRateWidget studentId={me.id} classIdsPromise={classIdsPromise} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentLatestAnnouncement me={me} classIdsPromise={classIdsPromise} />

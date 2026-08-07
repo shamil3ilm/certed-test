@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { loadDashboardChartSeries } from '@/lib/services/page-data/dashboard-charts'
 import { DashboardCharts } from './DashboardCharts'
+import { DashboardSection } from './dashboard-layout'
 import { WidgetSkeleton } from './widgets'
 
 async function ChartsInner({ me }: { me: Profile }) {
@@ -13,10 +14,10 @@ async function ChartsInner({ me }: { me: Profile }) {
 /** Streams in the dynamic chart panel so it never blocks the stat cards above. */
 export function DashboardChartsSection({ me }: { me: Profile }) {
   return (
-    <section className="mt-6">
+    <DashboardSection>
       <Suspense fallback={<WidgetSkeleton />}>
         <ChartsInner me={me} />
       </Suspense>
-    </section>
+    </DashboardSection>
   )
 }

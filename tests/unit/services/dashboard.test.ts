@@ -3,19 +3,7 @@ import type { Capability } from '@/lib/capabilities'
 
 vi.mock('@/lib/money', () => ({
   formatMoney: vi.fn((amount: number, currency: string) => `${currency}:${amount}`),
-  formatMoneyTotals: vi.fn((totals: { currency: string; live_total: number }[]) =>
-    totals.length ? totals.map((t) => `${t.currency}:${t.live_total}`).join(' + ') : '-',
-  ),
-  netMoneyTotals: vi.fn(
-    (rev: { currency: string; live_total: number }[], pay: { currency: string; live_total: number }[]) => {
-      const m = new Map<string, number>()
-      for (const r of rev) m.set(r.currency, (m.get(r.currency) ?? 0) + r.live_total)
-      for (const p of pay) m.set(p.currency, (m.get(p.currency) ?? 0) - p.live_total)
-      return [...m.entries()]
-        .map(([currency, live_total]) => ({ currency, live_total }))
-        .filter((t) => t.live_total !== 0)
-    },
-  ),
+  EMPTY_MONEY: '-',
 }))
 vi.mock('@/lib/time/format', () => ({ todayInZone: vi.fn(() => '2026-07-16') }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForTutor: vi.fn() }))
@@ -24,7 +12,7 @@ vi.mock('@/lib/services/finance/org-settings', () => ({ getInstituteTimeZone: vi
 vi.mock('@/lib/services/calendar-events', () => ({ listEvents: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ countActiveClasses: vi.fn(), listClassesByIds: vi.fn() }))
 vi.mock('@/lib/services/enrollments', () => ({ countEnrollmentsPerClass: vi.fn() }))
-vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotals: vi.fn() }))
+vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotalsBase: vi.fn() }))
 vi.mock('@/lib/services/reminders', () => ({ listMyPastReminders: vi.fn(), listMyReminders: vi.fn() }))
 vi.mock('@/lib/services/student-relationship-subtitles', () => ({ buildStudentRelationshipSubtitles: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({
@@ -39,7 +27,7 @@ import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { countActiveClasses, listClassesByIds } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
-import { financeTotals } from '@/lib/services/finance/finance-docs'
+import { financeTotalsBase } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders } from '@/lib/services/reminders'
 import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 import { countPeople, getProfilesByIds } from '@/lib/services/users'
@@ -87,9 +75,14 @@ describe('loadDashboardViewData', () => {
         ['c3', 17],
       ]) as any,
     )
-    vi.mocked(financeTotals)
-      .mockResolvedValueOnce([{ live_total: 1200, currency: 'INR' }] as any)
-      .mockResolvedValueOnce([{ live_total: 400, currency: 'INR' }] as any)
+    vi.mocked(financeTotalsBase)
+      .mockResolvedValueOnce({
+        base_currency: 'INR',
+        base_total: 1200,
+        converted_count: 1,
+        unconverted_count: 0,
+      } as any)
+      .mockResolvedValueOnce({ base_currency: 'INR', base_total: 400, converted_count: 1, unconverted_count: 0 } as any)
 
     await expect(
       loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps('viewUsers', 'viewFinance')),
@@ -108,6 +101,7 @@ describe('loadDashboardViewData', () => {
       revenueLabel: 'INR:1200',
       payoutLabel: 'INR:400',
       netLabel: 'INR:800',
+      financeUnconverted: 0,
     })
   })
 
@@ -165,9 +159,10 @@ describe('loadDashboardViewData', () => {
       revenueLabel: null,
       payoutLabel: null,
       netLabel: null,
+      financeUnconverted: null,
     })
     expect(countPeople).not.toHaveBeenCalled()
-    expect(financeTotals).not.toHaveBeenCalled()
+    expect(financeTotalsBase).not.toHaveBeenCalled()
   })
 
   it('keeps the finance card data reachable for an admin with finance access even when the ledger is empty', async () => {
@@ -179,9 +174,9 @@ describe('loadDashboardViewData', () => {
     vi.mocked(countActiveClasses).mockResolvedValueOnce(0 as any)
     vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
     vi.mocked(countEnrollmentsPerClass).mockResolvedValueOnce(new Map() as any)
-    vi.mocked(financeTotals)
-      .mockResolvedValueOnce([] as any)
-      .mockResolvedValueOnce([] as any)
+    vi.mocked(financeTotalsBase)
+      .mockResolvedValueOnce({ base_currency: 'INR', base_total: 0, converted_count: 0, unconverted_count: 0 } as any)
+      .mockResolvedValueOnce({ base_currency: 'INR', base_total: 0, converted_count: 0, unconverted_count: 0 } as any)
 
     await expect(loadDashboardViewData({ id: 'admin-1', role: 'admin' } as any, caps('viewFinance'))).resolves.toEqual({
       kind: 'admin',
@@ -195,6 +190,7 @@ describe('loadDashboardViewData', () => {
       revenueLabel: '-',
       payoutLabel: '-',
       netLabel: '-',
+      financeUnconverted: 0,
     })
   })
 

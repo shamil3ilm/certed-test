@@ -1,6 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
 import type { Capability } from '@/lib/capabilities'
-import { formatMoneyTotals, netMoneyTotals } from '@/lib/money'
+import { formatMoney, EMPTY_MONEY } from '@/lib/money'
 import { todayInZone } from '@/lib/time/format'
 import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
@@ -8,7 +8,7 @@ import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { listEvents, type CalendarEvent } from '@/lib/services/calendar-events'
 import { countActiveClasses, listClassesByIds } from '@/lib/services/classes'
 import { countEnrollmentsPerClass } from '@/lib/services/enrollments'
-import { financeTotals } from '@/lib/services/finance/finance-docs'
+import { financeTotalsBase } from '@/lib/services/finance/finance-docs'
 import { listMyPastReminders, listMyReminders, type Reminder } from '@/lib/services/reminders'
 import { countPeople, displayName, getProfilesByIds } from '@/lib/services/users'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
@@ -71,6 +71,9 @@ export type AdminDashboardViewData = {
   revenueLabel: string | null
   payoutLabel: string | null
   netLabel: string | null
+  /** Non-void documents not yet converted into the base currency (missing rate).
+   *  Non-zero means the base figures above understate until an admin adds rates. */
+  financeUnconverted: number | null
 }
 
 export type SubAdminDashboardViewData = {
@@ -86,25 +89,17 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
   const today = todayInZone(await getInstituteTimeZone())
   const canViewUsers = caps.has('viewUsers')
   const canViewFinance = caps.has('viewFinance')
-  const [
-    upcoming,
-    reminders,
-    pastReminders,
-    peopleCounts,
-    activeClassCount,
-    enrollCounts,
-    receiptTotals,
-    payslipTotals,
-  ] = await Promise.all([
-    listEvents({ from: today, limit: 6 }),
-    listMyReminders(me.id),
-    listMyPastReminders(me.id),
-    canViewUsers ? countPeople() : Promise.resolve(null),
-    countActiveClasses(),
-    countEnrollmentsPerClass(),
-    canViewFinance ? financeTotals('receipt') : Promise.resolve(null),
-    canViewFinance ? financeTotals('payslip') : Promise.resolve(null),
-  ])
+  const [upcoming, reminders, pastReminders, peopleCounts, activeClassCount, enrollCounts, receiptBase, payslipBase] =
+    await Promise.all([
+      listEvents({ from: today, limit: 6 }),
+      listMyReminders(me.id),
+      listMyPastReminders(me.id),
+      canViewUsers ? countPeople() : Promise.resolve(null),
+      countActiveClasses(),
+      countEnrollmentsPerClass(),
+      canViewFinance ? financeTotalsBase('receipt') : Promise.resolve(null),
+      canViewFinance ? financeTotalsBase('payslip') : Promise.resolve(null),
+    ])
 
   // Filter to ACTIVE classes BEFORE ranking + slicing. Archived classes still
   // carry enrolment rows, so slicing the top-6 first and dropping archived after
@@ -120,6 +115,14 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
     .slice(0, 6)
     .map(([classId, value]) => ({ label: activeById.get(classId) ?? 'Class', value }))
 
+  // Both base totals carry the academy base currency; fall back to INR only if no
+  // finance rows exist yet (the labels are '-' in that case anyway).
+  const baseCurrency = receiptBase?.base_currency || payslipBase?.base_currency || 'INR'
+  const receiptDocs = (receiptBase?.converted_count ?? 0) + (receiptBase?.unconverted_count ?? 0)
+  const payslipDocs = (payslipBase?.converted_count ?? 0) + (payslipBase?.unconverted_count ?? 0)
+  // Nothing issued reads better as "-" than a hard base-currency zero.
+  const money = (total: number) => formatMoney(total, baseCurrency)
+
   return {
     kind: 'admin',
     now: Date.now(),
@@ -129,10 +132,18 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
     peopleCounts,
     activeClassCount,
     perClass,
-    revenueLabel: canViewFinance ? formatMoneyTotals(receiptTotals ?? []) : null,
-    payoutLabel: canViewFinance ? formatMoneyTotals(payslipTotals ?? []) : null,
-    // Net (revenue minus payout) is the headline finance figure on the card.
-    netLabel: canViewFinance ? formatMoneyTotals(netMoneyTotals(receiptTotals ?? [], payslipTotals ?? [])) : null,
+    revenueLabel: canViewFinance ? (receiptDocs > 0 ? money(receiptBase?.base_total ?? 0) : EMPTY_MONEY) : null,
+    payoutLabel: canViewFinance ? (payslipDocs > 0 ? money(payslipBase?.base_total ?? 0) : EMPTY_MONEY) : null,
+    // Net (revenue minus payout) is the headline finance figure, in the base
+    // currency so every academy figure reads in one currency.
+    netLabel: canViewFinance
+      ? receiptDocs + payslipDocs > 0
+        ? money((receiptBase?.base_total ?? 0) - (payslipBase?.base_total ?? 0))
+        : EMPTY_MONEY
+      : null,
+    financeUnconverted: canViewFinance
+      ? (receiptBase?.unconverted_count ?? 0) + (payslipBase?.unconverted_count ?? 0)
+      : null,
   }
 }
 

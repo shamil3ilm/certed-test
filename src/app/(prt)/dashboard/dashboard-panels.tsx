@@ -32,9 +32,7 @@ export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
           Students you look after across subjects. Open one to review their overall progress.
         </p>
         {mentees.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            No mentees assigned yet - an admin will add students for you to mentor.
-          </p>
+          <p className="text-sm text-slate-400">No mentees assigned yet - an admin will assign them.</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {mentees.map((mentee) => (
@@ -164,7 +162,9 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
         key="finance"
         label="Net"
         value={data.netLabel}
-        sub={`${data.revenueLabel ?? '-'} in - ${data.payoutLabel ?? '-'} out`}
+        sub={`${data.revenueLabel ?? '-'} in - ${data.payoutLabel ?? '-'} out${
+          data.financeUnconverted ? ` - ${data.financeUnconverted} not yet converted` : ''
+        }`}
         tone="primary"
         title="Finance"
         load={loadFinanceModal}
@@ -181,7 +181,7 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
       </StatGrid>
       <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
-          <AdminAnalyticsStats />
+          <AdminAnalyticsStats pendingAccess={data.peopleCounts?.pending ?? 0} />
         </Suspense>
       </DashboardSection>
       <DashboardSection className="grid gap-4 lg:grid-cols-3">

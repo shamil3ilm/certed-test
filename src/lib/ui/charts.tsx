@@ -17,15 +17,23 @@ type Fmt = (n: number) => string
 const fmt = (v: number, f?: Fmt) => (f ? f(v) : String(v))
 
 /**
- * Evenly-spaced indices (always including the first and last) for thinning a
- * dense axis. A date axis with many buckets would otherwise overlap or truncate
- * its labels; a short categorical axis (<= max) keeps every label.
+ * Regularly-spaced indices for thinning a dense axis, always including the first
+ * and last bucket. A date axis with many buckets would otherwise overlap or
+ * truncate its labels; a short categorical axis (<= max) keeps every label.
+ *
+ * Uses a constant STEP rather than `round(k*(n-1)/(max-1))`: the rounding version
+ * produced adjacent ticks in the MIDDLE whenever `(n-1)` wasn't a multiple of
+ * `(max-1)` (e.g. n=8,max=5 -> 0,2,4,5,7, so two labels sat one bucket apart while
+ * the rest were two apart). A constant step keeps every interior gap equal; only
+ * the final label may sit closer, which reads naturally as "the latest point".
  */
-function tickIndices(n: number, max: number): number[] {
+export function tickIndices(n: number, max: number): number[] {
   if (n <= max) return Array.from({ length: n }, (_, i) => i)
+  const step = Math.ceil((n - 1) / (max - 1))
   const out = new Set<number>()
-  for (let k = 0; k < max; k++) out.add(Math.round((k * (n - 1)) / (max - 1)))
-  return [...out]
+  for (let i = 0; i < n; i += step) out.add(i)
+  out.add(n - 1) // always label the most recent bucket
+  return [...out].sort((a, b) => a - b)
 }
 
 function NoData() {
@@ -56,7 +64,7 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
         const isNeg = d.value < 0
         const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
         return (
-          <div key={d.label} className="flex min-w-0 flex-1 flex-col gap-1">
+          <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="truncate text-center text-[10px] tabular-nums text-slate-500">{fmt(d.value, format)}</span>
             <div className="relative flex-1">
               {negMax > 0 && (
@@ -80,7 +88,7 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
               />
             </div>
             <span className="w-full truncate text-center text-[10px] text-slate-400" title={d.label}>
-              {labelAt.has(i) ? d.label : ' '}
+              {labelAt.has(i) ? d.label : '\u00a0'}
             </span>
           </div>
         )
@@ -125,7 +133,7 @@ export function LineChart({ data, format }: { data: ChartPoint[]; format?: Fmt }
         </svg>
         {data.map((d, i) => (
           <span
-            key={d.label}
+            key={`${d.label}-${i}`}
             className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-white"
             style={{ left: `${px(i)}%`, top: `${py(d.value)}%` }}
             title={`${d.label}: ${fmt(d.value, format)}`}
@@ -162,8 +170,8 @@ export function MiniBars({ data, format }: { data: ChartPoint[]; format?: Fmt })
       role="img"
       aria-label={data.map((d) => `${d.label}: ${fmt(d.value, format)}`).join(', ')}
     >
-      {data.map((d) => (
-        <div key={d.label} className="flex items-center gap-2 text-sm">
+      {data.map((d, i) => (
+        <div key={`${d.label}-${i}`} className="flex items-center gap-2 text-sm">
           <span className="w-28 shrink-0 truncate text-slate-500 sm:w-32" title={d.label}>
             {d.label}
           </span>
