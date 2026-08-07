@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0055) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0056) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -231,6 +231,57 @@ $$;
 
 
 --
+-- Name: finance_totals_base(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_totals_base(p_kind text) RETURNS TABLE(base_currency text, base_total numeric, converted_count bigint, unconverted_count bigint)
+    LANGUAGE sql STABLE
+    AS $$
+  select
+    (select base_currency from org_settings limit 1),
+    coalesce(
+      sum(r.base_total) filter (
+        where r.base_total is not null
+          and r.base_currency = (select base_currency from org_settings limit 1)
+      ),
+      0
+    )::numeric,
+    count(*) filter (
+      where r.base_total is not null
+        and r.base_currency = (select base_currency from org_settings limit 1)
+    )::bigint,
+    count(*) filter (
+      where r.base_total is null
+        or r.base_currency is distinct from (select base_currency from org_settings limit 1)
+    )::bigint
+  from receipts r
+  where r.voided = false
+  having p_kind = 'receipt'
+  union all
+  select
+    (select base_currency from org_settings limit 1),
+    coalesce(
+      sum(p.base_total) filter (
+        where p.base_total is not null
+          and p.base_currency = (select base_currency from org_settings limit 1)
+      ),
+      0
+    )::numeric,
+    count(*) filter (
+      where p.base_total is not null
+        and p.base_currency = (select base_currency from org_settings limit 1)
+    )::bigint,
+    count(*) filter (
+      where p.base_total is null
+        or p.base_currency is distinct from (select base_currency from org_settings limit 1)
+    )::bigint
+  from payslips p
+  where p.voided = false
+  having p_kind = 'payslip';
+$$;
+
+
+--
 -- Name: is_active_admin(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -319,7 +370,11 @@ CREATE TABLE public.payslips (
     total numeric(16,3) NOT NULL,
     voided boolean DEFAULT false NOT NULL,
     created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    base_currency text,
+    base_total numeric(12,2),
+    fx_rate numeric(18,8),
+    fx_rate_id uuid
 );
 
 
@@ -401,7 +456,11 @@ CREATE TABLE public.receipts (
     total numeric(16,3) NOT NULL,
     voided boolean DEFAULT false NOT NULL,
     created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    base_currency text,
+    base_total numeric(12,2),
+    fx_rate numeric(18,8),
+    fx_rate_id uuid
 );
 
 
@@ -1120,6 +1179,23 @@ CREATE TABLE public.entity_tags (
 
 
 --
+-- Name: exchange_rates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.exchange_rates (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    currency text NOT NULL,
+    base_currency text NOT NULL,
+    rate numeric(18,8) NOT NULL,
+    effective_from date NOT NULL,
+    note text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT exchange_rates_rate_check CHECK ((rate > (0)::numeric))
+);
+
+
+--
 -- Name: meet_links; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1207,6 +1283,7 @@ CREATE TABLE public.org_settings (
     receipt_prefix text DEFAULT 'CEA-R'::text NOT NULL,
     payslip_prefix text DEFAULT 'CEA-P'::text NOT NULL,
     messaging_matrix jsonb DEFAULT '{}'::jsonb NOT NULL,
+    base_currency text DEFAULT 'INR'::text NOT NULL,
     CONSTRAINT org_settings_single_row CHECK (id)
 );
 
@@ -1542,6 +1619,22 @@ ALTER TABLE ONLY public.enrollments
 
 ALTER TABLE ONLY public.entity_tags
     ADD CONSTRAINT entity_tags_pkey PRIMARY KEY (tag_id, entity_type, entity_id);
+
+
+--
+-- Name: exchange_rates exchange_rates_currency_base_currency_effective_from_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.exchange_rates
+    ADD CONSTRAINT exchange_rates_currency_base_currency_effective_from_key UNIQUE (currency, base_currency, effective_from);
+
+
+--
+-- Name: exchange_rates exchange_rates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.exchange_rates
+    ADD CONSTRAINT exchange_rates_pkey PRIMARY KEY (id);
 
 
 --
@@ -1890,6 +1983,13 @@ CREATE INDEX entity_tags_entity_idx ON public.entity_tags USING btree (entity_ty
 --
 
 CREATE INDEX entity_tags_tag_idx ON public.entity_tags USING btree (tag_id);
+
+
+--
+-- Name: exchange_rates_lookup_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX exchange_rates_lookup_idx ON public.exchange_rates USING btree (base_currency, currency, effective_from DESC);
 
 
 --
@@ -2360,6 +2460,14 @@ ALTER TABLE ONLY public.entity_tags
 
 
 --
+-- Name: exchange_rates exchange_rates_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.exchange_rates
+    ADD CONSTRAINT exchange_rates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: meet_links meet_links_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2432,6 +2540,14 @@ ALTER TABLE ONLY public.payslips
 
 
 --
+-- Name: payslips payslips_fx_rate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT payslips_fx_rate_id_fkey FOREIGN KEY (fx_rate_id) REFERENCES public.exchange_rates(id) ON DELETE SET NULL;
+
+
+--
 -- Name: payslips payslips_teacher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2469,6 +2585,14 @@ ALTER TABLE ONLY public.receipt_lines
 
 ALTER TABLE ONLY public.receipts
     ADD CONSTRAINT receipts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: receipts receipts_fx_rate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.receipts
+    ADD CONSTRAINT receipts_fx_rate_id_fkey FOREIGN KEY (fx_rate_id) REFERENCES public.exchange_rates(id) ON DELETE SET NULL;
 
 
 --
@@ -2959,6 +3083,19 @@ CREATE POLICY enrollments_read ON public.enrollments FOR SELECT USING ((public.i
 --
 
 ALTER TABLE public.entity_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: exchange_rates; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.exchange_rates ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: exchange_rates exchange_rates_admin_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY exchange_rates_admin_all ON public.exchange_rates USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
 
 --
 -- Name: meet_links; Type: ROW SECURITY; Schema: public; Owner: -
