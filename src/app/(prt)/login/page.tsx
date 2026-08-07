@@ -4,7 +4,7 @@ import { getActorContext } from '@/lib/session/actor-context'
 import { loadLoginPageData, type LoginSearchParams } from '@/lib/services/page-data/auth-entry-page'
 import { AuthShell } from '../auth/AuthShell'
 import { DevLoginForm } from './DevLoginForm'
-import { GoogleSignIn } from './GoogleSignIn'
+import { GoogleSignInGate } from './GoogleSignInGate'
 import { PasswordLoginForm } from './PasswordLoginForm'
 
 function DevLogin({ error, demoEmails }: { error: boolean; demoEmails: string[] }) {
@@ -47,10 +47,7 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
         </p>
       )}
       <PasswordLoginForm />
-      <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
-      </div>
-      <GoogleSignIn />
+      <GoogleSignInGate />
       <p className="mt-4 text-center text-xs text-slate-500">
         First time?{' '}
         <a href="/register" className="font-medium text-primary hover:underline">
