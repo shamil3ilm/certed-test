@@ -1,11 +1,11 @@
 import type { Capability } from '@/lib/capabilities'
+import { mentoringSectionLabel } from '@/lib/ui/labels'
 
 export type NavItem = { href: string; label: string }
 
 const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/dashboard', label: 'Dashboard', capability: 'viewDashboard' },
   { href: '/classroom', label: 'Classes', capability: 'viewClasses' },
-  { href: '/documents', label: 'Documents', capability: 'viewClasses' },
   { href: '/students', label: 'Mentees', capability: 'viewMentees' },
   { href: '/messages', label: 'Messages', capability: 'viewMessages' },
   { href: '/calendar', label: 'Calendar', capability: 'viewCalendar' },
@@ -31,7 +31,7 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
 export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
   const hasFinanceHub = capabilities.has('viewFinance')
   const isOversight = capabilities.has('viewUsers')
-  return NAV_RULES.filter((item) => {
+  const base = NAV_RULES.filter((item) => {
     if (!capabilities.has(item.capability)) return false
     // A viewFinance holder reaches every receipt/payslip through the Finance hub,
     // so the standalone personal ledgers are hidden from the nav for them.
@@ -39,6 +39,14 @@ export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
     return true
   }).map(({ href, label }) => ({
     href,
-    label: href === '/students' && isOversight ? 'Mentoring' : label,
+    label: href === '/students' ? mentoringSectionLabel(isOversight) : label,
   }))
+
+  const classesIndex = base.findIndex((item) => item.href === '/classroom')
+  if (classesIndex >= 0) {
+    const gradingHref = capabilities.has('viewGrading') ? '/grading' : '/grades'
+    base.splice(classesIndex + 1, 0, { href: gradingHref, label: 'Grading' })
+  }
+
+  return base
 }

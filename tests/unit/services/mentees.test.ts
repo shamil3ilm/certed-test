@@ -121,7 +121,7 @@ describe('getMenteeListView', () => {
 
     await expect(getMenteeListView(tutor)).resolves.toEqual({
       isOversight: true,
-      title: 'Mentees',
+      title: 'Mentoring',
       description: 'Students currently linked through mentor assignments across the academy.',
       items: [
         { id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8 - Maths' },

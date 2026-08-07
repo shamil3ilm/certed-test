@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { mentoringSectionLabel } from '@/lib/ui/labels'
 import type { AssignmentBrief } from '@/lib/data/assignments'
 import { selectActiveAssignmentsByClassIdsAsService, selectAssignmentsByIdsAsService } from '@/lib/data/assignments'
 import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
@@ -66,7 +67,7 @@ export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
 
   return {
     isOversight,
-    title: 'Mentees',
+    title: mentoringSectionLabel(isOversight),
     description: isOversight
       ? 'Students currently linked through mentor assignments across the academy.'
       : 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',

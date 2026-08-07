@@ -87,18 +87,17 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     // (student-scoped) mentor persona, auto-assigned when they're given a
     // mentorship - so a tutor sees /students only when they're also a mentor.
   ]),
-  // A mentor is teaching staff scoped to their mentees: same capabilities as a
-  // tutor PLUS pastoral mentee access. The class-scoped guards (canManageClass /
-  // canAccessClass / canWriteClass) confine these class powers to the classes the
-  // mentor's mentees are enrolled in - a mentor is NOT a global class authority.
+  // A dedicated mentor is an oversight persona, not a teaching one by default.
+  // They can SEE mentee-related classes, calendar entries and grading context,
+  // but write-side class powers belong to the tutor persona. If a mentor also
+  // teaches, that account must also hold the tutor persona (or an explicit
+  // override) for manageCalendar/manageClassContent.
   mentor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',
     'viewClasses',
     'viewCalendar',
-    'manageCalendar',
     'viewGrading',
-    'manageClassContent',
     'viewMentees',
   ]),
   student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar']),
@@ -114,9 +113,9 @@ const ROLE_CAPABILITIES: Record<Profile['role'], ReadonlySet<Capability>> = {
   admin: PERSONA_CAPABILITIES['admin'],
   sub_admin: PERSONA_CAPABILITIES['sub_admin'],
   tutor: PERSONA_CAPABILITIES['tutor'],
-  // mentor is an independent identity (may or may not also be a tutor). It holds
-  // tutor-level teaching capabilities, but the class-scoped guards confine them to
-  // the classes its mentees are enrolled in (not academy-wide).
+  // mentor is an independent identity (may or may not also be a tutor). The
+  // mentor role below reflects the dedicated-mentor baseline; tutor-level write
+  // powers come only from the tutor persona or an explicit override.
   mentor: PERSONA_CAPABILITIES['mentor'],
   student: PERSONA_CAPABILITIES['student'],
 }

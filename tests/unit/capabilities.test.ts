@@ -42,34 +42,36 @@ describe('capabilities model', () => {
     expect(caps.has('viewDashboard')).toBe(true)
   })
 
-  it('mentor persona carries pastoral oversight PLUS tutor-level teaching capabilities', () => {
+  it('mentor persona carries pastoral oversight PLUS read-only class/grading context', () => {
     expect(hasCapability([persona('mentor')], 'viewMentees')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewDashboard')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewMessages')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewCalendar')).toBe(true)
-    // A mentor is teaching staff scoped to their mentees: it holds the tutor
-    // teaching capabilities. The class-SCOPED guards (canManageClass /
-    // canWriteClass) confine these to the mentor's mentees' classes.
+    // A mentor is an OVERSIGHT persona: it can SEE its mentees' classes and
+    // grading context, but the write-side class powers (manage content / manage
+    // calendar) belong to the tutor persona. A mentor who also teaches must hold
+    // the tutor persona (or an explicit override) to gain them.
     expect(hasCapability([persona('mentor')], 'viewClasses')).toBe(true)
-    expect(hasCapability([persona('mentor')], 'manageClassContent')).toBe(true)
-    expect(hasCapability([persona('mentor')], 'manageCalendar')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewGrading')).toBe(true)
+    expect(hasCapability([persona('mentor')], 'manageClassContent')).toBe(false)
+    expect(hasCapability([persona('mentor')], 'manageCalendar')).toBe(false)
     // Still NOT an admin-tier / finance role.
     expect(hasCapability([persona('mentor')], 'viewFinance')).toBe(false)
     expect(hasCapability([persona('mentor')], 'manageAdminTier')).toBe(false)
   })
 
-  it('mentor role advertises pastoral oversight plus tutor-level teaching capabilities', () => {
-    // A dedicated mentor account (role `mentor`) is teaching staff for its
-    // mentees: supervision caps PLUS the tutor teaching set (class-scoped by the
-    // guards to the mentees' classes), but no finance/admin-tier powers.
+  it('mentor role advertises pastoral oversight plus read-only class/grading context', () => {
+    // A dedicated mentor account (role `mentor`) is an oversight persona: it can
+    // SEE its mentees' classes and grading context, but holds no write-side
+    // teaching powers (those come from the tutor persona) and no finance/admin-tier.
     expect(hasCapability(profile('mentor'), 'viewMentees')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewDashboard')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewMessages')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewCalendar')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewClasses')).toBe(true)
-    expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewGrading')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(false)
+    expect(hasCapability(profile('mentor'), 'manageCalendar')).toBe(false)
     expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(false)
     expect(hasCapability(profile('mentor'), 'manageAdminTier')).toBe(false)
   })

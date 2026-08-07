@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { requireClassAccess } from '../../access'
-import { hasCapability } from '@/lib/capabilities'
+import { getActorContext } from '@/lib/session/actor-context'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
 import { Avatar, Badge, EmptyState, FilterBar, ListRow, SearchFilterField, SectionLabel } from '@/lib/ui'
 import { LocalTime } from '../../../LocalTime'
@@ -12,9 +12,12 @@ export default async function ClassGradingPage(props: {
   const searchParams = await props.searchParams
   const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
+  const actor = await getActorContext()
   // The Grading tab is a grader-only surface; a student never reaches it even
-  // though they can open the class (the tab itself is hidden for them too).
-  if (!hasCapability(me, 'viewGrading')) notFound()
+  // though they can open the class (the tab itself is hidden for them too). A
+  // capability miss routes through the shared "no access" notice - the same
+  // ?denied=1 bounce requireCapability uses everywhere else - not a hard 404.
+  if (!actor.capabilities.allowed.has('viewGrading')) redirect('/dashboard?denied=1')
 
   // The queue loader is class-agnostic; scoping it to this class turns the
   // former cross-class inbox into the per-class view this tab needs.
@@ -34,7 +37,7 @@ export default async function ClassGradingPage(props: {
 
       {items.length === 0 ? (
         <EmptyState>
-          {searchParams?.q ? 'No submissions match this filter.' : 'Nothing waiting to be marked.'}
+          {searchParams?.q ? 'No submissions match these filters.' : 'Nothing waiting to be marked.'}
         </EmptyState>
       ) : (
         <ul className="space-y-2">

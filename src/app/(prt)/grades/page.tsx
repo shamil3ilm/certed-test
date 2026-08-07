@@ -15,8 +15,10 @@ import { Gradecard } from './Gradecard'
 export default async function GradesPage() {
   const me = await requireCapability('viewClasses')
   const flags = await loadPersonaFlags(me.id)
+  // Own grade card is student-only; a non-student is bounced through the shared
+  // "no access" notice, matching requireCapability, not a silent redirect.
   if (!flags.isStudent) {
-    redirect('/dashboard')
+    redirect('/dashboard?denied=1')
   }
   const actor = await getActorContext()
   const data = await getReportCardData(actor, me.id)

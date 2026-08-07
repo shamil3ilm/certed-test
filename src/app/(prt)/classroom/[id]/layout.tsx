@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { requireClassAccess } from '../access'
-import { hasCapability } from '@/lib/capabilities'
+import { getActorContext } from '@/lib/session/actor-context'
 import { BackLink, PageHeader } from '@/lib/ui'
 import { ClassTabs } from './ClassTabs'
 
@@ -9,8 +9,9 @@ export default async function ClassLayout(props: { params: Promise<{ id: string 
 
   const { children } = props
 
-  const { me, course } = await requireClassAccess(params.id)
-  const canGrade = hasCapability(me, 'viewGrading')
+  const { course } = await requireClassAccess(params.id)
+  const actor = await getActorContext()
+  const canGrade = actor.capabilities.allowed.has('viewGrading')
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
