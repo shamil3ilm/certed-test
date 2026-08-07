@@ -31,7 +31,7 @@ import {
 
 export default async function ClassStreamPage(props: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ streamPage?: string; streamQ?: string; error?: string }>
+  searchParams?: Promise<{ streamPage?: string; streamQ?: string; error?: string; saved?: string }>
 }) {
   const searchParams = await props.searchParams
   const params = await props.params
@@ -49,6 +49,10 @@ export default async function ClassStreamPage(props: {
     <div className="space-y-8">
       {searchParams?.error === '1' && (
         <AlertBanner>That change couldn&apos;t be saved. Please check the details and try again.</AlertBanner>
+      )}
+
+      {searchParams?.saved && (
+        <AlertBanner tone="success">{searchParams.saved === 'post' ? 'Posted to the class.' : 'Saved.'}</AlertBanner>
       )}
 
       {data.isArchived && data.canManage && (
@@ -182,13 +186,13 @@ export default async function ClassStreamPage(props: {
                     <LocalTime iso={a.created_at} />
                     {a.publish_at && Date.parse(a.publish_at) > now && (
                       <>
-                        {' · publishes '}
+                        {' - publishes '}
                         <LocalTime iso={a.publish_at} mode="date" />
                       </>
                     )}
                     {a.expires_at && (
                       <>
-                        {' · expires '}
+                        {' - expires '}
                         <LocalTime iso={a.expires_at} mode="date" />
                       </>
                     )}

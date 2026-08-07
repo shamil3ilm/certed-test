@@ -5,7 +5,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { ServiceError } from '@/lib/errors'
 import { createAnnouncementFromActionInput } from '@/lib/services/announcements'
 import { createMeetLinkFromActionInput } from '@/lib/services/meet-links'
-import { classErrorUrl } from '../../action-redirect'
+import { classErrorUrl, classSavedUrl } from '../../action-redirect'
 
 /**
  * One composer, two destinations. A stream post carrying a meeting URL becomes a
@@ -45,4 +45,5 @@ export async function createStreamPostAction(formData: FormData) {
     throw error
   }
   revalidatePath('/classroom', 'layout')
+  redirect(classSavedUrl(formData, { fields: ['stream_class_id'], saved: 'post' }))
 }

@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react'
 import { assertActionOk } from '../action-client'
 import { Field, Input, Textarea } from '../form'
-import { useUI } from '../Providers'
 import { editAssignmentAction } from './manage-actions'
 
 function toLocalInput(iso: string): string {
@@ -34,8 +33,8 @@ export function EditAssignment({
   const [topic, setTopic] = useState(assignment.topic ?? '')
   const [maxMarks, setMaxMarks] = useState(assignment.max_marks != null ? String(assignment.max_marks) : '')
   const [enforceDeadline, setEnforceDeadline] = useState(assignment.enforce_deadline)
+  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const { toast } = useUI()
 
   // Re-seed every field from the CURRENT props each time the editor opens, not
   // once at mount: this instance is keyed by assignment.id and survives the
@@ -49,12 +48,14 @@ export function EditAssignment({
     setTopic(assignment.topic ?? '')
     setMaxMarks(assignment.max_marks != null ? String(assignment.max_marks) : '')
     setEnforceDeadline(assignment.enforce_deadline)
+    setError(null)
     setOpen(true)
   }
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!title.trim() || !due || !maxMarks.trim()) return
+    // Required fields are enforced natively; save errors surface inline below.
+    setError(null)
 
     const formData = new FormData()
     formData.set('id', assignment.id)
@@ -70,8 +71,8 @@ export function EditAssignment({
       try {
         assertActionOk(await editAssignmentAction(formData), 'Could not save changes')
         setOpen(false)
-      } catch (error) {
-        toast(error instanceof Error ? error.message : 'Could not save changes', 'error')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save changes')
       }
     })
   }
@@ -127,6 +128,11 @@ export function EditAssignment({
         />
         Close submissions after the due date (block late work)
       </label>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
       <div className="flex gap-2">
         <button type="submit" disabled={isPending} className="btn btn-sm btn-primary">
           {isPending ? 'Saving...' : 'Save'}

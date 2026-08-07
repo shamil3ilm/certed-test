@@ -22,11 +22,14 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
   const [due, setDue] = useState('')
   const [enforceDeadline, setEnforceDeadline] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!classId || !title || !due || !maxMarks.trim()) return
-
+    // Required fields are enforced natively (the submit event only fires once the
+    // browser's constraint check passes); errors surface inline below, matching the
+    // finance/submission forms rather than a toast.
+    setError(null)
     setBusy(true)
 
     try {
@@ -54,8 +57,8 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
       setEnforceDeadline(false)
       toast('Assignment created', 'success')
       router.refresh()
-    } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not create assignment', 'error')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create assignment')
     } finally {
       setBusy(false)
     }
@@ -125,6 +128,11 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
         />
         Close submissions after the due date (block late work)
       </label>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
       <button type="submit" disabled={busy} className="btn btn-primary">
         {busy ? 'Creating...' : 'Create'}
       </button>
