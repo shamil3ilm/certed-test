@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Pre-push guard: block a push whose migration chain head is ahead of the rebuild
+# snapshot marker. Four times a stale snapshot reached CI because the checklist rule
+# (docs/migration-checklist.md ss5) is documentary, not mechanical - this catches it
+# at authoring time instead. Runs the SAME check CI runs (scripts/check-snapshot-freshness.sh)
+# so local and CI verdicts can't diverge. Bypass in a genuine emergency with `git push --no-verify`.
+#
+# Enabled via `git config core.hooksPath .githooks`, which the package.json "prepare"
+# script sets on `npm install`.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if [ ! -f scripts/check-snapshot-freshness.sh ]; then
+  # Nothing to check against (e.g. a shallow tooling checkout) - don't block.
+  exit 0
+fi
+
+if ! bash scripts/check-snapshot-freshness.sh; then
+  echo "" >&2
+  echo "pre-push blocked: the rebuild snapshot is stale. Regenerate and commit it, or" >&2
+  echo "push with --no-verify if you understand the consequences." >&2
+  exit 1
+fi

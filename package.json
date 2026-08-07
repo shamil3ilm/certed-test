@@ -14,7 +14,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:bundle": "node scripts/check-bundle-size.mjs",
-    "db:rebuild-snapshot": "bash scripts/rebuild-snapshot.sh"
+    "db:rebuild-snapshot": "bash scripts/rebuild-snapshot.sh",
+    "check:snapshot": "bash scripts/check-snapshot-freshness.sh",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.21",

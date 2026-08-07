@@ -40,19 +40,10 @@ jobs:
       # is a HARD gate: adding a migration without regenerating the snapshot fails
       # CI, so the one-shot provisioning file can never silently drift from the
       # chain again (the drift that let a snapshot-built env miss later behaviour).
+      # Single source of truth for the check, shared with the local pre-push hook
+      # (.githooks/pre-push) so CI and authoring-time verdicts can never diverge.
       - name: Rebuild snapshot freshness (must match chain head)
-        run: |
-          latest=$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' | sort | tail -1)
-          snap=$(grep -oE '0001\.\.[0-9]{4}' supabase/rebuild/0000_full_rebuild.sql | head -1 | sed -E 's/0001\.\.//')
-          if [ -z "$snap" ]; then
-            echo "::error::rebuild snapshot has no 0001..NNNN marker; run 'npm run db:rebuild-snapshot'"
-            exit 1
-          elif [ "$snap" != "$latest" ]; then
-            echo "::error::rebuild snapshot is stale (snapshot=$snap, migrations head=$latest); run 'supabase db reset && npm run db:rebuild-snapshot' and commit the regenerated file"
-            exit 1
-          else
-            echo "Rebuild snapshot is current ($snap)."
-          fi
+        run: bash scripts/check-snapshot-freshness.sh
 
       - uses: actions/setup-node@v4
         with:
