@@ -1,4 +1,4 @@
-import { test, expect, type Locator } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { SEED, loginAs, submitAndReload } from './support'
 
 // Complete Tutor + Student persona journeys -- every capability each role needs,
@@ -19,6 +19,25 @@ async function ensureThreadOpen(scope: Locator) {
       .getByRole('button', { name: /Add a comment/ })
       .first()
       .click()
+}
+
+async function createTutorResource(page: Page, title = 'E2E Worksheet PDF') {
+  await loginAs(page, 'tutor@mock.test', { clearCookies: true })
+  await page.goto(`/classroom/${SEED.math}/classwork`)
+  const upload = page.locator('form:has-text("Upload a document")')
+  await upload.getByPlaceholder('e.g. Term 1 Question Paper').fill(title)
+  await upload.getByPlaceholder('https://drive.google.com/...').fill('https://drive.google.com/file/e2e-res')
+  await submitAndReload(page, () => upload.getByRole('button', { name: 'Upload document' }).click())
+  await expect(page.getByText(title).first()).toBeVisible()
+}
+
+async function gradeSeededMathSubmission(page: Page, score = '18') {
+  await loginAs(page, 'tutor@mock.test', { clearCookies: true })
+  await page.goto(`/assignments/${SEED.asgMath}`)
+  const grade = page.locator('form:has-text("Save mark")').first()
+  await grade.locator('input[type=number]').fill(score)
+  await submitAndReload(page, () => grade.getByRole('button', { name: 'Save mark' }).click())
+  await expect(page.locator('form:has-text("Save mark") input[type=number]').first()).toHaveValue(score)
 }
 
 test('TUTOR -- shares a meet link, a resource, and comments on the resource', async ({ page }) => {
@@ -112,7 +131,12 @@ test('SUB ADMIN -- lands on a real dashboard and can reach settings (no blank lo
 test('STUDENT -- full journey: timetable, submit homework, materials, grade, attendance, report card', async ({
   page,
 }) => {
-  await loginAs(page, 'student@mock.test')
+  // This test prepares the tutor-created state it reads later, so it remains
+  // independent of the earlier tutor tests in this file.
+  await createTutorResource(page)
+  await gradeSeededMathSubmission(page)
+  await page.goto('/api/dev/logout').catch(() => null)
+  await loginAs(page, 'student@mock.test', { clearCookies: true })
 
   // Dashboard "Due work" lead widget + the timetable/calendar
   await page.goto('/dashboard')

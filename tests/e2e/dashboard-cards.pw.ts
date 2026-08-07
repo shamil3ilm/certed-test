@@ -107,8 +107,10 @@ test('STUDENT dashboard cards and CTAs are interactive', async ({ page }) => {
   }
 
   await page.goto('/dashboard')
+  // The Attendance KPI tile deep-links to the class's Attendance tab (or the
+  // class list when the student has more than one class).
   await page
-    .getByRole('link', { name: /Open classes/i })
+    .getByRole('link', { name: /^Attendance/i })
     .first()
     .click()
   await expectUrlContains(page, '/classroom')

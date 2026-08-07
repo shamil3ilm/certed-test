@@ -22,16 +22,20 @@ export default defineConfig({
   // Build + serve the production app in MOCK MODE so the suite is self-contained
   // (this is what lets it run in CI). The command clears the mock DB first, so
   // even a globalSetup/webServer ordering change still boots a clean server.
+  // Aborted local builds can leave a stale `.next/lock`, and Next 16 currently
+  // emits middleware traces even when this app uses `src/proxy.ts`; patch the
+  // expected proxy trace filename after build so `next start` stays stable.
   // Locally an already-running :3100 is reused instead of rebuilding.
   webServer: {
     command:
-      "node -e \"require('fs').rmSync('.mock-db.json',{force:true})\" && npm run build && npm run start -- -p 3100",
+      'node scripts/reset-e2e-state.mjs && npm run build && node scripts/fix-next-proxy-build.mjs && npm run start -- -p 3100',
     port: 3100,
     reuseExistingServer: !process.env.CI,
     timeout: 240000,
     env: {
       MOCK_MODE: '1',
       NEXT_PUBLIC_MOCK_MODE: '1',
+      VERCEL: '0',
       NEXT_PUBLIC_SUPABASE_URL: 'http://mock.local',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-anon-key',
       SUPABASE_SECRET_KEY: 'mock-secret',

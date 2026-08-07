@@ -37,6 +37,23 @@ export async function submitAndReload(page: Page, click: () => Promise<void>) {
 export async function loginAs(page: Page, email: string, opts: { clearCookies?: boolean } = {}) {
   if (opts.clearCookies) await page.context().clearCookies()
 
+  if (email.endsWith('@mock.test')) {
+    await page.goto('/api/dev/logout', { waitUntil: 'domcontentloaded' }).catch(() => null)
+    if (opts.clearCookies) await page.context().clearCookies()
+
+    // Sign in through the mock dev-login FORM in the browser - a native form POST,
+    // so `app.localhost` resolves (the host mapping is a Chromium-only flag) and
+    // the CSP allows it. A Node request context or a fetch() both fail here.
+    await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    await page.fill('#dev-email', email)
+    await page.fill('#dev-password', 'cert-ed')
+    await Promise.all([
+      page.waitForURL('**/dashboard', { timeout: 15000 }),
+      page.getByRole('button', { name: /sign in/i }).click(),
+    ])
+    return
+  }
+
   async function openLoginPage() {
     await page.goto('/login', { waitUntil: 'domcontentloaded' })
     if (!page.url().includes('/login')) {
@@ -48,8 +65,8 @@ export async function loginAs(page: Page, email: string, opts: { clearCookies?: 
 
   await openLoginPage()
 
-  const emailInput = page.locator('input[name=email]')
-  const passwordInput = page.locator('input[name=password]')
+  const emailInput = page.getByRole('textbox', { name: 'Email' })
+  const passwordInput = page.getByRole('textbox', { name: 'Password' })
   await emailInput.waitFor({ state: 'visible', timeout: 15000 })
   await emailInput.fill(email)
   await passwordInput.fill('cert-ed')

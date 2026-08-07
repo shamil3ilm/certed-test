@@ -71,7 +71,7 @@ test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', 
 
   // The activity log renders the audited actions just performed.
   await page.goto('/admin/history')
-  await expect(page.getByRole('heading', { name: 'Activity log' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible()
   await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
 })
 
