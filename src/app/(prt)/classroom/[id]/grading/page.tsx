@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { requireClassAccess } from '../../access'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
@@ -13,11 +13,15 @@ export default async function ClassGradingPage(props: {
   const params = await props.params
   const { me, course } = await requireClassAccess(params.id)
   const actor = await getActorContext()
-  // The Grading tab is a grader-only surface; a student never reaches it even
-  // though they can open the class (the tab itself is hidden for them too). A
-  // capability miss routes through the shared "no access" notice - the same
-  // ?denied=1 bounce requireCapability uses everywhere else - not a hard 404.
-  if (!actor.capabilities.allowed.has('viewGrading')) redirect('/dashboard?denied=1')
+  // The Grading tab is a grader-only surface nested inside the class workspace.
+  // The class LAYOUT has already rendered (it guards on viewClasses, which a
+  // student holds, and hides the Grading tab for them), so a non-grader who
+  // reaches this page directly is refused HERE. notFound() - not the ?denied=1
+  // redirect - because a nested page's redirect renders inside the already-
+  // committed layout rather than replacing it, and a grader-only surface is
+  // better hidden (404) than announced. requireClassAccess above uses the same
+  // notFound() primitive, so this route group is consistent.
+  if (!actor.capabilities.allowed.has('viewGrading')) notFound()
 
   // The queue loader is class-agnostic; scoping it to this class turns the
   // former cross-class inbox into the per-class view this tab needs.

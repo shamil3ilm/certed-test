@@ -63,10 +63,12 @@ test('negative -- invalid class/assignment ids render the 404 page, not a real r
 
 test('negative -- a student never sees a class Grading queue (grader-only surface)', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
-  // The Grading tab requires viewGrading, which a student lacks: they are bounced
-  // to the dashboard (or 404 if they aren't a class member). Either way they must
-  // NEVER reach the queue itself, so assert its signature text is absent.
+  // The Grading tab requires viewGrading, which a student lacks. This nested page
+  // refuses a non-grader with notFound() (the same primitive requireClassAccess
+  // uses for a non-member) - a grader-only surface is hidden as a 404 rather than
+  // announced, and unlike a redirect it replaces the already-committed class
+  // layout. So the queue never renders and the branded 404 is shown in its place.
   await page.goto(`/classroom/${SEED.math}/grading`, { waitUntil: 'domcontentloaded', timeout: 45000 })
   await expect(page.getByText(/awaiting a mark/i)).toHaveCount(0)
-  await expect(page, 'student must not remain on a working grading page').not.toHaveURL(/\/grading$/)
+  await expect(page.getByText('404').first(), 'student must get the grader-only 404, not the queue').toBeVisible()
 })
