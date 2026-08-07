@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { lineAmount, computeTotals, formatMoney, currencyDecimals, netMoneyTotals } from '@/lib/money'
+import {
+  lineAmount,
+  computeTotals,
+  formatMoney,
+  currencyDecimals,
+  netMoneyTotals,
+  convertMoney,
+  totalByCurrency,
+  formatMoneyTotals,
+  EMPTY_MONEY,
+} from '@/lib/money'
 
 describe('netMoneyTotals', () => {
   const t = (currency: string, live_total: number) => ({ currency, live_total })
@@ -106,5 +116,56 @@ describe('formatMoney', () => {
   it('formats a GCC currency (AED)', () => {
     const s = formatMoney(1500, 'AED')
     expect(s).toMatch(/AED|د\.إ/)
+  })
+  it('degrades a malformed currency code to a plain number instead of throwing', () => {
+    // A non-well-formed code makes Intl.NumberFormat throw; the catch falls back
+    // to "<amount> <currency>" with the default 2 decimals rather than a 502.
+    expect(formatMoney(1234, 'BADCUR')).toBe('1234.00 BADCUR')
+  })
+})
+
+describe('convertMoney', () => {
+  it('multiplies by the rate and rounds to the target minor unit', () => {
+    expect(convertMoney(100, 3.67, 'AED')).toBe(367)
+    // KWD is a 3-decimal currency, so the target rounding keeps fils.
+    expect(convertMoney(100, 0.002685, 'KWD')).toBe(0.269)
+  })
+})
+
+describe('totalByCurrency', () => {
+  const row = (total: number, currency: string, voided = false) => ({ total, currency, voided })
+
+  it('sums non-void rows per currency into one string', () => {
+    const s = totalByCurrency([row(1200, 'INR'), row(50, 'USD'), row(300, 'INR')])
+    expect(s).toContain('1,500') // 1200 + 300 INR
+    expect(s).toContain('50')
+    expect(s).toContain(' + ')
+  })
+
+  it('excludes voided rows from the totals', () => {
+    const s = totalByCurrency([row(1200, 'INR'), row(999, 'INR', true)])
+    expect(s).toContain('1,200')
+    expect(s).not.toContain('2,199')
+  })
+
+  it('renders a dash when every row is void or the list is empty', () => {
+    expect(totalByCurrency([])).toBe(EMPTY_MONEY)
+    expect(totalByCurrency([row(999, 'INR', true)])).toBe(EMPTY_MONEY)
+  })
+})
+
+describe('formatMoneyTotals', () => {
+  it('renders each per-currency total, joined', () => {
+    const s = formatMoneyTotals([
+      { currency: 'INR', live_total: 800 },
+      { currency: 'USD', live_total: 50 },
+    ])
+    expect(s).toContain('800')
+    expect(s).toContain('50')
+    expect(s).toContain(' + ')
+  })
+
+  it('is a dash when there are no totals', () => {
+    expect(formatMoneyTotals([])).toBe(EMPTY_MONEY)
   })
 })

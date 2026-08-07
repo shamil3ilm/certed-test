@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePageParam, totalPages } from '@/lib/pagination'
+import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 
 describe('parsePageParam', () => {
   it('defaults to 1 for missing / empty / non-numeric input', () => {
@@ -31,5 +31,30 @@ describe('totalPages', () => {
     expect(totalPages(10, 10)).toBe(1)
     expect(totalPages(11, 10)).toBe(2)
     expect(totalPages(21, 10)).toBe(3)
+  })
+})
+
+describe('pageSlice', () => {
+  const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+  it('returns the first page from the start of the array', () => {
+    expect(pageSlice(items, 1, 4)).toEqual([0, 1, 2, 3])
+  })
+
+  it('offsets a middle page by (page - 1) * pageSize', () => {
+    expect(pageSlice(items, 2, 4)).toEqual([4, 5, 6, 7])
+  })
+
+  it('returns only the remainder on a partial last page', () => {
+    expect(pageSlice(items, 3, 4)).toEqual([8, 9])
+  })
+
+  it('is empty for a page beyond the end (never wraps)', () => {
+    expect(pageSlice(items, 4, 4)).toEqual([])
+    expect(pageSlice([], 1, 20)).toEqual([])
+  })
+
+  it('returns the whole set when it fits on one page', () => {
+    expect(pageSlice(items, 1, 20)).toEqual(items)
   })
 })
