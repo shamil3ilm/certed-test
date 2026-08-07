@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { resolveHost } from '@/lib/routing/host'
 import { isPublicAppPath } from '@/lib/routing/public-paths'
 import { updateSession } from '@/lib/supabase/middleware'
+import { ERROR_CODES } from '@/lib/api/error-codes'
+import { UNAUTHORIZED_MESSAGE } from '@/lib/api/messages'
 
 const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact']
 
@@ -60,7 +62,19 @@ export async function proxy(request: NextRequest) {
   // (`/api/cron/...`) - so a look-alike like `/loginx` or `/registeree` is never
   // treated as public. See src/lib/routing/public-paths.ts.
   if (isPublicAppPath(pathname)) return response
-  if (!user) return NextResponse.redirect(new URL('/login', request.url))
+  if (!user) {
+    // A programmatic client hitting a protected API route needs a machine-readable
+    // 401 it can act on, not a 307 to the HTML /login it can't follow. Browsers on
+    // page routes still get the redirect. Same envelope as the route handlers'
+    // authFail so every 401 looks identical to a consumer.
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, error: UNAUTHORIZED_MESSAGE, code: ERROR_CODES.unauthorized },
+        { status: 401 },
+      )
+    }
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
   return response
 }
 

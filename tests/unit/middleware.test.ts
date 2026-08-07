@@ -80,6 +80,19 @@ describe('middleware auth gate', () => {
     expect(res.status).toBe(200)
     expect(location(res)).toBeNull()
   })
+
+  it('answers an unauthenticated API write with a 401 JSON, not an HTML /login redirect', async () => {
+    vi.mocked(updateSession).mockResolvedValue(null as any)
+    const res = await proxy(req('/api/receipts'))
+    expect(res.status).toBe(401)
+    expect(location(res)).toBeNull() // not a redirect
+    expect(res.headers.get('content-type')).toMatch(/application\/json/)
+    await expect(res.json()).resolves.toEqual({
+      success: false,
+      error: expect.any(String),
+      code: 'UNAUTHORIZED',
+    })
+  })
 })
 
 describe('middleware host routing', () => {
