@@ -39,3 +39,10 @@ next-env.d.ts
 test-results/
 playwright-report/
 .playwright/
+
+# Local Claude Code tooling config (per-machine; never shared)
+.claude/
+
+# Auto-generated agent rule files (Next 16 emits these on build; regenerated, not source)
+/AGENTS.md
+/CLAUDE.md
