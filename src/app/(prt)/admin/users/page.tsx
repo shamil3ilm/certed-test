@@ -50,7 +50,11 @@ export default async function AdminUsersPage(props: {
             one-click drill-in. "Tutors & mentors" spans two role filters and
             "With a mentor" is a status (not a role), so those stay plain. */}
         <StatCard label="Students" value={data.stats.students} href={usersUrl({ tab: 'people', role: 'student' })} />
-        <StatCard label="Tutors & mentors" value={data.stats.tutors} />
+        <StatCard
+          label="Tutors & mentors"
+          value={data.stats.tutors}
+          href={usersUrl({ tab: 'people', role: 'staff' })}
+        />
         <StatCard
           label="With a mentor"
           value={data.assignedStudents}

@@ -78,6 +78,19 @@ export function formatDateTime(iso: string, timeZone?: string): string {
   }).format(d)
 }
 
+/** "1:30 pm" - time only, e.g. a range end where the date is already shown. Omit
+ *  timeZone to format in the runtime (device) zone. */
+export function formatTime(iso: string, timeZone?: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(d)
+}
+
 /**
  * Format an absolute instant (UTC ISO string) for display. Data is stored as
  * absolute instants; a caller may pin an explicit IANA zone (used in tests and

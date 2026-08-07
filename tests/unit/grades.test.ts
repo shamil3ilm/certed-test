@@ -44,10 +44,10 @@ describe('formatMark', () => {
     expect(formatMark(20, 20)).toBe('20 / 20 (100%)')
   })
 
-  it('shows only the raw score when there is no usable max', () => {
-    expect(formatMark(17, null)).toBe('17')
-    expect(formatMark(17, undefined)).toBe('17')
-    expect(formatMark(0, 0)).toBe('0') // guard against divide-by-zero
+  it('shows the score with a "pts" unit when there is no usable max', () => {
+    expect(formatMark(17, null)).toBe('17 pts')
+    expect(formatMark(17, undefined)).toBe('17 pts')
+    expect(formatMark(0, 0)).toBe('0 pts') // guard against divide-by-zero
   })
 
   it('clamps the percentage to 100 when the score exceeds a lowered max', () => {

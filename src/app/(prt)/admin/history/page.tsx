@@ -13,7 +13,7 @@ export default async function HistoryPage(props: {
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <PageHeader
-        title="Activity log"
+        title="History"
         description="Sensitive actions across the academy - user changes, grading, finance and more - newest first. Read-only."
       />
 

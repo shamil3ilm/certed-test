@@ -102,7 +102,7 @@ export default async function ClassPeoplePage(props: {
           href="#teachers"
           className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
         >
-          Teachers
+          Tutors
         </a>
         <a
           href="#students"
@@ -183,14 +183,14 @@ export default async function ClassPeoplePage(props: {
       )}
 
       <section id="teachers" className="scroll-mt-20 space-y-3">
-        <SectionLabel count={data.tutors.length}>Teachers</SectionLabel>
+        <SectionLabel count={data.tutors.length}>Tutors</SectionLabel>
         {data.isAdmin && data.addableTutors.length > 0 && (
           <form action={addTutorAction} className={cx(CARD, 'flex flex-wrap items-end gap-2 p-3')}>
             <input type="hidden" name="class_id" value={course.id} />
-            <Field label="Add a teacher" className="min-w-0 flex-1 sm:max-w-xs">
+            <Field label="Add a tutor" className="min-w-0 flex-1 sm:max-w-xs">
               <Select name="tutor_id" required defaultValue="">
                 <option value="" disabled>
-                  Select teacher...
+                  Select tutor...
                 </option>
                 {data.addableTutors.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -215,7 +215,7 @@ export default async function ClassPeoplePage(props: {
               removeName="tutor_id"
             />
           ))}
-          {data.tutors.length === 0 && <EmptyState as="li">No teachers assigned yet.</EmptyState>}
+          {data.tutors.length === 0 && <EmptyState as="li">No tutors assigned yet.</EmptyState>}
         </ul>
       </section>
 

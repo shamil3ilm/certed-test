@@ -15,7 +15,15 @@
  */
 export { cx, CARD, ARCHIVED_ROW } from './core'
 export { initials, roleTone, classBanner, Avatar } from './identity'
-export { roleLabel, staffRoleLabel, personaLabel, Badge, SectionLabel } from './labels'
+export {
+  roleLabel,
+  statusLabel,
+  mentoringSectionLabel,
+  staffRoleLabel,
+  personaLabel,
+  Badge,
+  SectionLabel,
+} from './labels'
 export { AlertBanner, BackLink, Card, EmptyState, PageHeader, Panel, StatGrid, StatCard, PaginationBar } from './layout'
 export { ListRow, RowChevron } from './list'
 export {

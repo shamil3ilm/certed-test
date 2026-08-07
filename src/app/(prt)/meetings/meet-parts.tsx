@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import type { Comment } from '@/lib/services/comments'
 import type { MeetLink } from '@/lib/services/meet-links'
-import { Badge, CARD, cx } from '@/lib/ui'
+import { Badge, CARD, EmptyState, cx } from '@/lib/ui'
 import { CommentThread } from '../CommentThread'
 import { LocalTime } from '../LocalTime'
 import { useUI } from '../Providers'
@@ -22,11 +22,7 @@ function toLocalInput(iso: string): string {
 }
 
 export function MeetingsEmptyState() {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
-      No meeting links shared yet.
-    </div>
-  )
+  return <EmptyState>No meeting links shared yet.</EmptyState>
 }
 
 export function MeetCard({

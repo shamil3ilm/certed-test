@@ -17,6 +17,20 @@ export function roleLabel(role?: string | null): string {
   return 'Student'
 }
 
+/** Title-cased display label for an account status - the single source so a status
+ *  never reads as a raw lowercase 'active' in one place and Title-case elsewhere. */
+export function statusLabel(status?: string | null): string {
+  if (!status) return ''
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+/** Label for the /students section - the SINGLE source shared by the nav and the
+ *  page header so they never disagree. An oversight admin sees the mentoring
+ *  PROGRAMME ("Mentoring"); a mentor sees their own people ("Mentees"). */
+export function mentoringSectionLabel(isOversight: boolean): string {
+  return isOversight ? 'Mentoring' : 'Mentees'
+}
+
 /** Staff label for admin-facing lists. A `mentor` who also teaches, or a `tutor`
  *  who also holds a mentor persona, is the same hybrid and must read the same way
  *  ("Tutor & Mentor") as personaLabel gives the person on their own dashboard -

@@ -9,10 +9,11 @@ export function AttachmentList({ attachments }: { attachments: Attachment[] }) {
       {attachments.map((att, index) => {
         const label = att.label || `Attachment ${index + 1}`
         const kind = attachmentKind(att.url)
+        const attachmentKey = `${kind}:${att.url}:${label}`
 
         if (kind === 'image') {
           return (
-            <a key={att.url + index} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+            <a key={attachmentKey} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={att.url}
@@ -27,7 +28,7 @@ export function AttachmentList({ attachments }: { attachments: Attachment[] }) {
         if (kind === 'preview') {
           const preview = drivePreviewUrl(att.url) ?? att.url
           return (
-            <details key={att.url + index} className="rounded-lg border border-slate-100">
+            <details key={attachmentKey} className="rounded-lg border border-slate-100">
               <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-primary hover:underline">
                 Preview {label}
               </summary>
@@ -43,7 +44,7 @@ export function AttachmentList({ attachments }: { attachments: Attachment[] }) {
 
         return (
           <a
-            key={att.url + index}
+            key={attachmentKey}
             href={att.url}
             target="_blank"
             rel="noopener noreferrer"

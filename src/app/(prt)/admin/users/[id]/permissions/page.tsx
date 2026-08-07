@@ -1,19 +1,7 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadUserPermissionsView } from '@/lib/services/page-data/user-permissions'
-import { BackLink, PageHeader } from '@/lib/ui'
+import { BackLink, PageHeader, roleLabel } from '@/lib/ui'
 import { PermissionsEditor } from './PermissionsEditor'
-
-const roleLabel: Record<string, string> = {
-  admin: 'Admin',
-  sub_admin: 'Sub Admin',
-  tutor: 'Tutor',
-  mentor: 'Mentor',
-  student: 'Student',
-  guardian: 'Guardian',
-  finance_operator: 'Finance Operator',
-  assistant: 'Assistant',
-  executive: 'Executive',
-}
 
 export default async function UserPermissionsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -27,7 +15,7 @@ export default async function UserPermissionsPage(props: { params: Promise<{ id:
       <BackLink href="/admin/users">Back to users</BackLink>
       <PageHeader
         title={`Global permissions - ${target.name}`}
-        description={`${roleLabel[target.role] ?? 'Member'} identity - their active GLOBAL personas set the defaults; grant or revoke individual GLOBAL capabilities below. Changes take effect on their next request.`}
+        description={`${roleLabel(target.role)} identity - their active GLOBAL personas set the defaults; grant or revoke individual GLOBAL capabilities below. Changes take effect on their next request.`}
       />
 
       {scopedMentorCount > 0 && (

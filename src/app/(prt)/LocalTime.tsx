@@ -1,6 +1,6 @@
 'use client'
 
-import { formatDate, formatDateTime, DISPLAY_TZ } from '@/lib/time/format'
+import { formatDate, formatDateTime, formatTime, DISPLAY_TZ } from '@/lib/time/format'
 import { useHydratedFlag } from '@/lib/ui/client-env'
 
 /**
@@ -13,10 +13,10 @@ import { useHydratedFlag } from '@/lib/ui/client-env'
  * effect flips to the device zone after mount. `suppressHydrationWarning` covers
  * the intended swap.
  */
-export function LocalTime({ iso, mode = 'datetime' }: { iso: string; mode?: 'date' | 'datetime' }) {
+export function LocalTime({ iso, mode = 'datetime' }: { iso: string; mode?: 'date' | 'datetime' | 'time' }) {
   const deviceLocal = useHydratedFlag()
   const tz = deviceLocal ? undefined : DISPLAY_TZ
-  const text = mode === 'date' ? formatDate(iso, tz) : formatDateTime(iso, tz)
+  const text = mode === 'date' ? formatDate(iso, tz) : mode === 'time' ? formatTime(iso, tz) : formatDateTime(iso, tz)
   return (
     <time dateTime={iso} suppressHydrationWarning>
       {text}

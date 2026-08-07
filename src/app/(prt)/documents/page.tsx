@@ -33,7 +33,7 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Documents"
-        description="Search question papers, practice sheets and resources across all your classes."
+        description="Search question papers, practice sheets and other materials across all your classes."
       />
 
       <FilterBar className="mt-2" clearHref="/documents" showClear={hasActiveFilters}>
@@ -80,7 +80,7 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
                     {document.file_type && <Badge>{document.file_type}</Badge>}
                   </div>
                   <p className="mt-1.5 text-xs text-slate-400">
-                    <LocalTime iso={document.created_at} mode="date" /> · {document.download_count} download
+                    <LocalTime iso={document.created_at} mode="date" /> - {document.download_count} download
                     {document.download_count === 1 ? '' : 's'}
                   </p>
                 </div>
@@ -104,7 +104,7 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
         total={total}
         previousHref={filters.page > 1 ? documentSearchUrl(filters, { page: filters.page - 1 }) : undefined}
         nextHref={filters.page < totalPages ? documentSearchUrl(filters, { page: filters.page + 1 }) : undefined}
-        separator="·"
+        separator="-"
       />
     </main>
   )

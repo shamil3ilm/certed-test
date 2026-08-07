@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { EmptyState, FILTER_CONTROL, FilterField, SearchFilterField, StatCard, StatGrid } from '@/lib/ui'
+import { EmptyState, SearchFilterField, SelectFilterField, StatCard, StatGrid } from '@/lib/ui'
 import { formatMark, markPercent, weightedAveragePercent } from '@/lib/grades'
 
 export type GradecardMark = {
@@ -50,28 +50,29 @@ export function Gradecard({ marks }: { marks: GradecardMark[] }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2">
-        <FilterField label="Class" className="min-w-0">
-          <select value={className} onChange={(e) => setClassName(e.target.value)} className={FILTER_CONTROL}>
-            <option value="">All classes</option>
-            {classes.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </FilterField>
+        <SelectFilterField
+          label="Class"
+          className="min-w-0"
+          value={className}
+          onChange={(e) => setClassName(e.target.value)}
+        >
+          <option value="">All classes</option>
+          {classes.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </SelectFilterField>
         <SearchFilterField
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Assignment or topic..."
         />
-        <FilterField label="Sort">
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className={FILTER_CONTROL}>
-            <option value="class">By class</option>
-            <option value="highest">Highest first</option>
-            <option value="lowest">Lowest first</option>
-          </select>
-        </FilterField>
+        <SelectFilterField label="Sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+          <option value="class">By class</option>
+          <option value="highest">Highest first</option>
+          <option value="lowest">Lowest first</option>
+        </SelectFilterField>
       </div>
 
       <StatGrid cols={3}>
@@ -109,8 +110,9 @@ export function Gradecard({ marks }: { marks: GradecardMark[] }) {
             <tbody>
               {filtered.map((m, i) => {
                 const pct = markPercent(m.score, m.maxMarks)
+                const rowKey = `${m.className}:${m.title}:${m.topic ?? ''}:${m.score}:${m.maxMarks ?? 'na'}:${i}`
                 return (
-                  <tr key={`${m.className}-${m.title}-${i}`}>
+                  <tr key={rowKey}>
                     <td className="whitespace-nowrap text-slate-600">{m.className}</td>
                     <td className="text-slate-800">
                       {m.title}

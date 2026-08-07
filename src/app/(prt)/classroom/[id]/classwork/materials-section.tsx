@@ -73,7 +73,7 @@ function DocumentCard({
           </div>
           {doc.description && <p className="mt-1.5 text-sm text-slate-600">{doc.description}</p>}
           <p className="mt-1.5 text-xs text-slate-400">
-            <LocalTime iso={doc.created_at} mode="date" /> · {doc.download_count} download
+            <LocalTime iso={doc.created_at} mode="date" /> - {doc.download_count} download
             {doc.download_count === 1 ? '' : 's'}
           </p>
         </div>
@@ -175,7 +175,7 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
 
       {data.documentTotal === 0 ? (
         <EmptyState>
-          {data.hasActiveFilters ? 'No documents match these filters.' : 'No documents uploaded yet.'}
+          {data.hasActiveFilters ? 'No materials match these filters.' : 'No materials uploaded yet.'}
         </EmptyState>
       ) : (
         visibleCategories.map((category) => {
@@ -187,7 +187,7 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
                 <span className="text-xs font-normal text-slate-400">({views.length})</span>
               </h3>
               {views.length === 0 ? (
-                <p className="text-sm text-slate-400">No documents in this category.</p>
+                <p className="text-sm text-slate-400">No materials in this category.</p>
               ) : (
                 <ul className="space-y-3">
                   {views.map((view) => (

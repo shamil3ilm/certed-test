@@ -1,22 +1,30 @@
 'use client'
 
 import { Modal } from '../Modal'
+import { LocalTime } from '../LocalTime'
 import { COLORS } from './calendar-config'
 import type { EventDetail } from './calendar-types'
 
 export function EventDetailModal({ info, onClose }: { info: EventDetail; onClose: () => void }) {
   const typeLabel = info.source === 'slot' ? 'Class' : info.source === 'assignment' ? 'Deadline' : info.kind || 'Event'
-  const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }
-  const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
-  const start = info.start ? new Date(info.start) : null
-  const end = info.end ? new Date(info.end) : null
-  const when = !start
-    ? '-'
-    : info.allDay
-      ? start.toLocaleDateString(undefined, dateOptions)
-      : `${start.toLocaleDateString(undefined, dateOptions)}, ${start.toLocaleTimeString(undefined, timeOptions)}${
-          end ? ` - ${end.toLocaleTimeString(undefined, timeOptions)}` : ''
-        }`
+  // Times go through LocalTime - the one timezone-aware source used everywhere -
+  // rather than raw toLocale*, so an event reads the same way as every other
+  // instant in the app (institute zone on the server, device zone after mount).
+  const when = !info.start ? (
+    '-'
+  ) : info.allDay ? (
+    <LocalTime iso={info.start} mode="date" />
+  ) : (
+    <>
+      <LocalTime iso={info.start} mode="datetime" />
+      {info.end && (
+        <>
+          {' - '}
+          <LocalTime iso={info.end} mode="time" />
+        </>
+      )}
+    </>
+  )
 
   return (
     <Modal

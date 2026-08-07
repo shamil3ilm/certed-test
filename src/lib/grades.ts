@@ -18,11 +18,13 @@ export function weightedAveragePercent(marks: GradeLike[]): number | null {
 }
 
 /**
- * Formats a mark for display: "17 / 20 (85%)" when the assignment's max is known,
- * or just the raw score when it is not.
+ * The single source of truth for rendering one mark: "17 / 20 (85%)" when the
+ * assignment's max is known, or "15 pts" when it is not - the trailing unit keeps
+ * a maxless score from reading as a bare, meaningless number (e.g. on a dashboard
+ * tile with no column header for context).
  */
 export function formatMark(score: number, maxMarks: number | null | undefined): string {
   const pct = markPercent(score, maxMarks)
-  if (pct == null) return `${score}`
+  if (pct == null) return `${score} pts`
   return `${score} / ${maxMarks} (${pct}%)`
 }

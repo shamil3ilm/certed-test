@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { CARD, cx, pillButtonClass } from '@/lib/ui'
+import { CARD, EmptyState, cx, pillButtonClass } from '@/lib/ui'
 import { api } from './timetable/api'
 import { EventForm } from './timetable/EventForm'
 import { EventRow } from './timetable/EventRow'
@@ -77,7 +77,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
                 onDelete={confirmDelete('slot', () => api(`/api/timetable/${slot.id}`, 'DELETE'))}
               />
             ))}
-            {slots.length === 0 && <li className="py-3 text-sm text-slate-400">No slots yet.</li>}
+            {slots.length === 0 && <EmptyState as="li">No slots yet.</EmptyState>}
           </ul>
         </>
       ) : (
@@ -103,7 +103,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
                 onDelete={confirmDelete('event', () => api(`/api/events/${eventRow.id}`, 'DELETE'))}
               />
             ))}
-            {events.length === 0 && <li className="py-3 text-sm text-slate-400">No events yet.</li>}
+            {events.length === 0 && <EmptyState as="li">No events yet.</EmptyState>}
           </ul>
         </>
       )}

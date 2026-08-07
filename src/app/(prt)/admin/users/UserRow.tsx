@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { revokeUserAction, restoreUserAction, editUserAction } from './actions'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { Card, Avatar, staffRoleLabel } from '@/lib/ui'
+import { Card, Avatar, staffRoleLabel, statusLabel } from '@/lib/ui'
 import { SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { EscapableDetails } from '../../EscapableDetails'
@@ -16,7 +16,8 @@ import { EscapableDetails } from '../../EscapableDetails'
  * redirect on submit.
  */
 function StatusChip({ status }: { status: string }) {
-  return <span className={status === 'active' ? 'text-emerald-600' : 'text-red-600'}>{status}</span>
+  const tone = status === 'active' ? 'text-emerald-600' : status === 'pending' ? 'text-amber-600' : 'text-red-600'
+  return <span className={tone}>{statusLabel(status)}</span>
 }
 
 export function UserRow({
