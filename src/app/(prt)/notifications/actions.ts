@@ -1,5 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { markAllNotificationsRead } from '@/lib/services/notifications'
 
@@ -9,4 +10,5 @@ export async function markAllNotificationsReadAction(): Promise<void> {
   await markAllNotificationsRead(me)
   revalidatePath('/notifications')
   revalidatePath('/', 'layout') // refresh the header unread badge
+  redirect('/notifications?read=1') // show the confirmation banner
 }

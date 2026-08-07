@@ -1,6 +1,7 @@
 import { FinanceDocList } from '../FinanceDocList'
 
-export default function PayslipsPage() {
+export default async function PayslipsPage(props: { searchParams: Promise<{ page?: string }> }) {
+  const { page } = await props.searchParams
   return (
     <FinanceDocList
       kind="payslip"
@@ -10,6 +11,7 @@ export default function PayslipsPage() {
       statLabel="Pay slips"
       totalLabel="Total received"
       emptyText="No pay slips yet."
+      page={page}
     />
   )
 }

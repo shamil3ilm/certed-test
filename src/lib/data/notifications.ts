@@ -42,17 +42,22 @@ export async function insertNotifications(rows: NewNotificationRow[]): Promise<v
   if (error) throw new Error(`data.notifications.insert: ${error.message}`)
 }
 
-/** A profile's most recent notifications, newest first. */
-export async function selectRecentNotifications(profileId: string, limit: number): Promise<NotificationRow[]> {
+/** A page of a profile's notifications, newest first, with the total for the pager. */
+export async function selectNotificationsPage(
+  profileId: string,
+  opts: { page: number; pageSize: number },
+): Promise<{ items: NotificationRow[]; total: number }> {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const from = (opts.page - 1) * opts.pageSize
+  const to = from + opts.pageSize - 1
+  const { data, error, count } = await supabase
     .from('notifications')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw new Error(`data.notifications.selectRecent: ${error.message}`)
-  return (data ?? []) as NotificationRow[]
+    .range(from, to)
+  if (error) throw new Error(`data.notifications.selectPage: ${error.message}`)
+  return { items: (data ?? []) as NotificationRow[], total: count ?? 0 }
 }
 
 /** Ids of a profile's unread notifications, capped - the header badge only needs a

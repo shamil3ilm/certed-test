@@ -2,7 +2,10 @@ import { requireCapability } from '@/lib/auth/require-role'
 import type { Capability } from '@/lib/capabilities'
 import { listMyDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
-import { PageHeader, StatCard, ListRow, Badge, EmptyState } from '@/lib/ui'
+import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
+import { PageHeader, PaginationBar, StatCard, ListRow, Badge, EmptyState } from '@/lib/ui'
+
+const FINANCE_PAGE_SIZE = 20
 
 /**
  * Self-service list of a user's own finance documents (receipts for students,
@@ -18,6 +21,7 @@ export async function FinanceDocList({
   statLabel,
   totalLabel,
   emptyText,
+  page,
 }: {
   kind: FinanceKind
   capability: Capability
@@ -26,9 +30,14 @@ export async function FinanceDocList({
   statLabel: string
   totalLabel: string
   emptyText: string
+  page?: string
 }) {
   const me = await requireCapability(capability)
+  // Stats (count, total, void note) are computed over ALL docs; only the rendered
+  // list is paged, so the totals stay correct while the DOM stays bounded.
   const docs = await listMyDocs(kind, me.id)
+  const currentPage = parsePageParam(page)
+  const pagedDocs = pageSlice(docs, currentPage, FINANCE_PAGE_SIZE)
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
@@ -47,7 +56,7 @@ export async function FinanceDocList({
       )}
 
       <ul className="mt-6 space-y-3">
-        {docs.map((d) => (
+        {pagedDocs.map((d) => (
           <li key={d.id}>
             <ListRow
               leading={
@@ -80,6 +89,17 @@ export async function FinanceDocList({
         ))}
         {docs.length === 0 && <EmptyState as="li">{emptyText}</EmptyState>}
       </ul>
+
+      <PaginationBar
+        page={currentPage}
+        totalPages={totalPages(docs.length, FINANCE_PAGE_SIZE)}
+        total={docs.length}
+        previousHref={currentPage > 1 ? `/${kind}s?page=${currentPage - 1}` : undefined}
+        nextHref={
+          currentPage < totalPages(docs.length, FINANCE_PAGE_SIZE) ? `/${kind}s?page=${currentPage + 1}` : undefined
+        }
+        className="mt-4"
+      />
     </main>
   )
 }

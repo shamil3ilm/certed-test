@@ -3,10 +3,12 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMyClasses, type ClassSummary } from '@/lib/services/classes'
 import { listTags, tagsForEntities, entityIdsForTag, type Tag } from '@/lib/services/tags'
+import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 import {
   AlertBanner,
   PageHeader,
   EmptyState,
+  PaginationBar,
   RowChevron,
   CARD,
   FilterBar,
@@ -14,6 +16,8 @@ import {
   classBanner,
   cx,
 } from '@/lib/ui'
+
+const CLASSES_PAGE_SIZE = 12
 import { Field, Input, SubmitButton } from '../form'
 import { TagChips } from '../tags/TagChips'
 import { createClassAction } from './class-actions'
@@ -108,7 +112,9 @@ function ClassCard({ c, viewerIsStudent, tags }: { c: ClassSummary; viewerIsStud
   )
 }
 
-export default async function ClassroomPage(props: { searchParams?: Promise<{ error?: string; tag?: string }> }) {
+export default async function ClassroomPage(props: {
+  searchParams?: Promise<{ error?: string; tag?: string; page?: string }>
+}) {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewClasses')
   const [allClasses, flags, allTags] = await Promise.all([listMyClasses(me), loadPersonaFlags(me.id), listTags()])
@@ -120,10 +126,20 @@ export default async function ClassroomPage(props: { searchParams?: Promise<{ er
   const tagFilter = searchParams?.tag ?? ''
   const taggedIds = tagFilter ? new Set(await entityIdsForTag('class', tagFilter)) : null
   const classes = taggedIds ? allClasses.filter((c) => taggedIds.has(c.id)) : allClasses
+  // Page AFTER the tag filter; fetch per-card tags only for the visible page.
+  const currentPage = parsePageParam(searchParams?.page)
+  const pagedClasses = pageSlice(classes, currentPage, CLASSES_PAGE_SIZE)
   const tagsByClass = await tagsForEntities(
     'class',
-    classes.map((c) => c.id),
+    pagedClasses.map((c) => c.id),
   )
+  const classPageHref = (p: number) => {
+    const sp = new URLSearchParams()
+    if (tagFilter) sp.set('tag', tagFilter)
+    if (p > 1) sp.set('page', String(p))
+    const qs = sp.toString()
+    return qs ? `/classroom?${qs}` : '/classroom'
+  }
 
   // Student and tutor are mutually exclusive (role is fixed and single; a student
   // is never granted a tutor persona and vice-versa), so there is no learner+teacher
@@ -173,11 +189,22 @@ export default async function ClassroomPage(props: { searchParams?: Promise<{ er
         </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {classes.map((c) => (
+          {pagedClasses.map((c) => (
             <ClassCard key={c.id} c={c} viewerIsStudent={isStudent} tags={tagsByClass.get(c.id) ?? []} />
           ))}
         </div>
       )}
+
+      <PaginationBar
+        page={currentPage}
+        totalPages={totalPages(classes.length, CLASSES_PAGE_SIZE)}
+        total={classes.length}
+        previousHref={currentPage > 1 ? classPageHref(currentPage - 1) : undefined}
+        nextHref={
+          currentPage < totalPages(classes.length, CLASSES_PAGE_SIZE) ? classPageHref(currentPage + 1) : undefined
+        }
+        className="mt-4"
+      />
     </main>
   )
 }

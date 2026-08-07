@@ -15,3 +15,12 @@ export function parsePageParam(raw: unknown): number {
 export function totalPages(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / pageSize))
 }
+
+/** The slice of `items` shown on `page`. For in-memory pagination of a list a
+ *  page already holds in full - e.g. one where the totals/filters need the whole
+ *  set (own receipts, class list) - so the rendered list is bounded and the pager
+ *  works, without a second count query. Pass the FULL/filtered array as `total`. */
+export function pageSlice<T>(items: readonly T[], page: number, pageSize: number): T[] {
+  const from = (page - 1) * pageSize
+  return items.slice(from, from + pageSize)
+}

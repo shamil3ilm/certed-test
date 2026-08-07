@@ -7,7 +7,7 @@ import { emailEnabled, sendEmail, escapeHtml } from '@/lib/email/resend'
 import { getProfilesByIds } from '@/lib/services/users'
 import {
   insertNotifications,
-  selectRecentNotifications,
+  selectNotificationsPage,
   selectUnreadNotificationIds,
   updateAllNotificationsRead,
   type NotificationRow,
@@ -114,8 +114,17 @@ export async function notifyClassRoleBestEffort(
   }
 }
 
-export async function listMyNotifications(profileId: string, limit = 30): Promise<Notification[]> {
-  return (await selectRecentNotifications(profileId, limit)) as Notification[]
+export const NOTIFICATIONS_PAGE_SIZE = 30
+
+export async function listMyNotifications(
+  profileId: string,
+  opts: { page: number; pageSize?: number } = { page: 1 },
+): Promise<{ items: Notification[]; total: number }> {
+  const { items, total } = await selectNotificationsPage(profileId, {
+    page: opts.page,
+    pageSize: opts.pageSize ?? NOTIFICATIONS_PAGE_SIZE,
+  })
+  return { items: items as Notification[], total }
 }
 
 /** Unread count for the header badge (bounded - see UNREAD_BADGE_CAP). */

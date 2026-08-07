@@ -1,6 +1,7 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
-import { countUnreadNotifications, listMyNotifications } from '@/lib/services/notifications'
-import { PageHeader, EmptyState, cx } from '@/lib/ui'
+import { countUnreadNotifications, listMyNotifications, NOTIFICATIONS_PAGE_SIZE } from '@/lib/services/notifications'
+import { parsePageParam, totalPages } from '@/lib/pagination'
+import { AlertBanner, PageHeader, EmptyState, PaginationBar, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { markAllNotificationsReadAction } from './actions'
 
@@ -17,14 +18,19 @@ const KIND_META: Record<string, { label: string; className: string }> = {
   schedule: { label: 'Schedule', className: 'bg-rose-50 text-rose-700' },
 }
 
-export default async function NotificationsPage() {
+export default async function NotificationsPage(props: { searchParams: Promise<{ page?: string; read?: string }> }) {
+  const searchParams = await props.searchParams
   const me = await requireActiveProfile()
-  // Gate "Mark all read" on the TRUE unread count, not just the visible 50 - the
-  // action clears all unread (RLS-scoped), so with >50 notifications whose newest
-  // 50 are read but older ones aren't, the header badge would otherwise show a
-  // count the page gave no way to clear.
-  const [items, unreadCount] = await Promise.all([listMyNotifications(me.id, 50), countUnreadNotifications(me.id)])
+  const page = parsePageParam(searchParams.page)
+  // Gate "Mark all read" on the TRUE unread count, not just the visible page - the
+  // action clears all unread (RLS-scoped), so older unread notifications on later
+  // pages are covered and the header badge always clears.
+  const [{ items, total }, unreadCount] = await Promise.all([
+    listMyNotifications(me.id, { page }),
+    countUnreadNotifications(me.id),
+  ])
   const hasUnread = unreadCount > 0
+  const pages = totalPages(total, NOTIFICATIONS_PAGE_SIZE)
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
@@ -41,6 +47,12 @@ export default async function NotificationsPage() {
           ) : undefined
         }
       />
+
+      {searchParams.read === '1' && (
+        <AlertBanner tone="success" className="mb-4">
+          All notifications marked read.
+        </AlertBanner>
+      )}
 
       <ul className="space-y-2">
         {items.length === 0 && (
@@ -84,6 +96,15 @@ export default async function NotificationsPage() {
           )
         })}
       </ul>
+
+      <PaginationBar
+        page={page}
+        totalPages={pages}
+        total={total}
+        previousHref={page > 1 ? `/notifications?page=${page - 1}` : undefined}
+        nextHref={page < pages ? `/notifications?page=${page + 1}` : undefined}
+        className="mt-4"
+      />
     </main>
   )
 }

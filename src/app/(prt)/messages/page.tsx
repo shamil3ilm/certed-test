@@ -2,13 +2,19 @@ import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { listInbox } from '@/lib/services/messaging'
 import { listMessageableContacts } from '@/lib/messaging/recipient-policy'
-import { PageHeader, EmptyState, Badge, Avatar } from '@/lib/ui'
+import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
+import { PageHeader, EmptyState, Badge, Avatar, CARD, PaginationBar, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { NewChatLauncher } from './NewChatLauncher'
 
-export default async function MessagesPage() {
+const INBOX_PAGE_SIZE = 20
+
+export default async function MessagesPage(props: { searchParams: Promise<{ page?: string }> }) {
+  const { page } = await props.searchParams
   const me = await requireCapability('viewMessages')
   const [inbox, contacts] = await Promise.all([listInbox(me), listMessageableContacts(me)])
+  const currentPage = parsePageParam(page)
+  const pagedInbox = pageSlice(inbox, currentPage, INBOX_PAGE_SIZE)
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -20,11 +26,14 @@ export default async function MessagesPage() {
         <EmptyState>No conversations yet.</EmptyState>
       ) : (
         <ul className="space-y-2">
-          {inbox.map((c) => (
+          {pagedInbox.map((c) => (
             <li key={c.id}>
               <Link
                 href={`/messages/${c.id}`}
-                className="group block rounded-2xl border border-slate-200 bg-white p-3 transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                className={cx(
+                  CARD,
+                  'group block p-3 transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20',
+                )}
               >
                 <div className="flex items-start gap-3">
                   <Avatar
@@ -53,6 +62,17 @@ export default async function MessagesPage() {
           ))}
         </ul>
       )}
+
+      <PaginationBar
+        page={currentPage}
+        totalPages={totalPages(inbox.length, INBOX_PAGE_SIZE)}
+        total={inbox.length}
+        previousHref={currentPage > 1 ? `/messages?page=${currentPage - 1}` : undefined}
+        nextHref={
+          currentPage < totalPages(inbox.length, INBOX_PAGE_SIZE) ? `/messages?page=${currentPage + 1}` : undefined
+        }
+        className="mt-4"
+      />
     </main>
   )
 }
