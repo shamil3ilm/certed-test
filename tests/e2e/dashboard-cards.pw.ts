@@ -9,9 +9,13 @@ test('ADMIN dashboard cards and CTAs are interactive', async ({ page }) => {
   await loginAs(page, 'admin@mock.test')
   await page.goto('/dashboard')
 
-  await expect(page.getByText('View details').first()).toBeVisible()
+  // The People stat cards are modal buttons labelled by the stat (the redesign
+  // replaced the old standalone "View details" CTA). Open the Students card by
+  // role/label - robust to affordance-copy changes, like the Net card below.
+  const studentsCard = page.getByRole('button', { name: /^Students/i })
+  await expect(studentsCard.first()).toBeVisible()
 
-  await page.getByText('View details').first().click()
+  await studentsCard.first().click()
   await expect(page.getByRole('dialog')).toBeVisible()
   const studentRow = page.getByRole('link', { name: /Sara Student/i }).first()
   if (await studentRow.count()) {
@@ -44,7 +48,11 @@ test('SUB ADMIN dashboard cards and CTA are interactive', async ({ page }) => {
   await page.goto('/dashboard')
 
   await expect(page.getByRole('heading', { name: 'User management' })).toBeVisible()
-  await page.getByText('View details').first().click()
+  // Open a People stat card by role/label rather than the "View details" copy.
+  await page
+    .getByRole('button', { name: /^Students/i })
+    .first()
+    .click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)

@@ -58,12 +58,13 @@ test('page -- tutor is blocked from admin areas', async ({ page }) => {
   await assertAdminBlocked(page, 'tutor@mock.test')
 })
 
-test('page -- a mentor can reach a class their mentee is enrolled in (0043 scoped authority)', async ({ page }) => {
-  // A mentor holds tutor-level authority over the classes their mentees are
-  // enrolled in, so the class page loads (no redirect).
+test('page -- a mentor can open a class their mentee is enrolled in (scoped oversight read)', async ({ page }) => {
+  // A mentor is read-only oversight (b9293ed): it keeps viewClasses + scoped
+  // access to its mentees' classes, so the class page loads (no redirect). The
+  // write side is denied at the capability gate - see the 403 API test below.
   await loginAs(page, 'mentor@mock.test')
   await page.goto(`/classroom/${SEED.math}`, { waitUntil: 'domcontentloaded', timeout: 45000 })
-  await expect(page, 'mentor has scoped class access -> no dashboard redirect').not.toHaveURL(/\/dashboard/)
+  await expect(page, 'mentor has scoped class READ access -> no dashboard redirect').not.toHaveURL(/\/dashboard/)
 })
 
 test('page -- a mentor can open their mentees list (viewMentees success path)', async ({ page }) => {
@@ -80,12 +81,15 @@ test('api -- a student cannot create a calendar event', async ({ page }) => {
   expect(r.status).toBe(403)
 })
 
-test('api -- a mentor may create an event for a class their mentee is in (0043)', async ({ page }) => {
+test('api -- a mentor CANNOT create an event for a mentee class (oversight is read-only)', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
-  // Sara (a mentee) is enrolled in Math, so the mentor has tutor-level authority
-  // there - the same canWriteClass path a class tutor takes (201).
+  // b9293ed recast the dedicated mentor persona as read-only oversight: it lost
+  // manageCalendar, so the class-write path is refused at the capability gate (403)
+  // even for a class its mentee is enrolled in. The positive counterpart is the
+  // tutor test below - a manageCalendar holder gets 201 for its own class - so the
+  // two together pin the narrowing from both sides.
   const r = await apiCall(page, 'POST', '/api/events', evt(SEED.math))
-  expect(r.status).toBe(201)
+  expect(r.status, 'read-only mentor is forbidden from class writes').toBe(403)
 })
 
 // ---------- API class-scope gate ----------
