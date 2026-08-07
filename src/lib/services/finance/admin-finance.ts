@@ -19,6 +19,9 @@ export type FinancePageRow = {
   number: string
   name: string
   totalLabel: string
+  /** The total in the academy base currency ("≈ ₹8,200"), when the document is in
+   *  a different currency and has been converted; null otherwise. */
+  baseLabel: string | null
   voided: boolean
 }
 
@@ -88,6 +91,10 @@ function toRows(items: FinanceDoc[]): FinancePageRow[] {
     number: d.number,
     name: d.party_name,
     totalLabel: formatMoney(d.total, d.currency),
+    baseLabel:
+      d.base_total != null && d.base_currency && d.base_currency !== d.currency
+        ? `≈ ${formatMoney(d.base_total, d.base_currency)}`
+        : null,
     voided: d.voided,
   }))
 }

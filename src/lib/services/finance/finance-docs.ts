@@ -3,6 +3,7 @@ import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 import {
   callFinanceTotals,
+  callFinanceTotalsBase,
   callIssueDoc,
   selectAllDocs,
   selectDocById,
@@ -15,6 +16,7 @@ import {
   type FinanceKind,
   type FinanceLine,
   type FinanceTotal,
+  type FinanceBaseTotal,
   type IssueFinanceDocInput,
 } from '@/lib/data/finance-docs'
 
@@ -33,7 +35,7 @@ import {
 
 export const FINANCE_DENIED = 'You are not allowed to manage finance documents.'
 
-export type { FinanceDoc, FinanceKind, FinanceLine, FinanceTotal, IssueFinanceDocInput }
+export type { FinanceDoc, FinanceKind, FinanceLine, FinanceTotal, FinanceBaseTotal, IssueFinanceDocInput }
 type PaginatedFinanceDocs = { items: FinanceDoc[]; total: number }
 
 const financeDocIdSchema = z.string().uuid()
@@ -82,6 +84,12 @@ export async function listDocsPage(
 /** Per-currency, non-voided totals computed in SQL - no rows shipped to the app. */
 export async function financeTotals(kind: FinanceKind): Promise<FinanceTotal[]> {
   return callFinanceTotals(kind)
+}
+
+/** Per-kind totals already normalised into the academy base currency, with a
+ *  count of documents still awaiting a rate. Used by the dashboard rollups. */
+export async function financeTotalsBase(kind: FinanceKind): Promise<FinanceBaseTotal> {
+  return callFinanceTotalsBase(kind)
 }
 
 /** One document by id (RLS: own or admin). */

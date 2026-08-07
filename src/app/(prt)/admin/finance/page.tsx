@@ -76,7 +76,10 @@ function DocTable({
                   {row.number} {row.voided && <span className="text-xs text-red-600">(void)</span>}
                 </td>
                 <td>{row.name}</td>
-                <td>{row.totalLabel}</td>
+                <td>
+                  {row.totalLabel}
+                  {row.baseLabel && <span className="block text-xs text-slate-400">{row.baseLabel}</span>}
+                </td>
                 <td className="py-1">
                   <div className="flex items-center justify-end gap-2">
                     <a
@@ -150,7 +153,14 @@ export default async function FinancePage(props: {
   return (
     <main className="mx-auto max-w-4xl space-y-10 p-4 sm:p-6 lg:p-8">
       <section>
-        <PageHeader title="Finance" />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <PageHeader title="Finance" />
+          {canManage && (
+            <a href="/admin/finance/rates" className="btn btn-soft btn-sm">
+              Currency conversion
+            </a>
+          )}
+        </div>
         {canManage && (
           <>
             <h2 className="mt-4 font-medium">Issue fee receipt</h2>

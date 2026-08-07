@@ -60,11 +60,11 @@ describe('loadAdminFinancePageData', () => {
     expect(listActiveByRole).not.toHaveBeenCalled()
     expect(result.tutors).toEqual([{ id: 't1', name: 'tutor@test.com' }])
     expect(result.receipts.rows).toEqual([
-      { id: 'r1', number: 'R-001', name: 'Sara Student', totalLabel: 'INR:1200', voided: false },
+      { id: 'r1', number: 'R-001', name: 'Sara Student', totalLabel: 'INR:1200', baseLabel: null, voided: false },
     ])
     expect(result.receipts.totalPages).toBe(2)
     expect(result.payslips.rows).toEqual([
-      { id: 'p1', number: 'P-010', name: 'tutor@test.com', totalLabel: 'INR:900', voided: true },
+      { id: 'p1', number: 'P-010', name: 'tutor@test.com', totalLabel: 'INR:900', baseLabel: null, voided: true },
     ])
     expect(result.payslips.totalPages).toBe(1)
   })

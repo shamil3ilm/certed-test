@@ -34,6 +34,12 @@ export function lineAmount(hours: number, rate: number, currency = 'INR'): numbe
   return roundTo(hours * rate, currencyDecimals(currency))
 }
 
+/** Converts an amount into `toCurrency` at `rate` (1 source unit = `rate` target
+ *  units), rounded to the target currency's minor unit. */
+export function convertMoney(amount: number, rate: number, toCurrency: string): number {
+  return roundTo(amount * rate, currencyDecimals(toCurrency))
+}
+
 export function computeTotals(
   lines: { hours: number; rate: number }[],
   discount = 0,

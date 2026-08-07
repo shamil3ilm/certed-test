@@ -30,6 +30,9 @@ export type OrgSettingsRow = {
   signature_mode: 'text' | 'image'
   signature_text: string | null
   default_currency: string
+  /** The currency every finance figure normalises INTO for academy-wide rollups
+   *  (distinct from default_currency, the default for new documents). */
+  base_currency: string
   timezone: string
   receipt_prefix: string
   payslip_prefix: string
@@ -51,6 +54,14 @@ export async function updateMessagingMatrix(matrix: Record<string, boolean>): Pr
   const admin = createAdminClient()
   const { error } = await admin.from('org_settings').update({ messaging_matrix: matrix }).not('id', 'is', null)
   if (error) throw new Error(`org_settings.updateMessagingMatrix: ${error.message}`)
+}
+
+/** Sets the academy-wide reporting base currency on the singleton row. Changing
+ *  it re-bases every document, so callers follow this with a recompute. */
+export async function updateBaseCurrency(currency: string): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('org_settings').update({ base_currency: currency }).not('id', 'is', null)
+  if (error) throw new Error(`org_settings.updateBaseCurrency: ${error.message}`)
 }
 
 /**

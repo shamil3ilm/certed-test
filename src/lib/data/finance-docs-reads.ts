@@ -70,6 +70,29 @@ export async function callFinanceTotals(kind: FinanceKind): Promise<FinanceTotal
   }))
 }
 
+export type FinanceBaseTotal = {
+  base_currency: string
+  base_total: number
+  converted_count: number
+  unconverted_count: number
+}
+
+/** Per-kind totals already converted into the academy base currency, plus how
+ *  many non-void documents are still unconverted (so a rollup can flag rather
+ *  than silently understate). */
+export async function callFinanceTotalsBase(kind: FinanceKind): Promise<FinanceBaseTotal> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.rpc('finance_totals_base', { p_kind: kind })
+  if (error) throw new Error(`${kind}.totalsBase: ${error.message}`)
+  const row = (data ?? [])[0] as Record<string, unknown> | undefined
+  return {
+    base_currency: (row?.base_currency as string) ?? '',
+    base_total: Number(row?.base_total ?? 0),
+    converted_count: Number(row?.converted_count ?? 0),
+    unconverted_count: Number(row?.unconverted_count ?? 0),
+  }
+}
+
 export async function selectDocById(kind: FinanceKind, id: string): Promise<FinanceDoc | null> {
   const k = KIND[kind]
   const supabase = await createClient()

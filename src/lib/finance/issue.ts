@@ -3,6 +3,7 @@ import { lineAmount, computeTotals } from '@/lib/money'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { getProfileById } from '@/lib/services/users'
 import { issueDocRecord, type FinanceKind, type FinanceLine } from '@/lib/services/finance/finance-docs'
+import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
 import { writeAudit } from '@/lib/data/audit'
 import { ValidationError } from '@/lib/errors'
 import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
@@ -65,6 +66,16 @@ async function issueDoc(
     await writeAudit({ actor_id: actorId, action: `${kind}.issue`, entity_type: kind, entity_id: doc.id })
   } catch (auditError) {
     console.error(`[finance] audit write failed for issued ${kind} ${doc.id}:`, auditError)
+  }
+
+  // Snapshot the base-currency amount at the rate effective on the issue date.
+  // Best-effort, like the audit: a missing rate (or a transient failure) leaves
+  // the document unconverted for the next admin recompute rather than failing an
+  // already-committed issuance.
+  try {
+    await convertIssuedDoc(kind, doc.id)
+  } catch (fxError) {
+    console.error(`[finance] base-currency conversion failed for issued ${kind} ${doc.id}:`, fxError)
   }
   return { id: doc.id, number: doc.number }
 }
