@@ -106,6 +106,13 @@ alter table submissions enable trigger trg_submission_status;
 insert into announcements(id,class_id,title,message,status) values
  ('f0000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','AnnC1','x','active'),
  ('f0000000-0000-4000-8000-000000000002',null,'AnnGlobal','x','active');
+-- attachments (0057): one on S1's submission (C1), one on the C1 announcement, plus
+-- a PENDING row that proves only 'active' attachments are ever readable.
+insert into attachments(id,submission_id,uploaded_by,original_filename,mime_type,file_size,storage_provider,drive_file_id,status) values
+ ('aa000000-0000-4000-8000-000000000001','e0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','sub.pdf','application/pdf',10,'google_drive','drivefile-sub','active'),
+ ('aa000000-0000-4000-8000-000000000003','e0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','pending.pdf','application/pdf',10,'google_drive',null,'pending');
+insert into attachments(id,announcement_id,uploaded_by,original_filename,mime_type,file_size,storage_provider,drive_file_id,status) values
+ ('aa000000-0000-4000-8000-000000000002','f0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010','ann.pdf','application/pdf',10,'google_drive','drivefile-ann','active');
 -- reminders + notifications (one per relevant profile)
 insert into reminders(user_id,title,remind_at,is_sent) values
  ('a0000000-0000-4000-8000-000000000030','r1',now(),false),
@@ -161,6 +168,16 @@ check "announcements: S1 sees class C1"        $S1 "select count(*) from announc
 check "announcements: S1 sees global"          $S1 "select count(*) from announcements where title='AnnGlobal'" 1
 check "announcements: S3 cannot see C1's"      $S3 "select count(*) from announcements where title='AnnC1'" 0
 check "announcements: S3 still sees global"    $S3 "select count(*) from announcements where title='AnnGlobal'" 1
+# attachments (0057): visibility MIRRORS each owner's read policy exactly.
+SUBID=e0000000-0000-4000-8000-000000000001; ANNID=f0000000-0000-4000-8000-000000000001
+check "attachments: S1 sees own submission's"  $S1 "select count(*) from attachments where submission_id='$SUBID'" 1
+check "attachments: pending is invisible"      $S1 "select count(*) from attachments where id='aa000000-0000-4000-8000-000000000003'" 0
+check "attachments: S3 cannot see S1 sub's"    $S3 "select count(*) from attachments where submission_id='$SUBID'" 0
+check "attachments: T1 sees C1 submission's"   $T1 "select count(*) from attachments where submission_id='$SUBID'" 1
+check "attachments: T2 cannot see C1 sub's"    $T2 "select count(*) from attachments where submission_id='$SUBID'" 0
+check "attachments: mentor sees mentee sub's"  $M  "select count(*) from attachments where submission_id='$SUBID'" 1
+check "attachments: S1 sees C1 announcement's" $S1 "select count(*) from attachments where announcement_id='$ANNID'" 1
+check "attachments: S3 cannot see C1 ann's"    $S3 "select count(*) from attachments where announcement_id='$ANNID'" 0
 # messages/conversations: participant only
 check "messages: T1 (participant) sees msg"    $T1 "select count(*) from messages" 1
 check "messages: S1 (participant) sees msg"    $S1 "select count(*) from messages" 1

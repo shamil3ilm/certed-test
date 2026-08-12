@@ -25,3 +25,12 @@ if ! bash scripts/check-snapshot-freshness.sh; then
   echo "push with --no-verify if you understand the consequences." >&2
   exit 1
 fi
+
+# Same idea for documentation: block a push that leaves a broken cross-doc link in
+# the living docs. Shares the one script CI runs (scripts/check-doc-links.sh).
+if [ -f scripts/check-doc-links.sh ] && ! bash scripts/check-doc-links.sh; then
+  echo "" >&2
+  echo "pre-push blocked: a documentation link is broken. Fix it, or push with" >&2
+  echo "--no-verify if you understand the consequences." >&2
+  exit 1
+fi

@@ -16,6 +16,7 @@
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "db:rebuild-snapshot": "bash scripts/rebuild-snapshot.sh",
     "check:snapshot": "bash scripts/check-snapshot-freshness.sh",
+    "check:doc-links": "bash scripts/check-doc-links.sh",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
@@ -56,6 +57,7 @@
     "vitest": "^4.1.9"
   },
   "overrides": {
-    "undici": "^7.29.0"
+    "undici": "^7.29.0",
+    "nanoid": "^3.3.17"
   }
 }

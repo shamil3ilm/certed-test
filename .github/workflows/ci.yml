@@ -45,6 +45,12 @@ jobs:
       - name: Rebuild snapshot freshness (must match chain head)
         run: bash scripts/check-snapshot-freshness.sh
 
+      # A broken cross-doc link is invisible until someone clicks it. Cheap pure-bash
+      # gate over the living docs (qa/ and archive/ snapshots excluded). Shared with
+      # the pre-push hook so CI and authoring-time verdicts can't diverge.
+      - name: Documentation links resolve
+        run: bash scripts/check-doc-links.sh
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -99,3 +105,43 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: E2E
         run: npx playwright test --project=chromium
+      # A CI-only failure is otherwise diagnosed from a single assertion line; the
+      # HTML report + per-test traces/screenshots/error-context.md make it readable.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # RLS is the one correctness class mock mode cannot verify (the mock has no RLS),
+  # so the policies are asserted against REAL Postgres here: apply the whole migration
+  # chain to an empty DB, seed a Supabase-shaped auth context, and check every read
+  # returns exactly the rows each persona should see. Pure psql - no Node needed.
+  rls:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        # test-rls.sh connects as `postgres` with an empty password; trust auth lets
+        # it in without a secret, which is fine for a throwaway CI database.
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      # The runner already ships psql; install only if a future image drops it.
+      - name: Ensure psql client
+        run: which psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: RLS policy assertions (real Postgres)
+        run: bash scripts/test-rls.sh
