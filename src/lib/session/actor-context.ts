@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { tagRequestScope } from '@/lib/observability/request-context'
 import type { Profile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { selectOwnProfileByAuthUserId } from '@/lib/data/profiles'
@@ -57,6 +58,11 @@ export const getActorContext = cache(async (): Promise<ActorContext> => {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return { userId: null, profile: null, personas: [], capabilities: NO_CAPABILITIES, accessState: 'unauthenticated' }
   }
+
+  // Every authenticated page, action, and route handler resolves the actor here,
+  // so this is the one place to tag the request for observability - carrying its
+  // x-vercel-id onto logs and Sentry events for cross-layer correlation.
+  await tagRequestScope()
 
   const supabase = await createClient()
   // getClaims() verifies the session JWT LOCALLY when the project uses asymmetric

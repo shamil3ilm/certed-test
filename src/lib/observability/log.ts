@@ -1,5 +1,6 @@
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
+import { currentRequestId } from './request-context'
 
 /**
  * Structured server-side error log.
@@ -29,6 +30,10 @@ export function logError(
 ): void {
   const message = error instanceof Error ? error.message : String(error)
   const detail: Record<string, unknown> = { ...meta }
+  // Correlate this line with the platform request log and the Sentry event; the
+  // same id is on the Sentry event automatically (isolation-scope tag).
+  const requestId = currentRequestId()
+  if (requestId) detail.requestId = requestId
   if (error instanceof Error && error.stack) detail.stack = error.stack
   console.error(`[${context}] ${message}`, detail)
   if (opts?.toSentry !== false) {

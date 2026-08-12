@@ -10,11 +10,15 @@ if ((process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0') !== '1')
     (name) => !process.env[name],
   )
   if (missingPublicEnv.length > 0) {
-    console.error(
-      `\n[build] WARNING: missing public env at build time: ${missingPublicEnv.join(', ')}.\n` +
-        '  These NEXT_PUBLIC_* values are inlined into the client bundle at build time. If they are unset,\n' +
-        '  or marked "Sensitive" in Vercel (Sensitive vars are withheld from the build), the browser\n' +
-        '  Supabase client fails and sign-in breaks. Set them as NON-sensitive vars and redeploy.\n',
+    // Fail the BUILD, not a user's browser. These NEXT_PUBLIC_* values are inlined
+    // into the client bundle at build time; if they are unset - or marked
+    // "Sensitive" in Vercel, which withholds them from the build - the browser
+    // Supabase client silently fails and sign-in breaks for everyone, with nothing
+    // in the runtime logs. A thrown build error surfaces the misconfiguration in
+    // the deploy log where it can be fixed. Set them as NON-sensitive vars.
+    throw new Error(
+      `[build] Missing required public env at build time: ${missingPublicEnv.join(', ')}. ` +
+        'These NEXT_PUBLIC_* values must be set (and NOT marked "Sensitive") so they inline into the client bundle.',
     )
   }
 }
@@ -74,26 +78,10 @@ const nextConfig = {
           // popups (Google OAuth / Drive Picker open one) — 'same-origin' would break them.
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
-          {
-            // Defense-in-depth against injected scripts. 'unsafe-inline'/'unsafe-eval'
-            // are required by the Next.js runtime; the Google hosts allow the optional
-            // Drive Picker; Supabase is allowed for auth/data XHR.
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https:",
-              "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co https://accounts.google.com https://apis.google.com",
-              'frame-src https://accounts.google.com https://content.googleapis.com https://docs.google.com https://drive.google.com',
-              "object-src 'none'",
-              "base-uri 'self'",
-              // NB: no `form-action` — it blocks redirect-after-POST across hosts
-              // (and the app has no cross-origin forms / injection vectors anyway).
-              "frame-ancestors 'none'",
-            ].join('; '),
-          },
+          // The Content-Security-Policy is set PER REQUEST in src/proxy.ts, not here:
+          // the portal uses a per-request nonce (so script-src can drop
+          // 'unsafe-inline'/'unsafe-eval'), which a static config header cannot carry.
+          // See lib/security/csp.ts.
         ],
       },
       {

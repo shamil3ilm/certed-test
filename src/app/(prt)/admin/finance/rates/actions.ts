@@ -6,6 +6,7 @@ import { isAdminTier } from '@/lib/capabilities'
 import { actionOk, actionFail, toActionError, type ActionResult } from '@/lib/api/action-error'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { addExchangeRate, removeExchangeRate, setBaseCurrency, recomputeFx } from '@/lib/services/finance/fx-admin'
+import { revalidateOrgSettings } from '@/lib/services/finance/org-settings'
 
 const RATES_PATH = '/admin/finance/rates'
 
@@ -56,6 +57,7 @@ export async function setBaseCurrencyAction(currency: string): Promise<ActionRes
   if (!me) return actionFail('Only an admin can manage currency conversion.')
   try {
     await setBaseCurrency(me.id, currency)
+    revalidateOrgSettings()
     revalidatePath(RATES_PATH)
     revalidatePath('/dashboard')
     return actionOk(null)
