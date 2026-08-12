@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0056) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0059) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -960,6 +960,35 @@ CREATE TABLE public.assignments (
 
 
 --
+-- Name: attachments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.attachments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    submission_id uuid,
+    resource_id uuid,
+    announcement_id uuid,
+    uploaded_by uuid NOT NULL,
+    original_filename text NOT NULL,
+    mime_type text NOT NULL,
+    file_size bigint NOT NULL,
+    checksum_sha256 text,
+    storage_provider text DEFAULT 'google_drive'::text NOT NULL,
+    drive_file_id text,
+    drive_folder_id text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp with time zone,
+    CONSTRAINT attachments_active_has_file CHECK (((status <> 'active'::text) OR (drive_file_id IS NOT NULL))),
+    CONSTRAINT attachments_one_owner CHECK ((((((submission_id IS NOT NULL))::integer + ((resource_id IS NOT NULL))::integer) + ((announcement_id IS NOT NULL))::integer) = 1)),
+    CONSTRAINT attachments_provider_check CHECK ((storage_provider = 'google_drive'::text)),
+    CONSTRAINT attachments_size_check CHECK (((file_size > 0) AND (file_size <= 26214400))),
+    CONSTRAINT attachments_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'active'::text, 'failed'::text, 'deleted'::text])))
+);
+
+
+--
 -- Name: attendance; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1303,6 +1332,24 @@ CREATE TABLE public.payslip_lines (
 
 
 --
+-- Name: pending_emails; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pending_emails (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    to_email text NOT NULL,
+    subject text NOT NULL,
+    html text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    CONSTRAINT pending_emails_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text])))
+);
+
+
+--
 -- Name: persona_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1475,6 +1522,22 @@ ALTER TABLE ONLY public.announcements
 
 ALTER TABLE ONLY public.assignments
     ADD CONSTRAINT assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: attachments attachments_drive_file_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_drive_file_id_key UNIQUE (drive_file_id);
+
+
+--
+-- Name: attachments attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_pkey PRIMARY KEY (id);
 
 
 --
@@ -1710,6 +1773,14 @@ ALTER TABLE ONLY public.payslips
 
 
 --
+-- Name: pending_emails pending_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pending_emails
+    ADD CONSTRAINT pending_emails_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: persona_assignments persona_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1864,6 +1935,34 @@ CREATE INDEX assignments_class_idx ON public.assignments USING btree (class_id);
 --
 
 CREATE INDEX assignments_status_due_idx ON public.assignments USING btree (status, due_date);
+
+
+--
+-- Name: attachments_announcement_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attachments_announcement_idx ON public.attachments USING btree (announcement_id, created_at DESC) WHERE ((announcement_id IS NOT NULL) AND (status = 'active'::text));
+
+
+--
+-- Name: attachments_reconcile_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attachments_reconcile_idx ON public.attachments USING btree (created_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
+
+
+--
+-- Name: attachments_resource_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attachments_resource_idx ON public.attachments USING btree (resource_id, created_at DESC) WHERE ((resource_id IS NOT NULL) AND (status = 'active'::text));
+
+
+--
+-- Name: attachments_submission_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attachments_submission_idx ON public.attachments USING btree (submission_id, created_at DESC) WHERE ((submission_id IS NOT NULL) AND (status = 'active'::text));
 
 
 --
@@ -2119,6 +2218,13 @@ CREATE INDEX payslips_tutor_idx ON public.payslips USING btree (tutor_id);
 
 
 --
+-- Name: pending_emails_drain_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX pending_emails_drain_idx ON public.pending_emails USING btree (created_at) WHERE (status = 'pending'::text);
+
+
+--
 -- Name: persona_assignments_global_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2231,6 +2337,13 @@ CREATE UNIQUE INDEX uq_capability_overrides_identity ON public.capability_overri
 
 
 --
+-- Name: attachments trg_attachments_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_attachments_updated_at BEFORE UPDATE ON public.attachments FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
 -- Name: capability_overrides trg_capability_overrides_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2281,6 +2394,38 @@ ALTER TABLE ONLY public.assignments
 
 ALTER TABLE ONLY public.assignments
     ADD CONSTRAINT assignments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: attachments attachments_announcement_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id) ON DELETE CASCADE;
+
+
+--
+-- Name: attachments attachments_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES public.resources(id) ON DELETE CASCADE;
+
+
+--
+-- Name: attachments attachments_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_submission_id_fkey FOREIGN KEY (submission_id) REFERENCES public.submissions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: attachments attachments_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id) ON DELETE RESTRICT;
 
 
 --
@@ -2832,6 +2977,27 @@ CREATE POLICY assignments_update ON public.assignments FOR UPDATE USING ((public
 
 
 --
+-- Name: attachments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: attachments attachments_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY attachments_read ON public.attachments FOR SELECT USING (((status = 'active'::text) AND ((EXISTS ( SELECT 1
+   FROM public.submissions s
+  WHERE ((s.id = attachments.submission_id) AND (public.is_active_admin() OR (EXISTS ( SELECT 1
+           FROM public.assignments a
+          WHERE ((a.id = s.assignment_id) AND public.teaches_class(a.class_id)))) OR public.is_self_active(s.student_id) OR public.mentors_student(s.student_id))))) OR (EXISTS ( SELECT 1
+   FROM public.resources r
+  WHERE ((r.id = attachments.resource_id) AND (public.is_active_admin() OR public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text) AND (r.visibility = 'class'::public.document_visibility)))))) OR (EXISTS ( SELECT 1
+   FROM public.announcements an
+  WHERE ((an.id = attachments.announcement_id) AND (public.is_active_admin() OR public.teaches_class(an.class_id) OR ((an.status = 'active'::text) AND ((an.publish_at IS NULL) OR (an.publish_at <= now())) AND ((an.expires_at IS NULL) OR (an.expires_at > now())) AND (((an.class_id IS NULL) AND (public.current_status() = 'active'::public.user_status)) OR public.is_enrolled(an.class_id))))))))));
+
+
+--
 -- Name: attendance; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3239,6 +3405,12 @@ CREATE POLICY payslips_admin_write ON public.payslips USING (public.is_active_ad
 
 CREATE POLICY payslips_read ON public.payslips FOR SELECT USING ((public.is_active_admin() OR public.is_self_active(tutor_id)));
 
+
+--
+-- Name: pending_emails; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.pending_emails ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: persona_assignments; Type: ROW SECURITY; Schema: public; Owner: -

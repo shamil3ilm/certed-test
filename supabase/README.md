@@ -66,6 +66,7 @@ Authorization:
 - `0035` to `0044`: assignment deadline enforcement, mentor/class authority, messaging activity hardening, comments, and announcement attachments
 - `0045` to `0051`: document management, attendance working hours, document versions, shared rate limits, audit indexing, and notification retention
 - `0052` to `0055`: one-active-student enforcement, session feedback, tags, and tag-entity RLS hardening
+- `0056` to `0059`: admin-managed multi-currency conversion, custodial attachment storage, the pending-emails delivery queue, and audit-log retention
 
 ## Related docs
 
