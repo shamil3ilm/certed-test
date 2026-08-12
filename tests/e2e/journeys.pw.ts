@@ -27,8 +27,8 @@ test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', 
   // Post an announcement to the class Stream
   await page.goto(`/classroom/${classId}`)
   const post = page.locator('form:has-text("Post to the class")')
-  await post.locator('input[name=title]').fill('Welcome to Physics')
-  await post.locator('textarea[name=message]').fill('First class Monday.')
+  await post.getByPlaceholder('Title').fill('Welcome to Physics')
+  await post.getByPlaceholder(/Share something/).fill('First class Monday.')
   await submitAndReload(page, () => post.getByRole('button', { name: 'Post', exact: true }).click())
   await expect(page.getByRole('heading', { name: 'Welcome to Physics' })).toBeVisible()
 

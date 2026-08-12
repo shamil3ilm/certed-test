@@ -5,8 +5,8 @@ import { loginAs, SEED } from './support'
  * Custodial attachment round-trip against the real upload + download routes in MOCK
  * mode: the file's bytes go to the (in-memory mock) academy Drive and stream back
  * through the app - never a public URL. The multipart POST runs INSIDE the browser
- * so cookies + the app.localhost host mapping apply (a Node request context can't
- * resolve app.localhost). Fine-grained READ authorization is RLS, verified on real
+ * so the session cookie is attached automatically (a Node request context has no
+ * cookie jar). Fine-grained READ authorization is RLS, verified on real
  * Postgres by scripts/test-rls.sh; what MOCK mode still proves here is the
  * round-trip and the app-layer write gates.
  */

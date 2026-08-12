@@ -42,8 +42,8 @@ export async function loginAs(page: Page, email: string, opts: { clearCookies?: 
     if (opts.clearCookies) await page.context().clearCookies()
 
     // Sign in through the mock dev-login FORM in the browser - a native form POST,
-    // so `app.localhost` resolves (the host mapping is a Chromium-only flag) and
-    // the CSP allows it. A Node request context or a fetch() both fail here.
+    // so the session cookie is set + carried and the CSP allows it. A Node request
+    // context or a fetch() both fail here (no cookie jar).
     await page.goto('/login', { waitUntil: 'domcontentloaded' })
     await page.fill('#dev-email', email)
     await page.fill('#dev-password', 'cert-ed')

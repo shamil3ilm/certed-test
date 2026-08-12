@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const MARKETING_BASE_URL = 'http://localhost:3100'
+const MARKETING_BASE_URL = 'http://localhost:3101'
 
 test('marketing navbar, CTA, and footer links are interactive', async ({ page }) => {
   await page.goto(MARKETING_BASE_URL)
