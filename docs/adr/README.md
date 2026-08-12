@@ -46,5 +46,6 @@ Use a numbered kebab-case name, for example:
 - [0001 — Adopt a `src/lib/data` access layer](0001-adopt-data-layer.md)
 - [0002 — Capability-first route guards](0002-capability-first-route-guards.md)
 - [0003 — Personas are fixed identities](0003-personas-as-fixed-identities.md)
-- [0004 — Documents are Google Drive links, not stored files](0004-google-drive-storage-model.md)
+- [0004 — Documents are Google Drive links, not stored files](0004-google-drive-storage-model.md) — **Superseded by 0006**
 - [0005 — RLS-scoped reads by default, service-role for aggregation](0005-rls-with-service-role-layering.md)
+- [0006 — Custodial attachment storage in an academy-owned Google Drive](0006-custodial-attachment-storage.md) — **Accepted** (implemented, migration 0057); supersedes 0004

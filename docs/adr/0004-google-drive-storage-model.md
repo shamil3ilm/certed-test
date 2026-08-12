@@ -1,7 +1,12 @@
 # 0004 — Documents are Google Drive links, not stored files
 
 - **Date:** 2026-08-03
-- **Status:** Accepted
+- **Status:** Superseded by [0006](./0006-custodial-attachment-storage.md)
+
+> **2026-08-11:** the premise below ("no requirement to hold custody") no longer holds. The
+> academy now requires persistent custody of attachments, and the client-side upload path
+> granted "anyone with the link" access to student work. This ADR is superseded by
+> [0006](./0006-custodial-attachment-storage.md), which is implemented (migration 0057).
 
 ## Context
 

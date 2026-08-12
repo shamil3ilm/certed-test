@@ -86,6 +86,10 @@ This is the current functional inventory. It is intentionally grouped by purpose
   - read
   - admin write
 
+- `class_sessions`
+  - read
+  - write (class tutor / admin)
+
 - `mentorships`
   - read
   - admin write
@@ -115,6 +119,15 @@ This is the current functional inventory. It is intentionally grouped by purpose
 - `comments`
   - read
   - insert
+
+- `resource_versions`
+  - read (mirrors the parent resource's read)
+
+- `attachments`
+  - read (owner submission / resource / announcement read); writes are service-role only
+
+- `tags`
+  - read (shared vocabulary); admin / service-role writes
 
 - `meet_links`
   - read
@@ -148,6 +161,12 @@ This is the current functional inventory. It is intentionally grouped by purpose
 - `payslip_lines`
   - read
 
+- `exchange_rates`
+  - admin-all (rate management); conversion reads go through the service-role client
+
+- `document_counters`
+  - admin only (atomic finance numbering)
+
 ### Self-scoped workflow data
 
 - `reminders`
@@ -170,6 +189,14 @@ This is the current functional inventory. It is intentionally grouped by purpose
 - `messages`
   - participant read
   - participant insert
+
+### Service-role only (RLS enabled, no public policy)
+
+RLS is on with no SELECT/INSERT policy, so these are reachable only through the service-role client (RLS bypass) — by design.
+
+- `entity_tags` — tag joins, written by the tagging service
+- `pending_emails` — the outbound email queue (enqueued and drained server-side)
+- `rate_limit_counters` — IP-keyed rate-limit counters
 
 ## What to check
 

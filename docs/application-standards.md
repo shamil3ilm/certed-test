@@ -1,13 +1,21 @@
 # Application Standards
 
 - Date: 2026-07-23
-- Status: Active baseline
-- Purpose: Define the default structural and coding standards that all ongoing overhaul work must follow.
+- Status: Active baseline — the code-style and naming conventions.
+- Purpose: The naming, file-organization, formatting, comment, method, variable, constant, and error-code conventions the codebase follows.
 
-Related references:
+## Scope and canonical ownership
 
-- `docs/architecture-rules.md` - binding architecture and layering rules
-- `docs/architecture-implementation-plan.md` - implementation roadmap for the architecture pass
+This document owns **code style and conventions**. Architecture, layering, import
+direction, and query-safety **enforcement** are owned by
+[architecture-rules.md](architecture-rules.md) (the binding rulebook). Where this
+document restates any of those (notably §3 Coding Pattern and §5 Query Pattern),
+`architecture-rules.md` is authoritative and wins on any conflict — the sections
+here exist so a developer sees the style and the rule together, not as a second
+source of truth.
+
+[architecture-implementation-plan.md](architecture-implementation-plan.md) is the
+historical record of how that architecture was built (substantially implemented).
 
 ---
 
@@ -28,6 +36,8 @@ Related references:
 5. Files above 250 lines should be reviewed for splitting; files above 400 lines should usually be split by concern unless there is a clear reason not to.
 
 ## 3. Coding Pattern
+
+> Layering (items 1–2) restates [architecture-rules.md](architecture-rules.md), which is authoritative on the app → services → data boundary.
 
 1. Pages, route handlers, and server actions must stay thin.
 2. Business rules, validation, normalization, permission checks, and audit writes belong in services.
@@ -70,6 +80,8 @@ Related references:
 9. Route and API helpers should preserve the chosen transport style consistently instead of mixing unrelated paradigms ad hoc.
 
 ## 5. Query Pattern
+
+> Query-**safety** rules (bounded reads, deterministic ordering, escaping filter input, DB-side aggregation, RLS vs service-role) restate [architecture-rules.md](architecture-rules.md), which is authoritative; the items below add the code-style naming layer on top.
 
 1. Query functions should use read-oriented names such as `list...`, `get...`, `find...`, `count...`, `summarize...`, or `load...`.
 2. Query helpers must state scope in naming when it matters, for example `listMyReminders`, `getClassMembers`, `listRecentDocs`, or `countUsersHubStats`.

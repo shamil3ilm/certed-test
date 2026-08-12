@@ -33,6 +33,7 @@ Current seeded personas include:
 - `subadmin@mock.test`
 - `tutor@mock.test`
 - `mentor@mock.test`
+- `tutormentor@mock.test` (hybrid tutor + mentor persona)
 - `student@mock.test`
 - `student2@mock.test`
 

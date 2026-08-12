@@ -38,12 +38,16 @@
 
 Update any affected docs in the same workstream:
 
-- `README.md`
-- `docs/setup-guide.md`
-- `docs/schema-reference.md`
-- `docs/rls-policy-inventory.md`
-- `docs/persona-model.md`
-- `supabase/README.md`
+- `docs/schema-reference.md` — a section per table (add one whenever a migration adds a table)
+- `docs/rls-policy-inventory.md` — the table's policy family, whenever RLS changes
+- `docs/fk-cascade-inventory.md` — whenever a migration adds or changes a foreign key
+- `docs/api-reference.md` — whenever a route is added or its guard changes
+- `docs/persona-model.md` — when persona or capability support changes
+- `supabase/README.md` — add the migration to the "notable groups" list
+- `README.md` / `docs/setup-guide.md` — if the setup or feature surface changes
+
+The `check:doc-links` gate (CI + pre-push) catches a link broken by a doc move; it
+does **not** catch a doc left stale by a schema change — that is on this checklist.
 
 ## 5. Rebuild alignment (required in the SAME change that adds a migration)
 

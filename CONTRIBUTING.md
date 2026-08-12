@@ -1,6 +1,6 @@
 # Contributing
 
-Cert-Ed Academia is a Next.js 16 (App Router) + Supabase learning portal. This is the short version; deeper references live in [`docs/`](docs/).
+Cert-Ed Academia is a Next.js 16 (App Router) + Supabase learning portal. This is the short version; the full documentation map is [docs/README.md](docs/README.md).
 
 ## Running locally
 
@@ -43,6 +43,13 @@ npm run build
 - Gate on capabilities, not personas; see [ADR 0002](docs/adr/0002-capability-first-route-guards.md).
 - Coding standards live in [docs/application-standards.md](docs/application-standards.md) and [docs/architecture-rules.md](docs/architecture-rules.md).
 - Comments describe the live system, not commit or phase history.
+
+## Documentation
+
+- The index — and the canonical owner for each topic — is [docs/README.md](docs/README.md). One doc owns each subject: **architecture-rules** for layering, **schema-reference** for tables, **environment** for variables, **rls-policy-inventory** for policies. Link to the owner rather than restating it.
+- Update the affected docs in the **same PR** as the change. For schema changes, [docs/migration-checklist.md](docs/migration-checklist.md) §4 lists exactly which docs to touch.
+- Deploying to production? Start at [docs/deployment.md](docs/deployment.md) and [docs/production-checklist.md](docs/production-checklist.md).
+- `npm run check:doc-links` (also a CI + pre-push gate) fails on a broken cross-doc link. Prose is written unwrapped (one line per bullet/paragraph); the formatter aligns tables.
 
 ## Commits and PRs
 

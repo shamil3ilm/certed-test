@@ -109,6 +109,12 @@ Purpose:
 
 - tutor-to-class relationship
 
+### `class_sessions`
+
+Purpose:
+
+- individual held/scheduled sessions of a class (attendance and session feedback anchor to these)
+
 ### `mentorships`
 
 Purpose:
@@ -132,6 +138,10 @@ Notes:
 
 - class materials and resource links
 
+### `resource_versions`
+
+- version history for a resource (each edit keeps the prior file/link)
+
 ### `assignments`
 
 - classwork definition
@@ -152,6 +162,23 @@ Notes:
 ### `attendance`
 
 - per-class, per-student, per-session attendance records
+
+### `attachments`
+
+- custodial file records uploaded to academy-owned Drive storage, for submissions, resources, and announcements
+- explicit lifecycle `pending` → `active` / `failed` / `deleted`; exactly one owner (see [ADR-0006](adr/0006-custodial-attachment-storage.md))
+
+### `meet_links`
+
+- per-class meeting links
+
+### `tags`
+
+- the shared tag vocabulary
+
+### `entity_tags`
+
+- tag assignments joining a tag to a tagged row (submission, resource, etc.)
 
 ## Messaging and notifications
 
@@ -217,6 +244,10 @@ Purpose:
 
 - atomic numbering support for finance documents
 
+### `exchange_rates`
+
+- admin-managed, effective-dated currency conversion rates (multi-currency finance, migration 0056)
+
 ## Workflow and operational tables
 
 ### `reminders`
@@ -234,6 +265,14 @@ Purpose:
 ### `calendar_events`
 
 - dated event records
+
+### `pending_emails`
+
+- outbound email queue drained by a scheduled job, so notification email fan-out stays off the request path
+
+### `rate_limit_counters`
+
+- Postgres-backed counters for IP-keyed rate limiting of unauthenticated endpoints
 
 ## Helper-function model
 
@@ -261,6 +300,26 @@ Examples of important helpers:
 Important current rule:
 
 - `is_active_admin()` is part of the unified admin authority model and must stay aligned with `user_is_admin(...)`
+
+## Foreign keys and cascade behaviour
+
+Referential integrity is enforced by foreign keys throughout; the `ON DELETE`
+behaviour of each follows one consistent policy:
+
+- **CASCADE** for rows that are meaningless without their parent — a class's
+  academic records, a submission's comments and attachments, a person's own
+  participation (enrollments, personas, notifications, reminders).
+- **SET NULL** for authorship/actor references and financial party links, so a
+  deleted person never erases the receipts, payslips or audit trail they touched.
+- **RESTRICT** for `attachments.uploaded_by`, so a profile that still owns custodial
+  files cannot be deleted out from under them.
+
+Two columns (`calendar_events.created_by`, `timetable_slots.tutor_id`) currently
+default to NO ACTION — see the review note in the inventory.
+
+For the exhaustive per-column table (59 foreign keys) and rationale, use:
+
+- [fk-cascade-inventory.md](./fk-cascade-inventory.md)
 
 ## RLS model summary
 
@@ -292,4 +351,5 @@ For exact policy names and verification expectations, use:
 
 - [persona-model.md](./persona-model.md)
 - [rls-policy-inventory.md](./rls-policy-inventory.md)
+- [fk-cascade-inventory.md](./fk-cascade-inventory.md)
 - [workflow-invariants.md](./workflow-invariants.md)

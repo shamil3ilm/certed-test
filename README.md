@@ -116,13 +116,9 @@ Current key areas:
 
 Dependency direction is `app -> services -> data`, with `ui`, `validation`, `api`, and `auth/session` as shared leaves. See [docs/architecture-rules.md](docs/architecture-rules.md) for the binding rules.
 
-## Architecture references
+## Documentation
 
-These documents are the current architecture references:
-
-- [docs/application-standards.md](docs/application-standards.md)
-- [docs/architecture-rules.md](docs/architecture-rules.md)
-- [docs/architecture-implementation-plan.md](docs/architecture-implementation-plan.md)
+Full index of every doc — architecture, schema, API, operations, and ADRs: **[docs/README.md](docs/README.md)**. Deploying to production starts at [docs/deployment.md](docs/deployment.md) and [docs/production-checklist.md](docs/production-checklist.md).
 
 Current architecture status:
 
@@ -131,11 +127,3 @@ Current architecture status:
 - `src/lib/data` is the canonical home for raw Supabase access
 - `src/features` does not exist in the live codebase yet
 - `src/lib/services` remains the active domain-orchestration layer name
-
-## Database references
-
-- [supabase/README.md](supabase/README.md)
-- [docs/schema-reference.md](docs/schema-reference.md)
-- [docs/rls-policy-inventory.md](docs/rls-policy-inventory.md)
-- [docs/persona-model.md](docs/persona-model.md)
-- [docs/workflow-invariants.md](docs/workflow-invariants.md)

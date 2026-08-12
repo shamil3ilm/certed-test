@@ -1,6 +1,8 @@
 # Multi-currency conversion (admin-managed FX) — Implementation Plan
 
-**Status:** proposed · **Date:** 2026-08-06 · **Area:** Finance / Dashboard
+**Status:** implemented (migration `0056_multi_currency_fx.sql`; `src/lib/finance/fx.ts`, `src/lib/services/finance/fx-*.ts`) · **Date:** 2026-08-06 · **Area:** Finance / Dashboard
+
+> Historical design record — the plan below shipped as described. Kept for the rationale, not as pending work.
 
 ## Goal
 

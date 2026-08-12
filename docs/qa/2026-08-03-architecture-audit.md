@@ -1,86 +1,67 @@
 # Cert-Ed Academia — Full Architecture & Codebase Audit
 
-- **Date:** 2026-08-05 · **Revision 7** (living document; supersedes revisions 1–6. Filename reflects the first pass.)
+- **Date:** 2026-08-12 · **Revision 10** (living document; supersedes revisions 1–9. Filename reflects the first pass.)
 - **Repository:** `c:\laragon\www\wed_cert` (package `cert-ed-academia`)
-- **Branch:** `feature/cert-ed-academia-app` @ `f0c687a`
-- **Working tree:** clean except this audit file
-- **Method:** read-only static analysis + live execution of `build` (clean `.next`), `typecheck`, `test:coverage`, `lint`, `format:check`, `check:bundle`, `playwright test`, `npm audit`, the CI snapshot-freshness shell check, **and `scripts/test-rls.sh` against real Postgres 18**
+- **Branch:** `feature/cert-ed-academia-app` @ `944c927`
+- **Working tree:** clean apart from this audit file, one modified action, and two untracked docs
+- **Method:** read-only static analysis + live execution of `build` (clean `.next`), `typecheck`, `test:coverage`, `lint`, `format:check`, `check:bundle`, `check-snapshot-freshness`, `playwright test`, `npm audit`, and `scripts/test-rls.sh` against real Postgres 18
 - **Scope:** Phases 1–19 of the audit brief
 
 ---
 
-## 0. Revision 7 — every CI gate is green, and a dead safety net was found
+## 0. Revision 10 — the strongest window in ten passes
 
-Three commits closed both High findings from revision 6. **For the first time in seven
-passes, every gate in CI passes.**
+Thirty-plus commits. **Eight carried findings closed**, including the last structural security
+item (CSP), the last Medium performance item (no queue), and the RLS-harness CI gap that had
+been open for three passes. Assertions grew from 26 → **34**.
 
-Running the RLS harness for the first time — psql was available in this environment, where it
-had not been before — surfaced the one substantial new finding: **`scripts/test-rls.sh` has
-been non-functional for 22 migrations**, so the only correctness class mock mode cannot cover
-has gone unverified.
+One regression: the admin end-to-end journey now loses its session mid-flow.
 
-### Verification results across all seven passes
+### Verification results
 
-| Command                 | R1      | R2      | R3      | R4      | R5       | R6          | R7                     |
-| ----------------------- | ------- | ------- | ------- | ------- | -------- | ----------- | ---------------------- |
-| `npm run typecheck`     | ❌      | ✅      | ✅      | ✅      | ✅       | ✅          | ✅                     |
-| `npm run lint`          | ✅      | ❌      | ✅      | ✅      | ✅       | ✅          | ✅                     |
-| `npm run format:check`  | —       | ❌      | ✅      | ✅      | ✅       | ✅          | ✅                     |
-| `npm test`              | ❌      | 741     | 754     | 764     | 765      | 789         | ✅ **789 (102 files)** |
-| `npm run test:coverage` | —       | —       | —       | ✅      | ✅       | ✅          | ✅ **73.36% lines**    |
-| `npm run build`         | ❌      | ✅      | ✅      | ✅      | ✅       | ✅          | ✅                     |
-| `npm run check:bundle`  | —       | —       | —       | ❌      | ❌       | ✅          | ✅ **127.4 / 145 KB**  |
-| `npx playwright test`   | —       | —       | —       | —       | ✅ 37/37 | ❌ 1 failed | ✅ **37/37**           |
-| Snapshot freshness (CI) | warn    | warn    | warn    | warn    | warn     | ❌          | ✅ **0055 = 0055**     |
-| `npm audit --omit=dev`  | 2 high  | 2 high  | 2 high  | ✅      | ✅       | ✅          | ✅ **0**               |
-| `scripts/test-rls.sh`   | not run | not run | not run | not run | not run  | not run     | ❌ **fails at 0034**   |
-
-### The three new commits
-
-```
-f0c687a docs: mark NEW-12/NEW-13 resolved in the architecture audit
-16c67ea fix(a11y): let mentee dashboard cards shrink below their content at 320px
-1948dda fix(db): regenerate rebuild snapshot to chain head 0055
-```
+| Command                 | R7       | R8    | R9    | R10                                 |
+| ----------------------- | -------- | ----- | ----- | ----------------------------------- |
+| `npm run typecheck`     | ✅       | ✅    | ✅    | ✅                                  |
+| `npm run lint`          | ✅       | ✅    | ✅    | ✅                                  |
+| `npm run format:check`  | ✅       | ⚠️    | ✅    | ✅                                  |
+| `npm test`              | 789      | 809   | 834   | ✅ **875 passed (114 files)**       |
+| `npm run test:coverage` | ✅       | ❌    | ✅    | ✅ **all four clear**               |
+| `npm run build`         | ✅       | ✅    | ✅    | ✅ **0 warnings**                   |
+| `npm run check:bundle`  | ✅       | ✅    | ✅    | ✅ **127.4 / 145 KB**               |
+| `npx playwright test`   | ✅ 37/37 | ❌ 3  | ❌ 3  | ❌ **1 failed / 64 passed**         |
+| Snapshot freshness      | ✅       | ❌    | ✅    | ✅ **0059 current**                 |
+| `scripts/test-rls.sh`   | ❌       | ✅ 26 | ✅ 26 | ✅ **34 passed — and now a CI job** |
+| `npm audit --omit=dev`  | ✅       | ✅    | ✅    | ✅ **0**                            |
 
 ### Findings closed this pass
 
-| ID            | Finding                                        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NEW-12** 🟠 | Snapshot stale (`0051` vs `0055`), blocking CI | `1948dda` regenerated to `0055`; the freshness check now passes. **And the process gap was closed too** — `docs/migration-checklist.md` gained a **§5 "Rebuild alignment (required in the SAME change that adds a migration)"**, stating that a migration without a regenerated snapshot _"is **not ready to merge**"_. That converts the blocking gate from a discovery mechanism into a backstop, which was the actual recommendation. |
-| **NEW-13** 🟠 | Mentor `/dashboard` overflow +52 px at 320 px  | `16c67ea` added `min-w-0` to the `<li>` grid item, with a comment recording the mechanism: _"a grid item defaults to min-width:auto and won't shrink below the row's content width, so the ListRow's own truncate can't engage."_ E2E responsive sweep green — **37/37 passing.**                                                                                                                                                        |
+| ID                        | Finding                                                         | Evidence                                                                                                                                                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **NEW-15** 🔴             | Student rendered the class Grading queue                        | ✅ `negative-access` grading spec now passes. Diagnosed as **E2E state pollution** — the seeded student held a leaked `viewGrading` capability override — not a product defect. The two earlier guard rewrites were treating a symptom; the probe-first recommendation is what resolved it. |
+| **NEW-22** 🟠             | Admin dashboard crashed into its error boundary                 | ✅ `dashboard-cards` ADMIN passes.                                                                                                                                                                                                                                                          |
+| **NEW-21** 🟢             | `/grades` wrongly listed as a tutor route                       | ✅ `67d2cf1 test(e2e): de-flake the tutor grades access check (NEW-21)`.                                                                                                                                                                                                                    |
+| **NEW-14 follow-up** 🟠   | RLS harness green but not in CI — open 3 passes                 | ✅ **Closed.** A third `rls` job with a `postgres:18` service container (`POSTGRES_HOST_AUTH_METHOD: trust`, `pg_isready` health check), with the rationale in the comment: _"RLS is the one correctness class mock mode cannot verify."_                                                   |
+| **FIND-15** 🟢            | CSP required `unsafe-inline` + `unsafe-eval` — carried since R2 | ✅ `379dbe2 feat(security): nonce-based CSP for the portal`. `script-src 'self' 'nonce-…' 'strict-dynamic'`; `unsafe-eval` remains **dev-only**. Marketing keeps the static policy. **The last structural security item.**                                                                  |
+| **FIND-33** 🟡            | No queue; email on the request path — carried since R4          | ✅ `dcdc317 perf(notifications): move email fan-out to a drained queue, off the request path`, drained via `/api/cron/drain-emails`. Built on the `pg_cron` foundation, as recommended, with no new infrastructure.                                                                         |
+| **FIND-27** 🟢            | No FK/cascade inventory                                         | ✅ `944c927` → [docs/fk-cascade-inventory.md](docs/fk-cascade-inventory.md).                                                                                                                                                                                                                |
+| **§8** 🟢                 | No request/correlation ID                                       | ✅ `b9242ba feat(observability): correlate logs and Sentry to the request id`.                                                                                                                                                                                                              |
+| **§15** 🟡                | `audit_log` unpurged                                            | ✅ `d22fc1a feat(db): 24-month retention for audit_log (0059)` — a longer window than notifications, matching the compliance rationale in `0051`.                                                                                                                                           |
+| **§5** 🟡                 | `getOrgSettings()` uncached                                     | ✅ `4251147 perf(finance): cache org settings across requests`.                                                                                                                                                                                                                             |
+| **N+1**                   | Mentor dashboard                                                | ✅ `f9c4a4d perf(dashboard): batch the mentor dashboard reads (~142 queries -> ~7)`.                                                                                                                                                                                                        |
+| **Security (self-found)** | Public-sharing Drive Picker                                     | ✅ `0aa3766 security: remove the public-sharing Picker and drive-share (closes S2)`.                                                                                                                                                                                                        |
 
-### New finding
+### New findings
 
-| ID         | Finding                                                                                                                                                                                              | Severity |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| **NEW-14** | `scripts/test-rls.sh` cannot run. Two independent blockers mean the RLS policy suite has not executed since migration `0034` — 22 migrations of policy changes are unverified against real Postgres. | 🟠 High  |
-
-### Correction to my own prior findings
-
-**§9 (`pg_cron` may break `test-rls.sh` / `supabase db reset`) was unfounded.** I raised it in
-revisions 4, 5 and 6 and labelled it _Not verified_ each time. It is now verified, and the
-concern was already handled when `0051` was written — three passes before I raised it:
-
-```sql
--- pg_cron is NOT present in a bare local Postgres, so `create extension` there
--- would abort `supabase db reset` / scripts/test-rls.sh at this migration. Guard
--- the whole thing in a block that skips (with a notice) when pg_cron can't be
--- installed, so a fresh local reset succeeds; production Supabase installs it.
-do $$ begin
-  begin create extension if not exists pg_cron;
-  exception when others then raise notice 'pg_cron unavailable ...'; return; end;
-```
-
-Confirmed empirically: the full `0001`–`0055` chain applies cleanly on a bare Postgres 18
-with no `pg_cron` available (`select extname from pg_extension` → `plpgsql` only). **§9 is
-closed as a non-issue** — the author anticipated it and documented the guard.
+| ID         | Finding                                                                                                                                                                                                                     | Severity  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **NEW-23** | The admin E2E journey loses its session after creating a class — lands on the login page. Deterministic across both attempts; **a regression this window** (passed in R7).                                                  | 🟠 High   |
+| **NEW-24** | `src/proxy.ts` returns fresh `NextResponse.redirect(...)` objects on four branches, discarding the refreshed session cookies `updateSession` wrote onto `response`. Latent, pre-existing, and a candidate cause for NEW-23. | 🟡 Medium |
+| **NEW-25** | [ADR-0006](docs/adr/0006-custodial-attachment-storage.md) is marked **Proposed**, but the implementation it proposes has already shipped across four commits.                                                               | 🟢 Low    |
 
 ### Still open
 
-Dark mode (FIND-29, `grep "dark:"` → **0** for the seventh consecutive pass), restore drill
-not performed (FIND-35), no `playwright-report/` artifact upload in CI (flagged three passes),
-no queue (FIND-33), PDF re-render (FIND-20).
+Dark mode (FIND-29, `grep "dark:"` → **0** for the tenth consecutive pass), restore drill not
+performed (FIND-35), no `playwright-report/` artifact upload (flagged six passes).
 
 ---
 
@@ -90,29 +71,29 @@ Cert-Ed Academia is a Next.js 16 App Router monolith serving two hosts from one 
 public marketing site (`certedacademia.com`) and a private academy portal
 (`app.certedacademia.com`), on Supabase (Auth + Postgres with RLS) and Vercel.
 
-Seven passes in, **every automated gate the project defines now passes**: 789 unit tests with
-a coverage ratchet, 37 E2E specs across five personas, a clean build on the current framework
-major, a first-load bundle 17.6 KB under budget, a rebuild snapshot matching the chain head,
-and zero dependency vulnerabilities.
+This is the strongest window across ten passes. Eight carried findings closed, several of them
+long-standing: nonce-based CSP retires the last structural security item; email moved to a
+drained queue on the existing `pg_cron` foundation; the RLS harness finally became a CI job
+after being flagged three times. The suite grew to 875 unit tests and 34 RLS assertions, and
+ten of eleven checks pass.
 
-The one thing that does not pass is the gate that was never in CI. `scripts/test-rls.sh` —
-described in its own header as _"the one class of correctness mock mode CANNOT verify"_ — has
-been unable to run since migration `0034`. Two unrelated defects block it, and because it is
-not wired into CI, nothing surfaced that. This is the classic shape of a safety net that
-quietly stopped catching things.
+The window also contains a genuine architectural pivot — **custodial file storage**
+([ADR-0006](docs/adr/0006-custodial-attachment-storage.md)) supersedes the Drive-links model
+that nine previous revisions listed as a strength. That is a defensible change, and it was
+shipped with a reconciliation sweep for stuck rows and orphaned files, which shows the new
+failure modes were thought about. But it takes on the cost, quota, backup and data-protection
+obligations the old model avoided, and those now need owners.
 
-| #   | Problem                                                                     | Severity  |
-| --- | --------------------------------------------------------------------------- | --------- |
-| 1   | RLS harness broken since `0034`; 22 migrations of policy changes unverified | 🟠 High   |
-| 2   | Restore drill documented but never performed                                | 🟡 Medium |
-| 3   | No dark mode, while the app advertises a dark `themeColor`                  | 🟡 Medium |
-| 4   | No queue; notification + email fan-out on the request path                  | 🟡 Medium |
-| 5   | No `playwright-report/` upload on E2E failure                               | 🟢 Low    |
+| #   | Problem                                                                       | Severity  |
+| --- | ----------------------------------------------------------------------------- | --------- |
+| 1   | Admin E2E journey loses its session after class creation                      | 🟠 High   |
+| 2   | Proxy redirect branches discard refreshed session cookies                     | 🟡 Medium |
+| 3   | Restore drill documented but never performed — now covers custodial files too | 🟡 Medium |
+| 4   | No dark mode, while the app advertises a dark `themeColor`                    | 🟡 Medium |
+| 5   | ADR-0006 marked Proposed although already implemented                         | 🟢 Low    |
 
-**Overall project health: 9.2 / 10** (7.4 → 7.9 → 8.6 → 8.9 → 9.1 → 9.2 → 9.2). Flat, and
-the reason is worth stating: two High findings closed and every gate green would have moved
-this up, but that is offset by learning that a safety net previously assumed functional has
-been dead for 22 migrations. The project did not get worse; the picture got more accurate.
+**Overall project health: 9.4 / 10** (7.4 → 7.9 → 8.6 → 8.9 → 9.1 → 9.2 → 9.2 → 8.9 → 9.0 →
+9.4).
 
 ---
 
@@ -120,61 +101,64 @@ been dead for 22 migrations. The project did not get worse; the picture got more
 
 ### 2.1 Stack
 
-| Concern       | Technology                                                                                                   |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| Framework     | Next.js 16.3, App Router, Turbopack build                                                                    |
-| Language      | TypeScript 5, `strict: true`                                                                                 |
-| UI            | React 19.2, Tailwind CSS v4                                                                                  |
-| Runtime       | Node.js (Vercel serverless); `runtime='nodejs'` on the PDF routes                                            |
-| Edge          | `src/proxy.ts`                                                                                               |
-| Database      | Supabase Postgres, RLS on every table, chain `0001`–`0055`, `pg_cron` retention                              |
-| Auth          | Supabase Auth (password + Google OAuth), allowlist-first                                                     |
-| Validation    | Zod v4                                                                                                       |
-| Calendar      | FullCalendar 6.1.21 (code-split)                                                                             |
-| PDF           | `puppeteer-core` + `@sparticuz/chromium`                                                                     |
-| Email         | Resend (opt-in, three-variable gate)                                                                         |
-| Observability | `logError` → stderr + Sentry (lazy-loaded, off first-load)                                                   |
-| Testing       | Vitest 4 (102 files, 789 tests) + coverage ratchet + Playwright (37 specs, gated) + **RLS harness (broken)** |
-| CI            | `verify` job (9 steps) + `e2e` job — **all green**                                                           |
-| Hosting       | Vercel, region `bom1`, 1 cron                                                                                |
+| Concern          | Technology                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Framework        | Next.js 16.3, App Router, Turbopack build                                                                           |
+| Language         | TypeScript 5, `strict: true`                                                                                        |
+| UI               | React 19.2, Tailwind CSS v4                                                                                         |
+| Edge             | `src/proxy.ts` — host split, session refresh, auth gate, **per-request CSP nonce**                                  |
+| Database         | Supabase Postgres, RLS on every table, chain `0001`–`0059`, `pg_cron` retention + queue drain                       |
+| Auth             | Supabase Auth (password + gated Google sign-in), allowlist-first                                                    |
+| **File storage** | **Custodial — academy-owned Google Drive** (ADR-0006, supersedes ADR-0004)                                          |
+| Validation       | Zod v4                                                                                                              |
+| PDF              | `puppeteer-core` + `@sparticuz/chromium`, 304 on unchanged documents                                                |
+| Email            | Resend, **drained from a queue off the request path**                                                               |
+| Observability    | `logError` → stderr + Sentry, **correlated by request id**                                                          |
+| Testing          | Vitest 4 (114 files, 875 tests) + coverage ratchet + Playwright (65 specs) + **RLS harness (34 assertions, in CI)** |
+| CI               | `verify` + `e2e` + **`rls`** jobs, plus a pre-push snapshot guard                                                   |
+| Hosting          | Vercel, region `bom1`, 3 crons (keepalive, drain-emails, reconcile-attachments)                                     |
 
 ### 2.2 Bundle profile
 
 ```
 First-load shared JS (gzipped): 127.4 KB across 4 chunks
 Budget (firstLoadSharedKb):     145 KB
-Headroom:                       17.6 KB  → script suggests ratcheting to 133
+Headroom:                       17.6 KB  → script still suggests ratcheting to 133
 ```
 
-Unchanged from revision 6 — the three commits were a snapshot regeneration, a one-class CSS
-fix, and a docs edit.
+Flat across four passes despite substantial feature work — the new surfaces are
+server-component-heavy.
 
-### 2.3 Modules & features
+### 2.3 The architectural pivot: custodial storage
 
-**Marketing:** home, about, classes, contact, 3 SEO blog articles, sitemap + robots.
+Four commits (`6cc0e5c`, `4bb1167`, `e5af9e3`, `201f132`, `467ea24`, `e44010e`) move the app
+from _"documents are Drive links"_ to _"the academy owns the file"_: an `attachments` table
+(`0057`), a custodial upload provider with validation, access-checked streaming
+download/preview, a reusable server-upload widget, and upload surfaces on submissions,
+resources and announcements. `0aa3766` removed the public-sharing Picker in the same window.
 
-**Portal:** Dashboard (per-persona widgets, interactive KPI cards, dynamic charts); Classroom
-per class (Stream, Classwork, People, Attendance with filterable history + per-session summary
-and student feedback, Grading, Meet); Assignments; Grades (student-facing filterable card);
-Documents (search, categories, staff/class visibility, versions, audited downloads); Tags
-(entity-agnostic); Reports; Calendar + Timetable; Messaging; Notifications (in-app + email);
-Reminders; Settings; Mentees; Admin (Users, permission overrides, Finance, History, Messaging
-matrix); Auth (login, self-registration, forgot/reset, access-pending/revoked).
+**This reverses a design nine revisions praised.** ADR-0004's rationale — sidestepping file
+storage removes a whole class of cost, quota, backup and data-protection problems — was
+sound, and those problems are now in scope. Two things suggest it was done with eyes open:
+
+- `a927447 feat(attachments): reconciliation sweep for stuck rows and orphan Drive files` — the two failure modes custodial storage introduces (a DB row with no file, a file with no row), handled by a scheduled sweep rather than hoped away.
+- Removing the public-sharing Picker in the same window closes the sharing hole the old model depended on.
+
+**What now needs an owner:** quota monitoring, a backup/restore story for the files themselves
+(FIND-35 just grew in scope), and a data-protection position on holding student work. None of
+these are in the docs yet.
 
 ### 2.4 Authorization model
 
-Two layers ([ADR-0003](docs/adr/0003-personas-as-fixed-identities.md)): fixed `profiles.role`
-identity plus `persona_assignments` (global or scoped). On top, 16 capabilities with explicit
-precedence ([ADR-0002](docs/adr/0002-capability-first-route-guards.md)):
+Unchanged in shape ([ADR-0002](docs/adr/0002-capability-first-route-guards.md),
+[ADR-0003](docs/adr/0003-personas-as-fixed-identities.md)):
 
 ```
 hard rule  >  explicit deny  >  explicit allow  >  persona default
 ```
 
-**Verification status matters here.** The app-layer half is well covered — unit tests plus 8
-`scoping.pw.ts` E2E specs asserting page- and API-level boundaries. The **database half —
-the RLS policies that are the second line of defence — is currently unverified** (NEW-14).
-The two layers are designed to agree; only one of them is being checked.
+Both layers verified — 34 RLS assertions plus unit and E2E coverage — and the RLS half now
+runs on every push.
 
 ### 2.5 Architecture diagram
 
@@ -185,86 +169,67 @@ flowchart TB
   end
 
   subgraph Vercel["Vercel (bom1)"]
-    MW["proxy.ts (Edge)<br/>host split · session refresh · auth gate"]
+    MW["proxy.ts (Edge)<br/>host split · session refresh · auth gate<br/>per-request CSP nonce · 401 JSON for API"]
     subgraph Next["Next.js 16 App Router"]
       MKT["(mkt) marketing"]
       PRT["(prt) portal<br/>RSC pages + Server Actions"]
-      API["/api route handlers"]
+      API["/api route handlers<br/>+ attachment stream"]
     end
-    CRON["Vercel Cron 0 6 * * *<br/>→ /api/cron/keepalive"]
+    CRON["Vercel Cron ×3<br/>keepalive · drain-emails · reconcile-attachments"]
   end
 
   subgraph Domain["src/lib"]
     GUARD["auth/require-role"]
-    ACTOR["session/actor-context<br/>React cache() per request"]
+    ACTOR["session/actor-context"]
     CAP["capabilities"]
-    PERM["permission<br/>class · mentor · class-write · documents"]
+    PERM["permission"]
     SVC["services/*"]
+    ATT["attachments<br/>provider · validation · service"]
+    FX["finance/fx"]
     DATA["data/*"]
-    OBS["observability/log"]
-    RLS2["security/rate-limit-shared<br/>↘ in-process fallback"]
-    MAILM["email/resend"]
+    OBS["observability/log<br/>+ request-id correlation"]
+    QUEUE["notification email queue"]
+    CSP["security/csp"]
   end
 
   subgraph Supabase
     AUTH["Auth (GoTrue)"]
-    PG[("Postgres · RLS on every table<br/>chain 0001–0055<br/>policies UNVERIFIED since 0034")]
+    PG[("Postgres · RLS on every table<br/>chain 0001–0059<br/>34 RLS assertions in CI<br/>attachments · email queue<br/>pg_cron retention")]
   end
 
   subgraph External
-    GAS["Google Apps Script"]
-    DRIVE["Google Drive"]
+    GDRIVE["Academy-owned Google Drive<br/>(custodial, ADR-0006)"]
     CHROME["@sparticuz/chromium"]
     RESEND["Resend"]
     SENTRY["Sentry"]
   end
 
   B --> MW
-  MW -->|marketing host| MKT
-  MW -->|app host| PRT
+  MW --> PRT
   MW --> API
+  MW --> CSP
   MW -->|updateSession| AUTH
-
   PRT --> GUARD
-  API --> GUARD
   GUARD --> ACTOR
   ACTOR --> CAP
-  ACTOR -->|getClaims| AUTH
   PRT --> SVC
-  API --> SVC
-  API --> RLS2
   SVC --> PERM
+  SVC --> ATT
+  SVC --> FX
   SVC --> DATA
+  SVC --> QUEUE
   SVC --> OBS
-  SVC --> MAILM
-  MAILM --> RESEND
+  ATT --> GDRIVE
+  ATT --> DATA
+  QUEUE --> PG
+  CRON -->|drain| QUEUE
+  CRON -->|reconcile| ATT
+  QUEUE --> RESEND
   OBS --> SENTRY
-  B -.->|"lazy chunk, only when DSN set"| SENTRY
   PERM --> DATA
-  RLS2 --> PG
-  DATA -->|"anon client (RLS-scoped)"| PG
-  DATA -->|"service-role client (RLS bypass)"| PG
-
-  MKT --> GAS
-  PRT --> DRIVE
+  DATA -->|"anon / service-role"| PG
   API --> CHROME
-  CRON --> API
 ```
-
-### 2.6 Infrastructure inventory
-
-| Concern                | State                                                                                                    |
-| ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Deployment**         | Vercel, git-push triggered. Dual-host split in `proxy.ts`.                                               |
-| **CI/CD**              | `verify` (9 steps) + `e2e`. **All green.** RLS harness not wired in.                                     |
-| **Caching**            | Router cache disabled for dynamic routes; React `cache()` per request; `revalidatePath` after mutations. |
-| **File storage**       | None owned — Drive links ([ADR-0004](docs/adr/0004-google-drive-storage-model.md)).                      |
-| **Scheduled jobs**     | Vercel Cron keepalive + `pg_cron` notification purge (daily 03:30 UTC).                                  |
-| **Background workers** | **None.** Notification + email fan-out synchronous.                                                      |
-| **Logging**            | `logError` → stderr + Sentry, severity-split.                                                            |
-| **Monitoring**         | Sentry wired; client SDK only emitted when a DSN is set at build.                                        |
-| **Error handling**     | Typed `ServiceError` hierarchy → `apiError` / `toActionError`.                                           |
-| **Config**             | Fail-fast `env.ts`; build guard; secrets inventory documented.                                           |
 
 ---
 
@@ -272,351 +237,335 @@ flowchart TB
 
 ---
 
-### NEW-14 · The RLS harness has been dead since migration 0034 — 🟠 High
-
-`scripts/test-rls.sh` describes itself as the check for _"the one class of correctness mock
-mode CANNOT verify (the mock has no RLS)"_. Run against real Postgres 18 this pass, it fails
-before executing a single assertion. **Two independent blockers.**
-
-#### Blocker 1 — `0034` revokes a function that is never created — ✅ FIXED
-
-> **Resolved.** Line 30 deleted. Independently re-verified: the full `0001`–`0055` chain applies
-> to bare Postgres 18 (`ON_ERROR_STOP=1`) with no `rls_auto_enable` stub, producing 33 tables /
-> 69 policies / 24 functions — schema byte-identical to the committed snapshot, confirming the
-> revoke was a true no-op. Analysis below retained for context.
+### NEW-23 · The admin E2E journey loses its session after creating a class — 🟠 High
 
 ```
-MIGRATION FAILED: supabase/migrations/0034_lock_down_rpc_execute.sql
-ERROR: function public.rls_auto_enable() does not exist
+ADMIN -- create class -> enrol -> announce -> issue receipt -> add user
+  getByRole('heading', { name: 'E2E Physics G11' }) — element(s) not found
 ```
 
-[0034_lock_down_rpc_execute.sql:30](supabase/migrations/0034_lock_down_rpc_execute.sql#L30):
+Deterministic: failed on the initial run **and** the retry.
 
-```sql
-revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+**The page snapshot shows the login screen.** Its only heading is `"Welcome back"`.
+
+**What is established:**
+
+| Fact                                   | Evidence                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| The class **was** created              | `page.waitForURL(/\/classroom\/[0-9a-f-]{36}/)` matched, so the server action succeeded and redirected              |
+| The subsequent GET was unauthenticated | `proxy.ts` line 95 (`if (!user) redirect('/login')`) is the only path to that screen                                |
+| Admin auth works generally             | `negative-api` admin-issuing, `negative-api` admin-void, and `people-list` admin all pass **later in the same run** |
+| This is a regression                   | The same spec passed in R7 (`ok 8 … ADMIN -- create class …`)                                                       |
+
+So the session is lost specifically between the create-class server action and the following
+navigation — not globally, and not because of a broken login.
+
+**Not verified:** the cause. NEW-24 below is the most plausible candidate, but the failing
+request is a _page_ GET rather than one of the redirect branches, so the discarded-cookie
+mechanism does not straightforwardly explain it. Two windows introduced plausible
+contributors — the per-request CSP nonce (`379dbe2`, which changed how the proxy constructs
+its response) and the E2E host-resolution change (`74bcec0`).
+
+**Recommendation — probe before fixing.** This is the same lesson NEW-15 taught: two guard
+rewrites were made there against unverified theories before a probe resolved it.
+
+1. Log the Supabase auth cookie names/values on the failing GET and on the request immediately before it.
+2. Bisect the two candidates: temporarily disable the nonce path (`kind === 'app' ? generateNonce() : null` → `null`) and re-run just this spec. That isolates `379dbe2` in one run.
+3. Fix NEW-24 regardless — it is a real hazard on its own merits.
+
+---
+
+### NEW-24 · Proxy redirect branches discard refreshed session cookies — 🟡 Medium
+
+[src/proxy.ts](src/proxy.ts) builds `response` at line 41, hands it to `updateSession(request,
+response)` at line 69 — which writes refreshed Supabase auth cookies onto it — and returns it
+at line 97. That path is correct.
+
+But four branches return a **different** response object:
+
+```
+73:  return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
+78:  return NextResponse.redirect(new URL('/dashboard', request.url))
+95:  return NextResponse.redirect(new URL('/login', request.url))
 ```
 
-`grep -rn "rls_auto_enable"` over the **entire repository** returns exactly one hit — that
-line. There is no `create function public.rls_auto_enable()` in any migration, and it is
-absent from `supabase/rebuild/0000_full_rebuild.sql`. `git log -S` shows it arrived in
-`ceb8aee` with no matching definition.
+`NextResponse.redirect(...)` creates a fresh response with no cookies. Any session refresh
+that `updateSession` performed on that request is **silently discarded** — the browser keeps
+the old token, and the next request may find it expired.
 
-That last point carries an inference worth spelling out: **the rebuild snapshot is a
-`pg_dump` of the live, fully-migrated database** (regenerated to `0055` two commits ago). If
-`rls_auto_enable()` existed in production, the dump would contain it. It does not — so the
-function does not exist in production either. The `revoke` has never done anything anywhere;
-it is a stray line referring to a function that was presumably renamed or dropped before the
-migration was committed.
+This is the well-known `@supabase/ssr` middleware footgun; the package's own guidance is to
+copy cookies onto any response you return in place of the one you passed in.
 
-**Consequences:**
-
-- The RLS harness aborts at `0034`, so **policies added or changed in `0034`–`0055` have never been exercised against real Postgres.** That includes `0038` (class RLS persona-gating), `0039` (messaging active-self), `0043` (the `teaches_class` mentor widening), `0045` (document visibility), `0046` (announcement reads), `0055` (`entity_tags` hardening) — every RLS change of the last 22 migrations.
-- A fresh `supabase db reset` from the authoritative chain would hit the same error. **Not verified** whether the Supabase CLI aborts or continues — but either way the chain is not self-contained.
-- This is masked in normal operation because provisioning goes via the snapshot, which is dumped from a live DB rather than replayed from the chain.
-
-**Fix:** delete line 30. It protects nothing. `git rm`-level change, and the probe below
-confirms it is the only chain-level blocker.
-
-**Verified:** with that single line neutralised in a scratch copy, the **entire `0001`–`0055`
-chain applies cleanly** to a bare Postgres 18 with `ON_ERROR_STOP=1`. No other migration
-fails.
-
-#### Blocker 2 — the seed fixture violates the `0052` business rule
-
-With the chain applying, the harness gets one step further and dies on its own fixture:
-
-```
-SEED FAILED
-ERROR: duplicate key value violates unique constraint "enrollments_one_active_student_per_class"
-DETAIL: Key (class_id)=(c0000000-0000-4000-8000-000000000001) already exists.
-```
-
-[test-rls.sh:86-89](scripts/test-rls.sh#L86-L89) actively enrols two students in class `…001`:
-
-```sql
-insert into enrollments(student_id,class_id,active) values
- ('a0000000-…-000000000030','c0000000-…-000000000001',true),
- ('a0000000-…-000000000031','c0000000-…-000000000001',true),   -- ← now forbidden
-```
-
-`0052_one_active_student_per_class` added a partial unique index on `enrollments (class_id)
-where active`. The fixture predates it.
-
-**This is more than a seed edit — it is a test-design question the business-rule change
-created.** Two students sharing a class was almost certainly the fixture for _"student A must
-not see student B's submission in the same class"_. Under the new one-student-per-class rule
-that scenario cannot occur in production, so:
-
-- the seed should move `…031` to a third class (or set `active=false`), **and**
-- whoever fixes it should check whether any RLS policy still has a same-class-peer branch that is now unreachable, and whether the cross-student isolation the fixture was testing is still expressed somewhere meaningful.
-
-#### Root cause and the durable fix
-
-Both blockers share one cause: **the harness is not in CI**, so nothing tells anyone it
-stopped working. Every other gate in this project earns its keep precisely because it runs on
-every push — the E2E suite proved that last pass by catching a real regression the moment it
-appeared.
+It is **pre-existing** — the pattern is visible in the revision-1 middleware — and it has not
+obviously caused problems, because a redirect is usually followed immediately by a request
+that refreshes again. But it is exactly the class of latent bug that surfaces when timing
+changes, which makes it worth fixing while NEW-23 is being investigated.
 
 **Recommendation:**
 
-1. Delete `0034:30`.
-2. Repair the seed fixture and review the isolation-test design against the `0052` rule.
-3. **Wire `scripts/test-rls.sh` into CI as a third job** with a `postgres:18` service container. It needs only psql and a database — no Supabase CLI, no build. This is the single highest-value CI addition available: it is the only check that covers the database half of the authorization model, and both defects above would have been caught the day they landed.
-4. Add the harness to the migration checklist alongside §5's snapshot requirement, so a migration that breaks the fixture is caught by the author.
+```ts
+function redirectPreservingSession(url: URL, from: NextResponse): NextResponse {
+  const redirect = NextResponse.redirect(url)
+  from.cookies.getAll().forEach((c) => redirect.cookies.set(c))
+  redirect.headers.set('Content-Security-Policy', from.headers.get('Content-Security-Policy')!)
+  return redirect
+}
+```
 
-**Effort:** ~15 minutes for blocker 1, ~1 hour for blocker 2 plus the design review, ~1 hour
-to add the CI job.
+Note the CSP header is dropped by those branches too, so a redirect currently serves no
+policy at all. One helper fixes both.
+
+---
+
+### NEW-25 · ADR-0006 is marked Proposed but is already implemented — 🟢 Low
+
+[docs/adr/0006-custodial-attachment-storage.md](docs/adr/0006-custodial-attachment-storage.md)
+carries `**Status:** Proposed` and `**Supersedes:** 0004`. The implementation shipped in the
+same window across six commits (`6cc0e5c` … `e44010e`, plus `a927447`).
+
+A superseding ADR left in _Proposed_ while its replacement is live means a reader checking
+"how does this app store files?" gets two ADRs, one Accepted and wrong, one Proposed and
+right.
+
+**Recommendation:** set `0006` to **Accepted** with the implementation date, and add a
+`Superseded by 0006` line to `0004`. Two-line change.
 
 ---
 
 ### Remaining carried findings
 
-| ID                      | Finding                                                                                                     | Severity  | Note                                                                                                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **FIND-35**             | Backup/DR documented; **restore drill still not performed**.                                                | 🟡 Medium | Unblocked — the snapshot is current at `0055` and the regeneration path is proven.                                                                                                      |
-| **FIND-29**             | No dark mode — `grep "dark:"` → **0** across seven passes, while `layout.tsx` declares a dark `themeColor`. | 🟡 Medium | The longest-running unaddressed finding. Either implement via semantic tokens (migrate `src/lib/ui` first) or drop the dark `themeColor` — a one-line change that removes the mismatch. |
-| **FIND-33**             | No queue; notification + email fan-out on the request path.                                                 | 🟡 Medium | `pg_cron` confirmed working on Supabase; a queue table + scheduled drain needs no new infrastructure.                                                                                   |
-| **FIND-20**             | PDF cold-start across 4 endpoints; immutable finance docs re-rendered per download.                         | 🟡 Medium |                                                                                                                                                                                         |
-| **H3 (R5/R6)**          | No `playwright-report/` artifact upload on E2E failure.                                                     | 🟢 Low    | Flagged three passes. NEW-13 was the exact case that needed it — the failure was diagnosable locally, but a CI-only failure would not have been.                                        |
-| **FIND-15**             | CSP requires `unsafe-inline` + `unsafe-eval`.                                                               | 🟢 Low    | Actionable on Next 16 via nonce support.                                                                                                                                                |
-| **NEW-10**              | Turbopack warns on dynamic filesystem access in `brand-assets.ts`.                                          | 🟢 Low    |                                                                                                                                                                                         |
-| **FIND-09**             | `src/features` documented in two architecture docs, never built.                                            | 🟢 Low    |                                                                                                                                                                                         |
-| **FIND-10**             | Mock harness statically imported into the production module graph.                                          | 🟢 Low    | Now measurable against the first-load metric.                                                                                                                                           |
-| **NEW-06**              | Matrix-persona reads sequential (bounded at 5).                                                             | 🟢 Low    |                                                                                                                                                                                         |
-| **FIND-32**             | No automated a11y check.                                                                                    | 🟢 Low    | Cheap — the E2E suite is green and gated.                                                                                                                                               |
-| **M5**                  | Ratchet `firstLoadSharedKb` 145 → 133.                                                                      | 🟢 Low    | The script computes the value for you.                                                                                                                                                  |
-| **FIND-27/31/44/45/46** | No FK inventory; blog JSX; no global search; footer mojibake; no in-app help.                               | 🟢 Low    |                                                                                                                                                                                         |
+| ID                   | Finding                                                                                                   | Severity  | Note                                                                                                                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FIND-35**          | Backup/DR documented; **restore drill still not performed** — and the scope just grew.                    | 🟡 Medium | Custodial storage means a restore must now cover the `attachments` rows _and_ the Drive files, kept consistent with each other. The reconciliation sweep helps but is not a restore path. |
+| **FIND-29**          | No dark mode — `grep "dark:"` → **0** across ten passes, while `layout.tsx` declares a dark `themeColor`. | 🟡 Medium | Longest-running finding. Either implement, or drop the dark `themeColor` (one line).                                                                                                      |
+| **NEW-22 follow-up** | Mock-harness parity has no standing rule.                                                                 | 🟡 Medium | Recommended in R9, not yet added to the migration checklist. `attachments` is a new table the app reads on rendered pages — the same shape as the FX gap.                                 |
+| **H3 (R5–R10)**      | No `playwright-report/` artifact upload on E2E failure.                                                   | 🟢 Low    | Flagged six passes. Every E2E diagnosis in R8–R10 depended on local artifacts.                                                                                                            |
+| **Custodial ops**    | No quota monitoring, file-backup story, or data-protection position for held student work.                | 🟡 Medium | New, implied by ADR-0006.                                                                                                                                                                 |
+| **NEW-10**           | Turbopack warns on dynamic filesystem access in `brand-assets.ts`.                                        | 🟢 Low    | The build now reports **0 warnings**, so this may be resolved — **not verified**.                                                                                                         |
+| **FIND-09/10**       | `src/features` never built; mock harness in the production module graph.                                  | 🟢 Low    |                                                                                                                                                                                           |
+| **NEW-06**           | Matrix-persona reads sequential (bounded at 5).                                                           | 🟢 Low    |                                                                                                                                                                                           |
+| **FIND-32**          | No automated a11y check.                                                                                  | 🟢 Low    | Cheap now the suite is green and gated.                                                                                                                                                   |
+| **M5**               | Ratchet `firstLoadSharedKb` 145 → 133.                                                                    | 🟢 Low    | Script computes the value; flagged five passes.                                                                                                                                           |
+| **FIND-31/44/45/46** | Blog JSX; no global search; footer mojibake; no in-app help.                                              | 🟢 Low    |                                                                                                                                                                                           |
 
 ---
 
 ## 4. Security Audit (Phase 3)
 
-### 4.1 Posture
+| Control                          | State                                                                                                                              |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Dependency vulnerabilities**   | ✅ **0**; `2aa392f` patched the nanoid advisory and made the build fail on missing public env.                                     |
+| **CSP**                          | ✅ **Nonce-based.** `script-src 'self' 'nonce-…' 'strict-dynamic'`; `unsafe-eval` dev-only. Closes FIND-15, open since revision 2. |
+| **Database-layer authorization** | ✅ **34 assertions, in CI on every push.**                                                                                         |
+| **App-layer authorization**      | ✅ Negative sweeps, positive controls, API scoping and form negatives all pass. NEW-15 resolved as test-state pollution.           |
+| **Public file sharing removed**  | ✅ `0aa3766` removed the public-sharing Picker and drive-share.                                                                    |
+| **Attachment access**            | Streaming download/preview is access-checked (`e5af9e3`).                                                                          |
+| **Snapshot drift**               | Blocked at authoring time by the pre-push hook.                                                                                    |
+| **Secrets**                      | None in git; inventory + rotation documented.                                                                                      |
+| **Observability**                | Request-id correlation into logs and Sentry.                                                                                       |
 
-| Control                                       | State                                                                                                                                                                                 |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dependency vulnerabilities**                | ✅ **0**.                                                                                                                                                                             |
-| **App-layer authorization**                   | ✅ **Strong and E2E-verified** — 8 `scoping.pw.ts` specs covering page and API boundaries, including the 0043 mentor-scope case and admin-only global events.                         |
-| **Database-layer authorization (RLS)**        | ⚠️ **Unverified since `0034`** (NEW-14). The policies are written carefully and reviewed in the RLS inventory, but nothing has executed them against real Postgres for 22 migrations. |
-| **Rate limiting degrades, never disables**    | ✅ `inProcessFallback()` on both branches.                                                                                                                                            |
-| **Every Server Action / portal page guarded** | Verified.                                                                                                                                                                             |
-| **Edge gate**                                 | `proxy.ts` + `public-paths.ts`, unit-tested.                                                                                                                                          |
-| **Business rules at the DB**                  | `0052` enforces one-active-student-per-class as a constraint, not just a service check.                                                                                               |
-| **`entity_tags` hardened proactively**        | `0055` narrowed an over-broad read policy days after `0054` introduced it.                                                                                                            |
-| **Secrets**                                   | None in git; inventory + rotation documented.                                                                                                                                         |
-| **Error tracking**                            | Severity-split; client SDK only emitted when configured.                                                                                                                              |
+**OWASP Top 10 — no category now carries a confirmed open defect.** A05 (Security
+Misconfiguration) improves materially with the nonce CSP; A01 is clean for the first time
+since revision 7.
 
-**On the RLS gap specifically:** this is not a claim that the policies are wrong. It is a
-claim that the project's own stated verification for them has not run. Given the app layer
-and the RLS layer are explicitly designed to agree — [class-write.ts](src/lib/permission/class-write.ts)
-documents that `0043` is what makes RLS match the app guard — an untested RLS layer means
-that agreement is asserted, not demonstrated.
-
-**OWASP Top 10:**
-
-| Category                      | Status                                                       |
-| ----------------------------- | ------------------------------------------------------------ |
-| A01 Broken Access Control     | **Strong at the app layer, unverified at the DB layer.**     |
-| A02 Cryptographic Failures    | **Adequate.**                                                |
-| A03 Injection                 | **Strong.**                                                  |
-| A04 Insecure Design           | **Strong.**                                                  |
-| A05 Security Misconfiguration | **Adequate.** CSP still needs `unsafe-inline`/`unsafe-eval`. |
-| A06 Vulnerable Components     | ✅ **Clean.**                                                |
-| A07 Auth Failures             | **Good.**                                                    |
-| A08 Data Integrity            | **Strong.**                                                  |
-| A09 Logging & Monitoring      | **Good.** Requires a DSN to be live.                         |
-| A10 SSRF                      | **Low risk.**                                                |
+**One caveat on the CSP:** NEW-24 means redirect responses currently carry no CSP header at
+all. Low exposure (a redirect body is not rendered), but it should be fixed with the same
+helper.
 
 ---
 
 ## 5. Performance Audit (Phase 4)
 
-Unchanged from revision 6 and healthy: first-load 127.4 KB with 17.6 KB headroom, Sentry not
-emitted in unconfigured builds, FullCalendar isolated to `/calendar`, 38+ purpose-documented
-indexes, request-scoped memoisation, batched messaging recipient resolution.
+A strong window:
 
-**Open:** PDF re-render (FIND-20), uncached `getOrgSettings()`, bounded matrix-persona loop
-(NEW-06), inline email on the notification path (FIND-33).
+- `f9c4a4d` — mentor dashboard **~142 queries → ~7**.
+- `4251147` — `getOrgSettings()` cached across requests (recommended since revision 5).
+- `dcdc317` — email fan-out off the request path into a drained queue.
+- `20ce34c` — `/api/health` DB ping memoised.
+- `b1fabd3` (prior window) — 304 on unchanged finance PDFs.
+
+First-load flat at 127.4 KB. **Open:** the bounded matrix-persona loop (NEW-06), and the
+budget ratchet still not taken.
 
 ---
 
 ## 6. Maintainability (Phase 5)
 
-| Principle                  | Assessment                                                                                                                                                                                                                                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **SRP / OCP / DRY / KISS** | **Strong**, unchanged.                                                                                                                                                                                                                                       |
-| **YAGNI**                  | Tagging remains generic ahead of a second consumer; defensible with the stated reuse rationale.                                                                                                                                                              |
-| **Readability**            | **Exceptional, seventh pass.** `16c67ea`'s comment records the CSS grid `min-width:auto` mechanism rather than just the fix, so the next person adding a grid of cards knows why the class is there.                                                         |
-| **Process documentation**  | `docs/migration-checklist.md` §5 now states the snapshot rule _and its consequence_ — _"or the gate blocks the next, unrelated PR (this is exactly how the snapshot…)"_. Encoding the failure history next to the rule is what makes a checklist item stick. |
+| Principle                  | Assessment                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **SRP / OCP / DRY / KISS** | **Strong.** `7bf011a` added shared archived-list, external-action-link and section-jump-nav primitives — continuing the consolidation pattern.                                 |
+| **Diagnosis discipline**   | **Improved, and visibly so.** NEW-15 was resolved by identifying test-state pollution rather than rewriting the guard a third time — the probe-first recommendation was taken. |
+| **Architectural honesty**  | An ADR that _supersedes_ a prior one, rather than quietly diverging from it, is the right way to reverse a decision. Marred only by the Proposed status (NEW-25).              |
+| **Failure-mode awareness** | The reconciliation sweep shipped with the custodial storage that creates the need for it, not after an incident.                                                               |
 
 ### Module scorecard
 
-| Module                                                                  | R5  | R6  |   R7   | Note                                                                                  |
-| ----------------------------------------------------------------------- | :-: | :-: | :----: | ------------------------------------------------------------------------------------- |
-| `src/lib/capabilities`                                                  | 10  | 10  | **10** |                                                                                       |
-| `src/lib/permission`                                                    | 10  | 10  | **10** |                                                                                       |
-| `src/lib/observability`                                                 | 10  | 10  | **10** |                                                                                       |
-| `src/lib/security`                                                      | 10  | 10  | **10** |                                                                                       |
-| `src/lib/routing`                                                       | 10  | 10  | **10** |                                                                                       |
-| `src/instrumentation-client.ts`                                         |  5  | 10  | **10** |                                                                                       |
-| `src/lib/ui`                                                            |  8  |  7  | **8**  | +1: the grid-shrink defect is fixed at the call site with the mechanism documented    |
-| `src/app/(prt)`                                                         |  9  |  8  | **9**  | +1: responsive sweep green                                                            |
-| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |  9  |  9  | **9**  |                                                                                       |
-| `src/lib/email` / `reports` / `documents` / `messaging`                 |  9  |  9  | **9**  |                                                                                       |
-| `supabase/migrations`                                                   |  9  |  9  | **8**  | −1: `0034` references a function that exists nowhere; the chain is not self-contained |
-| `supabase/rebuild`                                                      |  6  |  8  | **10** | Current at `0055`, blocking gate, checklist rule                                      |
-| `scripts/`                                                              |  9  | 10  | **7**  | −3: `test-rls.sh` has been non-functional for 22 migrations                           |
-| `tests/e2e`                                                             | 10  | 10  | **10** | 37/37, and it caught last pass's regression                                           |
-| `.github/`                                                              |  9  |  9  | **9**  | All green; −1 for no RLS job and no report artifact                                   |
-| `docs/`                                                                 |  9  |  9  | **10** | Migration checklist now encodes the process rule with its rationale                   |
+| Module                                                                  | R8  | R9  |  R10   | Note                                                            |
+| ----------------------------------------------------------------------- | :-: | :-: | :----: | --------------------------------------------------------------- |
+| `src/lib/capabilities` / `permission`                                   | 10  | 10  | **10** |                                                                 |
+| `src/lib/observability`                                                 | 10  | 10  | **10** | Request-id correlation                                          |
+| `src/lib/security`                                                      | 10  | 10  | **10** | Nonce CSP                                                       |
+| `src/proxy.ts`                                                          |  —  |  —  | **7**  | −3: redirect branches drop session cookies and CSP (NEW-24)     |
+| `src/lib/attachments`                                                   |  —  |  —  | **9**  | New; validation, access-checked streaming, reconciliation sweep |
+| `src/lib/ui`                                                            |  9  |  9  | **9**  |                                                                 |
+| `src/app/(prt)`                                                         |  6  |  6  | **9**  | +3: NEW-15 and NEW-22 both resolved                             |
+| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |  9  |  9  | **9**  |                                                                 |
+| `supabase/migrations`                                                   | 10  | 10  | **10** | Chain clean to `0059`; 34 RLS assertions                        |
+| `supabase/rebuild`                                                      |  8  | 10  | **10** | Current, hook-guarded                                           |
+| `scripts/`                                                              | 10  | 10  | **10** |                                                                 |
+| `src/lib/mock`                                                          |  6  |  6  | **8**  | +2: FX gap fixed; −2 no standing parity rule                    |
+| `tests/unit`                                                            |  9  |  9  | **9**  | 875 tests                                                       |
+| `tests/e2e`                                                             |  8  |  8  | **9**  | 65 specs; −1 for the admin journey regression                   |
+| `.github/` + hooks                                                      |  8  |  9  | **10** | Third `rls` job closes a three-pass gap                         |
+| `docs/`                                                                 | 10  | 10  | **9**  | −1: ADR-0006 status (NEW-25); custodial ops undocumented        |
 
 ---
 
 ## 7. Documentation (Phase 6)
 
-Strong and current: CONTRIBUTING, API reference, security operations, 5 ADRs,
-architecture-rules, application-standards, workflow-invariants, persona-model,
-migration-checklist (now with §5 rebuild alignment), schema-reference, RLS inventory, setup
-guide, mock-mode.
+`c8a36ee` and `944c927` refreshed architecture, RLS/schema, security-ops and setup docs, and
+added [docs/fk-cascade-inventory.md](docs/fk-cascade-inventory.md) — closing FIND-27.
+[ADR-0006](docs/adr/0006-custodial-attachment-storage.md) documents the storage pivot.
 
-**One documentation-adjacent risk from NEW-14:** `docs/rls-policy-inventory.md` describes the
-policy set, and the harness is what would prove the description matches reality. With the
-harness dead, the inventory is a statement of intent rather than a verified record. Worth
-noting in the doc until the harness runs again.
+**Three gaps:**
+
+- ADR-0006 status (NEW-25).
+- Custodial-storage operations — quota, file backup, data-protection — have no home yet. `docs/security-operations.md` is the natural place.
+- Mock-harness parity still absent from the migration checklist (recommended in R9).
 
 ---
 
 ## 8. Debugging Experience (Phase 7)
 
-Complete at the application layer: swallowed catches → `logError` → structured stderr +
-Sentry, severity-split, client SDK loaded only when configured.
+**Effectively complete.** Swallowed catches → `logError` → stderr + Sentry, severity-split,
+client SDK code-split, **and now correlated by request id** — the last item on this section's
+list for three passes.
 
-**Remaining, both Low:** no request/correlation ID (`x-vercel-id` would do it), and the Sentry
-DSNs are **not verified** as configured in Vercel.
+The one remaining gap is tooling: `playwright-report/` is still not uploaded on CI failure,
+flagged six passes. Every E2E diagnosis in R8–R10, including this pass's, came from reading
+`test-results/*/error-context.md` locally.
 
 ---
 
 ## 9. Database Review (Phase 8)
 
-**Schema:** 33+ tables, RLS on all, chain `0001`–`0055`, no duplicate versions, snapshot
-current, `pg_cron` retention with a correct local-Postgres fallback.
+**Schema:** 35+ tables, RLS on all, chain `0001`–`0059`, snapshot current, `pg_cron` for both
+retention and the email drain, **34 RLS assertions running in CI**.
 
-**Verified this pass:** the full chain applies cleanly to bare Postgres 18 — with one
-exception, `0034:30` (NEW-14). The `pg_cron` concern I carried for three passes is confirmed
-handled by design.
+New this window: `0057` attachments custodial storage, `0058`, `0059` audit_log 24-month
+retention. The retention split is well judged — notifications at 90 days (read only),
+audit_log at 24 months, each with its rationale recorded.
 
-| ID          | Finding                                                                                  | Severity | Status                             |
-| ----------- | ---------------------------------------------------------------------------------------- | -------- | ---------------------------------- |
-| **NEW-14**  | `0034` revokes a nonexistent function; seed violates the `0052` constraint; harness dead | 🟠 High  | New                                |
-| **FIND-27** | No FK/cascade inventory in schema docs                                                   | 🟢 Low   | Open                               |
-| **§9**      | `pg_cron` blocks local reset                                                             | —        | ✅ **Closed — was never an issue** |
+| ID              | Finding                                                | Severity  | Status               |
+| --------------- | ------------------------------------------------------ | --------- | -------------------- |
+| **FIND-27**     | No FK/cascade inventory                                | —         | ✅ **Closed**        |
+| **§15**         | `audit_log` unpurged                                   | —         | ✅ **Closed** (0059) |
+| **Mock parity** | No standing rule for new tables read on rendered pages | 🟡 Medium | Open                 |
 
 ---
 
 ## 10. Frontend Review (Phase 9)
 
-The 320 px overflow is fixed and the full responsive sweep is green across all four personas.
-The fix was made at the right level — `min-w-0` on the grid item, where the constraint
-actually applies — rather than by forcing a width or hiding overflow.
+Shared primitives continue to expand (`7bf011a`); the dashboard gained grade trajectory and
+dynamic chart periods (`2d47a24`); downloadable student reports were added to grades and
+student detail (`91686ee`); a reusable server-upload widget landed with an end-to-end
+round-trip E2E (`b3992ce`).
 
-| ID          | Finding                                                        | Severity  |
-| ----------- | -------------------------------------------------------------- | --------- |
-| **FIND-29** | No dark mode while `layout.tsx` advertises a dark `themeColor` | 🟡 Medium |
-| **FIND-32** | No automated a11y check                                        | 🟢 Low    |
+| ID          | Finding                                              | Severity  |
+| ----------- | ---------------------------------------------------- | --------- |
+| **NEW-23**  | Admin journey loses its session after class creation | 🟠 High   |
+| **FIND-29** | No dark mode (tenth pass)                            | 🟡 Medium |
+| **FIND-32** | No automated a11y check                              | 🟢 Low    |
 
 ---
 
 ## 11. Backend Review (Phase 10)
 
-Unchanged from revision 6. Thin factory-driven route handlers, domain-split services,
-one-module-per-table-group data layer, Zod at every boundary, capability + persona +
-per-resource permission checks, `proxy.ts` edge gate, shared rate limiting with in-process
-fallback, Resend email, `logError` observability, `pg_cron` retention. No queue (FIND-33).
+| Concern            | State                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| **Route handlers** | Thin, factory-driven; 401 JSON for unauthenticated API; access-checked attachment streaming. |
+| **Services**       | Domain-split; attachments provider/validation/service separated.                             |
+| **Queues / jobs**  | ✅ **Email queue drained by cron**; attachment reconciliation sweep; keepalive.              |
+| **Retention**      | `pg_cron` for notifications (90d) and audit_log (24m).                                       |
+| **Caching**        | Org settings cached; `/api/health` memoised; 304 on finance PDFs.                            |
+| **Observability**  | Request-id correlated logs and Sentry.                                                       |
+| **Edge**           | Nonce CSP — but see NEW-24.                                                                  |
 
 ---
 
 ## 12. DevOps Review (Phase 11)
 
-**CI is fully green** — `verify` (migration hygiene → snapshot freshness → format → lint →
-typecheck → coverage → build → bundle budget) plus `e2e`.
+**Three CI jobs now:** `verify`, `e2e`, and `rls` (postgres:18 service container). Plus the
+pre-push snapshot guard. The RLS gap, open since revision 7 and recommended three times, is
+closed — and the job comment records why it exists.
 
-**The gap NEW-14 exposes is a CI gap.** Every check in this project that runs on every push
-has proven its worth: migration hygiene caught a duplicate version, snapshot freshness caught
-drift within days, the E2E job caught a UI regression the day it appeared. The RLS harness is
-the one check that was written but never wired in — and it is the one that silently rotted.
+Vercel now runs three crons: keepalive, `drain-emails`, `reconcile-attachments`.
 
-**Recommended additions, in value order:**
-
-1. **RLS harness as a third job** with a `postgres:18` service container (NEW-14).
-2. `playwright-report/` artifact upload on E2E failure (flagged three passes).
-3. Restore drill (FIND-35) — not CI, but the same "written but never executed" category as the RLS harness, and worth doing for the same reason.
+**Gaps:** no `playwright-report/` upload (six passes); restore drill not performed, now with a
+wider scope.
 
 ---
 
 ## 13. Testing Review (Phase 12)
 
-| Type               | R5            | R6            | R7                                          |
-| ------------------ | ------------- | ------------- | ------------------------------------------- |
-| Unit / integration | 98 files, 765 | 102, 789      | **102 files, 789 — passing**                |
-| Coverage           | 73.16%        | 73.36%        | **73.36% lines, gated**                     |
-| E2E                | 37/37         | 36 + 1 failed | **37/37, gated**                            |
-| RLS                | not run       | not run       | ❌ **fails at 0034 — dead since `ceb8aee`** |
+| Type               | R8       | R9        | R10                                    |
+| ------------------ | -------- | --------- | -------------------------------------- |
+| Unit / integration | 105, 809 | 107, 834  | **114 files, 875 — passing**           |
+| Coverage           | ❌       | ✅ 72.53% | ✅ **72.32% lines — all four clear**   |
+| E2E                | ❌ 3     | ❌ 3      | ❌ **1 failed / 64 passed (65 specs)** |
+| RLS                | ✅ 26    | ✅ 26     | ✅ **34 — and in CI**                  |
 
-The unit and E2E layers are in good shape and gated. The RLS layer is the gap, and it is the
-layer covering the thing neither of the others can reach: mock mode has no RLS, and the E2E
-suite runs against mock mode.
+The E2E suite grew again (`3b9d31b` access-control and dashboard-card specs, `b3992ce`
+attachment round-trip) and two flaky specs were de-flaked properly rather than skipped
+(`b71a769` grading within the seeded 10-mark cap; `74bcec0` Node-side host resolution).
 
-So the current verification picture for authorization is: **app guards — well tested;
-RLS policies — not tested at all.** Both halves are designed to agree with each other, which
-means the untested half is load-bearing.
-
-Unit coverage is flat at 73.36%. `services/users/directory.ts` (31%) and `self-service.ts`
-(32%) remain the obvious ratchet targets.
+**Coverage margins remain thin** — lines clear by 0.32, branches by 0.05. Branches at 57.05
+against a 57 threshold is within noise of a breach. The R9 recommendation to push toward ~75%
+so the ratchet has room still stands, and is now more urgent.
 
 ---
 
 ## 14. UX Review (Phase 13)
 
-Responsive parity restored across all four personas at 320 px. No other UX changes this pass.
+Custodial uploads across submissions, resources and announcements are the headline: students
+and staff can attach real files rather than pasting Drive links, which removes the sharing-
+permission confusion the old model required users to manage themselves.
 
 | ID                | Finding                                           | Severity  |
 | ----------------- | ------------------------------------------------- | --------- |
-| **FIND-29**       | No dark mode                                      | 🟡 Medium |
+| **FIND-29**       | No dark mode (tenth pass)                         | 🟡 Medium |
 | **FIND-44/45/46** | No global search; footer mojibake; no in-app help | 🟢 Low    |
 
 ---
 
 ## 15. Scalability Review (Phase 14)
 
-| Dimension              | Assessment                                                                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Concurrency**        | **Good.**                                                                                                                                   |
-| **Horizontal scaling** | **Good.**                                                                                                                                   |
-| **Vertical scaling**   | Constrained by in-function Chromium across 4 PDF endpoints.                                                                                 |
-| **Large database**     | `audit_log` entity index; `notifications` bounded by retention; `audit_log` still unpurged; `entity_tags` index inventory still unexamined. |
-| **Client payload**     | ✅ 127.4 KB first-load with headroom.                                                                                                       |
-| **Caching**            | Per-request only; `getOrgSettings()` remains the best candidate.                                                                            |
-| **Queues**             | **Still none.**                                                                                                                             |
+| Dimension                            | Assessment                                                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **Concurrency / horizontal scaling** | **Good.**                                                                                                  |
+| **Request path**                     | **Materially better** — email fan-out queued, org settings cached, mentor dashboard batched.               |
+| **Large database**                   | Both growth tables now bounded by retention. `entity_tags` and `attachments` index inventories unexamined. |
+| **File storage**                     | **New obligation.** Quota, backup and lifecycle for custodial files are unowned.                           |
+| **Client payload**                   | ✅ 127.4 KB first-load with headroom.                                                                      |
+| **Queues**                           | ✅ **Present** — a queue table drained by cron, no new infrastructure.                                     |
 
 ---
 
 ## 16. Complexity Analysis (Phase 15)
 
-**Over-engineering:** tagging remains generic ahead of a second consumer. Defensible.
+**Over-engineering:** none. The window added capability, not layers.
 
-**Under-engineering:** one item, newly visible — a test harness that exists but does not run.
+**Under-engineering:** nearly resolved.
 
-| Was                                                             | R7                                                     |
-| --------------------------------------------------------------- | ------------------------------------------------------ |
-| No CI                                                           | Two jobs, all green                                    |
-| No observability / coverage / bundle budget / email / retention | ✅ All present                                         |
-| Stale rebuild snapshot                                          | ✅ Current, blocking gate, checklist rule              |
-| E2E ungated                                                     | ✅ Gated, 37/37                                        |
-| **RLS harness**                                                 | ❌ **Written, never wired in, dead for 22 migrations** |
-| No restore drill                                                | **Still not performed**                                |
-
-The last two rows are the same failure mode: a safeguard that was built but never put on a
-schedule that would reveal it had stopped working.
+| Was                                          | R10                                      |
+| -------------------------------------------- | ---------------------------------------- |
+| RLS harness not in CI                        | ✅ Third job, `postgres:18`              |
+| No queue                                     | ✅ Queue table + cron drain              |
+| CSP `unsafe-inline`/`unsafe-eval`            | ✅ Nonce-based                           |
+| `audit_log` unpurged / org settings uncached | ✅ Both closed                           |
+| Mock-harness parity rule                     | ❌ Still no standing rule                |
+| Restore drill                                | ❌ Still not performed — scope now wider |
+| CI failure artifacts                         | ❌ Still not uploaded                    |
 
 ---
 
@@ -624,106 +573,94 @@ schedule that would reveal it had stopped working.
 
 ### 🟠 High
 
-**H1 · Revive the RLS harness and put it in CI** — NEW-14 · ~2 h total
+**H1 · Diagnose NEW-23 before fixing** — ~2 h · log the auth cookies on the failing GET and
+the request before it; bisect the nonce path by temporarily forcing `nonce = null` and
+re-running the one spec. Do not rewrite the flow on a theory — that pattern cost two passes on
+NEW-15.
 
-|             |                                                                                                                                                                                           |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Problem** | Two blockers: `0034:30` revokes a function that exists nowhere; the seed fixture violates the `0052` one-active-student constraint. RLS policies unverified for 22 migrations.            |
-| **Step 1**  | Delete [0034_lock_down_rpc_execute.sql:30](supabase/migrations/0034_lock_down_rpc_execute.sql#L30) — 15 min. Verified: the whole chain then applies cleanly to bare Postgres 18.          |
-| **Step 2**  | Fix the seed (move student `…031` to a third class or mark inactive) **and** review whether the cross-student isolation it was testing is still expressible under the `0052` rule — ~1 h. |
-| **Step 3**  | Add a CI job with a `postgres:18` service container running `bash scripts/test-rls.sh` — ~1 h. Needs only psql.                                                                           |
-| **Step 4**  | Add "RLS harness passes" to the migration checklist beside §5.                                                                                                                            |
-| **Why now** | It is the only check covering the database half of the authorization model, and both defects above would have been caught on the day they landed had it been running.                     |
+**H2 · Fix NEW-24 regardless** — ~30 min · one `redirectPreservingSession` helper that copies
+cookies _and_ the CSP header onto every redirect the proxy returns.
 
 ### 🟡 Medium
 
-| ID  | Action                                                                           | Finding |
-| --- | -------------------------------------------------------------------------------- | ------- |
-| M1  | Perform the restore drill — unblocked, snapshot current                          | FIND-35 |
-| M2  | Dark mode — or remove the dark `themeColor` (seventh pass)                       | FIND-29 |
-| M3  | Confirm Sentry DSNs in Vercel                                                    | §8      |
-| M4  | Move email off the request path (`pg_cron` queue table)                          | FIND-33 |
-| M5  | Store finance PDFs at issue time                                                 | FIND-20 |
-| M6  | Purge job for `audit_log`                                                        | §15     |
-| M7  | Index review for `entity_tags` as tagging spreads                                | §15     |
-| M8  | Raise coverage on `directory.ts` (31%) and `self-service.ts` (32%), then ratchet | §13     |
-| M9  | Cache `getOrgSettings()` with tag invalidation                                   | §5      |
-| M10 | Nonce-based CSP                                                                  | FIND-15 |
-| M11 | Note in `rls-policy-inventory.md` that it is unverified until the harness runs   | §7      |
+| ID  | Action                                                                                      | Finding  |
+| --- | ------------------------------------------------------------------------------------------- | -------- |
+| M1  | Set ADR-0006 to Accepted; mark ADR-0004 superseded                                          | NEW-25   |
+| M2  | Document custodial-storage operations — quota, file backup, data protection                 | §2.3     |
+| M3  | Perform the restore drill, now covering `attachments` rows **and** Drive files consistently | FIND-35  |
+| M4  | Add a mock-harness parity rule to the migration checklist                                   | R9 carry |
+| M5  | Push coverage toward ~75% — branches clear by 0.05                                          | §13      |
+| M6  | Dark mode — or remove the dark `themeColor` (tenth pass)                                    | FIND-29  |
+| M7  | Index review for `attachments` and `entity_tags`                                            | §15      |
 
 ### 🟢 Low
 
-| ID  | Action                                                    | Finding          |
-| --- | --------------------------------------------------------- | ---------------- |
-| L1  | `playwright-report/` artifact upload on failure           | H3 (3 passes)    |
-| L2  | Ratchet `firstLoadSharedKb` 145 → 133                     | M5 (R6)          |
-| L3  | `@axe-core/playwright` assertions                         | FIND-32          |
-| L4  | Static asset paths in `brand-assets.ts`                   | NEW-10           |
-| L5  | `x-vercel-id` as a Sentry tag + log field                 | §8               |
-| L6  | Batch the matrix-persona reads                            | NEW-06           |
-| L7  | Check whether the mock harness reaches first-load         | FIND-10          |
-| L8  | Mark `src/features` PLANNED or remove it                  | FIND-09          |
-| L9  | Blog content → MDX                                        | FIND-31          |
-| L10 | Footer mojibake; global search; in-app help; FK inventory | FIND-44/45/46/27 |
+| ID  | Action                                                          | Finding          |
+| --- | --------------------------------------------------------------- | ---------------- |
+| L1  | Upload `playwright-report/` on E2E failure                      | H3 (6 passes)    |
+| L2  | Ratchet `firstLoadSharedKb` 145 → 133                           | M5 (5 passes)    |
+| L3  | `@axe-core/playwright` assertions                               | FIND-32          |
+| L4  | Confirm NEW-10 is resolved (build now reports 0 warnings)       | NEW-10           |
+| L5  | Batch the matrix-persona reads                                  | NEW-06           |
+| L6  | Mark `src/features` PLANNED or remove it                        | FIND-09          |
+| L7  | Blog content → MDX; footer mojibake; global search; in-app help | FIND-31/45/44/46 |
 
 ---
 
 ## 18. Quick Wins
 
-1. **Delete `0034_lock_down_rpc_execute.sql:30`** — 5 min. Removes the chain-level blocker; verified the rest applies cleanly. _(H1)_
-2. **Ratchet `firstLoadSharedKb` to 133** — 1 min; the script computes it. _(L2)_
-3. **Upload `playwright-report/` on failure** — 5 min; flagged three passes. _(L1)_
-4. **Remove the dark `themeColor`** if dark mode isn't planned — 5 min; ends a seven-pass mismatch. _(M2)_
-5. **Confirm the Sentry DSNs** — 5 min. _(M3)_
-6. **Fix the RLS seed fixture** — ~1 h, then the harness runs for the first time since `0034`. _(H1)_
+1. **`redirectPreservingSession` helper in `proxy.ts`** — 30 min; fixes a latent auth hazard and restores CSP on redirects. _(H2)_
+2. **ADR-0006 → Accepted, ADR-0004 → Superseded** — 2 min. _(M1)_
+3. **Upload `playwright-report/` on failure** — 5 min; six passes flagged, and three diagnoses have depended on local artifacts. _(L1)_
+4. **Ratchet `firstLoadSharedKb` to 133** — 1 min. _(L2)_
+5. **Add the mock-parity rule to the migration checklist** — 10 min. _(M4)_
 
 ---
 
 ## 19. Long-Term Improvements
 
-1. **A queue.** `pg_cron` is confirmed working; a queue table plus a scheduled drain moves email and notification fan-out off the request path with no new infrastructure.
-2. **Nonce-based CSP.** Next 16 supports it; dropping `unsafe-inline`/`unsafe-eval` is the last structural security item.
-3. **Ratchet the first-load budget down.** The metric rewards code-splitting; use it.
-4. **Multi-tenancy readiness.** The persona/capability model would scale; `org_settings` is single-row by constraint and nothing is tenant-scoped. `0055`'s reference to "cross-academy metadata" suggests this is already being considered — decide before the schema grows further.
+1. **Custodial storage operations.** Quota alerting, a file-inclusive restore path, and a data-protection position on holding student work. The reconciliation sweep covers drift; it does not cover loss.
+2. **Coverage headroom.** Branches clear the ratchet by 0.05 points — the gate is effectively a coin flip on the next commit.
+3. **Multi-tenancy readiness.** Multi-currency FX and custodial storage both point at a product that will eventually need tenant scoping; `org_settings` is still single-row by constraint.
 
 ---
 
 ## 20. Overall Scorecard (Phase 16)
 
-| Dimension                  |   R4    |   R5    |   R6    |   R7    | Justification                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------- | :-----: | :-----: | :-----: | :-----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Architecture**           |    9    |    9    |    9    |  **9**  | Unchanged; layering holds. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                                        |
-| **Security**               |   10    |   10    |   10    |  **9**  | −1: app-layer authorization is strong and E2E-verified, but the RLS layer it is designed to agree with has been unverified for 22 migrations. The design is sound; the demonstration is missing.                                                                                                                                                                     |
-| **Maintainability**        |    9    |   10    |   10    | **10**  | The responsive fix documents the CSS mechanism, not just the change.                                                                                                                                                                                                                                                                                                 |
-| **Performance**            |    8    |    7    |    9    |  **9**  | 127.4 KB first-load with headroom.                                                                                                                                                                                                                                                                                                                                   |
-| **Scalability**            |    8    |    8    |    8    |  **8**  | Still no queue.                                                                                                                                                                                                                                                                                                                                                      |
-| **Documentation**          |    9    |    9    |    9    | **10**  | Migration checklist §5 encodes the snapshot rule with its failure history — the reason it will stick.                                                                                                                                                                                                                                                                |
-| **Testing**                |    9    |   10    |   10    |  **9**  | −1: unit and E2E are excellent and gated, but a third layer exists on disk and has not run since `0034`.                                                                                                                                                                                                                                                             |
-| **Developer Experience**   |    9    |    9    |    9    | **10**  | Every gate green, clean history, commits naming their findings, process rules documented where they are needed.                                                                                                                                                                                                                                                      |
-| **User Experience**        |    9    |    9    |    8    |  **9**  | Responsive parity restored across all personas. −1 for no dark mode.                                                                                                                                                                                                                                                                                                 |
-| **Code Quality**           |    9    |    9    |    9    | **10**  | All eight CI gates green; both fixes made at the correct level with the mechanism recorded.                                                                                                                                                                                                                                                                          |
-|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                      |
-| **Overall Project Health** | **8.9** | **9.1** | **9.2** | **9.2** | Flat, and deliberately so. Two High findings closed and every CI gate green would have moved this up; that is offset by discovering a safety net assumed functional has been dead for 22 migrations. The project did not get worse — the picture got more accurate. Reviving the RLS harness and wiring it into CI is roughly two hours and would move this to ~9.5. |
+| Dimension                  |   R7    |   R8    |   R9    |   R10   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------- | :-----: | :-----: | :-----: | :-----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architecture**           |    9    |    9    |    9    |  **9**  | A real pivot handled properly — a superseding ADR, and the new failure modes shipped with a reconciliation sweep. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                   |
+| **Security**               |    9    |    7    |    7    | **10**  | Nonce CSP closes the last structural item; RLS in CI with 34 assertions; the public-sharing Picker removed; no OWASP category with a confirmed open defect.                                                                                                                                                                                                                                                                            |
+| **Maintainability**        |   10    |    9    |    9    | **10**  | Continued consolidation, and the diagnosis discipline recommended in R9 was visibly applied to NEW-15.                                                                                                                                                                                                                                                                                                                                 |
+| **Performance**            |    9    |    9    |    9    | **10**  | ~142→~7 queries on the mentor dashboard, org settings cached, email off the request path, health ping memoised.                                                                                                                                                                                                                                                                                                                        |
+| **Scalability**            |    8    |    8    |    8    |  **9**  | Queue present, both growth tables bounded. −1: custodial file lifecycle unowned.                                                                                                                                                                                                                                                                                                                                                       |
+| **Documentation**          |   10    |   10    |   10    |  **9**  | FK inventory closed, ADR written. −1 for the Proposed-but-shipped ADR and undocumented custodial ops.                                                                                                                                                                                                                                                                                                                                  |
+| **Testing**                |    9    |    9    |    9    |  **9**  | 875 unit + 34 RLS in CI + 65 E2E, flakes de-flaked rather than skipped. −1 for the admin-journey regression and razor-thin branch coverage.                                                                                                                                                                                                                                                                                            |
+| **Developer Experience**   |   10    |    8    |    9    | **10**  | Three CI jobs, pre-push guard, request-id correlation.                                                                                                                                                                                                                                                                                                                                                                                 |
+| **User Experience**        |    9    |    9    |    9    |  **9**  | Custodial uploads remove the Drive-permission burden from users. −1 for no dark mode.                                                                                                                                                                                                                                                                                                                                                  |
+| **Code Quality**           |   10    |    9    |    9    |  **9**  | Ten of eleven checks green, 0 build warnings, 0 vulnerabilities. −1 for the E2E regression.                                                                                                                                                                                                                                                                                                                                            |
+|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Overall Project Health** | **9.2** | **8.9** | **9.0** | **9.4** | The strongest window in ten passes: eight carried findings closed, including the last structural security item, the last Medium performance item, and a CI gap recommended three times. The one regression is well-bounded and the diagnosis path is clear. The open risk that is genuinely _new_ is not in the code — it is that custodial file storage takes on backup, quota and data-protection obligations that nothing yet owns. |
 
 ---
 
 ## 21. Strengths
 
-1. **The capability model** — hard capabilities, reason-required overrides, documented precedence, provenance tracking, an ADR, and E2E verification of the app-layer half.
-2. **Every CI gate green, for the first time in seven passes** — 789 unit tests, 37 E2E specs, coverage ratchet, bundle budget, snapshot freshness, migration hygiene, build, zero vulnerabilities.
-3. **Gates that have each caught something real.** Migration hygiene caught a duplicate version; snapshot freshness caught drift within days of it appearing; the E2E job caught a UI regression the day it landed.
-4. **Process rules documented with their failure history.** Migration checklist §5 does not just say "regenerate the snapshot" — it says what happens if you don't, citing the recurrence.
-5. **Fixes made at the right level, with the mechanism recorded.** `min-w-0` on the grid item, with a comment explaining `min-width:auto` — so the next person adding a card grid knows why.
-6. **Problems anticipated before they were raised.** `0051` guarded `pg_cron` for bare local Postgres three passes before this audit flagged it as a risk — and the guard names both `supabase db reset` and `scripts/test-rls.sh` as the things it protects.
-7. **Self-caught security hardening** — `0055` narrowed an over-broad `entity_tags` read policy days after `0054` introduced it, unprompted.
-8. **Business rules enforced at the database** — `0052` moves the one-active-student invariant to a constraint so races and direct writes cannot violate it.
-9. **Features ship with tests**, seven passes running.
-10. **The Google Drive storage model** — sidestepping file storage removes a whole class of cost, quota, backup and data-protection problems.
+1. **Nonce-based CSP** — `'strict-dynamic'` with `unsafe-eval` confined to development. The last structural security item, closed after eight passes.
+2. **The RLS harness is now a CI job** with a `postgres:18` service container, 34 assertions, and a comment recording why it exists. It went dead once for exactly the lack of this.
+3. **The queue was built on what was already there** — a queue table drained by the `pg_cron` already installed for retention. No broker, no new infrastructure.
+4. **A reversal handled honestly.** ADR-0006 supersedes ADR-0004 rather than quietly diverging from it, and the reconciliation sweep for stuck rows and orphaned files shipped alongside the feature that creates that risk.
+5. **The public-sharing Picker was removed** in the same window that custodial upload landed — closing the hole rather than leaving both paths open.
+6. **Diagnosis discipline improved.** NEW-15 was resolved by finding test-state pollution instead of rewriting the guard a third time.
+7. **Flaky specs de-flaked, not skipped** — grading within the seeded mark cap, host resolution moved to the Node side.
+8. **~142 queries → ~7** on the mentor dashboard, with the numbers in the commit message.
+9. **Retention split by purpose** — notifications 90 days, audit_log 24 months, each with a recorded rationale.
+10. **Commits that name their findings**, ten passes running — traceability from audit to remediation to history.
 
 ---
 
-_Revision 7 performed 2026-08-05 against `feature/cert-ed-academia-app` @ `f0c687a`, with a
-clean `rm -rf .next` rebuild, the full Playwright suite, and the first execution of
-`scripts/test-rls.sh` against real Postgres 18. Items that could not be verified in this
-environment — whether Sentry DSNs are configured in Vercel, and whether the Supabase CLI
-aborts or continues on the `0034` error — are labelled_ **Not verified**.
+_Revision 10 performed 2026-08-12 against `feature/cert-ed-academia-app` @ `944c927`, with a
+clean `rm -rf .next` rebuild, the full Playwright suite, and `scripts/test-rls.sh` against real
+Postgres 18. Items that could not be verified in this environment — the cause of NEW-23,
+whether NEW-10 is resolved, and whether Sentry DSNs are configured in Vercel — are labelled_
+**Not verified**.

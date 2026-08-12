@@ -1,8 +1,8 @@
 # Architecture Implementation Plan
 
 - Date: 2026-07-23
-- Status: Working plan
-- Purpose: Provide the step-by-step implementation plan for moving the application to a single, explicit, maintainable architecture.
+- Status: Substantially implemented (historical record). Most phases have shipped; the living, canonical rulebook is [architecture-rules.md](architecture-rules.md). Only the phases explicitly banner-marked "PLANNED — NOT IMPLEMENTED" below (the `src/features` split, and the `services` → `domain` rename) remain open.
+- Purpose: The step-by-step plan that moved the application to a single, explicit, maintainable architecture. Kept for the phase-by-phase rationale.
 
 ---
 
