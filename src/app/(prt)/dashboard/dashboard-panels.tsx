@@ -27,7 +27,7 @@ import {
 export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   return (
     <DashboardSection>
-      <Panel title="Your mentees">
+      <Panel title="Mentee roster">
         <p className="mb-3 text-sm text-slate-500">
           Students you look after across subjects. Open one to review their overall progress.
         </p>
@@ -123,6 +123,10 @@ export function SubAdminOverview({
           {canManageUsers ? 'Manage users' : 'View users'}
         </Link>
       </Card>
+      <DashboardSection className="grid gap-4 lg:grid-cols-2">
+        <UpcomingPanel events={data.upcoming} />
+        <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={data.now} />
+      </DashboardSection>
     </>
   )
 }
@@ -191,9 +195,7 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
             Open classes &rarr;
           </Link>
         </Panel>
-        <Panel title="Upcoming">
-          <Upcoming events={data.upcoming} />
-        </Panel>
+        <UpcomingPanel events={data.upcoming} />
         <ReminderPanel initialReminders={data.reminders} initialPastReminders={data.pastReminders} now={data.now} />
       </DashboardSection>
       <DashboardChartsSection me={me} />
@@ -226,5 +228,13 @@ function Upcoming({ events }: { events: CalendarEvent[] }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+function UpcomingPanel({ events }: { events: CalendarEvent[] }) {
+  return (
+    <Panel title="Upcoming">
+      <Upcoming events={events} />
+    </Panel>
   )
 }

@@ -4,6 +4,8 @@ import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAnnouncementsForClassPage, type Announcement } from '@/lib/services/announcements'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
+import { listAttachmentsForOwners } from '@/lib/services/attachments/read'
+import type { AttachmentView } from '@/app/(prt)/AttachmentList'
 
 const STREAM_PAGE_SIZE = 10
 const ARCHIVED_PAGE_SIZE = 20
@@ -22,6 +24,9 @@ type ClassStreamViewData = {
   activeAnnouncements: Announcement[]
   archivedAnnouncements: Announcement[]
   commentsByAnnouncement: Map<string, Comment[]>
+  // Custodial attachments (files the academy keeps) for the posts on this page,
+  // grouped by announcement id - loaded in one query to avoid an N+1 in render.
+  attachmentsByAnnouncement: Map<string, AttachmentView[]>
   // The server render clock, so the page's scheduled/expired badges read one
   // instant from here instead of calling the impure Date.now() during render.
   nowMs: number
@@ -95,10 +100,12 @@ export async function loadClassStreamViewData(
   )
   // Every visible post is threadable (announcements are the 4th comment entity):
   // load the threads for the posts on this page. Archived posts stay thread-less.
-  const commentsByAnnouncement = await listCommentsForEntities(
-    'announcement',
-    activeAnnouncements.map((a) => a.id),
-  )
+  // Custodial attachments load alongside, both keyed by the same post ids.
+  const postIds = activeAnnouncements.map((a) => a.id)
+  const [commentsByAnnouncement, attachmentsByAnnouncement] = await Promise.all([
+    listCommentsForEntities('announcement', postIds),
+    listAttachmentsForOwners('announcement', postIds),
+  ])
 
   return {
     canManage,
@@ -112,6 +119,7 @@ export async function loadClassStreamViewData(
     activeAnnouncements,
     archivedAnnouncements,
     commentsByAnnouncement,
+    attachmentsByAnnouncement,
     nowMs,
   }
 }

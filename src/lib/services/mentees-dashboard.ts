@@ -1,11 +1,16 @@
 import type { Profile } from '@/lib/auth/profile'
-import { selectActiveAssignmentsByClassIdsAsService, selectAssignmentsByIdsAsService } from '@/lib/data/assignments'
-import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
-import { selectClassesByIds } from '@/lib/data/classes'
-import { selectRowsForStudentAsService } from '@/lib/data/attendance'
+import type { AttendanceStatus } from '@/lib/attendance/summary'
 import {
-  selectActiveSubmissionsForStudentAsService,
-  selectEvaluatedSubmissionsForStudentAsService,
+  selectActiveAssignmentsByClassIdsAsService,
+  selectAssignmentsByIdsAsService,
+  type AssignmentBrief,
+} from '@/lib/data/assignments'
+import { selectActiveEnrollmentsForStudents } from '@/lib/data/class-membership'
+import { selectClassesByIds } from '@/lib/data/classes'
+import { selectRowsForStudentsAsService } from '@/lib/data/attendance'
+import {
+  selectActiveSubmissionsForStudentsAsService,
+  selectEvaluatedSubmissionsForStudentsAsService,
 } from '@/lib/data/submissions'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
@@ -35,48 +40,62 @@ type MenteeSignals = {
   grades: MenteeGradeItem[]
 }
 
-async function menteeSignals(studentId: string): Promise<MenteeSignals> {
-  const classIds = [...new Set(await selectActiveClassIdsForStudent(studentId))]
-  if (classIds.length === 0) return { attendanceRate: null, avgGrade: null, overdue: [], dueSoon: [], grades: [] }
+const EMPTY_SIGNALS: MenteeSignals = { attendanceRate: null, avgGrade: null, overdue: [], dueSoon: [], grades: [] }
 
-  const [classes, assignments, submissions, gradedSubs, attendanceRows] = await Promise.all([
-    selectClassesByIds(classIds),
-    selectActiveAssignmentsByClassIdsAsService(classIds),
-    selectActiveSubmissionsForStudentAsService(studentId),
-    selectEvaluatedSubmissionsForStudentAsService(studentId),
-    selectRowsForStudentAsService(studentId),
-  ])
-  const classLabel = new Map(classes.map((course) => [course.id, course.name]))
-  const submittedIds = new Set(submissions.map((submission) => submission.assignment_id))
-  const now = Date.now()
+type EvaluatedBrief = Awaited<ReturnType<typeof selectEvaluatedSubmissionsForStudentsAsService>>[number]
+type AssignmentMeta = Awaited<ReturnType<typeof selectAssignmentsByIdsAsService>>[number]
+
+/** Groups rows into a Map<key, value[]>, preserving input order within each key. */
+function groupBy<T, V>(rows: readonly T[], keyOf: (row: T) => string, valueOf: (row: T) => V): Map<string, V[]> {
+  const map = new Map<string, V[]>()
+  for (const row of rows) {
+    const key = keyOf(row)
+    const existing = map.get(key)
+    if (existing) existing.push(valueOf(row))
+    else map.set(key, [valueOf(row)])
+  }
+  return map
+}
+
+/**
+ * Derives one mentee's dashboard signals from data already fetched for the whole
+ * cohort - identical to the former per-mentee query path, but reading from the
+ * grouped in-memory sets instead of issuing its own queries.
+ */
+function computeMenteeSignals(input: {
+  classIds: string[]
+  assignments: AssignmentBrief[]
+  submittedAssignmentIds: Set<string>
+  gradedSubs: EvaluatedBrief[]
+  attendanceStatuses: AttendanceStatus[]
+  classLabel: Map<string, string>
+  metaById: Map<string, AssignmentMeta>
+  now: number
+}): MenteeSignals {
+  if (input.classIds.length === 0) return EMPTY_SIGNALS
 
   const overdue: MenteeWorkItem[] = []
   const dueSoon: MenteeWorkItem[] = []
-  for (const assignment of assignments) {
-    if (submittedIds.has(assignment.id)) continue
+  for (const assignment of input.assignments) {
+    if (input.submittedAssignmentIds.has(assignment.id)) continue
     const due = Date.parse(assignment.due_date)
     const item: MenteeWorkItem = {
       assignmentId: assignment.id,
       assignmentTitle: assignment.title,
-      classLabel: classLabel.get(assignment.class_id) ?? 'Class',
+      classLabel: input.classLabel.get(assignment.class_id) ?? 'Class',
       dueDate: assignment.due_date,
     }
-    if (due < now) overdue.push(item)
-    else if (due < now + DUE_SOON_WINDOW_MS) dueSoon.push(item)
+    if (due < input.now) overdue.push(item)
+    else if (due < input.now + DUE_SOON_WINDOW_MS) dueSoon.push(item)
   }
 
-  const meta = await selectAssignmentsByIdsAsService([
-    ...new Set(gradedSubs.map((submission) => submission.assignment_id)),
-  ])
-  const metaById = new Map(meta.map((assignment) => [assignment.id, assignment]))
-  const grades: MenteeGradeItem[] = buildMenteeGradeRows(gradedSubs, metaById, classLabel)
+  const grades: MenteeGradeItem[] = buildMenteeGradeRows(input.gradedSubs, input.metaById, input.classLabel)
     .map(({ gradedAtMs: _gradedAtMs, ...grade }) => grade)
     .sort((left, right) => (left.gradedAt < right.gradedAt ? 1 : -1))
-  const avgGrade = roundedWeightedAverage(grades)
 
   return {
-    attendanceRate: roundMetric(rateFromStatuses(attendanceRows.map((row) => row.status))),
-    avgGrade,
+    attendanceRate: roundMetric(rateFromStatuses(input.attendanceStatuses)),
+    avgGrade: roundedWeightedAverage(grades),
     overdue: overdue.sort((left, right) => (left.dueDate < right.dueDate ? 1 : -1)),
     dueSoon: dueSoon.sort((left, right) => (left.dueDate < right.dueDate ? -1 : 1)),
     grades,
@@ -105,8 +124,74 @@ export async function getMentorDashboard(me: Profile): Promise<MentorDashboardCa
     return profile ? displayName(profile) : id
   }
 
-  const signals = await Promise.all(ids.map((id) => menteeSignals(id)))
-  const per = ids.map((id, index) => ({ id, name: nameOf(id), ...signals[index] }))
+  // Wave 1: one query per concern for the WHOLE mentee set (this used to be
+  // ~7 queries PER mentee - see git history). Grouped in memory below.
+  const [enrollments, activeSubs, gradedSubs, attendanceRows] = await Promise.all([
+    selectActiveEnrollmentsForStudents(ids),
+    selectActiveSubmissionsForStudentsAsService(ids),
+    selectEvaluatedSubmissionsForStudentsAsService(ids),
+    selectRowsForStudentsAsService(ids),
+  ])
+
+  const classIdsByStudent = new Map(
+    [
+      ...groupBy(
+        enrollments,
+        (row) => row.student_id,
+        (row) => row.class_id,
+      ),
+    ].map(([id, classIds]) => [id, [...new Set(classIds)]]),
+  )
+  const submittedByStudent = groupBy(
+    activeSubs,
+    (row) => row.student_id,
+    (row) => row.assignment_id,
+  )
+  const gradedByStudent = groupBy(
+    gradedSubs,
+    (row) => row.student_id,
+    (row) => row,
+  )
+  const attendanceByStudent = groupBy(
+    attendanceRows,
+    (row) => row.student_id,
+    (row) => row.status,
+  )
+
+  const allClassIds = [...new Set(enrollments.map((row) => row.class_id))]
+  const gradedAssignmentIds = [...new Set(gradedSubs.map((row) => row.assignment_id))]
+
+  // Wave 2: the cohort's classes, active assignments, and graded-assignment meta,
+  // each a single set-based query derived from wave 1.
+  const [classes, assignments, meta] = await Promise.all([
+    selectClassesByIds(allClassIds),
+    selectActiveAssignmentsByClassIdsAsService(allClassIds),
+    selectAssignmentsByIdsAsService(gradedAssignmentIds),
+  ])
+  const classLabel = new Map(classes.map((course) => [course.id, course.name]))
+  const metaById = new Map(meta.map((assignment) => [assignment.id, assignment]))
+  const assignmentsByClass = groupBy(
+    assignments,
+    (assignment) => assignment.class_id,
+    (assignment) => assignment,
+  )
+  const now = Date.now()
+
+  const per = ids.map((id) => {
+    const classIds = classIdsByStudent.get(id) ?? []
+    const signals = computeMenteeSignals({
+      classIds,
+      assignments: classIds.flatMap((classId) => assignmentsByClass.get(classId) ?? []),
+      submittedAssignmentIds: new Set(submittedByStudent.get(id) ?? []),
+      gradedSubs: gradedByStudent.get(id) ?? [],
+      attendanceStatuses: attendanceByStudent.get(id) ?? [],
+      classLabel,
+      metaById,
+      now,
+    })
+    return { id, name: nameOf(id), ...signals }
+  })
+
   const subtitles = await buildStudentRelationshipSubtitles(
     ids.map((id) => ({ id, classLevel: profiles.get(id)?.class_level ?? null })),
   )

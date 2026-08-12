@@ -2,7 +2,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getActorContext } from '@/lib/session/actor-context'
 import { getReportCardData } from '@/lib/report-card/data'
-import { STUDENT_REPORTS } from '@/lib/reports/registry'
+import { StudentReportActions } from '@/lib/reports/student-report-actions'
 import { PageHeader, EmptyState } from '@/lib/ui'
 import { redirect } from 'next/navigation'
 import { Gradecard } from './Gradecard'
@@ -29,23 +29,7 @@ export default async function GradesPage() {
       <PageHeader
         title="My grades"
         description="Your marks across all your classes - filter, search and sort. Download a report card any time."
-        action={
-          marks.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {STUDENT_REPORTS.map((report) => (
-                <a
-                  key={report.type}
-                  href={report.pdfPath(me.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-sm btn-soft"
-                >
-                  {report.label}
-                </a>
-              ))}
-            </div>
-          ) : undefined
-        }
+        action={marks.length > 0 ? <StudentReportActions studentId={me.id} /> : undefined}
       />
 
       {marks.length === 0 ? (

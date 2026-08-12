@@ -207,3 +207,19 @@ export async function selectRowsForStudentAsService(
   if (error) throw new Error(`menteeOverview.attendance: ${error.message}`)
   return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'>[]
 }
+
+/** Attendance rows for a SET of students (keeping `student_id`), so the mentor
+ *  dashboard reads its whole cohort's attendance in one query. */
+export async function selectRowsForStudentsAsService(
+  studentIds: string[],
+): Promise<(Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'> & { student_id: string })[]> {
+  if (studentIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('attendance')
+    .select('student_id, class_id, session_date, status')
+    .in('student_id', studentIds)
+    .order('session_date', { ascending: false })
+  if (error) throw new Error(`menteeOverview.attendanceBatch: ${error.message}`)
+  return (data ?? []) as (Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'> & { student_id: string })[]
+}

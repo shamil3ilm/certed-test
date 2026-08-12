@@ -7,7 +7,7 @@ import { MarkRead } from '../MarkRead'
 import { MessageComposer } from './MessageComposer'
 import { leaveConversationAction } from '../actions'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
-import { Avatar, BackLink, Badge, Card, EmptyState, PageHeader } from '@/lib/ui'
+import { Avatar, BackLink, Badge, Card, EmptyState, FilterBar, PageHeader, SearchFilterField } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 import { RenameGroupForm } from './RenameGroupForm'
 
@@ -90,27 +90,14 @@ export default async function ThreadPage(props: {
 
       <div className="mt-4 space-y-2">
         <Card className="p-3">
-          <form action={`/messages/${params.id}`} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-slate-500">Search chat</span>
-              <input
-                name="q"
-                defaultValue={data.searchQuery ?? ''}
-                className="w-full"
-                placeholder="Search messages..."
-              />
-            </label>
-            <div className="flex gap-2">
-              <button type="submit" className="btn btn-sm btn-soft">
-                Search
-              </button>
-              {data.searchQuery && (
-                <Link href={`/messages/${params.id}`} className="btn btn-sm btn-ghost">
-                  Clear
-                </Link>
-              )}
-            </div>
-          </form>
+          <FilterBar clearHref={`/messages/${params.id}`} showClear={Boolean(data.searchQuery)} applyLabel="Search">
+            <SearchFilterField
+              label="Search chat"
+              name="q"
+              defaultValue={data.searchQuery ?? ''}
+              placeholder="Search messages..."
+            />
+          </FilterBar>
         </Card>
         {data.hasEarlier && data.earlierCursor && (
           <div className="flex justify-center pb-1">

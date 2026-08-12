@@ -15,6 +15,10 @@ export const IDS = {
   // scope only, teaches no classes - the independent-mentor case in the flesh.
   mentor: 'a0000000-0000-4000-8000-000000000005',
   subAdmin: 'a0000000-0000-4000-8000-000000000006',
+  // A TUTOR who is ALSO assigned a mentorship (role `tutor` + a student-scoped
+  // mentor persona) - the mentor-who-also-teaches case. Its dashboard stacks the
+  // pastoral and teaching scopes, so it exercises the combined-view scope headers.
+  tutorMentor: 'a0000000-0000-4000-8000-000000000007',
   math: 'c0000000-0000-4000-8000-000000000001',
   science: 'c0000000-0000-4000-8000-000000000002',
 } as const
@@ -105,6 +109,16 @@ export function buildSeed(): MockDb {
         class_level: 'Grade 9',
         created_at: NOW,
       },
+      {
+        id: IDS.tutorMentor,
+        auth_user_id: 'u-tutormentor',
+        email: 'tutormentor@mock.test',
+        full_name: 'Tessa Tutor-Mentor',
+        role: 'tutor',
+        status: 'active',
+        class_level: null,
+        created_at: NOW,
+      },
     ],
     classes: [
       { id: IDS.math, name: 'Mathematics - Grade 10', status: 'active', created_at: NOW },
@@ -148,9 +162,17 @@ export function buildSeed(): MockDb {
         active: true,
         created_at: NOW,
       },
+      {
+        id: 'c7000000-0000-4000-8000-000000000003',
+        tutor_id: IDS.tutorMentor,
+        class_id: IDS.math,
+        active: true,
+        created_at: NOW,
+      },
     ],
     mentorships: [
       // Maya (dedicated mentor) mentors both students; Tarun (tutor) mentors nobody.
+      // Tessa is a tutor who ALSO mentors Sam - the mentor-who-teaches combined case.
       {
         id: 'de000000-0000-4000-8000-000000000001',
         mentor_id: IDS.mentor,
@@ -161,6 +183,13 @@ export function buildSeed(): MockDb {
       {
         id: 'de000000-0000-4000-8000-000000000002',
         mentor_id: IDS.mentor,
+        student_id: IDS.student2,
+        active: true,
+        created_at: NOW,
+      },
+      {
+        id: 'de000000-0000-4000-8000-000000000003',
+        mentor_id: IDS.tutorMentor,
         student_id: IDS.student2,
         active: true,
         created_at: NOW,
@@ -251,6 +280,29 @@ export function buildSeed(): MockDb {
         assigned_at: NOW,
         created_at: NOW,
       },
+      // Tessa: a global tutor persona PLUS a student-scoped mentor persona (what
+      // assignMentorPersona writes for her mentorship of Sam) - so she resolves to
+      // the mentor dashboard kind with teaches=true, i.e. the combined view.
+      {
+        id: 'ba000000-0000-4000-8000-000000000009',
+        profile_id: IDS.tutorMentor,
+        persona_name: 'tutor',
+        scope_type: 'global',
+        scope_id: null,
+        status: 'active',
+        assigned_at: NOW,
+        created_at: NOW,
+      },
+      {
+        id: 'ba000000-0000-4000-8000-00000000000a',
+        profile_id: IDS.tutorMentor,
+        persona_name: 'mentor',
+        scope_type: 'student',
+        scope_id: IDS.student2,
+        status: 'active',
+        assigned_at: NOW,
+        created_at: NOW,
+      },
     ],
     announcements: [
       {
@@ -317,6 +369,7 @@ export function buildSeed(): MockDb {
         title: 'Problem set 3',
         description: 'Questions 1-10 from chapter 4.',
         due_date: '2026-07-10T18:30:00.000Z',
+        max_marks: 10,
         attachment_drive_link: null,
         enforce_deadline: false,
         created_by: IDS.tutor,
@@ -324,6 +377,9 @@ export function buildSeed(): MockDb {
         created_at: NOW,
       },
       {
+        // Sara is enrolled here and has NOT submitted - the submit-an-assignment
+        // E2E flows target this one, so it must stay un-submitted (no max_marks
+        // needed until it is graded).
         id: 'a5000000-0000-4000-8000-000000000002',
         class_id: IDS.science,
         title: 'Lab report: acids & bases',
@@ -335,15 +391,51 @@ export function buildSeed(): MockDb {
         status: 'active',
         created_at: NOW,
       },
+      {
+        id: 'a5000000-0000-4000-8000-000000000003',
+        class_id: IDS.math,
+        title: 'Chapter 5 quiz',
+        description: 'Short quiz on chapter 5.',
+        due_date: '2026-07-16T18:30:00.000Z',
+        max_marks: 20,
+        attachment_drive_link: null,
+        enforce_deadline: false,
+        created_by: IDS.tutor,
+        status: 'active',
+        created_at: NOW,
+      },
     ],
     submissions: [
+      // Two graded MATH submissions across dates give the student's dashboard a
+      // real grade trajectory (7/10 = 70% then 16/20 = 80%, an improving trend).
+      // Both are in Math so the Science assignment stays un-submitted for the
+      // submit-an-assignment E2E flows, and neither score collides with the mark a
+      // persona spec grades the seeded Math submission to (<= its 10-mark cap).
       {
         id: 'fa000000-0000-4000-8000-000000000001',
         assignment_id: 'a5000000-0000-4000-8000-000000000001',
         student_id: IDS.student,
         drive_link: 'https://drive.google.com/file/d/mock-sub-1/view',
-        status: 'submitted',
-        submitted_at: NOW,
+        status: 'graded',
+        submitted_at: '2026-06-28T09:00:00.000Z',
+        score: 7,
+        graded_at: '2026-07-02T09:00:00.000Z',
+        graded_by: IDS.tutor,
+        feedback: 'Good work - watch the sign errors in Q7.',
+        is_active: true,
+        created_at: NOW,
+      },
+      {
+        id: 'fa000000-0000-4000-8000-000000000002',
+        assignment_id: 'a5000000-0000-4000-8000-000000000003',
+        student_id: IDS.student,
+        drive_link: 'https://drive.google.com/file/d/mock-sub-2/view',
+        status: 'graded',
+        submitted_at: '2026-07-12T09:00:00.000Z',
+        score: 16,
+        graded_at: '2026-07-16T09:00:00.000Z',
+        graded_by: IDS.tutor,
+        feedback: 'Clear method and strong analysis.',
         is_active: true,
         created_at: NOW,
       },

@@ -83,6 +83,9 @@ export type SubAdminDashboardViewData = {
   students: number
   tutors: number
   pending: number
+  upcoming: CalendarEvent[]
+  reminders: Reminder[]
+  pastReminders: Reminder[]
 }
 
 async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capability>): Promise<AdminDashboardViewData> {
@@ -147,9 +150,18 @@ async function loadAdminDashboardViewData(me: Profile, caps: ReadonlySet<Capabil
   }
 }
 
-async function loadSubAdminDashboardViewData(caps: ReadonlySet<Capability>): Promise<SubAdminDashboardViewData> {
+async function loadSubAdminDashboardViewData(
+  me: Profile,
+  caps: ReadonlySet<Capability>,
+): Promise<SubAdminDashboardViewData> {
+  const today = todayInZone(await getInstituteTimeZone())
   const canViewUsers = caps.has('viewUsers')
-  const counts = canViewUsers ? await countPeople() : null
+  const [counts, upcoming, reminders, pastReminders] = await Promise.all([
+    canViewUsers ? countPeople() : Promise.resolve(null),
+    listEvents({ from: today, limit: 6 }),
+    listMyReminders(me.id),
+    listMyPastReminders(me.id),
+  ])
   return {
     kind: 'sub_admin',
     now: Date.now(),
@@ -157,6 +169,9 @@ async function loadSubAdminDashboardViewData(caps: ReadonlySet<Capability>): Pro
     students: counts?.students ?? 0,
     tutors: counts?.tutors ?? 0,
     pending: counts?.pending ?? 0,
+    upcoming,
+    reminders,
+    pastReminders,
   }
 }
 
@@ -165,7 +180,7 @@ export async function loadDashboardViewData(me: Profile, caps: ReadonlySet<Capab
   const flags = await loadPersonaFlags(me.id)
 
   if (flags.isAdmin) return loadAdminDashboardViewData(me, caps)
-  if (flags.isSubAdmin) return loadSubAdminDashboardViewData(caps)
+  if (flags.isSubAdmin) return loadSubAdminDashboardViewData(me, caps)
 
   // Teaching is persona-first, but a mentor account that was given tutor reach
   // must also show the teaching widgets while the membership still exists.

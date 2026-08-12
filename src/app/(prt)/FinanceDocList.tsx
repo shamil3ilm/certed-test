@@ -3,7 +3,7 @@ import type { Capability } from '@/lib/capabilities'
 import { listMyDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
-import { PageHeader, PaginationBar, StatCard, ListRow, Badge, EmptyState } from '@/lib/ui'
+import { PageHeader, PaginationBar, StatCard, ListRow, Badge, EmptyState, ExternalActionLink } from '@/lib/ui'
 
 const FINANCE_PAGE_SIZE = 20
 
@@ -75,14 +75,9 @@ export async function FinanceDocList({
               }
               subtitle={`${d.issue_date} - ${formatMoney(d.total, d.currency)}`}
               trailing={
-                <a
-                  href={`/api/${kind}s/${d.id}/pdf`}
-                  target="_blank"
-                  rel="noopener"
-                  className="btn btn-sm btn-soft min-h-11"
-                >
+                <ExternalActionLink href={`/api/${kind}s/${d.id}/pdf`} className="min-h-11">
                   Download
-                </a>
+                </ExternalActionLink>
               }
             />
           </li>

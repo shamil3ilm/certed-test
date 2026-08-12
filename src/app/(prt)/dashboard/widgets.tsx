@@ -6,4 +6,4 @@ export {
   RemindersWidget,
   SubmissionsToReviewWidget,
 } from './tutor-widgets'
-export { LatestAnnouncementWidget, LatestGradeWidget, DueWorkWidget } from './student-widgets'
+export { LatestAnnouncementWidget, LatestGradeWidget, GradeTrajectoryWidget, DueWorkWidget } from './student-widgets'

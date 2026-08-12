@@ -5,9 +5,10 @@ import { usersUrl } from '@/lib/services/page-data/admin-users'
 
 // Each KPI links to the surface it's ABOUT rather than piling onto /classroom:
 // teaching/learning hours + attendance -> the class's Attendance tab, where the
-// session times and marks that produce those numbers live; active classes -> the
-// class list. Headline numbers only - the actionable lists (due work, submissions
-// to review, pending attendance) are the widgets below, never repeated as a tile.
+// session times and marks that produce those numbers live; graded work -> the
+// Grading tab; active classes -> the class list. Headline numbers only - the
+// actionable lists (due work, submissions to review, pending attendance) are the
+// widgets below, never repeated as a tile.
 
 /**
  * The persona KPI rows at the top of each dashboard. Each is an
@@ -36,9 +37,11 @@ export async function AdminAnalyticsStats({ pendingAccess }: { pendingAccess: nu
   )
 }
 
-/** Tutor: their current teaching actions. */
+/** Tutor: their teaching output, mirroring the student's row (hours / graded /
+ *  attendance). Pending grading is NOT a tile - it's the "Submissions to review"
+ *  widget below - so the tile shows what's DONE, not another copy of the queue. */
 export async function TutorAnalyticsStats({ me }: { me: Profile }) {
-  const { teachingHours, sessionsHeld, attendanceRate, toGrade, classIds } = await getTutorAnalytics(me)
+  const { teachingHours, sessionsHeld, attendanceRate, graded, classIds } = await getTutorAnalytics(me)
   const attendanceHref = classIds.length === 1 ? `/classroom/${classIds[0]}/attendance` : '/classroom'
   const gradingHref = classIds.length === 1 ? `/classroom/${classIds[0]}/grading` : '/classroom'
   return (
@@ -50,13 +53,7 @@ export async function TutorAnalyticsStats({ me }: { me: Profile }) {
         sub={`${sessionsHeld} session${sessionsHeld === 1 ? '' : 's'} held`}
         href={attendanceHref}
       />
-      <StatCard
-        label="To grade"
-        value={toGrade}
-        sub="awaiting a mark"
-        tone={toGrade > 0 ? 'primary' : 'default'}
-        href={gradingHref}
-      />
+      <StatCard label="Graded" value={graded} sub="results recorded" href={gradingHref} />
       <StatCard label="Attendance" value={`${attendanceRate}%`} sub="across your classes" href={attendanceHref} />
     </StatGrid>
   )

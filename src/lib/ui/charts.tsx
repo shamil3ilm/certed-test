@@ -16,6 +16,29 @@ type Fmt = (n: number) => string
 
 const fmt = (v: number, f?: Fmt) => (f ? f(v) : String(v))
 
+function AxisTickLabels({ data, ticks }: { data: ChartPoint[]; ticks: Set<number> }) {
+  return (
+    <div
+      className="mt-1 grid gap-2 text-[10px] text-slate-400"
+      style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}
+      aria-hidden
+    >
+      {data.map((point, index) => (
+        <span
+          key={`${point.label}-${index}`}
+          className={cx(
+            'min-w-0 truncate',
+            index === 0 ? 'text-left' : index === data.length - 1 ? 'text-right' : 'text-center',
+          )}
+          title={ticks.has(index) ? point.label : undefined}
+        >
+          {ticks.has(index) ? point.label : '\u00a0'}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Regularly-spaced indices for thinning a dense axis, always including the first
  * and last bucket. A date axis with many buckets would otherwise overlap or
@@ -52,47 +75,48 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
   const negMax = Math.max(0, ...values.map((v) => -v))
   const total = posMax + negMax || 1
   const zeroFromTop = (posMax / total) * 100 // where the value=0 line sits in the plot
-  const labelAt = new Set(tickIndices(data.length, 5)) // thin a dense (date) axis
+  // Up to 8 buckets still reads cleanly at the current label size, and showing
+  // every weekly bucket avoids misleading gaps like "13, 27, 3" when the hidden
+  // intermediate weeks make an even cadence look irregular to the viewer.
+  const labelAt = new Set(tickIndices(data.length, 8))
 
   return (
-    <div
-      className="flex h-48 items-stretch gap-2"
-      role="img"
-      aria-label={data.map((d) => `${d.label}: ${fmt(d.value, format)}`).join(', ')}
-    >
-      {data.map((d, i) => {
-        const isNeg = d.value < 0
-        const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
-        return (
-          <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="truncate text-center text-[10px] tabular-nums text-slate-500">{fmt(d.value, format)}</span>
-            <div className="relative flex-1">
-              {negMax > 0 && (
-                <div
-                  className="absolute inset-x-0 border-t border-dashed border-slate-200"
-                  style={{ top: `${zeroFromTop}%` }}
-                  aria-hidden
-                />
-              )}
-              <div
-                className={cx(
-                  'absolute inset-x-0',
-                  isNeg ? 'rounded-b-sm bg-rose-400/80' : 'rounded-t-sm bg-gradient-to-t from-primary to-secondary',
+    <div role="img" aria-label={data.map((d) => `${d.label}: ${fmt(d.value, format)}`).join(', ')}>
+      <div className="flex h-48 items-stretch gap-2">
+        {data.map((d, i) => {
+          const isNeg = d.value < 0
+          const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
+          return (
+            <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="truncate text-center text-[10px] tabular-nums text-slate-500">
+                {fmt(d.value, format)}
+              </span>
+              <div className="relative flex-1">
+                {negMax > 0 && (
+                  <div
+                    className="absolute inset-x-0 border-t border-dashed border-slate-200"
+                    style={{ top: `${zeroFromTop}%` }}
+                    aria-hidden
+                  />
                 )}
-                style={
-                  isNeg
-                    ? { top: `${zeroFromTop}%`, height: `${magPct}%` }
-                    : { bottom: `${100 - zeroFromTop}%`, height: `${magPct}%` }
-                }
-                title={`${d.label}: ${fmt(d.value, format)}`}
-              />
+                <div
+                  className={cx(
+                    'absolute inset-x-0',
+                    isNeg ? 'rounded-b-sm bg-rose-400/80' : 'rounded-t-sm bg-gradient-to-t from-primary to-secondary',
+                  )}
+                  style={
+                    isNeg
+                      ? { top: `${zeroFromTop}%`, height: `${magPct}%` }
+                      : { bottom: `${100 - zeroFromTop}%`, height: `${magPct}%` }
+                  }
+                  title={`${d.label}: ${fmt(d.value, format)}`}
+                />
+              </div>
             </div>
-            <span className="w-full truncate text-center text-[10px] text-slate-400" title={d.label}>
-              {labelAt.has(i) ? d.label : '\u00a0'}
-            </span>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
+      <AxisTickLabels data={data} ticks={labelAt} />
     </div>
   )
 }
@@ -111,8 +135,7 @@ export function LineChart({ data, format }: { data: ChartPoint[]; format?: Fmt }
   const px = (i: number) => (data.length > 1 ? (i / (data.length - 1)) * 100 : 50)
   const py = (v: number) => (1 - (v - min) / span) * 100
   const points = data.map((d, i) => `${px(i).toFixed(2)},${py(d.value).toFixed(2)}`).join(' ')
-  const ticks = tickIndices(data.length, 5) // spread the date axis across the width, not just its ends
-  const last = data.length - 1
+  const ticks = tickIndices(data.length, 8)
   return (
     <div>
       <div
@@ -140,20 +163,7 @@ export function LineChart({ data, format }: { data: ChartPoint[]; format?: Fmt }
           />
         ))}
       </div>
-      <div className="relative mt-1 h-4 text-[10px] text-slate-400">
-        {ticks.map((i) => (
-          <span
-            key={i}
-            className={cx(
-              'absolute whitespace-nowrap',
-              i === 0 ? 'left-0' : i === last ? 'right-0' : '-translate-x-1/2',
-            )}
-            style={i === 0 || i === last ? undefined : { left: `${px(i)}%` }}
-          >
-            {data[i]?.label}
-          </span>
-        ))}
-      </div>
+      <AxisTickLabels data={data} ticks={new Set(ticks)} />
     </div>
   )
 }

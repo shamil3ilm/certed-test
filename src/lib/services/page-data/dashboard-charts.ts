@@ -16,6 +16,15 @@ import { financeTotalsBase } from '@/lib/services/finance/finance-docs'
  */
 
 export type ChartStyle = 'column' | 'line' | 'bar'
+export type ChartPeriod = '4w' | '8w' | '3m' | '6m'
+export type ChartGroupBy = 'week' | 'month'
+
+export type ChartSeriesVariant = {
+  period: ChartPeriod
+  groupBy: ChartGroupBy
+  data: ChartPoint[]
+  note?: string
+}
 
 export type ChartSeries = {
   key: string
@@ -27,9 +36,16 @@ export type ChartSeries = {
   /** A caveat shown under the chart, e.g. that some amounts are not yet converted
    *  into the base currency, so the figures understate. */
   note?: string
+  variants?: ChartSeriesVariant[]
+  defaultPeriod?: ChartPeriod
+  defaultGroupBy?: ChartGroupBy
 }
 
 const CURRENCY_PREFIX: Record<string, string> = { INR: '\u20B9', USD: '$', AED: 'AED ', SAR: 'SAR ', QAR: 'QAR ' }
+
+function startOfUtcMonth(year: number, monthIndex: number): number {
+  return Date.UTC(year, monthIndex, 1)
+}
 
 /** Buckets ISO dates into the last `weeks` Monday-started weeks, newest last. */
 function weeklySeries(dates: string[], weeks = 8): ChartPoint[] {
@@ -51,6 +67,24 @@ function weeklySeries(dates: string[], weeks = 8): ChartPoint[] {
   return buckets.map((b) => ({ label: b.label, value: b.value }))
 }
 
+function monthlySeries(dates: string[], months = 6): ChartPoint[] {
+  const now = new Date()
+  const label = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' })
+  const buckets = Array.from({ length: months }, (_, i) => {
+    const monthOffset = months - 1 - i
+    const start = startOfUtcMonth(now.getUTCFullYear(), now.getUTCMonth() - monthOffset)
+    const end = startOfUtcMonth(now.getUTCFullYear(), now.getUTCMonth() - monthOffset + 1)
+    return { start, end, label: label.format(new Date(start)), value: 0 }
+  })
+  for (const d of dates) {
+    const t = Date.parse(d)
+    if (Number.isNaN(t)) continue
+    const bucket = buckets.find((b) => t >= b.start && t < b.end)
+    if (bucket) bucket.value += 1
+  }
+  return buckets.map((b) => ({ label: b.label, value: b.value }))
+}
+
 function attendanceMix(summary: { present: number; late: number; absent: number }): ChartPoint[] {
   return [
     { label: 'Present', value: summary.present },
@@ -61,12 +95,22 @@ function attendanceMix(summary: { present: number; late: number; absent: number 
 
 async function weeklySessionsSeries(classIds: string[]): Promise<ChartSeries> {
   const sessions = classIds.length ? await selectSessionsForClasses(classIds) : []
+  const dates = sessions.map((s) => s.session_date)
   return {
     key: 'sessions',
     label: 'Sessions / week',
     unit: 'count',
     styles: ['column', 'line', 'bar'],
-    data: weeklySeries(sessions.map((s) => s.session_date)),
+    data: weeklySeries(dates, 8),
+    variants: [
+      { period: '4w', groupBy: 'week', data: weeklySeries(dates, 4) },
+      { period: '8w', groupBy: 'week', data: weeklySeries(dates, 8) },
+      { period: '3m', groupBy: 'week', data: weeklySeries(dates, 13) },
+      { period: '6m', groupBy: 'week', data: weeklySeries(dates, 26) },
+      { period: '6m', groupBy: 'month', data: monthlySeries(dates, 6) },
+    ],
+    defaultPeriod: '8w',
+    defaultGroupBy: 'week',
   }
 }
 
@@ -80,14 +124,15 @@ export async function loadDashboardChartSeries(me: Profile): Promise<ChartSeries
       financeTotalsBase('payslip'),
       selectAllClassIds(),
     ])
-    // Revenue vs payout in the academy base currency, so the chart's Net always
-    // agrees with the Net card (both sum the same per-document base amounts).
     const base = receiptBase.base_currency || payslipBase.base_currency || 'INR'
     const rev = receiptBase.base_total
     const pay = payslipBase.base_total
     // If any document isn't yet priced into the base currency, the figures
     // understate - say so, same as the Net card, rather than implying a total.
     const unconverted = receiptBase.unconverted_count + payslipBase.unconverted_count
+    // Net is the admin Net card's headline, so it is NOT repeated as a bar here -
+    // the chart adds the revenue-vs-payout COMPARISON the card can only state as
+    // text (both sum the same per-document base amounts, so they always agree).
     series.push({
       key: 'revenue',
       label: 'Revenue',
@@ -97,7 +142,6 @@ export async function loadDashboardChartSeries(me: Profile): Promise<ChartSeries
       data: [
         { label: 'Revenue', value: rev },
         { label: 'Payout', value: pay },
-        { label: 'Net', value: rev - pay },
       ],
       note:
         unconverted > 0

@@ -35,6 +35,34 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     }
     return { data: [...byCur.values()], error: null }
   }
+  if (fn === 'finance_totals_base') {
+    // Mirrors migration 0056's finance_totals_base: per-kind totals already
+    // normalised into the CURRENT base currency, never mixing currencies. A doc
+    // counts as converted only if it carries a base amount in that base; a
+    // same-currency doc converts 1:1 (the 0056 backfill). Everything else is
+    // flagged unconverted rather than summed.
+    const base = String((table('org_settings')[0]?.base_currency as string | undefined) ?? 'INR')
+    const rows = table(args.p_kind === 'receipt' ? 'receipts' : 'payslips').filter((r) => !r.voided)
+    let baseTotal = 0
+    let converted = 0
+    let unconverted = 0
+    for (const r of rows) {
+      const bt = r.base_total != null ? Number(r.base_total) : r.currency === base ? Number(r.total) : null
+      const bc = (r.base_currency as string | undefined) ?? (r.currency === base ? base : undefined)
+      if (bt != null && bc === base) {
+        baseTotal += bt
+        converted += 1
+      } else {
+        unconverted += 1
+      }
+    }
+    return {
+      data: [
+        { base_currency: base, base_total: baseTotal, converted_count: converted, unconverted_count: unconverted },
+      ],
+      error: null,
+    }
+  }
   if (fn === 'revoke_profile_guarded') {
     // Mirrors migration 0042: refuse to disable the last active admin, else flip
     // the target to disabled. Returns the same 'ok' | 'not_found' | 'last_admin'.

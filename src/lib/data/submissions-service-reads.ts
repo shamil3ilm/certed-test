@@ -65,3 +65,37 @@ export async function selectEvaluatedSubmissionsForStudentAsService(
   if (error) throw new Error(`menteeOverview.gradedSubs: ${error.message}`)
   return (data ?? []) as EvaluatedSubmissionBrief[]
 }
+
+/** Active submissions for a SET of students (keeping `student_id`), so the mentor
+ *  dashboard reads its whole cohort in one query instead of one per mentee. */
+export async function selectActiveSubmissionsForStudentsAsService(
+  studentIds: string[],
+): Promise<(SubmissionBrief & { student_id: string })[]> {
+  if (studentIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('submissions')
+    .select('student_id, assignment_id, status, submitted_at, drive_link')
+    .in('student_id', studentIds)
+    .eq('is_active', true)
+  if (error) throw new Error(`menteeOverview.subsBatch: ${error.message}`)
+  return (data ?? []) as (SubmissionBrief & { student_id: string })[]
+}
+
+/** Evaluated (graded) submissions for a SET of students, the batched form of
+ *  selectEvaluatedSubmissionsForStudentAsService. */
+export async function selectEvaluatedSubmissionsForStudentsAsService(
+  studentIds: string[],
+): Promise<(EvaluatedSubmissionBrief & { student_id: string })[]> {
+  if (studentIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('submissions')
+    .select('student_id, assignment_id, status, submitted_at, drive_link, score, graded_at')
+    .in('student_id', studentIds)
+    .eq('is_active', true)
+    .not('score', 'is', null)
+    .not('graded_at', 'is', null)
+  if (error) throw new Error(`menteeOverview.gradedSubsBatch: ${error.message}`)
+  return (data ?? []) as (EvaluatedSubmissionBrief & { student_id: string })[]
+}

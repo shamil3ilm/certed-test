@@ -4,7 +4,8 @@ import { formatMark } from '@/lib/grades'
 import { getLatestAnnouncementForClasses } from '@/lib/services/announcements'
 import { getAssignment, listAssignments } from '@/lib/services/assignments'
 import { getLatestGrade, listMyActiveSubmissions } from '@/lib/services/submissions'
-import { Panel, cx } from '@/lib/ui'
+import { getStudentGradeTrajectory } from '@/lib/services/page-data/grade-trajectory'
+import { LineChart, Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_LINK, resolveClassIds } from './widget-shared'
 
@@ -33,6 +34,45 @@ export async function LatestGradeWidget({ studentId }: { studentId: string }) {
         <span className={WIDGET_CTA_LINK}>View feedback &rarr;</span>
       </Link>
       <Link href="/grades" className="mt-2 block text-xs font-medium text-primary transition hover:underline">
+        All grades &rarr;
+      </Link>
+    </Panel>
+  )
+}
+
+/** The student's own grade trajectory: their weighted average plus a trend of
+ *  recent marks - the progress view mentors already get for a mentee, surfaced
+ *  for the student themselves (not just the single latest grade). */
+export async function GradeTrajectoryWidget({ studentId }: { studentId: string }) {
+  const t = await getStudentGradeTrajectory(studentId)
+
+  return (
+    <Panel title="Grade trajectory">
+      {t.average == null ? (
+        <p className="text-sm text-slate-400">No grades yet.</p>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-2">
+            <p className="text-3xl font-bold text-slate-800">{t.average}%</p>
+            {t.direction === 'up' && (
+              <span className="text-xs font-medium text-emerald-600">&#9650; {Math.abs(t.delta ?? 0)} pts</span>
+            )}
+            {t.direction === 'down' && (
+              <span className="text-xs font-medium text-rose-600">&#9660; {Math.abs(t.delta ?? 0)} pts</span>
+            )}
+            {t.direction === 'flat' && <span className="text-xs font-medium text-slate-400">steady</span>}
+          </div>
+          <p className="mt-0.5 text-xs text-slate-400">
+            weighted average across {t.gradedCount} graded {t.gradedCount === 1 ? 'item' : 'items'}
+          </p>
+          {t.points.length >= 2 && (
+            <div className="mt-3">
+              <LineChart data={t.points} format={(n) => `${n}%`} />
+            </div>
+          )}
+        </>
+      )}
+      <Link href="/grades" className={WIDGET_CTA_LINK}>
         All grades &rarr;
       </Link>
     </Panel>

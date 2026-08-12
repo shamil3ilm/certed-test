@@ -41,20 +41,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
 
   return (
     <>
-      <StatGrid cols={4} className="mt-6">
-        <StatModalCard
-          label="Mentees"
-          value={data.menteeCount}
-          title="Mentees"
-          items={data.mentees.map((mentee) => ({
-            primary: mentee.name,
-            secondary: mentee.subtitle ?? undefined,
-            href: menteeHref(mentee.id),
-          }))}
-          empty="No mentees yet."
-          viewAllHref="/students"
-          viewAllLabel="View all mentees"
-        />
+      <StatGrid cols={3} className="mt-6">
         <StatModalCard
           label="Overdue"
           value={data.totalOverdue}

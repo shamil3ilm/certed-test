@@ -1,7 +1,7 @@
 'use client'
 
 import type { Reminder } from '@/lib/services/reminders'
-import { ARCHIVED_ROW } from '@/lib/ui'
+import { ArchivedList } from '@/lib/ui'
 import { formatDate, formatDateTime } from '@/lib/time/format'
 
 export function toDatetimeLocalValue(iso: string): string {
@@ -169,23 +169,15 @@ export function ReminderItems({
 }
 
 export function PastReminderList({ reminders, displayTz }: { reminders: Reminder[]; displayTz?: string }) {
-  if (reminders.length === 0) return null
-
   return (
-    <details className="mt-3 text-sm">
-      <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-primary">
-        {reminders.length} past reminder{reminders.length !== 1 ? 's' : ''}
-      </summary>
-      <ul className="mt-2 space-y-1.5">
-        {reminders.map((reminder) => (
-          <li key={reminder.id} className={ARCHIVED_ROW}>
-            <span className="truncate text-slate-500">{reminder.title}</span>
-            <span suppressHydrationWarning className="shrink-0 text-xs text-slate-400">
-              {formatDate(reminder.remind_at, displayTz)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </details>
+    <ArchivedList
+      count={reminders.length}
+      singularLabel="past reminder"
+      items={reminders.map((reminder) => ({
+        key: reminder.id,
+        label: reminder.title,
+        meta: <span suppressHydrationWarning>{formatDate(reminder.remind_at, displayTz)}</span>,
+      }))}
+    />
   )
 }

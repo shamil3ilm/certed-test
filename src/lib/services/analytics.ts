@@ -12,7 +12,7 @@ import {
 import { listAssignments } from '@/lib/services/assignments'
 import { myClassIds } from '@/lib/services/classes'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
-import { listMyActiveSubmissions, listUngradedSubmissions } from '@/lib/services/submissions'
+import { listActiveSubmissions, listMyActiveSubmissions } from '@/lib/services/submissions'
 
 /**
  * Dashboard KPI figures. Each persona sees the headline numbers for its own
@@ -39,7 +39,10 @@ export type TutorAnalytics = {
   teachingHours: string
   sessionsHeld: number
   attendanceRate: number
-  toGrade: number
+  /** Submissions this tutor has already marked - the retrospective "output"
+   *  headline that mirrors the student's "graded work". The PENDING count is not a
+   *  tile: it lives in the "Submissions to review" widget (the actionable surface). */
+  graded: number
   // Returned so the stat cards can deep-link to a single class's tab without a
   // second myClassIds() round-trip.
   classIds: string[]
@@ -52,14 +55,15 @@ export async function getTutorAnalytics(me: Profile): Promise<TutorAnalytics> {
     selectAttendanceStatusesForClasses(classIds),
     classIds.length ? listAssignments({ classIds, activeOnly: true }) : Promise.resolve([]),
   ])
-  const ungraded = assignments.length ? await listUngradedSubmissions(assignments.map((a) => a.id)) : []
+  const submissions = assignments.length ? await listActiveSubmissions(assignments.map((a) => a.id)) : []
+  const graded = submissions.filter((s) => s.score != null && s.graded_at != null).length
   const teachingMinutes = sumMinutes(sessions.map((s) => minutesBetween(s.tutor_join_at, s.tutor_leave_at)))
   const attendance = summarizeAttendance(statuses as ReadonlyArray<{ status: AttendanceStatus }>)
   return {
     teachingHours: formatHours(teachingMinutes),
     sessionsHeld: sessions.length,
     attendanceRate: attendance.rate,
-    toGrade: ungraded.length,
+    graded,
     classIds,
   }
 }

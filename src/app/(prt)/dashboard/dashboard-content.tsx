@@ -7,11 +7,12 @@ import { MentorInsights } from './MentorInsights'
 import { StudentAnalyticsStats, TutorAnalyticsStats } from './analytics-stats'
 import { DashboardChartsSection } from './charts-section'
 import { CapabilityNotice, MenteesPanel } from './dashboard-panels'
-import { DashboardSection, DashboardWidgetGrid } from './dashboard-layout'
+import { DashboardScopeHeader, DashboardSection, DashboardWidgetGrid } from './dashboard-layout'
 import {
   DueWorkWidget,
   LatestAnnouncementWidget,
   LatestGradeWidget,
+  GradeTrajectoryWidget,
   PendingAttendanceWidget,
   RecentUploadsWidget,
   RemindersWidget,
@@ -19,6 +20,12 @@ import {
   UpcomingClassesWidget,
   WidgetSkeleton,
 } from './widgets'
+
+function createDashboardClassDataPromises(me: Profile) {
+  const classIdsPromise = myClassIds(me)
+  const sharedDataPromise = Promise.all([classIdsPromise, getInstituteTimeZone()])
+  return { classIdsPromise, sharedDataPromise }
+}
 
 export function MentorDashboardContent({
   me,
@@ -37,30 +44,49 @@ export function MentorDashboardContent({
   canViewClasses: boolean
   canViewGrading: boolean
 }) {
+  // A mentor who also teaches stacks two DISTINCT scopes - pastoral (their mentees,
+  // across every class) and teaching (their own classes) - which is otherwise the
+  // longest dashboard and reads as repetition (two attendance figures, two work
+  // lists). Label each scope, and drop the teaching charts in this combined view so
+  // the page stays manageable; the mentee/class stats and lists still differ.
+  const isCombined = canViewMentees && teaches
   return (
     <>
-      {canViewMentees && <MenteesPanel mentees={mentees} />}
       {canViewMentees && (
-        <Suspense fallback={<WidgetSkeleton />}>
-          <MentorInsights me={me} />
-        </Suspense>
+        <>
+          {isCombined && <DashboardScopeHeader>Your mentees</DashboardScopeHeader>}
+          <MenteesPanel mentees={mentees} />
+          <Suspense fallback={<WidgetSkeleton />}>
+            <MentorInsights me={me} />
+          </Suspense>
+        </>
       )}
       {teaches ? (
-        <TutorDashboardContent
-          me={me}
-          now={now}
-          canViewClasses={canViewClasses}
-          canViewGrading={canViewGrading}
-          showSummary={false}
-          showCharts={false}
-          includeRecentUploads={false}
-        />
+        <>
+          {isCombined && <DashboardScopeHeader>Your classes</DashboardScopeHeader>}
+          <TutorDashboardContent
+            me={me}
+            now={now}
+            canViewClasses={canViewClasses}
+            canViewGrading={canViewGrading}
+            showCharts={!isCombined}
+          />
+        </>
       ) : (
-        <DashboardSection>
-          <Suspense fallback={<WidgetSkeleton />}>
-            <RemindersWidget me={me} now={now} />
-          </Suspense>
-        </DashboardSection>
+        <>
+          {canViewClasses && (
+            <DashboardWidgetGrid>
+              <Suspense fallback={<WidgetSkeleton />}>
+                <ClassUpcomingClasses me={me} now={now} />
+              </Suspense>
+            </DashboardWidgetGrid>
+          )}
+          <DashboardSection>
+            <Suspense fallback={<WidgetSkeleton />}>
+              <RemindersWidget me={me} now={now} />
+            </Suspense>
+          </DashboardSection>
+        </>
       )}
     </>
   )
@@ -96,7 +122,7 @@ export function TutorDashboardContent({
     )
   }
 
-  const sharedDataPromise = Promise.all([myClassIds(me), getInstituteTimeZone()])
+  const { sharedDataPromise } = createDashboardClassDataPromises(me)
 
   return (
     <>
@@ -110,7 +136,7 @@ export function TutorDashboardContent({
       <DashboardWidgetGrid>
         {canViewClasses && (
           <Suspense fallback={<WidgetSkeleton />}>
-            <TutorUpcomingClasses me={me} now={now} title="Upcoming classes" sharedDataPromise={sharedDataPromise} />
+            <ClassUpcomingClasses me={me} now={now} sharedDataPromise={sharedDataPromise} />
           </Suspense>
         )}
         {canViewClasses && (
@@ -161,7 +187,7 @@ export function StudentDashboardContent({
     )
   }
 
-  const classIdsPromise = myClassIds(me)
+  const { classIdsPromise } = createDashboardClassDataPromises(me)
 
   return (
     <>
@@ -172,10 +198,16 @@ export function StudentDashboardContent({
       </DashboardSection>
       <DashboardWidgetGrid>
         <Suspense fallback={<WidgetSkeleton />}>
+          <ClassUpcomingClasses me={me} now={now} classIdsPromise={classIdsPromise} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
           <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <LatestGradeWidget studentId={me.id} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <GradeTrajectoryWidget studentId={me.id} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentLatestAnnouncement me={me} classIdsPromise={classIdsPromise} />
@@ -206,18 +238,21 @@ export function GenericDashboardContent({ me, now }: { me: Profile; now: number 
   )
 }
 
-async function TutorUpcomingClasses({
+async function ClassUpcomingClasses({
   me,
   now,
-  title,
+  title = 'Upcoming classes',
+  classIdsPromise,
   sharedDataPromise,
 }: {
   me: Profile
   now: number
-  title: string
-  sharedDataPromise: Promise<[string[], string]>
+  title?: string
+  classIdsPromise?: Promise<string[]>
+  sharedDataPromise?: Promise<[string[], string]>
 }) {
-  const [classIds, timeZone] = await sharedDataPromise
+  const [classIds, timeZone] = await (sharedDataPromise ??
+    Promise.all([classIdsPromise ?? myClassIds(me), getInstituteTimeZone()]))
   return <UpcomingClassesWidget me={me} now={now} title={title} data={{ classIds, timeZone }} />
 }
 

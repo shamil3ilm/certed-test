@@ -59,6 +59,23 @@ export async function selectActiveClassIdsForStudents(studentIds: string[]): Pro
   return [...new Set(((data ?? []) as MembershipRef[]).map((r) => r.class_id))]
 }
 
+export type EnrollmentRef = { student_id: string; class_id: string }
+
+/** Active enrollments for a set of students, keeping `student_id` so the caller
+ *  can group class ids per student - the batched form of
+ *  selectActiveClassIdsForStudent for the mentor dashboard's whole cohort. */
+export async function selectActiveEnrollmentsForStudents(studentIds: string[]): Promise<EnrollmentRef[]> {
+  if (studentIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('enrollments')
+    .select('student_id, class_id')
+    .in('student_id', studentIds)
+    .eq('active', true)
+  if (error) throw new Error(`classMembership.enrollmentsForStudents: ${error.message}`)
+  return (data ?? []) as EnrollmentRef[]
+}
+
 /** One row per active teaching assignment across the given classes, carrying the
  *  tutor id - the caller tallies counts AND resolves names (1-on-1 class cards). */
 export async function selectActiveTutorRefsByClassIds(

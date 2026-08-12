@@ -3,7 +3,7 @@ import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-d
 import { metricPercentLabel } from '@/lib/services/mentees-shared'
 import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Avatar, Badge, Card, FilterBar, SectionLabel, SelectFilterField, StatCard, StatGrid } from '@/lib/ui'
-import { STUDENT_REPORTS } from '@/lib/reports/registry'
+import { StudentReportActions } from '@/lib/reports/student-report-actions'
 import { comparisonLabel } from './detail-shared'
 
 type MenteePageData = NonNullable<Awaited<ReturnType<typeof loadMenteeDetailPageData>>>
@@ -47,17 +47,7 @@ export function MenteeHeader({ data, hasMentorAuthority }: { data: MenteePageDat
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <MessageUserButton recipientId={student.id} className="btn-sm btn-soft" />
-          {STUDENT_REPORTS.map((report) => (
-            <a
-              key={report.type}
-              href={report.pdfPath(student.id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm btn-soft"
-            >
-              {report.label}
-            </a>
-          ))}
+          <StudentReportActions studentId={student.id} className="flex flex-wrap gap-2" />
         </div>
       </div>
 
