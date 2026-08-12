@@ -1,6 +1,28 @@
 import { test, expect } from '@playwright/test'
 import { SEED, loginAs } from './support'
 
+// This spec GRANTS the student a viewGrading override and asserts it persists.
+// The mock store is process-wide with no per-test reset (see global-setup.ts), so
+// that grant would otherwise leak onto the student for every later spec - making
+// them wrongly hold viewGrading and render grader-only surfaces (e.g. the class
+// Grading queue in negative-access.pw.ts). Revoke it after the file, from a fresh
+// context so the reset runs even if the test above failed mid-way.
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage()
+  try {
+    await loginAs(page, 'admin@mock.test')
+    await page.goto(`/admin/users/${SEED.sara}/permissions`, { waitUntil: 'domcontentloaded' })
+    const row = page.locator('li', { hasText: 'Grading queue' })
+    const toDefault = row.getByRole('button', { name: /^Default/ })
+    if (await toDefault.isEnabled().catch(() => false)) {
+      await toDefault.click()
+      await expect(row.getByText('Not in default')).toBeVisible()
+    }
+  } finally {
+    await page.close()
+  }
+})
+
 // The per-user capability-override editor: an admin grants a capability the
 // student's persona baseline doesn't include, and it persists.
 test('ADMIN -- grants a per-user capability override and it persists', async ({ page }) => {

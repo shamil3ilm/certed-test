@@ -15,24 +15,33 @@ import { loginAs, SEED } from './support'
 
 const BLOCKED: Record<string, string[]> = {
   'student@mock.test': ['/students', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
-  'tutor@mock.test': ['/students', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
-  'mentor@mock.test': ['/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
+  // /grades is a student's OWN grade card - student-only by design; a tutor is
+  // bounced (the staff view of a student's marks lives on /students/[id]).
+  'tutor@mock.test': ['/grades', '/students', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
+  'mentor@mock.test': ['/grades', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
   'subadmin@mock.test': ['/classroom', '/documents', '/students', '/grades', '/admin/finance', '/admin/history'],
 }
 
 const ALLOWED: Record<string, string[]> = {
   'student@mock.test': ['/classroom', '/documents', '/grades', '/calendar', '/messages'],
-  'tutor@mock.test': ['/classroom', '/documents', '/grades', '/calendar', '/messages'],
+  'tutor@mock.test': ['/classroom', '/documents', '/calendar', '/messages'],
   'mentor@mock.test': ['/students', '/classroom', '/documents', '/calendar', '/messages'],
   'subadmin@mock.test': ['/admin/users', '/admin/messaging', '/calendar', '/messages'],
 }
+
+const DASHBOARD = /\/dashboard(\?|$|#)/
 
 for (const [email, urls] of Object.entries(BLOCKED)) {
   test(`negative -- ${email} is bounced from ${urls.length} unauthorized routes`, async ({ page }) => {
     await loginAs(page, email)
     for (const url of urls) {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
-      await expect(page, `${email} must NOT reach ${url}`).toHaveURL(/\/dashboard(\?|$|#)/)
+      // Some guards bounce via a redirect that resolves as a SOFT client navigation
+      // - it lands a beat after domcontentloaded when the guard runs below the
+      // already-committed portal layout (e.g. /grades' non-student check). Wait for
+      // that navigation to settle before asserting, or the check races it (NEW-21).
+      await page.waitForURL(DASHBOARD, { timeout: 15000 }).catch(() => {})
+      await expect(page, `${email} must NOT reach ${url}`).toHaveURL(DASHBOARD)
     }
   })
 }
@@ -44,7 +53,11 @@ for (const [email, urls] of Object.entries(ALLOWED)) {
     await loginAs(page, email)
     for (const url of urls) {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
-      await expect(page, `${email} should stay on ${url}, not be bounced`).not.toHaveURL(/\/dashboard(\?|$|#)/)
+      // Let any soft redirect fire before asserting the route was NOT bounced, so a
+      // late client redirect can't slip past a check that sampled the URL too early
+      // and passed (the false-pass side of the same NEW-21 race).
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
+      await expect(page, `${email} should stay on ${url}, not be bounced`).not.toHaveURL(DASHBOARD)
     }
   })
 }

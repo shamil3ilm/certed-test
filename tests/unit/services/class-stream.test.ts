@@ -7,6 +7,7 @@ vi.mock('@/lib/permission/personas', () => ({
 }))
 vi.mock('@/lib/services/announcements', () => ({ listAnnouncementsForClassPage: vi.fn() }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn(async () => new Map()) }))
+vi.mock('@/lib/services/attachments/read', () => ({ listAttachmentsForOwners: vi.fn(async () => new Map()) }))
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { listAnnouncementsForClassPage } from '@/lib/services/announcements'

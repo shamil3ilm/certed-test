@@ -11,7 +11,10 @@ export default defineConfig({
   retries: 1,
   timeout: 120000,
   expect: { timeout: 10000 },
-  reporter: [['list']],
+  // `list` for live console output; `html` (never auto-opened) writes
+  // playwright-report/ so CI can upload it as a failure artifact - every E2E
+  // diagnosis so far has come from reading test-results/*/error-context.md.
+  reporter: [['list'], ['html', { open: 'never' }]],
   // Reset the mock DB before the server boots so every run starts from the seed.
   globalSetup: './tests/e2e/global-setup.ts',
   use: {
@@ -40,6 +43,11 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-anon-key',
       SUPABASE_SECRET_KEY: 'mock-secret',
       CRON_SECRET: 'mock-cron',
+      // The browser maps app.localhost -> 127.0.0.1 (see the launch flag below);
+      // this makes the NODE server agree, so a server-side self-resolution of
+      // app.localhost (Next completing a Server Action) can't ENOTFOUND. Appended
+      // so an existing NODE_OPTIONS is preserved.
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ./scripts/e2e-dns-shim.mjs`.trim(),
     },
   },
   projects: [

@@ -23,7 +23,7 @@ const me = { id: 'u1' } as any
 beforeEach(() => vi.resetAllMocks())
 
 describe('loadDashboardChartSeries', () => {
-  it('admin: revenue (net) and weekly sessions (8 buckets) - no cross-academy attendance chart', async () => {
+  it('admin: revenue vs payout (no Net bar - the Net card owns it) and weekly sessions (8 buckets)', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: true } as any)
     vi.mocked(financeTotalsBase)
       .mockResolvedValueOnce({
@@ -48,10 +48,11 @@ describe('loadDashboardChartSeries', () => {
     const revenue = series[0]
     expect(revenue.unit).toBe('money')
     expect(revenue.moneyPrefix).toBe('₹')
+    // Net is the Net card's headline, so it is not repeated as a bar - only the
+    // revenue-vs-payout comparison the card can't show.
     expect(revenue.data).toEqual([
       { label: 'Revenue', value: 1200 },
       { label: 'Payout', value: 400 },
-      { label: 'Net', value: 800 },
     ])
 
     expect(series[1].data).toHaveLength(8)

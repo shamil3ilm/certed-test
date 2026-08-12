@@ -95,13 +95,21 @@ test('TUTOR -- create assignment + comment on a student submission', async ({ pa
   await expect(page.getByText('Great work, Sara!')).toBeVisible()
 })
 
-test('STUDENT -- submit an assignment (Drive link)', async ({ page }) => {
+test('STUDENT -- submit an assignment (custodial file upload)', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
 
   // Submit to the Science assignment (Sara enrolled, not yet submitted)
   await page.goto(`/classroom/${SEED.science}/classwork`)
-  await page.getByPlaceholder('Paste your Google Drive link...').first().fill('https://drive.google.com/file/e2e-sub')
-  await submitAndReload(page, () => page.getByRole('button', { name: 'Submit link' }).first().click())
+  // Custodial upload is the primary submit path now: attach a real file, which the
+  // academy keeps (no public Drive share). setInputFiles fires the upload directly.
+  await page
+    .locator('input[type=file]')
+    .first()
+    .setInputFiles({
+      name: 'e2e-sub.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
+    })
   await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
 })
 

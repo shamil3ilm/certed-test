@@ -93,6 +93,20 @@ describe('middleware auth gate', () => {
       code: 'UNAUTHORIZED',
     })
   })
+
+  it('carries the refreshed session cookies + CSP header across a redirect (NEW-24)', async () => {
+    // updateSession rotates the Supabase token and writes it onto the response; a
+    // redirect that discarded it would leave the browser holding the old token and
+    // log the user out on the next request.
+    vi.mocked(updateSession).mockImplementation(async (_req, res: any) => {
+      res.cookies.set('sb-access-token', 'refreshed', { path: '/' })
+      return null
+    })
+    const res = await proxy(req('/dashboard'))
+    expect(location(res)).toMatch(/\/login$/) // it IS the redirect branch
+    expect(res.cookies.get('sb-access-token')?.value).toBe('refreshed') // ...and it kept the cookie
+    expect(res.headers.get('content-security-policy')).toBeTruthy() // ...and the CSP header
+  })
 })
 
 describe('middleware host routing', () => {

@@ -87,12 +87,29 @@ test('MENTOR dashboard cards and CTAs are interactive', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
   await page.goto('/dashboard')
 
-  await expect(page.getByRole('heading', { name: 'Your mentees' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Mentee roster' })).toBeVisible()
   await page
     .getByRole('link', { name: /Sara Student/i })
     .first()
     .click()
   await expectUrlContains(page, '/students/')
+})
+
+test('MENTOR+TUTOR combined dashboard labels both scopes and drops the duplicate chart', async ({ page }) => {
+  // Tessa (tutormentor@mock.test) both mentors Sam and teaches a class, so her
+  // dashboard stacks the pastoral and teaching scopes. Each scope must be labelled
+  // so the two attendance figures / work lists don't read as repetition, and the
+  // teaching chart panel is dropped in this combined view to keep the page short.
+  await loginAs(page, 'tutormentor@mock.test')
+  await page.goto('/dashboard')
+
+  await expect(page.getByRole('heading', { name: 'Your mentees' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your classes' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Mentee roster' })).toBeVisible()
+  // Teaching (class-scope) summary is present under "Your classes"...
+  await expect(page.getByText('Teaching hours')).toBeVisible()
+  // ...but the chart panel ("Insights") is suppressed in the combined view.
+  await expect(page.getByRole('heading', { name: 'Insights' })).toHaveCount(0)
 })
 
 test('STUDENT dashboard cards and CTAs are interactive', async ({ page }) => {

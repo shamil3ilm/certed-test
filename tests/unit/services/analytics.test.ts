@@ -4,7 +4,7 @@ vi.mock('@/lib/services/classes', () => ({ myClassIds: vi.fn() }))
 vi.mock('@/lib/services/attendance', () => ({ summarizeAttendanceForStudent: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
 vi.mock('@/lib/services/submissions', () => ({
-  listUngradedSubmissions: vi.fn(),
+  listActiveSubmissions: vi.fn(),
   listMyActiveSubmissions: vi.fn(),
 }))
 vi.mock('@/lib/data/analytics', () => ({
@@ -18,7 +18,7 @@ vi.mock('@/lib/data/analytics', () => ({
 import { myClassIds } from '@/lib/services/classes'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { listAssignments } from '@/lib/services/assignments'
-import { listMyActiveSubmissions, listUngradedSubmissions } from '@/lib/services/submissions'
+import { listActiveSubmissions, listMyActiveSubmissions } from '@/lib/services/submissions'
 import {
   countActiveAnnouncements,
   sumResourceDownloads,
@@ -41,7 +41,7 @@ describe('getAdminAnalytics', () => {
 })
 
 describe('getTutorAnalytics', () => {
-  it('sums working time, counts ungraded work, rates attendance, and returns class ids', async () => {
+  it('sums working time, counts marked work, rates attendance, and returns class ids', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
     vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([
       { tutor_join_at: '2026-07-01T10:00:00Z', tutor_leave_at: '2026-07-01T11:00:00Z' },
@@ -54,13 +54,19 @@ describe('getTutorAnalytics', () => {
       { status: 'absent' },
     ])
     vi.mocked(listAssignments).mockResolvedValueOnce([{ id: 'a1' }, { id: 'a2' }] as any)
-    vi.mocked(listUngradedSubmissions).mockResolvedValueOnce([{ id: 's1' }, { id: 's2' }, { id: 's3' }] as any)
+    // 3 marked (score + graded_at) + 1 still pending -> graded counts only the marked.
+    vi.mocked(listActiveSubmissions).mockResolvedValueOnce([
+      { id: 's1', score: 8, graded_at: '2026-07-03T10:00:00Z' },
+      { id: 's2', score: 5, graded_at: '2026-07-03T10:00:00Z' },
+      { id: 's3', score: 9, graded_at: '2026-07-03T10:00:00Z' },
+      { id: 's4', score: null, graded_at: null },
+    ] as any)
 
     await expect(getTutorAnalytics(me)).resolves.toEqual({
       teachingHours: '2.0h', // 60 + 60 minutes
       sessionsHeld: 2,
       attendanceRate: 75, // (present 2 + late 1) / 4
-      toGrade: 3,
+      graded: 3,
       classIds: ['c1'],
     })
   })
@@ -74,7 +80,7 @@ describe('getTutorAnalytics', () => {
       teachingHours: '-',
       sessionsHeld: 0,
       attendanceRate: 0,
-      toGrade: 0,
+      graded: 0,
       classIds: [],
     })
     expect(listAssignments).not.toHaveBeenCalled()

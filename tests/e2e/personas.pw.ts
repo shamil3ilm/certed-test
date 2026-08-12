@@ -26,12 +26,18 @@ async function createTutorResource(page: Page, title = 'E2E Worksheet PDF') {
   await page.goto(`/classroom/${SEED.math}/classwork`)
   const upload = page.locator('form:has-text("Upload a document")')
   await upload.getByPlaceholder('e.g. Term 1 Question Paper').fill(title)
-  await upload.getByPlaceholder('https://drive.google.com/...').fill('https://drive.google.com/file/e2e-res')
-  await submitAndReload(page, () => upload.getByRole('button', { name: 'Upload document' }).click())
+  // Custodial file upload is the primary path (the Drive link is a collapsed fallback).
+  await upload.locator('input[type=file]').setInputFiles({
+    name: 'e2e-res.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
+  })
+  await upload.getByRole('button', { name: 'Upload document' }).click()
   await expect(page.getByText(title).first()).toBeVisible()
 }
 
-async function gradeSeededMathSubmission(page: Page, score = '18') {
+// The seeded Math assignment (Problem set 3) caps at 10 marks, so grade within it.
+async function gradeSeededMathSubmission(page: Page, score = '9') {
   await loginAs(page, 'tutor@mock.test', { clearCookies: true })
   await page.goto(`/assignments/${SEED.asgMath}`)
   const grade = page.locator('form:has-text("Save mark")').first()
@@ -57,8 +63,12 @@ test('TUTOR -- shares a meet link, a resource, and comments on the resource', as
   await page.goto(`/classroom/${SEED.math}/classwork`)
   const upload = page.locator('form:has-text("Upload a document")')
   await upload.getByPlaceholder('e.g. Term 1 Question Paper').fill('E2E Worksheet PDF')
-  await upload.getByPlaceholder('https://drive.google.com/...').fill('https://drive.google.com/file/e2e-res')
-  await submitAndReload(page, () => upload.getByRole('button', { name: 'Upload document' }).click())
+  await upload.locator('input[type=file]').setInputFiles({
+    name: 'e2e-res.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
+  })
+  await upload.getByRole('button', { name: 'Upload document' }).click()
   await expect(page.getByText('E2E Worksheet PDF').first()).toBeVisible()
 
   // Comment on that resource
@@ -81,12 +91,12 @@ test('TUTOR -- creates an assignment, grades homework + comments on it', async (
   await af.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'E2E Persona HW' }).first()).toBeVisible()
 
-  // Grade a student's submission + leave feedback on it
+  // Grade a student's submission + leave feedback on it (Problem set 3 caps at 10).
   await page.goto(`/assignments/${SEED.asgMath}`)
   const grade = page.locator('form:has-text("Save mark")').first()
-  await grade.locator('input[type=number]').fill('18')
+  await grade.locator('input[type=number]').fill('9')
   await submitAndReload(page, () => grade.getByRole('button', { name: 'Save mark' }).click())
-  await expect(page.locator('form:has-text("Save mark") input[type=number]').first()).toHaveValue('18')
+  await expect(page.locator('form:has-text("Save mark") input[type=number]').first()).toHaveValue('9')
 
   const subThread = page.locator('form', { has: page.getByRole('button', { name: 'Send' }) }).first()
   await ensureThreadOpen(subThread)
@@ -147,20 +157,23 @@ test('STUDENT -- full journey: timetable, submit homework, materials, grade, att
   await expect(page.locator('.fc').first()).toBeVisible() // the FullCalendar grid
   await expect(page.getByText('Manage timetable')).toHaveCount(0) // students can't manage it
 
-  // Submit homework (Science)
+  // Submit homework (Science) via a custodial file upload - the primary path now.
   await page.goto(`/classroom/${SEED.science}/classwork`)
   await page
-    .getByPlaceholder('Paste your Google Drive link...')
+    .locator('input[type=file]')
     .first()
-    .fill('https://drive.google.com/file/e2e-persona')
-  await submitAndReload(page, () => page.getByRole('button', { name: 'Submit link' }).first().click())
+    .setInputFiles({
+      name: 'e2e-persona.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
+    })
   await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
 
   // See the tutor's material + the grade in Math
   await page.goto(`/classroom/${SEED.math}/classwork`)
   await expect(page.getByText('E2E Worksheet PDF').first()).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open' }).first()).toBeVisible()
-  await expect(page.getByText(/Marked: 18/).first()).toBeVisible()
+  await expect(page.getByText(/Marked: 9/).first()).toBeVisible()
 
   // See attendance
   await page.goto(`/classroom/${SEED.math}/attendance`)

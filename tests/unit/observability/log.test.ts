@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+  // logError reads the request id back off the isolation scope for its log field.
+  getIsolationScope: () => ({ getScopeData: () => ({ tags: {} }) }),
+}))
 
 import { logError } from '@/lib/observability/log'
 import * as Sentry from '@sentry/nextjs'

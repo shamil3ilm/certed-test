@@ -194,9 +194,12 @@ describe('loadDashboardViewData', () => {
     })
   })
 
-  it('loads the sub-admin dashboard counts only', async () => {
+  it('loads the sub-admin dashboard: people counts plus the shared schedule + reminders', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce(flags({ isSubAdmin: true }))
     vi.mocked(countPeople).mockResolvedValueOnce({ students: 9, tutors: 4, pending: 2 } as any)
+    vi.mocked(listEvents).mockResolvedValueOnce([{ id: 'e1' }] as any)
+    vi.mocked(listMyReminders).mockResolvedValueOnce([{ id: 'r1' }] as any)
+    vi.mocked(listMyPastReminders).mockResolvedValueOnce([{ id: 'p1' }] as any)
 
     await expect(loadDashboardViewData({ id: 'sub-1', role: 'sub_admin' } as any, caps('viewUsers'))).resolves.toEqual({
       kind: 'sub_admin',
@@ -205,8 +208,11 @@ describe('loadDashboardViewData', () => {
       students: 9,
       tutors: 4,
       pending: 2,
+      upcoming: [{ id: 'e1' }],
+      reminders: [{ id: 'r1' }],
+      pastReminders: [{ id: 'p1' }],
     })
-    expect(listEvents).not.toHaveBeenCalled()
+    expect(listEvents).toHaveBeenCalledTimes(1)
   })
 
   it('suppresses sub-admin user aggregates when viewUsers is revoked', async () => {
