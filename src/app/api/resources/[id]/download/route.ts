@@ -4,6 +4,11 @@ import { recordDownload } from '@/lib/services/resources'
 import { NotFoundError, PermissionError } from '@/lib/errors'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { isAllowedDriveUrl } from '@/lib/drive-link'
+import { selectActiveAttachmentsForOwner } from '@/lib/data/attachments'
+import { getDriveStorage } from '@/lib/google/drive-storage'
+
+// Node runtime: a custodial document streams its bytes from the Drive REST API.
+export const runtime = 'nodejs'
 
 /**
  * Documents are Google Drive links. This route is an access-checked indirection:
@@ -46,10 +51,32 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     if (error instanceof NotFoundError || error instanceof PermissionError) return notFoundText()
     return textFail('Could not open the document. Please try again in a moment.', 502)
   }
-  // Defence in depth: re-verify the host at redirect time, so the redirect
-  // target cannot escape the Drive/Docs allowlist even if bad data reaches the
-  // row.
-  if (!doc.drive_link || !isAllowedDriveUrl(doc.drive_link)) return notFoundText()
-  // no-store: the URL has a side effect, so it must never be cached or replayed.
-  return new Response(null, { status: 302, headers: { Location: doc.drive_link, 'Cache-Control': 'no-store' } })
+  // A LINK document redirects to Drive as before. Defence in depth: re-verify the
+  // host at redirect time so the target can't escape the Drive/Docs allowlist even
+  // if bad data reached the row. no-store: the URL has a side effect.
+  if (doc.drive_link) {
+    if (!isAllowedDriveUrl(doc.drive_link)) return notFoundText()
+    return new Response(null, { status: 302, headers: { Location: doc.drive_link, 'Cache-Control': 'no-store' } })
+  }
+
+  // A CUSTODIAL document has no link: stream its attachment's bytes through the app,
+  // private, exactly like the attachment download route. recordDownload above has
+  // already run the per-document permission check, so the file may be served.
+  const [attachment] = await selectActiveAttachmentsForOwner({ kind: 'resource', id: doc.id })
+  if (!attachment || !attachment.drive_file_id) return notFoundText()
+  let file
+  try {
+    file = await getDriveStorage().getFileStream(attachment.drive_file_id)
+  } catch {
+    return textFail('Could not open the document. Please try again in a moment.', 502)
+  }
+  const inline = new URL(req.url).searchParams.get('inline') === '1'
+  const ascii = attachment.original_filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_')
+  return new Response(file.body, {
+    headers: {
+      'Content-Type': attachment.mime_type,
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(attachment.original_filename)}`,
+      'Cache-Control': 'private, no-store',
+    },
+  })
 }

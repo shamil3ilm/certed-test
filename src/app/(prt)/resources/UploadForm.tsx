@@ -1,22 +1,26 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { checkDriveLink } from '@/lib/drive-link'
 import { CARD, cx } from '@/lib/ui'
 import { DOCUMENT_CATEGORIES, DOCUMENT_VISIBILITIES } from '@/lib/documents/categories'
 import { Field, Input, Select, Textarea } from '../form'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
-import { createDocumentAction } from './actions'
+import { createCustodialDocumentAction, createDocumentAction } from './actions'
 
 type ClassRow = { id: string; name: string }
 
 const FILE_TYPES = ['PDF', 'Image', 'Document', 'Spreadsheet', 'Slides', 'Link', 'Other']
+const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.zip'
 
-/** Upload a document to the class library: a Google Drive link plus metadata
- *  (category, subject, type, visibility). Managers only. */
+/** Add a document to the class library: upload a file the academy KEEPS (custodial
+ *  storage), or - as a fallback - paste a Google Drive link. Metadata (category,
+ *  subject, type, visibility) applies either way. Managers only. */
 export function UploadForm({ classes }: { classes: ClassRow[] }) {
   const { toast } = useUI()
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [classId, setClassId] = useState(classes[0]?.id ?? '')
   const [category, setCategory] = useState<string>(DOCUMENT_CATEGORIES[0].value)
@@ -25,16 +29,14 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
   const [fileType, setFileType] = useState('')
   const [visibility, setVisibility] = useState<string>('class')
   const [description, setDescription] = useState('')
+  const [file, setFile] = useState<File | null>(null)
   const [url, setUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const single = classes.length === 1
   const linkCheck = checkDriveLink(url)
 
-  function onSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    setError(null)
-    if (!classId || !title.trim() || !url.trim()) return
-
+  function metaForm(): FormData {
     const formData = new FormData()
     formData.append('classId', classId)
     formData.append('category', category)
@@ -43,16 +45,48 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
     formData.append('file_type', fileType)
     formData.append('visibility', visibility)
     formData.append('description', description.trim())
-    formData.append('url', url.trim())
+    return formData
+  }
+
+  function reset() {
+    setTitle('')
+    setSubject('')
+    setDescription('')
+    setUrl('')
+    setFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    if (!classId || !title.trim()) return
+    if (!file && !url.trim()) {
+      setError('Add a file to upload, or paste a Google Drive link.')
+      return
+    }
 
     startTransition(async () => {
       try {
-        assertActionOk(await createDocumentAction(formData), 'Something went wrong')
-        setTitle('')
-        setSubject('')
-        setDescription('')
-        setUrl('')
+        if (file) {
+          // Custodial: create the document row, then upload its file to it.
+          const created = await createCustodialDocumentAction(metaForm())
+          if (!created.ok) throw new Error(created.error)
+          const upload = new FormData()
+          upload.append('file', file)
+          upload.append('owner', 'resource')
+          upload.append('ownerId', created.resourceId)
+          const res = await fetch('/api/attachments', { method: 'POST', body: upload })
+          const json = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null
+          if (!res.ok || !json?.success) throw new Error(json?.error ?? 'Could not upload the file.')
+        } else {
+          const formData = metaForm()
+          formData.append('url', url.trim())
+          assertActionOk(await createDocumentAction(formData), 'Something went wrong')
+        }
         toast('Document uploaded', 'success')
+        reset()
+        router.refresh()
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : 'Something went wrong')
       }
@@ -63,7 +97,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
     <form onSubmit={onSubmit} className={cx(CARD, 'space-y-4 p-5')}>
       <div className="border-b border-slate-100 pb-3">
         <h2 className="text-base font-semibold text-slate-900">Upload a document</h2>
-        <p className="mt-0.5 text-xs text-slate-500">Paste a Google Drive share link and categorise it.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Upload a file the academy keeps, and categorise it.</p>
       </div>
 
       {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</div>}
@@ -138,35 +172,51 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
       </Field>
 
       <div className="space-y-1">
-        <label htmlFor="document-drive-link" className="text-xs font-medium text-slate-500">
-          Google Drive link
+        <label htmlFor="document-file" className="text-xs font-medium text-slate-500">
+          File
         </label>
-        <Input
-          id="document-drive-link"
-          type="url"
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          placeholder="https://drive.google.com/..."
-          required
+        <input
+          id="document-file"
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPT}
           disabled={isPending}
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
         />
-        {linkCheck === 'folder' && (
-          <p className="text-xs text-amber-600">
-            That looks like a Drive <span className="font-medium">folder</span> link - link the specific file instead.
-          </p>
-        )}
-        {linkCheck === 'not-drive' && (
-          <p className="text-xs text-amber-600">
-            Not a Drive link - fine for Docs/YouTube/a website. Make sure it opens for students who aren&apos;t signed
-            in as you.
-          </p>
-        )}
         <p className="text-xs text-slate-400">
-          Set sharing to <span className="font-medium text-slate-500">&quot;Anyone with the link&quot;</span> and test
-          it in a private window. <span className="font-medium text-slate-500">Staff only</span> visibility hides it
-          from students.
+          Kept by the academy - PDF, Office documents, images or zip, up to 25 MB.{' '}
+          <span className="font-medium text-slate-500">Staff only</span> visibility hides it from students.
         </p>
       </div>
+
+      <details className="text-xs">
+        <summary className="cursor-pointer text-slate-500">or link a Google Drive file instead</summary>
+        <div className="mt-1.5 space-y-1">
+          <Input
+            id="document-drive-link"
+            type="url"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="https://drive.google.com/..."
+            disabled={isPending}
+          />
+          {linkCheck === 'folder' && (
+            <p className="text-amber-600">
+              That looks like a Drive <span className="font-medium">folder</span> link - link the specific file instead.
+            </p>
+          )}
+          {linkCheck === 'not-drive' && (
+            <p className="text-amber-600">
+              Not a Drive link - fine for Docs/YouTube/a website. Make sure it opens for students who aren&apos;t signed
+              in as you.
+            </p>
+          )}
+          <p className="text-slate-400">
+            A linked file is stored outside the academy - upload it above to keep a copy.
+          </p>
+        </div>
+      </details>
 
       <button type="submit" disabled={isPending} className="btn btn-primary">
         {isPending ? 'Uploading...' : 'Upload document'}

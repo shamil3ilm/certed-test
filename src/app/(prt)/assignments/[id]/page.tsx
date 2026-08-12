@@ -3,7 +3,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { CommentThread } from '../../CommentThread'
 import { LocalTime } from '../../LocalTime'
-import { Avatar, BackLink, Card, EmptyState, PageHeader } from '@/lib/ui'
+import { Avatar, BackLink, Card, EmptyState, ExternalActionLink, PageHeader } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 
 export default async function AssignmentDetail(props: { params: Promise<{ id: string }> }) {
@@ -53,16 +53,14 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                 </div>
               </div>
               {submission.drive_link && submission.drive_link !== '#' && (
-                <a
+                <ExternalActionLink
                   href={submission.drive_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-sm btn-soft inline-flex max-w-[14rem] items-center gap-1"
+                  className="inline-flex max-w-[14rem] items-center gap-1"
                   title={submission.file_name ?? undefined}
                 >
                   <span className="truncate">{submission.file_name ?? 'Open in Drive'}</span>
                   <span aria-hidden>{'->'}</span>
-                </a>
+                </ExternalActionLink>
               )}
             </div>
 

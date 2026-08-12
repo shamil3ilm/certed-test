@@ -2,6 +2,7 @@ import type { DocumentVersion } from '@/lib/services/resources'
 import { LocalTime } from '../LocalTime'
 import { ConfirmSubmit } from '../ConfirmSubmit'
 import { restoreVersionAction } from '../assignments/manage-actions'
+import { ExternalActionLink } from '@/lib/ui'
 
 /** A document's superseded versions. Collapsed by default; anyone
  *  who can see the document sees its history, and staff can restore a prior
@@ -36,14 +37,9 @@ export function VersionHistory({
               <LocalTime iso={version.created_at} mode="date" />
             </span>
             {version.drive_link && (
-              <a
-                href={version.drive_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm btn-soft shrink-0"
-              >
+              <ExternalActionLink href={version.drive_link} className="shrink-0">
                 Open
-              </a>
+              </ExternalActionLink>
             )}
             {canManage && (
               <form action={restoreVersionAction} className="shrink-0">

@@ -1,6 +1,6 @@
 import { requireClassAccess } from '../../access'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
-import { AlertBanner } from '@/lib/ui'
+import { AlertBanner, SectionJumpNav } from '@/lib/ui'
 import { AssignmentsSection, MaterialsSection } from './sections'
 
 export default async function ClassworkPage(props: {
@@ -29,33 +29,25 @@ export default async function ClassworkPage(props: {
           familiar grouping) but lets you hop straight to either section. */}
       {/* Center-aligned + wraps on small screens, so the pills line up with the
           report-card button and it flows below rather than squashing the row. */}
-      <nav
-        aria-label="Classwork sections"
-        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
-      >
-        <a
-          href="#assignments"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Assignments
-        </a>
-        <a
-          href="#materials"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Documents
-        </a>
-        {data.isStudent && (
-          <a
-            href={`/api/report-card/${me.id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-sm btn-soft ml-auto"
-          >
-            Download report card
-          </a>
-        )}
-      </nav>
+      <SectionJumpNav
+        label="Classwork sections"
+        items={[
+          { href: '#assignments', label: 'Assignments' },
+          { href: '#materials', label: 'Documents' },
+        ]}
+        trailing={
+          data.isStudent ? (
+            <a
+              href={`/api/report-card/${me.id}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm btn-soft ml-auto"
+            >
+              Download report card
+            </a>
+          ) : undefined
+        }
+      />
       <AssignmentsSection data={data} me={me} courseId={course.id} />
       <MaterialsSection data={data} me={me} courseId={course.id} />
     </div>

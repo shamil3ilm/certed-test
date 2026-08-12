@@ -11,6 +11,7 @@ export {
   listSubmissionsForAssignment,
   listSupersededSubmissions,
   listUngradedSubmissions,
+  listActiveSubmissions,
   listMyActiveSubmissions,
   listMySupersededSubmissions,
   getLatestGrade,
@@ -22,6 +23,7 @@ export {
   validateRecordSubmissionInput,
   recordSubmission,
   recordSubmissionFromActionInput,
+  ensureActiveSubmissionId,
   withdrawSubmission,
   withdrawSubmissionFromActionInput,
 } from './student-actions'

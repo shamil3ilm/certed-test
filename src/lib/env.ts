@@ -32,3 +32,24 @@ export function supabaseServiceEnv(): { url: string; serviceKey: string } {
 export function supabaseAnonEnv(): { url: string; anonKey: string } {
   return { url: required('NEXT_PUBLIC_SUPABASE_URL'), anonKey: required('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') }
 }
+
+/**
+ * Dedicated-account Google Drive credentials for custodial attachment storage.
+ * SERVER-ONLY (never NEXT_PUBLIC): a refresh token for the academy's own Drive
+ * account that the server exchanges for short-lived access tokens, plus the id of
+ * the root folder new uploads are filed under. Only the real (non-mock)
+ * DriveStorage adapter reads these; mock mode uses an in-memory provider.
+ */
+export function googleDriveEnv(): {
+  clientId: string
+  clientSecret: string
+  refreshToken: string
+  rootFolderId: string
+} {
+  return {
+    clientId: required('GOOGLE_DRIVE_CLIENT_ID'),
+    clientSecret: required('GOOGLE_DRIVE_CLIENT_SECRET'),
+    refreshToken: required('GOOGLE_DRIVE_REFRESH_TOKEN'),
+    rootFolderId: required('GOOGLE_DRIVE_ROOT_FOLDER_ID'),
+  }
+}

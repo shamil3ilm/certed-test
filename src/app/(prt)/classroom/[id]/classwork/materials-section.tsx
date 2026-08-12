@@ -7,11 +7,12 @@ import {
 } from '@/lib/documents/categories'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
 import {
-  ARCHIVED_ROW,
+  ArchivedList,
   Badge,
   Card,
   DateFilterField,
   EmptyState,
+  ExternalActionLink,
   FilterBar,
   SearchFilterField,
   SectionLabel,
@@ -77,14 +78,9 @@ function DocumentCard({
             {doc.download_count === 1 ? '' : 's'}
           </p>
         </div>
-        <a
-          href={`/api/resources/${doc.id}/download`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-sm btn-soft shrink-0"
-        >
+        <ExternalActionLink href={`/api/resources/${doc.id}/download`} className="shrink-0">
           Open
-        </a>
+        </ExternalActionLink>
       </div>
 
       {preview && (
@@ -200,28 +196,28 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
         })
       )}
 
-      {data.canManage && data.archivedDocuments.length > 0 && (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-primary">
-            {data.archivedDocuments.length} archived document{data.archivedDocuments.length !== 1 ? 's' : ''}
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {data.archivedDocuments.map((doc) => (
-              <li key={doc.id} className={ARCHIVED_ROW}>
-                <span className="truncate text-slate-500">
-                  {doc.title} <span className="text-slate-400">({documentCategoryLabel(doc.category)})</span>
-                </span>
-                <form action={restoreResourceAction}>
-                  <input type="hidden" name="id" value={doc.id} />
-                  <input type="hidden" name="class_id" value={courseId} />
-                  <SubmitButton className="btn-sm btn-success" pendingLabel="...">
-                    Restore
-                  </SubmitButton>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </details>
+      {data.canManage && (
+        <ArchivedList
+          count={data.archivedDocuments.length}
+          singularLabel="archived document"
+          items={data.archivedDocuments.map((doc) => ({
+            key: doc.id,
+            label: (
+              <>
+                {doc.title} <span className="text-slate-400">({documentCategoryLabel(doc.category)})</span>
+              </>
+            ),
+            action: (
+              <form action={restoreResourceAction}>
+                <input type="hidden" name="id" value={doc.id} />
+                <input type="hidden" name="class_id" value={courseId} />
+                <SubmitButton className="btn-sm btn-success" pendingLabel="...">
+                  Restore
+                </SubmitButton>
+              </form>
+            ),
+          }))}
+        />
       )}
     </section>
   )

@@ -2,7 +2,19 @@ import { requireClassAccess } from '../../access'
 import type { ClassMember } from '@/lib/services/classes'
 import { loadClassPeopleViewData } from '@/lib/services/page-data/class-people'
 import { listTags, tagsForEntity } from '@/lib/services/tags'
-import { AlertBanner, Avatar, Card, EmptyState, ListRow, SectionLabel, cx, CARD } from '@/lib/ui'
+import {
+  AlertBanner,
+  Avatar,
+  Card,
+  EmptyState,
+  FilterBar,
+  ListRow,
+  SearchFilterField,
+  SectionJumpNav,
+  SectionLabel,
+  cx,
+  CARD,
+} from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { MessageUserButton } from '../../../messages/MessageUserButton'
@@ -78,39 +90,15 @@ export default async function ClassPeoplePage(props: {
         <AlertBanner>That change couldn&apos;t be applied. Please check the details and try again.</AlertBanner>
       )}
 
-      <nav
-        aria-label="People sections"
-        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
-      >
-        {data.canManage && (
-          <a
-            href="#tags"
-            className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-          >
-            Tags
-          </a>
-        )}
-        {data.isAdmin && (
-          <a
-            href="#settings"
-            className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-          >
-            Class settings
-          </a>
-        )}
-        <a
-          href="#teachers"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Tutors
-        </a>
-        <a
-          href="#students"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Students
-        </a>
-      </nav>
+      <SectionJumpNav
+        label="People sections"
+        items={[
+          ...(data.canManage ? [{ href: '#tags', label: 'Tags' }] : []),
+          ...(data.isAdmin ? [{ href: '#settings', label: 'Class settings' }] : []),
+          { href: '#teachers', label: 'Tutors' },
+          { href: '#students', label: 'Students' },
+        ]}
+      />
 
       {!data.canManage && data.myMentors.length > 0 && (
         <Card className="flex items-center gap-3 p-4">
@@ -233,19 +221,19 @@ export default async function ClassPeoplePage(props: {
             <div className={cx(CARD, 'space-y-3 p-3')}>
               {/* GET form: server-side search so the picker never ships the whole
                 student roster. Narrows the enrol list below via ?enrolQ=. */}
-              <form className="flex flex-wrap items-end gap-2">
-                <Field label="Find a student to enrol" className="min-w-0 flex-1 sm:max-w-xs">
-                  <Input
-                    type="search"
-                    name="enrolQ"
-                    defaultValue={data.enrolSearch}
-                    placeholder="Search by name or email..."
-                  />
-                </Field>
-                <button type="submit" className="btn btn-sm btn-soft">
-                  Search
-                </button>
-              </form>
+              <FilterBar
+                clearHref={`/classroom/${course.id}/people`}
+                showClear={Boolean(data.enrolSearch)}
+                applyLabel="Search"
+              >
+                <SearchFilterField
+                  label="Find a student to enrol"
+                  name="enrolQ"
+                  defaultValue={data.enrolSearch}
+                  placeholder="Search by name or email..."
+                  className="sm:max-w-xs"
+                />
+              </FilterBar>
               {data.addableStudents.length > 0 ? (
                 <form action={enrolStudentAction} className="flex flex-wrap items-end gap-2">
                   <input type="hidden" name="class_id" value={course.id} />

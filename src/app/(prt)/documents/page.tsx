@@ -10,6 +10,7 @@ import {
   Card,
   DateFilterField,
   EmptyState,
+  ExternalActionLink,
   FilterBar,
   PageHeader,
   PaginationBar,
@@ -84,14 +85,9 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
                     {document.download_count === 1 ? '' : 's'}
                   </p>
                 </div>
-                <a
-                  href={`/api/resources/${document.id}/download`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-sm btn-soft shrink-0"
-                >
+                <ExternalActionLink href={`/api/resources/${document.id}/download`} className="shrink-0">
                   Open
-                </a>
+                </ExternalActionLink>
               </Card>
             </li>
           ))}

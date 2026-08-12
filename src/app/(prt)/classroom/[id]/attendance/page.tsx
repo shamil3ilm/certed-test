@@ -12,6 +12,7 @@ import {
   EmptyState,
   Badge,
   SectionLabel,
+  SectionJumpNav,
   DateFilterField,
   FilterBar,
   CARD,
@@ -135,23 +136,13 @@ export default async function AttendancePage(props: {
 
   return (
     <div className="space-y-8">
-      <nav
-        aria-label="Attendance sections"
-        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
-      >
-        <a
-          href="#mark-attendance"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Mark attendance
-        </a>
-        <a
-          href="#attendance-history"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Attendance details
-        </a>
-      </nav>
+      <SectionJumpNav
+        label="Attendance sections"
+        items={[
+          { href: '#mark-attendance', label: 'Mark attendance' },
+          { href: '#attendance-history', label: 'Attendance details' },
+        ]}
+      />
 
       <section id="mark-attendance" className="scroll-mt-20 space-y-4">
         <SectionLabel>Mark attendance</SectionLabel>

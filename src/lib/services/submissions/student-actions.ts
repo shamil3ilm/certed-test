@@ -4,7 +4,11 @@ import { getAssignment, type Assignment } from '@/lib/services/assignments'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { submissionInputSchema } from '@/lib/assignments/submit-schema'
-import { callReplaceOwnSubmission, markInactiveForStudent } from '@/lib/data/submissions'
+import {
+  callReplaceOwnSubmission,
+  markInactiveForStudent,
+  selectActiveByStudentAndAssignment,
+} from '@/lib/data/submissions'
 import { validateUuidField } from '@/lib/validation/id'
 import { getSubmission, type Submission } from './queries'
 
@@ -100,6 +104,21 @@ export async function recordSubmissionFromActionInput(
   input: RecordSubmissionActionInput,
 ): Promise<Submission> {
   return recordSubmission(actor, validateRecordSubmissionInput(input))
+}
+
+/**
+ * The id of the student's active submission for this assignment, creating an empty
+ * (attachment-based, no link) one if none exists yet. ENSURE, not replace: files are
+ * attached to this row via /api/attachments, so a second file must land on the SAME
+ * submission rather than superseding the first and orphaning it. Enforces the same
+ * enrolled/open/deadline rules as a link submission (via recordSubmission).
+ */
+export async function ensureActiveSubmissionId(actor: Profile, assignmentId: string): Promise<string> {
+  const id = validateUuidField(assignmentId, 'Missing assignment.')
+  const existing = await selectActiveByStudentAndAssignment(actor.id, id)
+  if (existing) return existing.id
+  const created = await recordSubmission(actor, { assignment_id: id, drive_link: null })
+  return created.id
 }
 
 function validateSubmissionIdInput(input: { submission_id?: FormDataEntryValue | null }): string {

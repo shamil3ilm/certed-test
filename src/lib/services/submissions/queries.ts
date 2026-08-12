@@ -1,6 +1,7 @@
 import 'server-only'
 import {
   selectActiveByAssignment,
+  selectActiveByAssignments,
   selectActiveByStudent,
   selectById,
   selectSupersededByAssignment,
@@ -31,6 +32,12 @@ export async function listSupersededSubmissions(assignmentId: string): Promise<S
  *  "to review" queue. RLS still scopes reads to a tutor of those classes. */
 export async function listUngradedSubmissions(assignmentIds: string[]): Promise<Submission[]> {
   return selectUngradedByAssignments(assignmentIds)
+}
+
+/** All active submissions across a set of assignments (graded or not), so a caller
+ *  can count marked vs pending in a single read. RLS scopes reads as above. */
+export async function listActiveSubmissions(assignmentIds: string[]): Promise<Submission[]> {
+  return selectActiveByAssignments(assignmentIds)
 }
 
 export async function listMyActiveSubmissions(studentId: string): Promise<Submission[]> {

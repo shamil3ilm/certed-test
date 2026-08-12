@@ -267,6 +267,67 @@ export async function createDocumentFromActionInput(actor: Profile, input: Docum
   return createDocument(actor, validateCreateDocumentInput(input))
 }
 
+// Custodial documents carry no Drive link - the file's bytes live in the academy's
+// Drive as an attachment (owner_type=resource), uploaded to /api/attachments right
+// after this row is created. Same metadata + RBAC as a link document, minus the URL.
+type CreateCustodialDocumentInput = Omit<DocumentMetaInput, 'drive_link'> & { class_id: string }
+
+const createCustodialDocumentSchema = z.object({
+  class_id: z.string().uuid(),
+  title: titleField,
+  description: optionalText(2000),
+  category: categoryField,
+  subject: optionalText(120),
+  file_type: optionalText(40),
+  visibility: visibilityField,
+})
+
+export function validateCreateCustodialDocumentInput(input: DocumentActionInput): CreateCustodialDocumentInput {
+  const parsed = createCustodialDocumentSchema.safeParse({
+    class_id: input.classId,
+    title: input.title,
+    description: input.description ?? undefined,
+    category: input.category ?? 'general_documents',
+    subject: input.subject ?? undefined,
+    file_type: input.file_type ?? undefined,
+    visibility: input.visibility ?? 'class',
+  })
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid document data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
+  }
+  return parsed.data
+}
+
+/** Create a custodial document row (no Drive link) and return it, so the caller can
+ *  attach the uploaded file to it. Same RBAC/scope/active/audit as createDocument. */
+export async function createCustodialDocument(actor: Profile, input: CreateCustodialDocumentInput): Promise<Document> {
+  throttleWrite('resource', actor.id, 'document')
+  await assertCanDocument(actor, 'upload', { class_id: input.class_id, visibility: input.visibility })
+  await assertClassActive(input.class_id)
+  const created = await insertResource({
+    class_id: input.class_id,
+    title: input.title,
+    description: input.description,
+    category: input.category,
+    subject: input.subject,
+    file_type: input.file_type,
+    drive_link: null,
+    uploaded_by: actor.id,
+    visibility: input.visibility,
+    status: 'active',
+  })
+  await auditPrivilegedAction(actor, 'resource.create', 'resource', created.id)
+  await notifyClassOfDocument(created, 'New document')
+  return created
+}
+
+export async function createCustodialDocumentFromActionInput(
+  actor: Profile,
+  input: DocumentActionInput,
+): Promise<Document> {
+  return createCustodialDocument(actor, validateCreateCustodialDocumentInput(input))
+}
+
 /** Edit a document's metadata. canDocument('edit', doc) - a tutor may edit only
  *  what they uploaded; a mentor/admin, any in scope. */
 export async function editDocument(actor: Profile, input: EditDocumentInput): Promise<void> {

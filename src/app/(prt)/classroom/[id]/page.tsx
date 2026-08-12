@@ -10,23 +10,23 @@ import {
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { CommentThread } from '../../CommentThread'
 import { EscapableDetails } from '../../EscapableDetails'
-import { Field, Input, Select, SubmitButton, Textarea } from '../../form'
+import { Field, Input, SubmitButton, Textarea } from '../../form'
 import { restoreMeetLinkAction } from '../../meetings/actions'
 import { MeetList } from '../../meetings/MeetList'
 import { AttachmentList } from './AttachmentList'
-import { createStreamPostAction } from './stream-actions'
+import { AttachmentList as CustodialAttachmentList } from '../../AttachmentList'
+import { StreamComposer } from './StreamComposer'
 import {
   AlertBanner,
-  ARCHIVED_ROW,
+  ArchivedList,
   Badge,
-  CARD,
   Card,
   EmptyState,
   FilterBar,
   PaginationBar,
   SearchFilterField,
   SectionLabel,
-  cx,
+  SectionJumpNav,
 } from '@/lib/ui'
 
 export default async function ClassStreamPage(props: {
@@ -62,86 +62,15 @@ export default async function ClassStreamPage(props: {
         </AlertBanner>
       )}
 
-      <nav
-        aria-label="Stream sections"
-        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 text-sm"
-      >
-        {meet.meetLinks.length > 0 && (
-          <a
-            href="#meetings"
-            className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-          >
-            Meetings
-          </a>
-        )}
-        <a
-          href="#announcements"
-          className="inline-flex min-h-9 items-center rounded-full bg-slate-100 px-3.5 font-medium text-slate-600 transition hover:bg-primary/10 hover:text-primary"
-        >
-          Announcements
-        </a>
-      </nav>
+      <SectionJumpNav
+        label="Stream sections"
+        items={[
+          ...(meet.meetLinks.length > 0 ? [{ href: '#meetings', label: 'Meetings' }] : []),
+          { href: '#announcements', label: 'Announcements' },
+        ]}
+      />
 
-      {data.canManageContent && (
-        <form action={createStreamPostAction} className={cx(CARD, 'space-y-2 p-4')}>
-          <h2 className="font-medium text-slate-900">Post to the class</h2>
-          <input type="hidden" name="stream_class_id" value={course.id} />
-          {data.isAdmin ? (
-            <Field label="Post to">
-              <Select name="class_id" defaultValue={course.id}>
-                <option value={course.id}>This class</option>
-                <option value="">Academy-wide (all classes)</option>
-              </Select>
-            </Field>
-          ) : (
-            <input type="hidden" name="class_id" value={course.id} />
-          )}
-          <Field label="Title">
-            <Input name="title" required maxLength={200} placeholder="Title" />
-          </Field>
-          <Field label="Message">
-            <Textarea
-              name="message"
-              required
-              maxLength={5000}
-              placeholder="Share something with your class..."
-              rows={3}
-            />
-          </Field>
-          <details className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
-            <summary className="cursor-pointer text-sm font-medium text-slate-600">
-              Add a meeting link (optional)
-            </summary>
-            <div className="mt-2">
-              <Field label="Meeting URL" hint="Adds a Join button. Set a start time later via the meeting's Edit.">
-                <Input name="url" type="url" maxLength={2000} placeholder="https://meet.google.com/..." />
-              </Field>
-            </div>
-          </details>
-          <details className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
-            <summary className="cursor-pointer text-sm font-medium text-slate-600">
-              Attachments &amp; scheduling (optional)
-            </summary>
-            <div className="mt-2 space-y-2">
-              <Field
-                label="Attachment links"
-                hint="One Google Drive / external link per line. PDFs and images preview inline."
-              >
-                <Textarea name="attachments" rows={2} placeholder="https://drive.google.com/file/d/.../view" />
-              </Field>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Field label="Publish on" hint="Blank = publish now.">
-                  <Input name="publish_at" type="date" />
-                </Field>
-                <Field label="Expires on" hint="Blank = never.">
-                  <Input name="expires_at" type="date" />
-                </Field>
-              </div>
-            </div>
-          </details>
-          <SubmitButton pendingLabel="Posting...">Post</SubmitButton>
-        </form>
-      )}
+      {data.canManageContent && <StreamComposer courseId={course.id} isAdmin={data.isAdmin} />}
 
       {meet.meetLinks.length > 0 && (
         <section id="meetings" className="scroll-mt-20 space-y-4">
@@ -182,6 +111,10 @@ export default async function ClassStreamPage(props: {
                   </h3>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{a.message}</p>
                   <AttachmentList attachments={a.attachments} />
+                  <CustodialAttachmentList
+                    attachments={data.attachmentsByAnnouncement.get(a.id) ?? []}
+                    className="mt-2"
+                  />
                   <p className="mt-2 text-xs text-slate-400">
                     <LocalTime iso={a.created_at} />
                     {a.publish_at && Date.parse(a.publish_at) > now && (
@@ -285,16 +218,15 @@ export default async function ClassStreamPage(props: {
         />
       </section>
 
-      {data.canManage && (data.archivedAnnouncements.length > 0 || meet.archivedMeetLinks.length > 0) && (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-primary">
-            {data.archivedAnnouncements.length + meet.archivedMeetLinks.length} archived item
-            {data.archivedAnnouncements.length + meet.archivedMeetLinks.length !== 1 ? 's' : ''}
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {data.archivedAnnouncements.map((a) => (
-              <li key={a.id} className={ARCHIVED_ROW}>
-                <span className="truncate text-slate-500">{a.title}</span>
+      {data.canManage && (
+        <ArchivedList
+          count={data.archivedAnnouncements.length + meet.archivedMeetLinks.length}
+          singularLabel="archived item"
+          items={[
+            ...data.archivedAnnouncements.map((a) => ({
+              key: a.id,
+              label: a.title,
+              action: (
                 <form action={restoreAnnouncementAction}>
                   <input type="hidden" name="id" value={a.id} />
                   <input type="hidden" name="stream_class_id" value={course.id} />
@@ -302,20 +234,21 @@ export default async function ClassStreamPage(props: {
                     Restore
                   </SubmitButton>
                 </form>
-              </li>
-            ))}
-            {meet.archivedMeetLinks.map((m) => (
-              <li key={m.id} className={ARCHIVED_ROW}>
-                <span className="truncate text-slate-500">{m.title} (meeting)</span>
+              ),
+            })),
+            ...meet.archivedMeetLinks.map((m) => ({
+              key: m.id,
+              label: `${m.title} (meeting)`,
+              action: (
                 <form action={restoreMeetLinkAction.bind(null, m.id, course.id)}>
                   <SubmitButton className="btn-sm btn-success" pendingLabel="...">
                     Restore
                   </SubmitButton>
                 </form>
-              </li>
-            ))}
-          </ul>
-        </details>
+              ),
+            })),
+          ]}
+        />
       )}
     </div>
   )

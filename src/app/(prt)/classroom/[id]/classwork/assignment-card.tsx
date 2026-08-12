@@ -9,11 +9,12 @@ import { WithdrawButton } from '../../../assignments/WithdrawButton'
 import { archiveAssignmentAction } from '../../../assignments/manage-actions'
 import { CommentThread } from '../../../CommentThread'
 import { LocalTime } from '../../../LocalTime'
+import { listAttachmentsForOwner } from '@/lib/services/attachments/read'
 
 type ClassworkPageData = Awaited<ReturnType<typeof loadClassworkPageData>>
 type AssignmentView = ClassworkPageData['assignmentViews'][number]
 
-export function AssignmentCard({
+export async function AssignmentCard({
   view,
   data,
   me,
@@ -25,6 +26,11 @@ export function AssignmentCard({
   courseId: string
 }) {
   const { assignment, submission, submissionComments, submissionHistory, deadlineClosed } = view
+  // The custodial files already on this student's submission, so the submit form
+  // shows them on load (newly-uploaded ones append client-side).
+  const submissionAttachments = submission
+    ? await listAttachmentsForOwner({ kind: 'submission', id: submission.id })
+    : []
 
   return (
     <Card
@@ -189,7 +195,11 @@ export function AssignmentCard({
               Submissions are closed - the deadline for this assignment has passed.
             </p>
           ) : (
-            <SubmitForm assignmentId={assignment.id} studentEmail={me.email} />
+            <SubmitForm
+              assignmentId={assignment.id}
+              submissionId={submission?.id ?? null}
+              initialAttachments={submissionAttachments}
+            />
           )}
 
           {submission && (
