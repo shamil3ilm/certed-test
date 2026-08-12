@@ -3,7 +3,8 @@ import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { getClassMembers } from '@/lib/services/classes'
 import { logError } from '@/lib/observability/log'
-import { emailEnabled, sendEmail, escapeHtml } from '@/lib/email/resend'
+import { emailEnabled, escapeHtml } from '@/lib/email/resend'
+import { enqueuePendingEmails } from '@/lib/data/pending-emails'
 import { getProfilesByIds } from '@/lib/services/users'
 import {
   insertNotifications,
@@ -52,11 +53,12 @@ export async function notify(profileIds: string[], input: NotifyInput): Promise<
 }
 
 /**
- * Email channel: mirrors the just-written in-app notification to email via Resend
- * (src/lib/email/resend). OFF unless emailEnabled() (opt-in flag + RESEND_API_KEY +
- * EMAIL_FROM), so the pipeline stays email-ready without a provider. Resolves each
- * recipient's address and sends best-effort; title/body are HTML-escaped and the
- * link is absolutised via NEXT_PUBLIC_APP_URL. Never fails the core action.
+ * Email channel: mirrors the just-written in-app notification to email. OFF unless
+ * emailEnabled() (opt-in flag + RESEND_API_KEY + EMAIL_FROM), so the pipeline stays
+ * email-ready without a provider. Resolves each recipient's address, renders the
+ * message once (title/body HTML-escaped, link absolutised via NEXT_PUBLIC_APP_URL),
+ * and ENQUEUES a row per recipient - the drain route sends via Resend off the
+ * request path. Never fails the core action.
  */
 async function deliverEmailNotifications(profileIds: string[], input: NotifyInput): Promise<void> {
   if (!emailEnabled()) return
@@ -66,7 +68,10 @@ async function deliverEmailNotifications(profileIds: string[], input: NotifyInpu
     `<p>${escapeHtml(input.body ?? input.title)}</p>` +
     (link ? `<p><a href="${escapeHtml(link)}">Open in Cert-Ed</a></p>` : '')
   const emails = [...profiles.values()].map((p) => p.email).filter((e): e is string => !!e)
-  await Promise.all(emails.map((email) => sendEmail(email, input.title, html)))
+  // Queue one rendered row per recipient instead of awaiting N Resend calls on
+  // the request path (a 30-recipient announcement was 30 inline sends). The drain
+  // route sends them in the background.
+  await enqueuePendingEmails(emails.map((to_email) => ({ to_email, subject: input.title, html })))
 }
 
 async function dispatchEmail(profileIds: string[], input: NotifyInput): Promise<void> {
