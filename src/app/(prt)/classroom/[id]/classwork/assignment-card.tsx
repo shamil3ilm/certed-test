@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { formatMark } from '@/lib/grades'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
-import { Badge, Card } from '@/lib/ui'
+import { Badge, Card, statusLabel } from '@/lib/ui'
 import { EditAssignment } from '../../../assignments/EditAssignment'
 import { SubmitForm } from '../../../assignments/SubmitForm'
 import { WithdrawButton } from '../../../assignments/WithdrawButton'
@@ -106,13 +106,9 @@ export async function AssignmentCard({
             <div className="text-sm">
               <p>
                 Your submission:{' '}
-                <span
-                  className={
-                    submission.status === 'late' ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'
-                  }
-                >
+                <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
                   {submission.status === 'late' ? 'Submitted late' : 'On time'}
-                </span>{' '}
+                </Badge>{' '}
                 (<LocalTime iso={submission.submitted_at} />)
                 {submission.score == null && assignment.status === 'active' && !deadlineClosed && (
                   <> - resubmit below to replace, or withdraw it.</>
@@ -162,7 +158,7 @@ export async function AssignmentCard({
                 {submissionHistory.map((prior) => (
                   <li key={prior.id} className="flex items-center justify-between gap-2">
                     <span className="text-slate-400">
-                      <LocalTime iso={prior.submitted_at} /> - {prior.status}
+                      <LocalTime iso={prior.submitted_at} /> - {statusLabel(prior.status)}
                     </span>
                     {prior.drive_link && prior.drive_link !== '#' && (
                       <a

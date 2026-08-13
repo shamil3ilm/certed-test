@@ -1,6 +1,7 @@
 'use client'
 
 import { Badge, SEGMENTED_GROUP, cx, segmentedButtonClass } from '@/lib/ui'
+import { CALENDAR_COLORS } from '@/lib/brand/tokens'
 import { COLORS, SOURCES, VIEW_LABELS, VIEW_MODES, VIEW_SPANS } from './calendar-config'
 import type { CalendarItem, CalendarMode, CalendarSpan, ComposerTab } from './calendar-types'
 
@@ -96,7 +97,7 @@ export function CalendarToolbar({
                 >
                   <span
                     className="h-2.5 w-2.5 rounded-full"
-                    style={{ background: isVisible ? COLORS[source] : '#cbd5e1' }}
+                    style={{ background: isVisible ? COLORS[source] : CALENDAR_COLORS.inactive }}
                   />
                   <span className={cx('font-medium', !isVisible && 'line-through')}>{label}</span>
                 </button>

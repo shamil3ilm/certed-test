@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition, type FormEvent } from 'react'
+import { ACADEMY_WIDE_LABEL } from '@/lib/ui'
+import { Input, Select } from '../../form'
 import { assertActionOk } from '../../action-client'
 import { createMeetLinkAction } from '../../meetings/actions'
 import { defaultLocalDateTime, toIsoFromLocalDateTime } from '../calendar-config'
@@ -47,10 +49,10 @@ export function MeetCreateForm({
 
     startTransition(async () => {
       try {
-        assertActionOk(await createMeetLinkAction(formData), 'Could not share meet link')
+        assertActionOk(await createMeetLinkAction(formData), 'Could not share meeting link')
         onSuccess()
       } catch (submitError) {
-        const message = submitError instanceof Error ? submitError.message : 'Could not share meet link'
+        const message = submitError instanceof Error ? submitError.message : 'Could not share meeting link'
         setError(message)
         onError(message)
       }
@@ -62,58 +64,58 @@ export function MeetCreateForm({
       {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
       <label className="text-sm">
         Share with
-        <select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1 block w-full">
-          {isAdmin && <option value="global">Global (all classes)</option>}
+        <Select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1">
+          {isAdmin && <option value="global">{ACADEMY_WIDE_LABEL}</option>}
           {!isAdmin && classes.length === 0 && <option value="">No classes</option>}
           {classes.map((course) => (
             <option key={course.id} value={course.id}>
               {course.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Meeting title
-        <input
+        <Input
           value={title}
           required
           onChange={(event) => setTitle(event.target.value)}
           placeholder="e.g. Maths live revision"
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <label className="text-sm sm:col-span-2">
         Meeting link
-        <input
+        <Input
           type="url"
           value={url}
           required
           onChange={(event) => setUrl(event.target.value)}
           placeholder="https://meet.google.com/..."
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <label className="text-sm">
         Meeting time
-        <input
+        <Input
           type="datetime-local"
           value={scheduledAt}
           onChange={(event) => setScheduledAt(event.target.value)}
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <label className="text-sm">
         Note
-        <input
+        <Input
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder="Optional note for attendees"
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <div className="mt-1 flex gap-2 sm:col-span-2">
         <button type="submit" disabled={isPending} className="btn btn-primary">
-          {isPending ? 'Sharing...' : 'Share meet link'}
+          {isPending ? 'Sharing...' : 'Share meeting link'}
         </button>
       </div>
     </form>

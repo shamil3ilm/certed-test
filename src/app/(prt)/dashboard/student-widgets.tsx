@@ -7,47 +7,22 @@ import { getLatestGrade, listMyActiveSubmissions } from '@/lib/services/submissi
 import { getStudentGradeTrajectory } from '@/lib/services/page-data/grade-trajectory'
 import { LineChart, Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
-import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_LINK, resolveClassIds } from './widget-shared'
+import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_STACK, resolveClassIds } from './widget-shared'
 
-export async function LatestGradeWidget({ studentId }: { studentId: string }) {
-  const submission = await getLatestGrade(studentId)
-  if (!submission) {
-    return (
-      <Panel title="Latest grade">
-        <p className="text-sm text-slate-400">No grades yet.</p>
-      </Panel>
-    )
-  }
-
-  const assignment = await getAssignment(submission.assignment_id)
-  const feedbackHref = assignment
-    ? `/classroom/${assignment.class_id}/classwork#assignment-${submission.assignment_id}`
-    : '/classroom'
-
-  return (
-    <Panel title="Latest grade">
-      <Link href={feedbackHref} className="group block">
-        <p className="text-3xl font-bold text-slate-800 transition group-hover:text-primary">
-          {formatMark(Number(submission.score), assignment?.max_marks != null ? Number(assignment.max_marks) : null)}
-        </p>
-        <p className="mt-1 truncate text-xs text-slate-400">{assignment?.title ?? 'Assignment'}</p>
-        <span className={WIDGET_CTA_LINK}>View feedback &rarr;</span>
-      </Link>
-      <Link href="/grades" className="mt-2 block text-xs font-medium text-primary transition hover:underline">
-        All grades &rarr;
-      </Link>
-    </Panel>
-  )
-}
-
-/** The student's own grade trajectory: their weighted average plus a trend of
- *  recent marks - the progress view mentors already get for a mentee, surfaced
- *  for the student themselves (not just the single latest grade). */
+/** The student's single grades panel: the weighted-average trajectory (the
+ *  progress view mentors get for a mentee) WITH the latest mark folded in, so the
+ *  dashboard shows one coherent grades tile instead of two overlapping ones (the
+ *  trajectory chart already includes the latest mark). */
 export async function GradeTrajectoryWidget({ studentId }: { studentId: string }) {
-  const t = await getStudentGradeTrajectory(studentId)
+  const [t, latest] = await Promise.all([getStudentGradeTrajectory(studentId), getLatestGrade(studentId)])
+  const latestAssignment = latest ? await getAssignment(latest.assignment_id) : null
+  const feedbackHref =
+    latest && latestAssignment
+      ? `/classroom/${latestAssignment.class_id}/classwork#assignment-${latest.assignment_id}`
+      : '/grades'
 
   return (
-    <Panel title="Grade trajectory">
+    <Panel title="Grades">
       {t.average == null ? (
         <p className="text-sm text-slate-400">No grades yet.</p>
       ) : (
@@ -55,10 +30,10 @@ export async function GradeTrajectoryWidget({ studentId }: { studentId: string }
           <div className="flex items-baseline gap-2">
             <p className="text-3xl font-bold text-slate-800">{t.average}%</p>
             {t.direction === 'up' && (
-              <span className="text-xs font-medium text-emerald-600">&#9650; {Math.abs(t.delta ?? 0)} pts</span>
+              <span className="text-xs font-medium text-emerald-700">&#9650; {Math.abs(t.delta ?? 0)} pts</span>
             )}
             {t.direction === 'down' && (
-              <span className="text-xs font-medium text-rose-600">&#9660; {Math.abs(t.delta ?? 0)} pts</span>
+              <span className="text-xs font-medium text-red-600">&#9660; {Math.abs(t.delta ?? 0)} pts</span>
             )}
             {t.direction === 'flat' && <span className="text-xs font-medium text-slate-400">steady</span>}
           </div>
@@ -69,6 +44,19 @@ export async function GradeTrajectoryWidget({ studentId }: { studentId: string }
             <div className="mt-3">
               <LineChart data={t.points} format={(n) => `${n}%`} />
             </div>
+          )}
+          {latest && (
+            <Link href={feedbackHref} className="group mt-3 block border-t border-slate-100 pt-2">
+              <p className="text-xs text-slate-400">Latest mark</p>
+              <p className="text-sm font-medium text-slate-700 transition group-hover:text-primary">
+                {formatMark(
+                  Number(latest.score),
+                  latestAssignment?.max_marks != null ? Number(latestAssignment.max_marks) : null,
+                )}
+                <span className="font-normal text-slate-400"> &middot; {latestAssignment?.title ?? 'Assignment'}</span>
+              </p>
+              <span className={WIDGET_CTA_LINK}>View feedback &rarr;</span>
+            </Link>
           )}
         </>
       )}
@@ -143,9 +131,11 @@ export async function DueWorkWidget({
               <li key={assignment.id}>
                 <Link
                   href={`/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`}
-                  className={WIDGET_ROW_LINK}
+                  className={WIDGET_ROW_STACK}
                 >
-                  <span className="min-w-0 truncate font-medium">{assignment.title}</span>
+                  <span className="w-full truncate font-medium" title={assignment.title}>
+                    {assignment.title}
+                  </span>
                   <span
                     className={cx(
                       'shrink-0 text-xs transition group-hover:text-inherit',

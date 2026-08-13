@@ -2,8 +2,8 @@ import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { revokeUserAction, restoreUserAction, editUserAction } from './actions'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { Card, Avatar, staffRoleLabel, statusLabel } from '@/lib/ui'
-import { SubmitButton } from '../../form'
+import { Badge, Card, Avatar, staffRoleLabel, statusLabel } from '@/lib/ui'
+import { Input, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { EscapableDetails } from '../../EscapableDetails'
 
@@ -15,9 +15,9 @@ import { EscapableDetails } from '../../EscapableDetails'
  * gets the same row without write affordances, rather than buttons that would
  * redirect on submit.
  */
-function StatusChip({ status }: { status: string }) {
-  const tone = status === 'active' ? 'text-emerald-600' : status === 'pending' ? 'text-amber-600' : 'text-red-600'
-  return <span className={tone}>{statusLabel(status)}</span>
+/** Map an account status to the shared Badge tone (the canonical status chip). */
+function statusChipTone(status: string): 'success' | 'warning' | 'danger' {
+  return status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'danger'
 }
 
 export function UserRow({
@@ -48,13 +48,14 @@ export function UserRow({
             <p className="truncate text-sm font-medium text-slate-900">
               {p.full_name ?? p.email}
               {self && (
-                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                <Badge tone="slate" className="ml-2">
                   You
-                </span>
+                </Badge>
               )}
             </p>
             <p className="truncate text-xs text-slate-400">
-              {p.email} - {visibleRoleLabel} - status: <StatusChip status={p.status} />
+              {p.email} - {visibleRoleLabel} - status:{' '}
+              <Badge tone={statusChipTone(p.status)}>{statusLabel(p.status)}</Badge>
               {mentorSubtitle ? ` - ${mentorSubtitle}` : ''}
             </p>
           </div>
@@ -74,11 +75,7 @@ export function UserRow({
                   <input type="hidden" name="id" value={p.id} />
                   <label className="block text-xs font-medium text-slate-500">
                     Name
-                    <input
-                      name="full_name"
-                      defaultValue={p.full_name ?? ''}
-                      className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
-                    />
+                    <Input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1" />
                   </label>
                   {/* Role is a fixed identity - set at account creation, never edited here. */}
                   <p className="text-xs text-slate-400">
@@ -87,11 +84,7 @@ export function UserRow({
                   {isStudent && (
                     <label className="block text-xs font-medium text-slate-500">
                       Class
-                      <input
-                        name="class_level"
-                        defaultValue={p.class_level ?? ''}
-                        className="mt-1 block w-full min-w-[10rem] rounded border px-2 py-1.5 text-sm"
-                      />
+                      <Input name="class_level" defaultValue={p.class_level ?? ''} className="mt-1 min-w-[10rem]" />
                     </label>
                   )}
                   <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving...">

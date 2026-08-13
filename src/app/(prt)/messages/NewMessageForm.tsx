@@ -126,7 +126,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
                 className={pillButtonClass(true, 'soft', 'inline-flex items-center gap-2 px-3')}
                 aria-label={`Remove ${contact.name}`}
               >
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold">
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-meta font-semibold">
                   {initials(contact.name)}
                 </span>
                 <span>{contact.name}</span>

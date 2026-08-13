@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { cx } from '@/lib/ui'
+import { Input } from '../form'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
 import { tagToneClass } from './tone'
@@ -62,7 +63,7 @@ export function TagEditor({
           <span
             key={tag.id}
             className={cx(
-              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-meta font-medium',
               tagToneClass(tag.color),
             )}
           >
@@ -80,14 +81,16 @@ export function TagEditor({
         ))}
       </div>
       <form onSubmit={onAdd} className="flex flex-wrap items-center gap-2">
-        <input
-          list="tag-suggestions"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Add a tag..."
-          maxLength={40}
-          className="min-h-9 rounded-lg border border-slate-200 px-2.5 text-sm"
-        />
+        <div className="min-w-0 flex-1">
+          <Input
+            list="tag-suggestions"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Add a tag..."
+            aria-label="Add a tag"
+            maxLength={40}
+          />
+        </div>
         <datalist id="tag-suggestions">
           {suggestions.map((s) => (
             <option key={s.id} value={s.name} />

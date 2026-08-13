@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CARD, cx } from '@/lib/ui'
+import { CARD, cx, ACADEMY_WIDE_LABEL } from '@/lib/ui'
 import { Field, Input, Select, Textarea } from '../form'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
@@ -67,7 +67,7 @@ export function MeetForm({ classes, canGlobal }: { classes: ClassRow[]; canGloba
         {!single && (
           <Field label="Class scope">
             <Select value={classId} onChange={(event) => setClassId(event.target.value)} required>
-              {canGlobal && <option value="global">Global (all classes)</option>}
+              {canGlobal && <option value="global">{ACADEMY_WIDE_LABEL}</option>}
               {classes.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.name}

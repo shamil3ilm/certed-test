@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { CARD, EmptyState, cx, pillButtonClass } from '@/lib/ui'
+import { CARD, EmptyState, cx, pillButtonClass, ACADEMY_WIDE_LABEL } from '@/lib/ui'
 import { api } from './timetable/api'
 import { EventForm } from './timetable/EventForm'
 import { EventRow } from './timetable/EventRow'
@@ -27,7 +27,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
   const { slots, events, error, busy, run, confirmDelete } = useTimetableData()
 
   const classLabel = useCallback(
-    (id: string | null) => (id ? (classes.find((course) => course.id === id)?.name ?? 'Class') : 'Global'),
+    (id: string | null) => (id ? (classes.find((course) => course.id === id)?.name ?? 'Class') : ACADEMY_WIDE_LABEL),
     [classes],
   )
 

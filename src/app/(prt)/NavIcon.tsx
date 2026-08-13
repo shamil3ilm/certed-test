@@ -27,6 +27,21 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M13 3v5h5M9 13h6M9 17h4" />
     </>
   ),
+  // Grading / Grades: a clipboard with a check (marking work).
+  '/grading': (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1H9V4Z" />
+      <path d="M9 13l2 2 4-4" />
+    </>
+  ),
+  '/grades': (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1H9V4Z" />
+      <path d="M9 13l2 2 4-4" />
+    </>
+  ),
   '/calendar': (
     <>
       <rect x="3.5" y="5" width="17" height="15" rx="2" />

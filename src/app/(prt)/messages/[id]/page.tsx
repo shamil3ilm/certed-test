@@ -152,5 +152,5 @@ export default async function ThreadPage(props: {
 }
 
 function cxTime(mine: boolean): string {
-  return mine ? 'mt-0.5 text-right text-[10px] text-white/70' : 'mt-0.5 text-right text-[10px] text-slate-400'
+  return mine ? 'mt-0.5 text-right text-meta text-white/70' : 'mt-0.5 text-right text-meta text-slate-400'
 }

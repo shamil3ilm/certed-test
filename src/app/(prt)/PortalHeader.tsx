@@ -66,7 +66,7 @@ export async function PortalHeader() {
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
               {unread > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[1rem] place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-white">
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[1rem] place-items-center rounded-full bg-primary px-1 text-micro font-semibold leading-none text-white">
                   {unread > 9 ? '9+' : unread}
                 </span>
               )}

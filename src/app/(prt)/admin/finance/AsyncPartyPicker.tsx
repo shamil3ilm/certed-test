@@ -5,6 +5,7 @@ import { cx } from '@/lib/ui'
 import type { ActionResult } from '@/lib/api/action-error'
 import { assertActionOk } from '../../action-client'
 import { useUI } from '../../Providers'
+import { Input } from '../../form'
 
 type Party = { id: string; name: string }
 
@@ -110,7 +111,7 @@ export function AsyncPartyPicker({
   return (
     <label className="relative min-w-0 text-sm">
       {label}
-      <input
+      <Input
         type="search"
         value={query}
         onChange={(event) => {
@@ -136,7 +137,7 @@ export function AsyncPartyPicker({
           }
         }}
         placeholder="Search by name or email..."
-        className={FIELD_CLASS}
+        className="mt-1"
         role="combobox"
         aria-expanded={showDropdown}
         aria-controls={listboxId}

@@ -82,6 +82,7 @@ export default async function ClassStreamPage(props: {
             classes={meet.classList}
             canManage={meet.canManage}
             isAdmin={meet.isAdmin}
+            now={now}
           />
         </section>
       )}

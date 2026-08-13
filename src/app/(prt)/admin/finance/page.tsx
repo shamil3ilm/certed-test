@@ -9,7 +9,15 @@ import {
 import { IssueForm } from './IssueForm'
 import { searchFinanceStudentsAction } from './actions'
 import { VoidButton } from './VoidButton'
-import { FilterBar, PageHeader, PaginationBar, SearchFilterField, SelectFilterField } from '@/lib/ui'
+import {
+  Badge,
+  FilterBar,
+  PageHeader,
+  PaginationBar,
+  SearchFilterField,
+  SectionLabel,
+  SelectFilterField,
+} from '@/lib/ui'
 
 function DocTable({
   title,
@@ -73,7 +81,7 @@ function DocTable({
             {rows.map((row) => (
               <tr key={row.id} className="border-t">
                 <td className="p-2">
-                  {row.number} {row.voided && <span className="text-xs text-red-600">(void)</span>}
+                  {row.number} {row.voided && <Badge tone="danger">void</Badge>}
                 </td>
                 <td>{row.name}</td>
                 <td>
@@ -98,7 +106,7 @@ function DocTable({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="p-4 text-center text-slate-400">
-                  None yet.
+                  No {kind === 'receipts' ? 'receipts' : 'pay slips'} yet.
                 </td>
               </tr>
             )}
@@ -153,17 +161,19 @@ export default async function FinancePage(props: {
   return (
     <main className="mx-auto max-w-4xl space-y-10 p-4 sm:p-6 lg:p-8">
       <section>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <PageHeader title="Finance" />
-          {canManage && (
-            <a href="/admin/finance/rates" className="btn btn-soft btn-sm">
-              Currency conversion
-            </a>
-          )}
-        </div>
+        <PageHeader
+          title="Finance"
+          action={
+            canManage ? (
+              <a href="/admin/finance/rates" className="btn btn-soft btn-sm">
+                Currency conversion
+              </a>
+            ) : undefined
+          }
+        />
         {canManage && (
           <>
-            <h2 className="mt-4 font-medium">Issue fee receipt</h2>
+            <SectionLabel className="mt-4">Issue fee receipt</SectionLabel>
             <div className="mt-2">
               <IssueForm
                 partyLabel="Student"
@@ -180,7 +190,7 @@ export default async function FinancePage(props: {
       <section>
         {canManage && (
           <>
-            <h2 className="font-medium">Issue pay slip</h2>
+            <SectionLabel>Issue pay slip</SectionLabel>
             <div className="mt-2">
               <IssueForm
                 partyLabel="Payee (tutor or mentor)"

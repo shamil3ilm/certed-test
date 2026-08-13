@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PasswordInput } from '../form'
+import { Field, PasswordInput } from '../form'
 
 /**
  * Change-password form with LIVE confirmation. The two fields must match before
@@ -16,8 +16,7 @@ export function ChangePasswordForm({ action, helpText }: { action: (formData: Fo
 
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
-      <label className="text-sm">
-        <span className="mb-1 block text-slate-600">New password</span>
+      <Field label="New password">
         <PasswordInput
           name="password"
           required
@@ -25,9 +24,8 @@ export function ChangePasswordForm({ action, helpText }: { action: (formData: Fo
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-      </label>
-      <label className="text-sm">
-        <span className="mb-1 block text-slate-600">Confirm password</span>
+      </Field>
+      <Field label="Confirm password">
         <PasswordInput
           name="confirm"
           required
@@ -36,7 +34,7 @@ export function ChangePasswordForm({ action, helpText }: { action: (formData: Fo
           onChange={(event) => setConfirm(event.target.value)}
           aria-invalid={mismatch || undefined}
         />
-      </label>
+      </Field>
       {mismatch && (
         <p role="alert" className="text-xs text-red-600 sm:col-span-2">
           Passwords do not match.

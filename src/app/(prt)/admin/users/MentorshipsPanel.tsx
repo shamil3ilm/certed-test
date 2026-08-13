@@ -1,7 +1,7 @@
 import type { AdminUsersPageData } from '@/lib/services/page-data/admin-users'
 import { assignMentorAction, removeMentorAction } from './actions'
 import { Card, Avatar, EmptyState } from '@/lib/ui'
-import { SubmitButton } from '../../form'
+import { Select, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { UsersPagination } from './UsersPagination'
 
@@ -46,9 +46,9 @@ export function MentorshipsPanel({
               {canManageMentorships && (
                 <form action={assignMentorAction} className="flex min-w-0 items-center gap-2">
                   <input type="hidden" name="student_id" value={s.id} />
-                  <label className="min-w-0">
+                  <label className="min-w-0 flex-1">
                     <span className="sr-only">Mentor</span>
-                    <select name="mentor_id" required defaultValue="" className="min-w-0 max-w-full text-sm">
+                    <Select name="mentor_id" required defaultValue="">
                       <option value="" disabled>
                         Add mentor...
                       </option>
@@ -57,7 +57,7 @@ export function MentorshipsPanel({
                           {t.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <SubmitButton className="btn-sm btn-soft" pendingLabel="Adding...">
                     Add

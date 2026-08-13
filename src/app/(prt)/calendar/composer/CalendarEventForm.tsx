@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import { ACADEMY_WIDE_LABEL } from '@/lib/ui'
+import { Input, Select } from '../../form'
 import { requestJson } from '../../api-client'
 import { EVENT_KINDS } from '../calendar-config'
 import type { Opt } from '../calendar-types'
@@ -83,52 +85,47 @@ export function CalendarEventForm({
       {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
       <label className="text-sm sm:col-span-2">
         {kindMeta.titleLabel}
-        <input
+        <Input
           value={title}
           required
           onChange={(event) => setTitle(event.target.value)}
           placeholder={kindMeta.titlePlaceholder}
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <label className="text-sm">
         Scope
-        <select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1 block w-full">
-          {isAdmin && <option value="">Global (all)</option>}
+        <Select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1">
+          {isAdmin && <option value="">{ACADEMY_WIDE_LABEL}</option>}
           {!isAdmin && classes.length === 0 && <option value="">No classes</option>}
           {classes.map((course) => (
             <option key={course.id} value={course.id}>
               {course.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Type
-        <select
+        <Select
           value={kind}
           onChange={(event) => setKind(event.target.value as (typeof EVENT_KINDS)[number])}
-          className="mt-1 block w-full"
+          className="mt-1"
         >
           {EVENT_KINDS.map((kindOption) => (
             <option key={kindOption} value={kindOption}>
-              {kindOption}
+              {kindOption.charAt(0).toUpperCase() + kindOption.slice(1)}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Start time (optional)
-        <input
-          type="time"
-          value={start}
-          onChange={(event) => setStart(event.target.value)}
-          className="mt-1 block w-full"
-        />
+        <Input type="time" value={start} onChange={(event) => setStart(event.target.value)} className="mt-1" />
       </label>
       <label className="text-sm">
         End time (optional)
-        <input type="time" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-1 block w-full" />
+        <Input type="time" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-1" />
       </label>
       <div className="mt-1 flex gap-2 sm:col-span-2">
         <button type="submit" disabled={busy} className="btn btn-primary">

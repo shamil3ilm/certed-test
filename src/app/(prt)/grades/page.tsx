@@ -28,7 +28,7 @@ export default async function GradesPage() {
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="My grades"
-        description="Your marks across all your classes - filter, search and sort. Download a report card any time."
+        description="Your grades across all your classes - filter, search and sort. Download a report card any time."
         action={marks.length > 0 ? <StudentReportActions studentId={me.id} /> : undefined}
       />
 

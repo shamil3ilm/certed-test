@@ -6,7 +6,8 @@ import { cx } from '@/lib/ui'
 import type { FxRatesPageData } from '@/lib/services/finance/fx-admin'
 import { addRateAction, deleteRateAction, recomputeAction, setBaseCurrencyAction } from './actions'
 
-const INPUT = 'h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-primary focus:outline-none'
+const INPUT =
+  'h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
 const LABEL = 'text-xs font-medium uppercase tracking-wide text-slate-400'
 
 type Note = { tone: 'ok' | 'error'; text: string } | null
@@ -37,7 +38,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
         <p
           className={cx(
             'rounded-lg px-3 py-2 text-sm',
-            note.tone === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
+            note.tone === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
           )}
         >
           {note.text}
@@ -162,7 +163,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
                     <td className="py-1.5 text-right">
                       <button
                         type="button"
-                        className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-50"
+                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
                         disabled={pending}
                         onClick={() => run(() => deleteRateAction(r.id), 'Rate removed.')}
                       >

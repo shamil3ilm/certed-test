@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { KINDS, hhmm, type Ev, type Opt } from './types'
+import { KINDS, KIND_LABELS, hhmm, type Ev, type Opt } from './types'
+import { Input, Select } from '../../form'
 import { ClassSelect } from './pickers'
 
 export function EventRow({
@@ -49,7 +50,7 @@ export function EventRow({
           {' - '}
           {ev.title}
           {' - '}
-          <span className="text-slate-500">{ev.kind}</span>
+          <span className="text-slate-500">{KIND_LABELS[ev.kind] ?? ev.kind}</span>
           {' - '}
           {classLabel(ev.class_id)}
         </span>
@@ -69,53 +70,30 @@ export function EventRow({
     <li className="grid gap-2 py-3 sm:grid-cols-2">
       <label className="text-sm">
         Title
-        <input
-          className="mt-1 w-full rounded border p-2"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
+        <Input className="mt-1" value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
       <label className="text-sm">
         Date
-        <input
-          type="date"
-          className="mt-1 w-full rounded border p-2"
-          value={date}
-          onChange={(event) => setDate(event.target.value)}
-        />
+        <Input type="date" className="mt-1" value={date} onChange={(event) => setDate(event.target.value)} />
       </label>
       <ClassSelect classes={classes} value={classId} onChange={setClassId} allowGlobal={isAdmin} />
       <label className="text-sm">
         Kind
-        <select
-          className="mt-1 w-full rounded border p-2"
-          value={kind}
-          onChange={(event) => setKind(event.target.value)}
-        >
+        <Select className="mt-1" value={kind} onChange={(event) => setKind(event.target.value)}>
           {KINDS.map((kindOption) => (
             <option key={kindOption} value={kindOption}>
-              {kindOption}
+              {KIND_LABELS[kindOption] ?? kindOption}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Start (optional)
-        <input
-          type="time"
-          className="mt-1 w-full rounded border p-2"
-          value={start}
-          onChange={(event) => setStart(event.target.value)}
-        />
+        <Input type="time" className="mt-1" value={start} onChange={(event) => setStart(event.target.value)} />
       </label>
       <label className="text-sm">
         End (optional)
-        <input
-          type="time"
-          className="mt-1 w-full rounded border p-2"
-          value={end}
-          onChange={(event) => setEnd(event.target.value)}
-        />
+        <Input type="time" className="mt-1" value={end} onChange={(event) => setEnd(event.target.value)} />
       </label>
       <div className="flex gap-3 sm:col-span-2">
         <button

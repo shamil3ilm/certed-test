@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { DAYS, KINDS, hhmm, type Opt, type Slot } from './types'
+import { DAYS, KINDS, KIND_LABELS, hhmm, type Opt, type Slot } from './types'
 import { ClassSelect } from './pickers'
 
 export function EventForm({
@@ -83,7 +83,7 @@ export function EventForm({
         >
           {KINDS.map((kindOption) => (
             <option key={kindOption} value={kindOption}>
-              {kindOption}
+              {KIND_LABELS[kindOption] ?? kindOption}
             </option>
           ))}
         </select>

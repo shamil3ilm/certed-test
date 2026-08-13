@@ -3,12 +3,10 @@
 import { formatMoney, lineAmount, SUPPORTED_CURRENCIES } from '@/lib/money'
 import type { ActionResult } from '@/lib/api/action-error'
 import { AsyncPartyPicker as AsyncPicker } from './AsyncPartyPicker'
+import { Input, Select } from '../../form'
 
 export type Party = { id: string; name: string }
 export type Line = { id: string; subject: string; hours: string; rate: string }
-
-export const ISSUE_FORM_FIELD_CLASS = 'mt-1 block w-full rounded border px-2 py-2'
-export const LINE_INPUT_CLASS = 'w-full min-w-0 rounded border px-2 py-2'
 
 export function safeMoney(value: number, currency: string): string {
   try {
@@ -58,44 +56,35 @@ export function IssueHeaderFields({
       ) : (
         <label className="min-w-0 text-sm">
           {partyLabel}
-          <select
-            value={partyId}
-            onChange={(event) => onPartyChange(event.target.value)}
-            required
-            className={ISSUE_FORM_FIELD_CLASS}
-          >
+          <Select value={partyId} onChange={(event) => onPartyChange(event.target.value)} required className="mt-1">
             <option value="">Select...</option>
             {(parties ?? []).map((party) => (
               <option key={party.id} value={party.id}>
                 {party.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
       <label className="text-sm">
         Date
-        <input
+        <Input
           type="date"
           value={issueDate}
           onChange={(event) => onIssueDateChange(event.target.value)}
           required
-          className={ISSUE_FORM_FIELD_CLASS}
+          className="mt-1"
         />
       </label>
       <label className="text-sm">
         Currency
-        <select
-          value={currency}
-          onChange={(event) => onCurrencyChange(event.target.value)}
-          className={ISSUE_FORM_FIELD_CLASS}
-        >
+        <Select value={currency} onChange={(event) => onCurrencyChange(event.target.value)} className="mt-1">
           {SUPPORTED_CURRENCIES.map((supportedCurrency) => (
             <option key={supportedCurrency} value={supportedCurrency}>
               {supportedCurrency}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
     </div>
   )
@@ -123,33 +112,33 @@ export function IssueLineItems({
         >
           <label className="w-full min-w-0">
             <span className="mb-1 block text-xs font-medium text-slate-500">Subject</span>
-            <input
+            <Input
               aria-label={`Subject for line ${index + 1}`}
               value={line.subject}
               onChange={(event) => onLineChange(index, { subject: event.target.value })}
-              className={LINE_INPUT_CLASS}
+              className="min-w-0"
             />
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium text-slate-500">Hours</span>
-            <input
+            <Input
               aria-label={`Hours for line ${index + 1}`}
               type="number"
               step="0.25"
               value={line.hours}
               onChange={(event) => onLineChange(index, { hours: event.target.value })}
-              className={LINE_INPUT_CLASS}
+              className="min-w-0"
             />
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium text-slate-500">Rate per hour</span>
-            <input
+            <Input
               aria-label={`Rate per hour for line ${index + 1}`}
               type="number"
               step="0.01"
               value={line.rate}
               onChange={(event) => onLineChange(index, { rate: event.target.value })}
-              className={LINE_INPUT_CLASS}
+              className="min-w-0"
             />
           </label>
           <div className="text-sm">
@@ -203,7 +192,7 @@ export function IssueTotals({
           step="0.01"
           value={discount}
           onChange={(event) => onDiscountChange(event.target.value)}
-          className="ml-2 w-24 rounded border px-2 py-1"
+          className="ml-2 w-24 rounded border px-2 py-1 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </label>
       <span>Subtotal {safeMoney(subtotal, currency)}</span>

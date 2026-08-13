@@ -4,12 +4,7 @@ import { useState, useTransition } from 'react'
 import { assertActionOk } from '../action-client'
 import { Field, Input, Textarea } from '../form'
 import { editAssignmentAction } from './manage-actions'
-
-function toLocalInput(iso: string): string {
-  const date = new Date(iso)
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 16)
-}
+import { isoToDatetimeLocal } from '@/lib/time/format'
 
 export function EditAssignment({
   assignment,
@@ -28,7 +23,7 @@ export function EditAssignment({
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState(assignment.title)
   const [description, setDescription] = useState(assignment.description ?? '')
-  const [due, setDue] = useState(toLocalInput(assignment.due_date))
+  const [due, setDue] = useState(isoToDatetimeLocal(assignment.due_date))
   const [brief, setBrief] = useState(assignment.attachment_drive_link ?? '')
   const [topic, setTopic] = useState(assignment.topic ?? '')
   const [maxMarks, setMaxMarks] = useState(assignment.max_marks != null ? String(assignment.max_marks) : '')
@@ -43,7 +38,7 @@ export function EditAssignment({
   function openEditor() {
     setTitle(assignment.title)
     setDescription(assignment.description ?? '')
-    setDue(toLocalInput(assignment.due_date))
+    setDue(isoToDatetimeLocal(assignment.due_date))
     setBrief(assignment.attachment_drive_link ?? '')
     setTopic(assignment.topic ?? '')
     setMaxMarks(assignment.max_marks != null ? String(assignment.max_marks) : '')

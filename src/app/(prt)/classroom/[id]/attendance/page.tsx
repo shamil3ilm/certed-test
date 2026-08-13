@@ -8,7 +8,6 @@ import { clearAttendanceAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
   AlertBanner,
-  Card,
   EmptyState,
   Badge,
   SectionLabel,
@@ -16,9 +15,12 @@ import {
   DateFilterField,
   FilterBar,
   CARD,
+  StatCard,
+  StatGrid,
   PaginationBar,
   SelectFilterField,
   cx,
+  statusLabel,
 } from '@/lib/ui'
 import {
   formatMinutes,
@@ -41,15 +43,6 @@ const EMPTY_SESSION_TIMES: SessionTimes = {
   tutor_leave_at: null,
 }
 
-function HourStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold text-slate-900">{value}</p>
-    </div>
-  )
-}
-
 export default async function AttendancePage(props: {
   params: Promise<{ id: string }>
   searchParams?: Promise<{ date?: string; recPage?: string; error?: string }>
@@ -64,19 +57,19 @@ export default async function AttendancePage(props: {
     return (
       <div className="space-y-4">
         <SectionLabel>My attendance</SectionLabel>
-        <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4">
-          <div>
-            <p className="text-2xl font-bold text-slate-900">{data.summary.rate}%</p>
-            <p className="text-xs text-slate-400">
-              attendance{data.summary.total > 0 ? ` - ${data.summary.total} session(s)` : ''}
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <StatCard
+            label="Attendance"
+            value={`${data.summary.rate}%`}
+            sub={data.summary.total > 0 ? `${data.summary.total} session(s)` : undefined}
+            tone="primary"
+          />
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge tone="success">Present {data.summary.present}</Badge>
             <Badge tone="warning">Late {data.summary.late}</Badge>
             <Badge tone="danger">Absent {data.summary.absent}</Badge>
           </div>
-        </Card>
+        </div>
         {data.recTotal === 0 ? (
           <EmptyState>No attendance recorded yet.</EmptyState>
         ) : (
@@ -92,7 +85,7 @@ export default async function AttendancePage(props: {
                     <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
                     <span className="flex items-center gap-2">
                       {learning != null && <span className="text-xs text-slate-400">{formatMinutes(learning)}</span>}
-                      <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                      <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
                     </span>
                   </div>
                   <details className="border-t border-slate-100 px-4 py-2">
@@ -168,11 +161,11 @@ export default async function AttendancePage(props: {
 
         <SessionTimesForm classId={course.id} date={data.date} session={data.session} />
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <HourStat label="Session" value={formatMinutes(sessionM.sessionMinutes)} />
-          <HourStat label="Scheduled" value={formatMinutes(sessionM.scheduledMinutes)} />
-          <HourStat label="Tutor working" value={formatMinutes(sessionM.tutorWorkingMinutes)} />
-        </div>
+        <StatGrid cols={3}>
+          <StatCard label="Session" value={formatMinutes(sessionM.sessionMinutes)} />
+          <StatCard label="Scheduled" value={formatMinutes(sessionM.scheduledMinutes)} />
+          <StatCard label="Tutor working" value={formatMinutes(sessionM.tutorWorkingMinutes)} />
+        </StatGrid>
 
         {data.roster.length === 0 ? (
           <EmptyState>No students enrolled yet - add students on the People tab first.</EmptyState>
@@ -252,7 +245,7 @@ export default async function AttendancePage(props: {
                       </td>
                       <td className="whitespace-nowrap text-slate-600">{row.name}</td>
                       <td className="whitespace-nowrap">
-                        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                        <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
                       </td>
                       <td className="whitespace-nowrap text-slate-500">
                         {learned != null ? formatMinutes(learned) : '-'}

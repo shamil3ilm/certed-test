@@ -48,6 +48,7 @@ export function SessionFeedbackForm({
         rows={2}
         maxLength={2000}
         placeholder="How was this session? Anything you'd like your tutor to know..."
+        aria-label="Session feedback"
         className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
       />
       <button type="submit" disabled={busy} className="btn btn-sm btn-soft">

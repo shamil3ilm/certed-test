@@ -162,6 +162,7 @@ export function StreamComposer({ courseId, isAdmin }: { courseId: string; isAdmi
               ref={fileRef}
               type="file"
               accept={ACCEPT}
+              aria-label="Attach files"
               multiple
               disabled={isPending || Boolean(url.trim())}
               onChange={(event) => setFiles(Array.from(event.target.files ?? []))}

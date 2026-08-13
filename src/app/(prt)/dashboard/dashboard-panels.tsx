@@ -15,7 +15,7 @@ import { DashboardChartsSection } from './charts-section'
 import { DashboardSection } from './dashboard-layout'
 import { WidgetSkeleton } from './widgets'
 import { ReminderPanel } from './ReminderPanel'
-import { WIDGET_CTA_LINK, WIDGET_ROW_LINK, WIDGET_ROW_META } from './widget-shared'
+import { WIDGET_CTA_LINK, WIDGET_ROW_META, WIDGET_ROW_STACK } from './widget-shared'
 import {
   loadActiveClassesModal,
   loadFinanceModal,
@@ -68,12 +68,7 @@ export function SubAdminOverview({
 }) {
   if (!canViewUsers) {
     return (
-      <Card className="mt-6 p-5">
-        <h2 className="text-sm font-semibold text-slate-800">Dashboard access is limited</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          User-management widgets are hidden because this account does not currently have user access.
-        </p>
-      </Card>
+      <CapabilityNotice message="User-management widgets are hidden because this account does not currently have user access." />
     )
   }
 
@@ -89,9 +84,9 @@ export function SubAdminOverview({
           empty="No students yet."
         />
         <StatModalCard
-          label="Tutors & mentors"
+          label="Tutors & Mentors"
           value={data.tutors}
-          title="Tutors & mentors"
+          title="Tutors & Mentors"
           load={loadTutorsModal}
           viewAllHref={usersUrl({ tab: 'people', role: 'staff' })}
           empty="No tutors yet."
@@ -146,9 +141,9 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
     data.peopleCounts ? (
       <StatModalCard
         key="tutors"
-        label="Tutors & mentors"
+        label="Tutors & Mentors"
         value={data.peopleCounts.tutors}
-        title="Tutors & mentors"
+        title="Tutors & Mentors"
         load={loadTutorsModal}
         viewAllHref={usersUrl({ tab: 'people', role: 'staff' })}
       />
@@ -219,8 +214,10 @@ function Upcoming({ events }: { events: CalendarEvent[] }) {
     <ul className="space-y-1 text-sm">
       {events.map((event) => (
         <li key={event.id}>
-          <a href="/calendar" className={WIDGET_ROW_LINK}>
-            <span className="min-w-0 truncate">{event.title}</span>
+          <a href="/calendar" className={WIDGET_ROW_STACK}>
+            <span className="w-full truncate" title={event.title}>
+              {event.title}
+            </span>
             <span className={WIDGET_ROW_META}>
               {event.event_date} - {event.kind}
             </span>

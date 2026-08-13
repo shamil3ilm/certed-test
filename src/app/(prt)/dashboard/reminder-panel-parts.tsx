@@ -2,17 +2,7 @@
 
 import type { Reminder } from '@/lib/services/reminders'
 import { ArchivedList } from '@/lib/ui'
-import { formatDate, formatDateTime } from '@/lib/time/format'
-
-export function toDatetimeLocalValue(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
-    date.getMinutes(),
-  )}`
-}
+import { formatDate, formatDateTime, isoToDatetimeLocal } from '@/lib/time/format'
 
 export function formatRemindAt(iso: string, nowMs: number, tz?: string) {
   const date = new Date(iso)
@@ -60,7 +50,7 @@ export function ReminderEditor({
           name="description"
           defaultValue={editing?.description ?? ''}
           placeholder="Note (optional)"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </label>
       <label className="block">
@@ -69,8 +59,8 @@ export function ReminderEditor({
           name="remind_at"
           type="datetime-local"
           required
-          defaultValue={editing ? toDatetimeLocalValue(editing.remind_at) : ''}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+          defaultValue={editing ? isoToDatetimeLocal(editing.remind_at) : ''}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </label>
       <div className="flex gap-2">

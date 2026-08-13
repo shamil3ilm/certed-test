@@ -91,6 +91,7 @@ export function SubmitForm({
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="Paste your Google Drive link..."
+            aria-label="Google Drive link"
             required
             disabled={isPending}
             className="min-w-0 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"

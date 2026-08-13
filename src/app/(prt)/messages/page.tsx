@@ -52,7 +52,7 @@ export default async function MessagesPage(props: { searchParams: Promise<{ page
                     <p className="mt-1 line-clamp-2 text-sm text-slate-500">{c.lastMessage ?? 'No messages yet.'}</p>
                   </div>
                   {c.lastAt && (
-                    <span className="shrink-0 pt-0.5 text-[11px] text-slate-400">
+                    <span className="shrink-0 pt-0.5 text-meta text-slate-400">
                       <LocalTime iso={c.lastAt} />
                     </span>
                   )}

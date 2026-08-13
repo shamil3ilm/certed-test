@@ -1,7 +1,7 @@
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
-import { Panel } from '@/lib/ui'
+import { Badge, Panel, statusLabel } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
-import { DriveLink, EmptyLine, StatusChip } from './detail-shared'
+import { DriveLink, EmptyLine } from './detail-shared'
 
 type Overview = NonNullable<Awaited<ReturnType<typeof loadMenteeDetailPageData>>>['overview']
 
@@ -21,9 +21,9 @@ export function NeedsAttentionPanel({ overdue }: { overdue: Overview['overdue'] 
                 <p className="truncate font-medium text-slate-800">{item.assignmentTitle}</p>
                 <p className="text-xs text-slate-500">{item.classLabel}</p>
               </div>
-              <StatusChip tone="red">
+              <Badge tone="danger">
                 overdue - <LocalTime iso={item.dueDate} mode="date" />
-              </StatusChip>
+              </Badge>
             </li>
           ))}
         </ul>
@@ -52,11 +52,11 @@ export function EvaluationPanels({ evaluations }: { evaluations: Overview['evalu
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <StatusChip tone={row.percent != null && row.percent < 50 ? 'red' : 'green'}>
+                  <Badge tone={row.percent != null && row.percent < 50 ? 'danger' : 'success'}>
                     {row.maxMarks != null
                       ? `${row.score} / ${row.maxMarks}${row.percent != null ? ` (${row.percent}%)` : ''}`
                       : row.score}
-                  </StatusChip>
+                  </Badge>
                   <DriveLink href={row.driveLink} />
                 </div>
               </li>
@@ -79,9 +79,9 @@ export function EvaluationPanels({ evaluations }: { evaluations: Overview['evalu
                   <p className="truncate font-medium text-slate-800">{row.classLabel}</p>
                   <p className="text-xs text-slate-400">{row.sessionDate}</p>
                 </div>
-                <StatusChip tone={row.status === 'present' ? 'green' : row.status === 'late' ? 'amber' : 'red'}>
-                  {row.status}
-                </StatusChip>
+                <Badge tone={row.status === 'present' ? 'success' : row.status === 'late' ? 'warning' : 'danger'}>
+                  {statusLabel(row.status)}
+                </Badge>
               </li>
             ))}
           </ul>
@@ -111,9 +111,9 @@ export function RecentSubmissionsPanel({ submissions }: { submissions: Overview[
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <StatusChip tone={submission.status === 'late' ? 'red' : 'green'}>
+                  <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
                     {submission.status === 'late' ? 'Late' : 'On time'}
-                  </StatusChip>
+                  </Badge>
                   <DriveLink href={submission.driveLink} />
                 </div>
               </li>

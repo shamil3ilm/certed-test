@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { SEGMENTED_GROUP, segmentedButtonClass } from '@/lib/ui'
+import { Badge, SectionLabel, SEGMENTED_GROUP, segmentedButtonClass } from '@/lib/ui'
 import type { PermissionRow } from '@/lib/services/page-data/user-permissions'
 import { assertActionOk } from '../../../../action-client'
 import { useUI } from '../../../../Providers'
+import { Input } from '../../../../form'
 import { setUserCapabilityAction } from './actions'
 
 type Effect = 'default' | 'allow' | 'deny'
@@ -24,7 +25,7 @@ export function PermissionsEditor({ profileId, rows }: { profileId: string; rows
     <div className="space-y-6">
       {groups.map(([group, groupRows]) => (
         <section key={group}>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{group}</h2>
+          <SectionLabel>{group}</SectionLabel>
           <ul className="mt-2 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
             {groupRows.map((row) => (
               <PermissionRowItem key={row.capability} profileId={profileId} row={row} />
@@ -95,9 +96,9 @@ function PermissionRowItem({ profileId, row }: { profileId: string; row: Permiss
       </div>
 
       {row.isHard || row.isOverrideBlocked ? (
-        <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+        <Badge tone="slate" className="shrink-0">
           {row.isHard ? 'Locked - platform rule' : 'Locked - scoped access only'}
-        </span>
+        </Badge>
       ) : (
         <div className="shrink-0">
           <Segmented value={effect} disabled={pending} baselineAllowed={row.baselineAllowed} onChange={choose} />
@@ -108,11 +109,11 @@ function PermissionRowItem({ profileId, row }: { profileId: string; row: Permiss
         <div className="w-full sm:mt-2 sm:basis-full">
           <label className="block text-xs font-medium text-slate-500">
             Reason for {reasonFor === 'allow' ? 'granting' : 'revoking'} &quot;{row.label}&quot; (required, audited)
-            <input
+            <Input
               autoFocus
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="mt-1 block w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1"
               placeholder="e.g. Covering finance while the bursar is on leave"
             />
           </label>
@@ -182,18 +183,14 @@ function SourceBadge({
   isHard: boolean
 }) {
   if (isHard) return null
-  if (effect === 'allow') return <Badge className="bg-emerald-50 text-emerald-700">Granted - override</Badge>
-  if (effect === 'deny') return <Badge className="bg-red-50 text-red-700">Revoked - override</Badge>
-  return <Badge className="bg-slate-100 text-slate-500">{baselineAllowed ? 'Persona default' : 'Not in default'}</Badge>
-}
-
-function Badge({ children, className }: { children: React.ReactNode; className: string }) {
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`}>{children}</span>
+  if (effect === 'allow') return <Badge tone="success">Granted - override</Badge>
+  if (effect === 'deny') return <Badge tone="danger">Revoked - override</Badge>
+  return <Badge tone="slate">{baselineAllowed ? 'Persona default' : 'Not in default'}</Badge>
 }
 
 function AccessDot({ effective }: { effective: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
+    <span className="inline-flex items-center gap-1 text-meta font-medium text-slate-400">
       <span className={`h-1.5 w-1.5 rounded-full ${effective ? 'bg-emerald-500' : 'bg-slate-300'}`} />
       {effective ? 'has access' : 'no access'}
     </span>

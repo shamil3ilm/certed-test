@@ -185,7 +185,7 @@ export function CalendarComposerModal({
           classes={classes}
           isAdmin={isAdmin}
           onSuccess={() => {
-            toastMessage('Meet link shared', 'success')
+            toastMessage('Meeting link shared', 'success')
             onCalendarRefresh()
           }}
           onError={(message) => toastMessage(message, 'error')}

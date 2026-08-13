@@ -64,12 +64,14 @@ export default async function NotificationsPage(props: { searchParams: Promise<{
             <>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold', kind.className)}>
+                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-meta font-semibold', kind.className)}>
                     {kind.label}
                   </span>
                   <p className="truncate text-sm font-medium text-slate-800">{n.title}</p>
                 </div>
-                {!n.read_at && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="unread" />}
+                {!n.read_at && (
+                  <span role="img" aria-label="Unread" className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                )}
               </div>
               {n.body && <p className="mt-1 line-clamp-2 text-sm text-slate-500">{n.body}</p>}
               <p className="mt-1 text-xs text-slate-400">

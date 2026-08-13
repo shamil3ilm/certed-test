@@ -16,6 +16,7 @@ import {
   WIDGET_CTA_LINK,
   WIDGET_ROW_LINK,
   WIDGET_ROW_META,
+  WIDGET_ROW_STACK,
   listUpcomingClassOccurrences,
   resolveClassIds,
   resolveClassScopedData,
@@ -43,8 +44,10 @@ export async function UpcomingClassesWidget({
         <ul className="space-y-1 text-sm">
           {upcoming.map((slot) => (
             <li key={`${slot.slotId}:${slot.startIso}`}>
-              <Link href={`/classroom/${slot.classId}`} className={WIDGET_ROW_LINK}>
-                <span className="min-w-0 truncate font-medium">{slot.subject}</span>
+              <Link href={`/classroom/${slot.classId}`} className={WIDGET_ROW_STACK}>
+                <span className="w-full truncate font-medium" title={slot.subject}>
+                  {slot.subject}
+                </span>
                 <span className={WIDGET_ROW_META}>
                   <LocalTime iso={slot.startIso} />
                 </span>

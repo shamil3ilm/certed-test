@@ -3,6 +3,7 @@ import { isMock } from '@/lib/mock/env'
 import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
 import { AlertBanner, PageHeader, Panel } from '@/lib/ui'
 import { ChangePasswordForm } from './ChangePasswordForm'
+import { Field, Input } from '../form'
 import { changeEmailAction, changePasswordAction, updateProfileAction } from './actions'
 
 export default async function SettingsPage(props: { searchParams: Promise<SettingsSearchParams> }) {
@@ -13,7 +14,7 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Settings" description="Manage your profile, email and password." />
+      <PageHeader title="Profile & settings" description="Manage your profile, email and password." />
 
       {data.alerts.map((alert) => (
         <AlertBanner key={`${alert.tone}:${alert.message}`} tone={alert.tone} className="mb-4">
@@ -43,14 +44,9 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
             )}
           </dl>
           <form action={updateProfileAction} className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              <span className="text-slate-600">Full name</span>
-              <input
-                name="full_name"
-                defaultValue={me.full_name ?? ''}
-                className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-              />
-            </label>
+            <Field label="Full name">
+              <Input name="full_name" defaultValue={me.full_name ?? ''} />
+            </Field>
             <div className="sm:col-span-2">
               <button type="submit" className="btn btn-primary">
                 Save profile
@@ -58,17 +54,9 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
             </div>
           </form>
           <form action={changeEmailAction} className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
-            <label className="text-sm sm:col-span-2">
-              <span className="mb-1 block text-slate-600">Change email</span>
-              <input
-                name="new_email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-              />
-            </label>
+            <Field label="Change email" className="sm:col-span-2">
+              <Input name="new_email" type="email" required autoComplete="email" placeholder="you@example.com" />
+            </Field>
             <div className="sm:col-span-2">
               <button type="submit" className="btn btn-primary">
                 Change email

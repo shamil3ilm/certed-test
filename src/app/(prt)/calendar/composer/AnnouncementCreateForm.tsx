@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition, type FormEvent } from 'react'
+import { ACADEMY_WIDE_LABEL } from '@/lib/ui'
+import { Input, Select, Textarea } from '../../form'
 import { assertActionOk } from '../../action-client'
 import { createAnnouncementStatusAction } from '../../announcements/actions'
 import type { Opt } from '../calendar-types'
@@ -53,35 +55,35 @@ export function AnnouncementCreateForm({
       </p>
       <label className="text-sm">
         Post to
-        <select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1 block w-full">
-          {isAdmin && <option value="">Global (all classes)</option>}
+        <Select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1">
+          {isAdmin && <option value="">{ACADEMY_WIDE_LABEL}</option>}
           {!isAdmin && classes.length === 0 && <option value="">No classes</option>}
           {classes.map((course) => (
             <option key={course.id} value={course.id}>
               {course.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Title
-        <input
+        <Input
           value={title}
           required
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Announcement title"
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <label className="text-sm">
         Message
-        <textarea
+        <Textarea
           value={message}
           required
           onChange={(event) => setMessage(event.target.value)}
           placeholder="Write the announcement students and tutors should see..."
           rows={4}
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <div className="mt-1 flex gap-2">

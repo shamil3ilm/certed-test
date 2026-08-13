@@ -165,12 +165,12 @@ function CommentThreadBody({
             return (
               <div key={comment.id} className={`flex gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
                 <span
-                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] font-bold ${tone.avatar}`}
+                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-micro font-bold ${tone.avatar}`}
                 >
                   {(comment.author_name ?? '?').slice(0, 1).toUpperCase()}
                 </span>
                 <div className={`flex max-w-[80%] flex-col gap-0.5 ${isMine ? 'items-end' : 'items-start'}`}>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-meta text-slate-400">
                     {isMine ? 'You' : (comment.author_name ?? 'Unknown')} - {roleLabel(comment.author_role)} -{' '}
                     <LocalTime iso={comment.created_at} />
                   </span>
@@ -184,7 +184,7 @@ function CommentThreadBody({
                       type="button"
                       onClick={() => handleDelete(comment)}
                       disabled={isPending}
-                      className="mt-0.5 text-[10px] text-slate-400 transition-colors hover:text-red-600 hover:underline disabled:opacity-50"
+                      className="mt-0.5 text-meta text-slate-400 transition-colors hover:text-red-600 hover:underline disabled:opacity-50"
                     >
                       Delete
                     </button>

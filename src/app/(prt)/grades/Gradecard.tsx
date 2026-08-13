@@ -80,14 +80,14 @@ export function Gradecard({ marks }: { marks: GradecardMark[] }) {
           label="Average"
           value={average == null ? '-' : `${Math.round(average)}%`}
           tone="primary"
-          sub="of shown marks"
+          sub="of shown grades"
         />
-        <StatCard label="Marks shown" value={filtered.length} sub={`of ${marks.length} total`} />
+        <StatCard label="Grades shown" value={filtered.length} sub={`of ${marks.length} total`} />
         <StatCard label="Classes" value={className ? 1 : classes.length} />
       </StatGrid>
 
       {filtered.length === 0 ? (
-        <EmptyState>No marks match these filters.</EmptyState>
+        <EmptyState>No grades match these filters.</EmptyState>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200">
           <table className="data-table w-full text-sm">

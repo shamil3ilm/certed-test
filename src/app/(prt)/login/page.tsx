@@ -9,7 +9,7 @@ import { PasswordLoginForm } from './PasswordLoginForm'
 
 function DevLogin({ error, demoEmails }: { error: boolean; demoEmails: string[] }) {
   return (
-    <AuthShell title="Welcome back" subtitle="Sign in with your email and password.">
+    <AuthShell title="Welcome back" subtitle="Sign in to your account.">
       <DevLoginForm error={error} />
 
       <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3.5 text-xs text-slate-500">

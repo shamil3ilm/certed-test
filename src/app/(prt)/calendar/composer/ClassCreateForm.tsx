@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { cx } from '@/lib/ui'
+import { cx, ACADEMY_WIDE_LABEL } from '@/lib/ui'
+import { Input, Select } from '../../form'
 import { requestJson } from '../../api-client'
 import { api } from '../timetable/api'
 import { DAYS } from '../timetable/types'
@@ -123,38 +124,38 @@ export function ClassCreateForm({
 
       <label className="text-sm sm:col-span-2">
         {subjectLabel}
-        <input
+        <Input
           value={subject}
           required
           onChange={(event) => setSubject(event.target.value)}
           placeholder={subjectPlaceholder}
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
 
       <label className="text-sm">
         {classLabel}
-        <select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1 block w-full">
-          {isAdmin && !recurring && <option value="">Global (all)</option>}
+        <Select value={classId} onChange={(event) => setClassId(event.target.value)} className="mt-1">
+          {isAdmin && !recurring && <option value="">{ACADEMY_WIDE_LABEL}</option>}
           {!isAdmin && classes.length === 0 && <option value="">No classes</option>}
           {classes.map((course) => (
             <option key={course.id} value={course.id}>
               {course.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {recurring ? (
         <label className="text-sm">
           Day
-          <select value={day} onChange={(event) => setDay(Number(event.target.value))} className="mt-1 block w-full">
+          <Select value={day} onChange={(event) => setDay(Number(event.target.value))} className="mt-1">
             {DAYS.map((label, index) => (
               <option key={label} value={index}>
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       ) : (
         <div className="hidden sm:block" aria-hidden />
@@ -162,47 +163,47 @@ export function ClassCreateForm({
 
       <label className="text-sm">
         Start time
-        <input
+        <Input
           type="time"
           value={start}
           required={recurring}
           onChange={(event) => setStart(event.target.value)}
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
       <label className="text-sm">
         End time
-        <input
+        <Input
           type="time"
           value={end}
           required={recurring}
           onChange={(event) => setEnd(event.target.value)}
-          className="mt-1 block w-full"
+          className="mt-1"
         />
       </label>
 
       {recurring && isAdmin && tutors.length > 0 && (
         <label className="text-sm">
           Tutor (optional)
-          <select value={tutorId} onChange={(event) => setTutorId(event.target.value)} className="mt-1 block w-full">
+          <Select value={tutorId} onChange={(event) => setTutorId(event.target.value)} className="mt-1">
             <option value="">Unassigned</option>
             {tutors.map((tutor) => (
               <option key={tutor.id} value={tutor.id}>
                 {tutor.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
       {recurring && (
         <label className="text-sm">
           Room or mode (optional)
-          <input
+          <Input
             value={room}
             onChange={(event) => setRoom(event.target.value)}
             placeholder="Room 1 / Online"
-            className="mt-1 block w-full"
+            className="mt-1"
           />
         </label>
       )}

@@ -11,7 +11,6 @@ import { DashboardScopeHeader, DashboardSection, DashboardWidgetGrid } from './d
 import {
   DueWorkWidget,
   LatestAnnouncementWidget,
-  LatestGradeWidget,
   GradeTrajectoryWidget,
   PendingAttendanceWidget,
   RecentUploadsWidget,
@@ -202,9 +201,6 @@ export function StudentDashboardContent({
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />
-        </Suspense>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <LatestGradeWidget studentId={me.id} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <GradeTrajectoryWidget studentId={me.id} />

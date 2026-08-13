@@ -9,17 +9,11 @@ import { LocalTime } from '../LocalTime'
 import { useUI } from '../Providers'
 import { assertActionOk } from '../action-client'
 import { deleteMeetLinkAction, editMeetLinkAction } from './actions'
+import { isoToDatetimeLocal } from '@/lib/time/format'
 
 type Profile = { id: string; email: string; full_name: string | null; role: string }
 
 const MEET_GRACE_MS = 3 * 60 * 60 * 1000
-
-function toLocalInput(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
 
 export function MeetingsEmptyState() {
   return <EmptyState>No meeting links shared yet.</EmptyState>
@@ -147,12 +141,28 @@ export function MeetCard({
 
       {editing ? (
         <form onSubmit={handleEditSubmit} className="mt-4 space-y-2 border-t border-slate-100 pt-4">
-          <input name="title" defaultValue={link.title} required placeholder="Title" className={inputClass} />
-          <input name="url" type="url" defaultValue={link.url} required placeholder="Meet URL" className={inputClass} />
+          <input
+            name="title"
+            defaultValue={link.title}
+            required
+            placeholder="Title"
+            aria-label="Meeting title"
+            className={inputClass}
+          />
+          <input
+            name="url"
+            type="url"
+            defaultValue={link.url}
+            required
+            placeholder="Meet URL"
+            aria-label="Meet URL"
+            className={inputClass}
+          />
           <input
             name="description"
             defaultValue={link.description ?? ''}
             placeholder="Description (optional)"
+            aria-label="Meeting description"
             className={inputClass}
           />
           <label className="block text-xs font-medium text-slate-500">
@@ -160,7 +170,7 @@ export function MeetCard({
             <input
               name="scheduled_at"
               type="datetime-local"
-              defaultValue={link.scheduled_at ? toLocalInput(link.scheduled_at) : ''}
+              defaultValue={link.scheduled_at ? isoToDatetimeLocal(link.scheduled_at) : ''}
               className={cx(inputClass, 'mt-1')}
             />
           </label>
@@ -191,7 +201,7 @@ export function MeetCard({
                   d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
-              Join Class
+              Join meeting
             </a>
           )}
         </div>

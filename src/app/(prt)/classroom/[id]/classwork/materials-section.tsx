@@ -26,19 +26,11 @@ import { LocalTime } from '../../../LocalTime'
 import { EditResource } from '../../../resources/EditResource'
 import { UploadForm } from '../../../resources/UploadForm'
 import { VersionHistory } from '../../../resources/VersionHistory'
+import { drivePreviewUrl } from '@/lib/documents/preview'
+import { DrivePreview } from '../DrivePreview'
 
 type ClassworkPageData = Awaited<ReturnType<typeof loadClassworkPageData>>
 type DocumentView = ClassworkPageData['documentsByCategory'][DocumentCategory][number]
-
-/** Inline Drive/Docs preview URL, or null when the link can't be embedded. */
-function drivePreviewUrl(link: string | null): string | null {
-  if (!link) return null
-  const file = link.match(/drive\.google\.com\/file\/d\/([^/?#]+)/)
-  if (file) return `https://drive.google.com/file/d/${file[1]}/preview`
-  const doc = link.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([^/?#]+)/)
-  if (doc) return `https://docs.google.com/${doc[1]}/d/${doc[2]}/preview`
-  return null
-}
 
 function DocumentCard({
   view,
@@ -84,17 +76,14 @@ function DocumentCard({
       </div>
 
       {preview && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-medium text-primary transition hover:underline">
-            Preview
-          </summary>
-          <iframe
-            src={preview}
-            title={`Preview of ${doc.title}`}
-            className="mt-2 h-96 w-full rounded-lg border border-slate-200"
-            loading="lazy"
-          />
-        </details>
+        <DrivePreview
+          src={preview}
+          title={`Preview of ${doc.title}`}
+          summary="Preview"
+          className="mt-3"
+          summaryClassName="cursor-pointer text-xs font-medium text-primary transition hover:underline"
+          iframeClassName="mt-2 h-96 w-full rounded-lg border border-slate-200"
+        />
       )}
 
       <VersionHistory

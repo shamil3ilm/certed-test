@@ -3,7 +3,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { CommentThread } from '../../CommentThread'
 import { LocalTime } from '../../LocalTime'
-import { Avatar, BackLink, Card, EmptyState, ExternalActionLink, PageHeader } from '@/lib/ui'
+import { Avatar, Badge, BackLink, Card, EmptyState, ExternalActionLink, PageHeader, statusLabel } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 
 export default async function AssignmentDetail(props: { params: Promise<{ id: string }> }) {
@@ -42,13 +42,9 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                   <p className="text-xs text-slate-400">
                     Submitted <LocalTime iso={submission.submitted_at} />
                     {' - '}
-                    <span
-                      className={
-                        submission.status === 'late' ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'
-                      }
-                    >
-                      {submission.status}
-                    </span>
+                    <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
+                      {statusLabel(submission.status)}
+                    </Badge>
                   </p>
                 </div>
               </div>
@@ -82,7 +78,7 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                   {data.historyByStudent.get(submission.student_id)!.map((prior) => (
                     <li key={prior.id} className="flex items-center justify-between gap-2">
                       <span className="text-slate-400">
-                        Submitted <LocalTime iso={prior.submitted_at} /> - {prior.status}
+                        Submitted <LocalTime iso={prior.submitted_at} /> - {statusLabel(prior.status)}
                       </span>
                       {prior.drive_link && prior.drive_link !== '#' && (
                         <a
