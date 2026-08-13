@@ -1,17 +1,23 @@
+import { isValidTimeZone } from '@/lib/time/format'
+
 /**
  * Expand recurring weekly timetable slots into absolute UTC instants across a range.
  *
- * Each slot carries a WALL-CLOCK start/end time and a day_of_week, anchored to the
- * institute timezone (`anchorTz`, from org_settings.timezone). For every calendar day in
- * [rangeStartIso, rangeEndIso) whose weekday matches, we compute the exact UTC instant for
- * that wall-clock time IN THE ANCHOR ZONE (DST-aware), so the produced `startIso`/`endIso`
- * point at the correct real-world moment regardless of any later display timezone.
+ * Each slot carries a WALL-CLOCK start/end time and a day_of_week interpreted in the
+ * slot's OWN zone: `slot.timezone` (the tutor's zone, stamped at creation) when present,
+ * else `anchorTz` (the institute zone, from org_settings.timezone) for legacy rows. For
+ * every calendar day in [rangeStartIso, rangeEndIso) whose weekday matches IN THAT ZONE,
+ * we compute the exact UTC instant for the wall-clock time in that zone (DST-aware), so the
+ * produced `startIso`/`endIso` point at the correct real-world moment regardless of any
+ * later display timezone. Anchoring each slot in its own zone keeps a late class a valid
+ * same-day interval there, so it never straddles a foreign midnight.
  */
 export type ExpandableSlot = {
   id: string
-  day_of_week: number // 0=Sun .. 6=Sat
-  start_time: string // "HH:mm" or "HH:mm:ss"
+  day_of_week: number // 0=Sun .. 6=Sat, in the slot's own zone
+  start_time: string // "HH:mm" or "HH:mm:ss", wall-clock in the slot's own zone
   end_time: string
+  timezone?: string | null // IANA zone the slot is anchored to; null/absent -> anchorTz
 }
 
 export type SlotOccurrence = {
@@ -94,6 +100,54 @@ function zonedYmdWeekday(instantMs: number, tz: string): { y: number; mo: number
   return { y: Number(get('year')), mo: Number(get('month')), d: Number(get('day')), wd: wdMap[get('weekday')] }
 }
 
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+// The weekday (0=Sun) + "HH:mm" of an instant as read in `tz`.
+function zonedWeekdayTime(instantMs: number, tz: string): { wd: number; time: string } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(instantMs))
+  const get = (t: string) => parts.find((p) => p.type === t)!.value
+  return { wd: WEEKDAY_INDEX[get('weekday')], time: `${get('hour')}:${get('minute')}` }
+}
+
+/**
+ * Convert a RECURRING weekly wall-clock time between zones: "every {dayOfWeek} at
+ * {time} in fromTz" -> the equivalent {dayOfWeek, time} in toTz. The weekday shifts
+ * when the time crosses local midnight (a late-evening Gulf class lands on the next
+ * India day, and vice-versa). Used to convert a tutor-entered class time to the
+ * academy zone on save, and back to a viewer's zone for display.
+ *
+ * Well-defined for FIXED-OFFSET zones (India + the Gulf observe no DST). Across a
+ * DST transition a recurring wall-clock maps to two offsets; this samples one fixed
+ * reference week, which is correct for the no-DST zones this app serves. Invalid
+ * zones (or identical zones) pass the value through unchanged.
+ */
+export function convertWeeklyTime(
+  dayOfWeek: number,
+  time: string,
+  fromTz: string,
+  toTz: string,
+): { dayOfWeek: number; time: string } {
+  if (fromTz === toTz) return { dayOfWeek, time }
+  const { h, m } = parseHm(time)
+  if (Number.isNaN(h) || Number.isNaN(m)) return { dayOfWeek, time }
+  try {
+    // A calendar date whose weekday IS dayOfWeek (a plain Y-M-D's weekday is
+    // tz-independent). 2024-01-07 is a Sunday, so + dayOfWeek days lands on it.
+    const ref = new Date(Date.UTC(2024, 0, 7 + dayOfWeek))
+    const instant = zonedWallClockToUtcMs(ref.getUTCFullYear(), ref.getUTCMonth() + 1, ref.getUTCDate(), h, m, fromTz)
+    const { wd, time: converted } = zonedWeekdayTime(instant, toTz)
+    return { dayOfWeek: wd, time: converted }
+  } catch {
+    return { dayOfWeek, time }
+  }
+}
+
 export function expandSlots(
   slots: ExpandableSlot[],
   rangeStartIso: string,
@@ -106,18 +160,20 @@ export function expandSlots(
 
   const occ: SlotOccurrence[] = []
   const seen = new Set<string>()
-  // Iterate calendar days IN THE ANCHOR ZONE. We sample one instant per 24h hop and read its
-  // zoned Y/M/D + weekday - but UTC-midnight maps to the previous local day for west-of-UTC
-  // zones, so we pad the scan by a day on each side and keep only occurrences whose absolute
-  // instant lands within [startMs, endMs). Dedupe by (slot, instant) guards DST-boundary days.
+  // Iterate calendar days and, per slot, read the zoned Y/M/D + weekday IN THAT SLOT'S OWN
+  // ZONE (its timezone, else anchorTz). We sample one instant per 24h hop - but UTC-midnight
+  // maps to the previous local day for west-of-UTC zones, so we pad the scan by a day on each
+  // side and keep only occurrences whose absolute instant lands within [startMs, endMs).
+  // Dedupe by (slot, instant) guards DST-boundary days and the padding overlap.
   for (let cursor = startMs - DAY_MS; cursor < endMs + DAY_MS; cursor += DAY_MS) {
-    const { y, mo, d, wd } = zonedYmdWeekday(cursor, anchorTz)
     for (const slot of slots) {
+      const tz = slot.timezone && isValidTimeZone(slot.timezone) ? slot.timezone : anchorTz
+      const { y, mo, d, wd } = zonedYmdWeekday(cursor, tz)
       if (slot.day_of_week !== wd) continue
       const s = parseHm(slot.start_time)
       const e = parseHm(slot.end_time)
-      const startInstant = zonedWallClockToUtcMs(y, mo, d, s.h, s.m, anchorTz)
-      const endInstant = zonedWallClockToUtcMs(y, mo, d, e.h, e.m, anchorTz)
+      const startInstant = zonedWallClockToUtcMs(y, mo, d, s.h, s.m, tz)
+      const endInstant = zonedWallClockToUtcMs(y, mo, d, e.h, e.m, tz)
       if (startInstant < startMs || startInstant >= endMs) continue
       const key = `${slot.id}@${startInstant}`
       if (seen.has(key)) continue

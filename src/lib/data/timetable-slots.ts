@@ -16,9 +16,10 @@ export type TimetableSlotRow = {
   subject: string
   tutor_id: string | null
   day_of_week: number
-  start_time: string // "HH:mm[:ss]" wall-clock in org_settings.timezone
+  start_time: string // "HH:mm[:ss]" wall-clock in the slot's own timezone
   end_time: string
   mode_or_location: string | null
+  timezone: string | null // IANA zone the wall-clock is anchored to; null -> academy zone
   active: boolean
   created_at: string
 }

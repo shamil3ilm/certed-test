@@ -6,6 +6,15 @@ export type Opt = { id: string; name: string }
 export const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const KINDS = ['event', 'holiday', 'cancellation', 'reschedule'] as const
 
+/** Display labels for the timetable event kinds, so they never render as raw
+ *  lowercase enum values ("cancellation") in the UI. */
+export const KIND_LABELS: Record<string, string> = {
+  event: 'Event',
+  holiday: 'Holiday',
+  cancellation: 'Cancellation',
+  reschedule: 'Reschedule',
+}
+
 export type Slot = {
   id: string
   class_id: string
@@ -15,6 +24,7 @@ export type Slot = {
   start_time: string
   end_time: string
   mode_or_location: string | null
+  timezone: string | null // IANA zone the slot's day/time is anchored to; null -> academy zone
   active: boolean
 }
 

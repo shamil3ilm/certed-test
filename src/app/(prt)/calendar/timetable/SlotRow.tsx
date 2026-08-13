@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import { DAYS, hhmm, type Opt, type Slot } from './types'
+import { Input, Select } from '../../form'
 import { TutorSelect } from './pickers'
+import { formatWeeklySlotInZone } from '@/lib/time/weekly-slot-format'
+import { useViewerTimeZone } from '../../ViewerTimeZone'
 
 export function SlotRow({
   slot,
@@ -25,6 +28,7 @@ export function SlotRow({
   onToggle: () => void
   onDelete: () => void
 }) {
+  const viewerTz = useViewerTimeZone()
   const [editing, setEditing] = useState(false)
   const [subject, setSubject] = useState(slot.subject)
   const [tutorId, setTutorId] = useState(slot.tutor_id ?? '')
@@ -50,9 +54,7 @@ export function SlotRow({
     return (
       <li className="flex items-center justify-between gap-3 py-2 text-sm">
         <span className={slot.active ? '' : 'text-slate-400 line-through'}>
-          <span className="font-medium">
-            {DAYS[slot.day_of_week]} {hhmm(slot.start_time)}-{hhmm(slot.end_time)}
-          </span>
+          <span className="font-medium">{formatWeeklySlotInZone(slot, viewerTz)}</span>
           {' - '}
           {slot.subject}
           {' - '}
@@ -82,53 +84,40 @@ export function SlotRow({
     <li className="grid gap-2 py-3 sm:grid-cols-2">
       <label className="text-sm">
         Subject
-        <input
-          className="mt-1 w-full rounded border p-2"
-          value={subject}
-          onChange={(event) => setSubject(event.target.value)}
-        />
+        <Input className="mt-1" value={subject} onChange={(event) => setSubject(event.target.value)} />
       </label>
       <TutorSelect tutors={tutors} value={tutorId} onChange={setTutorId} />
       <label className="text-sm">
         Day
-        <select
-          className="mt-1 w-full rounded border p-2"
-          value={day}
-          onChange={(event) => setDay(Number(event.target.value))}
-        >
+        <Select className="mt-1" value={day} onChange={(event) => setDay(Number(event.target.value))}>
           {DAYS.map((label, index) => (
             <option key={label} value={index}>
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Room / mode
-        <input
-          className="mt-1 w-full rounded border p-2"
+        <Input
+          className="mt-1"
           placeholder="Room / mode"
           value={room}
           onChange={(event) => setRoom(event.target.value)}
         />
       </label>
+      {slot.timezone && slot.timezone !== viewerTz && (
+        <p className="text-meta text-slate-500 sm:col-span-2">
+          This slot is anchored to {slot.timezone}; the times below are in that zone.
+        </p>
+      )}
       <label className="text-sm">
         Start
-        <input
-          type="time"
-          className="mt-1 w-full rounded border p-2"
-          value={start}
-          onChange={(event) => setStart(event.target.value)}
-        />
+        <Input type="time" className="mt-1" value={start} onChange={(event) => setStart(event.target.value)} />
       </label>
       <label className="text-sm">
         End
-        <input
-          type="time"
-          className="mt-1 w-full rounded border p-2"
-          value={end}
-          onChange={(event) => setEnd(event.target.value)}
-        />
+        <Input type="time" className="mt-1" value={end} onChange={(event) => setEnd(event.target.value)} />
       </label>
       <div className="flex gap-3 sm:col-span-2">
         <button

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { DAYS, type Opt } from './types'
 import { ClassSelect, TutorSelect } from './pickers'
+import { useViewerTimeZone } from '../../ViewerTimeZone'
 
 export function SlotForm({
   classes,
@@ -15,6 +16,7 @@ export function SlotForm({
   busy: boolean
   onSubmit: (body: Record<string, unknown>) => void
 }) {
+  const viewerTz = useViewerTimeZone()
   const [classId, setClassId] = useState(classes[0]?.id ?? '')
   const [subject, setSubject] = useState('')
   const [tutorId, setTutorId] = useState('')
@@ -36,6 +38,9 @@ export function SlotForm({
           end_time: end,
           tutor_id: tutorId || undefined,
           mode_or_location: room || undefined,
+          // Store the slot in the zone it's entered in (the tutor's own zone); each
+          // viewer sees it converted to theirs. No conversion on save.
+          timezone: viewerTz,
         })
       }}
     >
@@ -66,7 +71,7 @@ export function SlotForm({
         </select>
       </label>
       <label className="text-sm">
-        Start (institute time)
+        Start (your time)
         <input
           type="time"
           className="mt-1 w-full rounded border p-2"
@@ -76,7 +81,7 @@ export function SlotForm({
         />
       </label>
       <label className="text-sm">
-        End (institute time)
+        End (your time)
         <input
           type="time"
           className="mt-1 w-full rounded border p-2"
@@ -85,6 +90,9 @@ export function SlotForm({
           onChange={(event) => setEnd(event.target.value)}
         />
       </label>
+      <p className="text-meta text-slate-500 sm:col-span-2">
+        Times are in your time zone ({viewerTz}). Everyone else sees them converted to their own.
+      </p>
       <label className="text-sm">
         Room / mode
         <input

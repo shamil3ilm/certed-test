@@ -33,6 +33,16 @@ describe('createSlotSchema', () => {
     expect(createSlotSchema.safeParse({ ...base, start_time: '10:00', end_time: '09:00' }).success).toBe(false)
     expect(createSlotSchema.safeParse({ ...base, start_time: '10:00', end_time: '10:00' }).success).toBe(false)
   })
+  it('accepts a valid IANA timezone', () => {
+    expect(createSlotSchema.safeParse({ ...base, timezone: 'Asia/Dubai' }).success).toBe(true)
+  })
+  it('is valid without a timezone (optional; falls back to the academy zone)', () => {
+    const { ...rest } = base
+    expect(createSlotSchema.safeParse(rest).success).toBe(true)
+  })
+  it('rejects an invalid timezone', () => {
+    expect(createSlotSchema.safeParse({ ...base, timezone: 'Not/AZone' }).success).toBe(false)
+  })
 })
 
 describe('updateSlotSchema', () => {
@@ -44,5 +54,11 @@ describe('updateSlotSchema', () => {
   })
   it('still rejects an out-of-range day_of_week', () => {
     expect(updateSlotSchema.safeParse({ day_of_week: 9 }).success).toBe(false)
+  })
+  it('accepts a valid timezone in a partial update', () => {
+    expect(updateSlotSchema.safeParse({ timezone: 'Asia/Dubai' }).success).toBe(true)
+  })
+  it('rejects an invalid timezone in a partial update', () => {
+    expect(updateSlotSchema.safeParse({ timezone: 'Not/AZone' }).success).toBe(false)
   })
 })

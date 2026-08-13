@@ -79,6 +79,8 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
     start_time: input.start_time,
     end_time: input.end_time,
     mode_or_location: input.mode_or_location ?? null,
+    // The creator's zone (their viewer zone); null -> the academy zone at expansion.
+    timezone: input.timezone ?? null,
     active: true,
   })
   await auditPrivilegedAction(actor, 'timetable.create', 'timetable_slot', created.id)

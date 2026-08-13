@@ -2,6 +2,7 @@
 
 import { Modal } from '../Modal'
 import { LocalTime } from '../LocalTime'
+import { CALENDAR_COLORS } from '@/lib/brand/tokens'
 import { COLORS } from './calendar-config'
 import type { EventDetail } from './calendar-types'
 
@@ -35,7 +36,7 @@ export function EventDetailModal({ info, onClose }: { info: EventDetail; onClose
         <span className="flex min-w-0 items-center gap-2">
           <span
             className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ background: COLORS[info.source] ?? '#94a3b8' }}
+            style={{ background: COLORS[info.source] ?? CALENDAR_COLORS.fallback }}
           />
           <span className="truncate">{info.title}</span>
         </span>

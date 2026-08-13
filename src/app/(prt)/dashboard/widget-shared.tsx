@@ -12,6 +12,11 @@ export type ClassScopedWidgetData = {
 
 export const WIDGET_ROW_LINK =
   'group flex min-h-11 items-center justify-between gap-3 rounded-xl px-3 py-2 text-slate-800 transition hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20'
+// Stacked variant: label on top (full row width), meta beneath. Used where the meta
+// is long (e.g. a full date + time) and would otherwise squeeze the label to a few
+// characters inside a narrow multi-column dashboard row.
+export const WIDGET_ROW_STACK =
+  'group flex min-h-11 flex-col items-start justify-center gap-0.5 rounded-xl px-3 py-2 text-slate-800 transition hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20'
 export const WIDGET_ROW_META = 'shrink-0 text-xs text-slate-400 transition group-hover:text-primary/70'
 export const WIDGET_CTA_LINK = 'btn btn-sm btn-soft mt-3 min-h-10 px-3 py-2 text-sm font-semibold'
 

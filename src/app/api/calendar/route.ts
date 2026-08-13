@@ -60,6 +60,8 @@ export async function GET(request: Request) {
       day_of_week: s.day_of_week,
       start_time: s.start_time,
       end_time: s.end_time,
+      // Expand each slot in its OWN zone (null -> anchorTz for legacy rows).
+      timezone: s.timezone,
     }))
     const slotOccurrences = expandSlots(expandable, windowStartIso, windowEndIso, anchorTz)
     const slotMeta = Object.fromEntries(

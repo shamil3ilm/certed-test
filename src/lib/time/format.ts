@@ -109,3 +109,33 @@ export function formatInstant(iso: string, timeZone?: string): string {
     hour12: false,
   }).format(d)
 }
+
+/**
+ * ISO instant -> the value an `<input type="datetime-local">` expects
+ * ("YYYY-MM-DDTHH:mm") in the runtime's local zone. Returns '' for an invalid ISO
+ * so a bad value clears the field rather than throwing. Shared by the reminder,
+ * assignment-due and meeting-schedule editors.
+ */
+export function isoToDatetimeLocal(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** ISO instant -> local "HH:mm" (empty for an unset/invalid value). For the
+ *  attendance forms' time inputs. */
+export function isoToLocalTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** Local "HH:mm" on a `YYYY-MM-DD` date -> ISO instant (empty for an unset/invalid
+ *  value). The inverse of isoToLocalTime for saving the attendance forms. */
+export function localTimeToIso(date: string, time: string): string {
+  if (!time) return ''
+  const d = new Date(`${date}T${time}`)
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString()
+}

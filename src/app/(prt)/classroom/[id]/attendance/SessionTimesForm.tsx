@@ -6,6 +6,7 @@ import { CARD, cx } from '@/lib/ui'
 import { assertActionOk } from '../../../action-client'
 import { useUI } from '../../../Providers'
 import { saveSessionAction } from './actions'
+import { isoToLocalTime, localTimeToIso } from '@/lib/time/format'
 
 type SessionTimes = {
   scheduled_start: string | null
@@ -24,21 +25,6 @@ const FIELDS: { key: keyof SessionTimes; label: string }[] = [
   { key: 'tutor_join_at', label: 'Tutor join' },
   { key: 'tutor_leave_at', label: 'Tutor leave' },
 ]
-
-/** ISO instant -> local "HH:mm" (empty when unset). */
-function isoToLocalTime(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-/** Local "HH:mm" on the session date -> ISO instant (empty when unset). */
-function localTimeToIso(date: string, time: string): string {
-  if (!time) return ''
-  const d = new Date(`${date}T${time}`)
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString()
-}
 
 /** Records the scheduled/actual window and the tutor's join/leave for a session.
  *  Seeds from the loaded ISO times on the CLIENT (timezone-correct, and avoids a

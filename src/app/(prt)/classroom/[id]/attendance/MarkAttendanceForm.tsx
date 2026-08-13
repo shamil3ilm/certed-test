@@ -6,6 +6,7 @@ import { SEGMENTED_GROUP, segmentedButtonClass } from '@/lib/ui'
 import { formatMinutes, studentMetrics, type SessionTimes } from '@/lib/attendance/hours'
 import { assertActionOk } from '../../../action-client'
 import { markAttendanceAction } from './actions'
+import { isoToLocalTime, localTimeToIso } from '@/lib/time/format'
 import { useUI } from '../../../Providers'
 import type { AttendanceStatus } from '@/lib/services/attendance'
 
@@ -22,19 +23,6 @@ const OPTIONS: { value: AttendanceStatus; label: string; tone: 'success' | 'warn
   { value: 'late', label: 'Late', tone: 'warning' },
   { value: 'absent', label: 'Absent', tone: 'danger' },
 ]
-
-function isoToLocalTime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function localTimeToIso(date: string, time: string): string {
-  if (!time) return ''
-  const d = new Date(`${date}T${time}`)
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString()
-}
 
 export function MarkAttendanceForm({
   classId,
