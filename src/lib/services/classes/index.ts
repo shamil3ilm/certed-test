@@ -21,6 +21,9 @@ export {
 } from './queries'
 export type { ClassRow, ClassSummary, ClassMember, ClassMembers, MemberBrief, MentorContact } from './queries'
 
+export { sortClassesByStudent, groupClassesByStudent } from './grouping'
+export type { ClassStudentGroup } from './grouping'
+
 export {
   createClass,
   createClassFromActionInput,
