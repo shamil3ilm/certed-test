@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0059) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0060) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -1503,6 +1503,7 @@ CREATE TABLE public.timetable_slots (
     mode_or_location text,
     active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    timezone text,
     CONSTRAINT timetable_slots_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 6))),
     CONSTRAINT timetable_slots_time_order CHECK ((end_time > start_time))
 );
