@@ -88,9 +88,7 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
           const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
           return (
             <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate text-center text-meta tabular-nums text-slate-500">
-                {fmt(d.value, format)}
-              </span>
+              <span className="truncate text-center text-meta tabular-nums text-slate-500">{fmt(d.value, format)}</span>
               <div className="relative flex-1">
                 {negMax > 0 && (
                   <div

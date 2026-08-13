@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { roleLabel, statusLabel, mentoringSectionLabel, staffRoleLabel, personaLabel } from '@/lib/ui/labels'
 
-const persona = (persona_name: string, scope_type = 'global', status = 'active') => ({ persona_name, scope_type, status })
+const persona = (persona_name: string, scope_type = 'global', status = 'active') => ({
+  persona_name,
+  scope_type,
+  status,
+})
 
 describe('roleLabel', () => {
   it('maps each role, defaulting unknown/empty to Student', () => {

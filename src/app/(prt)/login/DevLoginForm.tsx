@@ -12,14 +12,7 @@ export function DevLoginForm({ error }: { error?: boolean }) {
       )}
 
       <Field label="Email address">
-        <Input
-          id="dev-email"
-          name="email"
-          type="email"
-          required
-          autoComplete="username"
-          placeholder="name@mock.test"
-        />
+        <Input id="dev-email" name="email" type="email" required autoComplete="username" placeholder="name@mock.test" />
       </Field>
 
       <Field label="Password">
