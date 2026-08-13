@@ -41,3 +41,16 @@ export class RateLimitError extends ServiceError {
     this.name = 'RateLimitError'
   }
 }
+
+/**
+ * A dependency needed for this action is not provisioned yet (e.g. custodial file
+ * storage before its GOOGLE_DRIVE_* credentials or migrations are in place). 503,
+ * so a caller gets a friendly "try again later" rather than a raw 500 that reads
+ * like a code bug.
+ */
+export class StorageUnavailableError extends ServiceError {
+  constructor(message = 'File storage is not available right now. Please try again later.') {
+    super(message, 503)
+    this.name = 'StorageUnavailableError'
+  }
+}

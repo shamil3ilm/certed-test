@@ -53,3 +53,17 @@ export function googleDriveEnv(): {
     rootFolderId: required('GOOGLE_DRIVE_ROOT_FOLDER_ID'),
   }
 }
+
+/**
+ * Non-throwing check that all four custodial-Drive credentials are present, so a
+ * caller can degrade to a friendly "storage unavailable" response instead of
+ * failing deep inside an upload with a 500. Mirrors emailEnabled().
+ */
+export function driveStorageConfigured(): boolean {
+  return Boolean(
+    process.env.GOOGLE_DRIVE_CLIENT_ID &&
+    process.env.GOOGLE_DRIVE_CLIENT_SECRET &&
+    process.env.GOOGLE_DRIVE_REFRESH_TOKEN &&
+    process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID,
+  )
+}

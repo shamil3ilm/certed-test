@@ -1,4 +1,11 @@
-import { NotFoundError, PermissionError, RateLimitError, type ServiceError, ValidationError } from '@/lib/errors'
+import {
+  NotFoundError,
+  PermissionError,
+  RateLimitError,
+  type ServiceError,
+  StorageUnavailableError,
+  ValidationError,
+} from '@/lib/errors'
 
 export const ERROR_CODES = {
   unauthorized: 'UNAUTHORIZED',
@@ -9,6 +16,7 @@ export const ERROR_CODES = {
   invalidRequest: 'INVALID_REQUEST',
   invalidInput: 'INVALID_INPUT',
   rateLimited: 'RATE_LIMITED',
+  serviceUnavailable: 'SERVICE_UNAVAILABLE',
   internalError: 'INTERNAL_ERROR',
 } as const
 
@@ -26,5 +34,6 @@ export function codeForServiceError(error: ServiceError): ErrorCode {
   if (error instanceof PermissionError) return ERROR_CODES.forbidden
   if (error instanceof NotFoundError) return ERROR_CODES.notFound
   if (error instanceof RateLimitError) return ERROR_CODES.rateLimited
+  if (error instanceof StorageUnavailableError) return ERROR_CODES.serviceUnavailable
   return ERROR_CODES.internalError
 }

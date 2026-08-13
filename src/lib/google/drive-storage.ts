@@ -1,5 +1,6 @@
 import 'server-only'
 import { isMock } from '@/lib/mock/env'
+import { driveStorageConfigured } from '@/lib/env'
 import { mockDriveStorage } from './drive-storage-mock'
 import { googleDriveStorage } from './drive-storage-google'
 
@@ -65,4 +66,14 @@ export interface DriveStorage {
  */
 export function getDriveStorage(): DriveStorage {
   return isMock() ? mockDriveStorage : googleDriveStorage()
+}
+
+/**
+ * Whether an upload can actually succeed: the in-memory provider is always ready in
+ * mock mode, otherwise the four GOOGLE_DRIVE_* credentials must be set. A route can
+ * check this up front and return a clean "storage isn't configured yet" instead of
+ * letting the upload fail deep in the Drive token exchange with a 500.
+ */
+export function driveStorageAvailable(): boolean {
+  return isMock() || driveStorageConfigured()
 }

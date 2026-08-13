@@ -1,9 +1,10 @@
 import { requireActiveProfileApi } from '@/lib/auth/require-role'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { created, apiError, authFail, invalidInput, invalidJson, tooManyRequests } from '@/lib/api/response'
-import { NotFoundError, PermissionError } from '@/lib/errors'
+import { NotFoundError, PermissionError, StorageUnavailableError } from '@/lib/errors'
 import type { Profile } from '@/lib/auth/profile'
 import { uploadAttachment } from '@/lib/services/attachments/upload'
+import { driveStorageAvailable } from '@/lib/google/drive-storage'
 import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments/validation'
 import type { AttachmentOwner, AttachmentRow } from '@/lib/data/attachments'
 import { selectSubmissionOwnerAsService } from '@/lib/data/submissions-service-reads'
@@ -48,6 +49,13 @@ async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<voi
   if (!(await canWriteClass(me, announcement.class_id))) {
     throw new PermissionError('Not allowed to attach to this announcement.')
   }
+}
+
+// The attachments table is absent until migrations 0057-0059 are applied to the live
+// DB; PostgREST reports that as a "schema cache"/"does not exist" error. Treat it, like
+// unset Drive credentials, as storage-not-provisioned rather than a raw 500.
+function isMissingAttachmentsTable(error: unknown): boolean {
+  return error instanceof Error && /schema cache|does not exist/i.test(error.message)
 }
 
 /** Only the fields the browser needs - never the internal Drive file id. */
@@ -99,6 +107,9 @@ export async function POST(req: Request) {
   const owner: AttachmentOwner = { kind: ownerKind, id: ownerId }
   try {
     await assertMayAttach(me, owner)
+    // Fail fast and friendly if custodial storage isn't provisioned, rather than
+    // buffering the bytes only to 500 in the Drive token exchange.
+    if (!driveStorageAvailable()) throw new StorageUnavailableError()
     const bytes = new Uint8Array(await file.arrayBuffer())
     const row = await uploadAttachment({
       owner,
@@ -109,6 +120,7 @@ export async function POST(req: Request) {
     })
     return created(toClientAttachment(row))
   } catch (error) {
+    if (isMissingAttachmentsTable(error)) return apiError(new StorageUnavailableError())
     return apiError(error)
   }
 }

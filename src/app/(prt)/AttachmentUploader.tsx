@@ -88,6 +88,7 @@ export function AttachmentUploader({
         ref={inputRef}
         type="file"
         accept={accept}
+        aria-label={`Attach a file to this ${owner}`}
         disabled={state === 'uploading'}
         onChange={(event) => {
           const file = event.target.files?.[0]
