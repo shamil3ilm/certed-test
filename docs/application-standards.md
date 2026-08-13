@@ -153,6 +153,7 @@ historical record of how that architecture was built (substantially implemented)
    - `INVALID_REQUEST`
    - `INVALID_INPUT`
    - `RATE_LIMITED`
+   - `SERVICE_UNAVAILABLE`
    - `INTERNAL_ERROR`
 3. API and action helpers may include a code alongside the human-readable message where the caller benefits from stable programmatic handling.
 4. Do not invent route-local error-code strings when a shared code already exists.

@@ -6,6 +6,7 @@ export type NavItem = { href: string; label: string }
 const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/dashboard', label: 'Dashboard', capability: 'viewDashboard' },
   { href: '/classroom', label: 'Classes', capability: 'viewClasses' },
+  { href: '/documents', label: 'Documents', capability: 'viewClasses' },
   { href: '/students', label: 'Mentees', capability: 'viewMentees' },
   { href: '/messages', label: 'Messages', capability: 'viewMessages' },
   { href: '/calendar', label: 'Calendar', capability: 'viewCalendar' },
@@ -44,8 +45,13 @@ export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
 
   const classesIndex = base.findIndex((item) => item.href === '/classroom')
   if (classesIndex >= 0) {
-    const gradingHref = capabilities.has('viewGrading') ? '/grading' : '/grades'
-    base.splice(classesIndex + 1, 0, { href: gradingHref, label: 'Grading' })
+    // A grader gets the marking queue (/grading, "Grading"); a student without
+    // that capability gets their own grade card (/grades, "Grades").
+    const canGrade = capabilities.has('viewGrading')
+    base.splice(classesIndex + 1, 0, {
+      href: canGrade ? '/grading' : '/grades',
+      label: canGrade ? 'Grading' : 'Grades',
+    })
   }
 
   return base
