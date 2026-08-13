@@ -15,6 +15,23 @@ const eslintConfig = defineConfig([
           varsIgnorePattern: '^_',
         },
       ],
+      // Design-system guard: no arbitrary font sizes in classNames. Use a named
+      // step from the typography scale (text-micro, text-meta, text-xs, text-sm,
+      // ...) defined in src/app/globals.css @theme; add a new step there if none
+      // fits, so a size lives in one place instead of scattered text-[13px] magic.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/text-\\[[0-9.]+(px|rem|em)\\]/]',
+          message:
+            'No arbitrary font size (text-[Npx]). Use a scale token (text-micro/text-meta/text-xs/...) or add a step to @theme in globals.css.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/text-\\[[0-9.]+(px|rem|em)\\]/]',
+          message:
+            'No arbitrary font size (text-[Npx]). Use a scale token (text-micro/text-meta/text-xs/...) or add a step to @theme in globals.css.',
+        },
+      ],
     },
   },
   {

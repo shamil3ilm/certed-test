@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { BRAND_COLORS } from '@/lib/brand/tokens'
 
 /**
  * Web app manifest (Next.js App Router serves this at /manifest.webmanifest and
@@ -13,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: '#124d7e',
+    theme_color: BRAND_COLORS.primary,
     icons: [
       { src: '/favicon/favicon_96.png', sizes: '96x96', type: 'image/png' },
       { src: '/favicon/favicon_152.png', sizes: '152x152', type: 'image/png' },

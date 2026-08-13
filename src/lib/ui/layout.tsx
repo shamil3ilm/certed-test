@@ -126,7 +126,7 @@ export function PageHeader({
           />
           <span className="truncate">{title}</span>
         </h1>
-        {description && <p className="mt-1 text-sm text-slate-500 sm:text-[0.95rem]">{description}</p>}
+        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
       </div>
       {action}
     </div>

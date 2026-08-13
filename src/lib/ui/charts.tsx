@@ -19,7 +19,7 @@ const fmt = (v: number, f?: Fmt) => (f ? f(v) : String(v))
 function AxisTickLabels({ data, ticks }: { data: ChartPoint[]; ticks: Set<number> }) {
   return (
     <div
-      className="mt-1 grid gap-2 text-[10px] text-slate-400"
+      className="mt-1 grid gap-2 text-meta text-slate-400"
       style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}
       aria-hidden
     >
@@ -88,7 +88,7 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
           const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
           return (
             <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate text-center text-[10px] tabular-nums text-slate-500">
+              <span className="truncate text-center text-meta tabular-nums text-slate-500">
                 {fmt(d.value, format)}
               </span>
               <div className="relative flex-1">

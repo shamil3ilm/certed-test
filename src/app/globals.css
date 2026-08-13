@@ -19,6 +19,15 @@
      Restore Dagger Square by putting var(--font-brand-display) first again. */
   --font-display: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  /* Typography scale below Tailwind's text-xs (0.75rem). Two named steps so the
+     app never reaches for an arbitrary text-[10px]/[11px] again (an eslint rule
+     forbids those). `micro` is for dense/decorative labels inside fixed circles
+     (avatar initials, the notification count badge); `meta` is the smallest
+     READABLE size - timestamps, status pills, caption/meta lines. */
+  --text-micro: 0.625rem; /* 10px */
+  --text-micro--line-height: 0.875rem;
+  --text-meta: 0.6875rem; /* 11px */
+  --text-meta--line-height: 1rem;
 }
 
 body {

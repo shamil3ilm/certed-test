@@ -1,10 +1,14 @@
 'use client'
 
+import { BRAND_COLORS } from '@/lib/brand/tokens'
+
+// Inline styles only (globals.css isn't available in the root boundary), but the
+// brand primary still comes from the one source of truth, not a re-typed hex.
 const ERROR_SHELL = {
   background: '#f8fafc',
   foreground: '#0f172a',
   muted: '#64748b',
-  primary: '#124d7e',
+  primary: BRAND_COLORS.primary,
   white: '#ffffff',
 } as const
 

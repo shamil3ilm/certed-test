@@ -31,6 +31,12 @@ export function mentoringSectionLabel(isOversight: boolean): string {
   return isOversight ? 'Mentoring' : 'Mentees'
 }
 
+/** The single label for the "not one class, the whole academy" scope - used as
+ *  both the picker option and the rendered badge. Previously written six ways
+ *  ("Global (all classes)", "Global (all)", "Academy-wide", ...) across the
+ *  calendar and meeting composers. */
+export const ACADEMY_WIDE_LABEL = 'Academy-wide'
+
 /** Staff label for admin-facing lists. A `mentor` who also teaches, or a `tutor`
  *  who also holds a mentor persona, is the same hybrid and must read the same way
  *  ("Tutor & Mentor") as personaLabel gives the person on their own dashboard -

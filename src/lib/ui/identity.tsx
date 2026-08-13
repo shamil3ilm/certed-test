@@ -70,7 +70,7 @@ export function Avatar({
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }) {
-  const dims = size === 'sm' ? 'h-7 w-7 text-[10px]' : size === 'lg' ? 'h-14 w-14 text-lg' : 'h-9 w-9 text-sm'
+  const dims = size === 'sm' ? 'h-7 w-7 text-micro' : size === 'lg' ? 'h-14 w-14 text-lg' : 'h-9 w-9 text-sm'
   return (
     <span
       className={cx(

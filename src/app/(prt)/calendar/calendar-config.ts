@@ -1,13 +1,13 @@
 'use client'
 
-import { BRAND_COLORS } from '@/lib/brand/tokens'
+import { BRAND_COLORS, CALENDAR_COLORS } from '@/lib/brand/tokens'
 import type { CalendarItem, CalendarMode, CalendarSort, CalendarSpan, ComposerTab, DayItem } from './calendar-types'
 
 export const COLORS: Record<CalendarItem['source'], string> = {
   slot: BRAND_COLORS.primary,
-  event: '#16a34a',
-  assignment: '#dc2626',
-  meet: '#7c3aed',
+  event: CALENDAR_COLORS.event,
+  assignment: CALENDAR_COLORS.assignment,
+  meet: CALENDAR_COLORS.meet,
 }
 
 export const SOURCES: { source: CalendarItem['source']; label: string }[] = [
