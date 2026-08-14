@@ -1,4 +1,8 @@
 {
   "regions": ["bom1"],
-  "crons": [{ "path": "/api/cron/keepalive", "schedule": "0 6 * * *" }]
+  "crons": [
+    { "path": "/api/cron/keepalive", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/drain-emails", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/reconcile-attachments", "schedule": "0 3 * * *" }
+  ]
 }
