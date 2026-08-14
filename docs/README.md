@@ -5,22 +5,25 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 ## Start here
 
 - [../README.md](../README.md) — project overview and quickstart
-- [setup-guide.md](setup-guide.md) — full local setup and the path to going live
+- [where-to-find-what.md](where-to-find-what.md) — orientation: where each layer and concern lives in the codebase
+- [setup-guide.md](setup-guide.md) — run locally and the path to going live
 - [mock-mode.md](mock-mode.md) — the keyless JSON-file mock stack for local dev and E2E
-- [../CONTRIBUTING.md](../CONTRIBUTING.md) — how to contribute and the CI gates
+- [../CONTRIBUTING.md](../CONTRIBUTING.md) — how to contribute, the CI gates, and the git hooks
 
 ## Architecture and standards
 
-- [architecture-rules.md](architecture-rules.md) — **canonical** binding architecture and layering rules
-- [application-standards.md](application-standards.md) — code style and naming conventions (defers to architecture-rules on layering/query-safety)
-- [architecture-implementation-plan.md](architecture-implementation-plan.md) — historical record of how the architecture was built
+- [architecture-rules.md](architecture-rules.md) — **canonical** binding, repo-specific architecture and layering rules
+- [engineering-guidelines.md](engineering-guidelines.md) — cross-cutting good-practice rules (idempotency, observability, accessibility, concurrency, …) that complement the binding rulebook
+- [application-standards.md](application-standards.md) — **canonical** code style, naming, and file/function size thresholds
+- [design-system.md](design-system.md) — **canonical** visual system: tokens, typography, and `@/lib/ui` primitives
+- [architecture-implementation-plan.md](architecture-implementation-plan.md) — status of the (mostly shipped) architecture overhaul
 - [adr/README.md](adr/README.md) — architecture decision records (0001–0006)
 
 ## Schema and data
 
 - [schema-reference.md](schema-reference.md) — **canonical** table-by-table reference (36 tables)
 - [rls-policy-inventory.md](rls-policy-inventory.md) — RLS policy families to verify
-- [fk-cascade-inventory.md](fk-cascade-inventory.md) — every foreign key and its `ON DELETE` behaviour
+- [fk-cascade-inventory.md](fk-cascade-inventory.md) — **canonical** foreign-key list and `ON DELETE` behaviour (owns the FK count)
 - [persona-model.md](persona-model.md) — personas, capabilities, and the fixed-identity model
 - [workflow-invariants.md](workflow-invariants.md) — cross-cutting workflow invariants
 - [messaging-design.md](messaging-design.md) — the messaging model
@@ -38,6 +41,10 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 - [operations.md](operations.md) — day-2 runbook: backups, monitoring, incident response
 - [production-checklist.md](production-checklist.md) — the go-live gate
 - [security-operations.md](security-operations.md) — secret inventory and rotation
+
+## Debugging
+
+- [troubleshooting.md](troubleshooting.md) — developer symptom → cause → fix (build, mock mode, RLS, Drive, E2E)
 
 ## Reference
 

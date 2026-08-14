@@ -1,7 +1,6 @@
-# Persona Model
+# Persona model
 
-- Status: Current-state reference
-- Purpose: Document the live identity, persona, and capability model used by the application.
+The live identity, persona, and capability model the application uses.
 
 ## 1. Two-layer model
 

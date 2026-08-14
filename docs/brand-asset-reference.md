@@ -1,8 +1,8 @@
-# Brand Asset Reference
+# Brand asset reference
 
 This document records the purpose of the brand assets used by the application and the internal-only brand package files kept in the repository.
 
-## Asset Groups
+## Asset groups
 
 - `src/lib/pdf/assets/` Contains the server-only font and logo files used by PDF rendering. `DAGGERSQUARE.otf` is the primary company-name font. `louis-george-cafe.regular.ttf` is the secondary tagline font. `logo_h.png` is the horizontal logo variant embedded into generated PDFs.
 
@@ -18,11 +18,11 @@ This document records the purpose of the brand assets used by the application an
 
 - `public/favicon/` Contains website and app favicon assets.
 
-## Supporting Files
+## Supporting files
 
 - `docs/assets/internal/invoice.jpg` Internal project invoice reference.
 
-## Format Notes
+## Format notes
 
 - `.svg` Vector asset format with broad platform support.
 

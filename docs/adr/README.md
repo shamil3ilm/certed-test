@@ -1,4 +1,4 @@
-# Architecture Decision Records
+# Architecture decision records
 
 This folder holds short Architecture Decision Records for major structural choices in the project.
 

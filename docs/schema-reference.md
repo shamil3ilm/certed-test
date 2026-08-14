@@ -1,10 +1,6 @@
-# Schema Reference
+# Schema reference
 
-- Status: Current reference
-- Scope: High-level current-state summary, not a generated full-column dump
-- Source of truth: `supabase/migrations`
-
-This document summarizes the active schema and helper-function model at a practical level.
+A high-level, table-by-table summary of the active schema and helper-function model (36 tables) — not a generated full-column dump. The source of truth is the migrations in `supabase/migrations`.
 
 Use this file for:
 
@@ -154,10 +150,11 @@ Notes:
 
 ### `comments`
 
-- contextual discussion attached to:
+- contextual discussion; the `entity_type` set (canonical here) is:
   - submissions
   - resources
   - meet links
+  - announcements
 
 ### `attendance`
 
@@ -261,6 +258,7 @@ Purpose:
 ### `timetable_slots`
 
 - recurring timetable structure
+- `timezone` (nullable) anchors each slot's wall-clock to its own IANA zone; `NULL` falls back to `org_settings.timezone`
 
 ### `calendar_events`
 
@@ -303,21 +301,15 @@ Important current rule:
 
 ## Foreign keys and cascade behaviour
 
-Referential integrity is enforced by foreign keys throughout; the `ON DELETE`
-behaviour of each follows one consistent policy:
+Referential integrity is enforced by foreign keys throughout; the `ON DELETE` behaviour of each follows one consistent policy:
 
-- **CASCADE** for rows that are meaningless without their parent — a class's
-  academic records, a submission's comments and attachments, a person's own
-  participation (enrollments, personas, notifications, reminders).
-- **SET NULL** for authorship/actor references and financial party links, so a
-  deleted person never erases the receipts, payslips or audit trail they touched.
-- **RESTRICT** for `attachments.uploaded_by`, so a profile that still owns custodial
-  files cannot be deleted out from under them.
+- **CASCADE** for rows that are meaningless without their parent — a class's academic records, a submission's comments and attachments, a person's own participation (enrollments, personas, notifications, reminders).
+- **SET NULL** for authorship/actor references and financial party links, so a deleted person never erases the receipts, payslips or audit trail they touched.
+- **RESTRICT** for `attachments.uploaded_by`, so a profile that still owns custodial files cannot be deleted out from under them.
 
-Two columns (`calendar_events.created_by`, `timetable_slots.tutor_id`) currently
-default to NO ACTION — see the review note in the inventory.
+Two columns (`calendar_events.created_by`, `timetable_slots.tutor_id`) currently default to NO ACTION — see the review note in the inventory.
 
-For the exhaustive per-column table (59 foreign keys) and rationale, use:
+For the exhaustive per-column table and rationale (the FK count lives there), use:
 
 - [fk-cascade-inventory.md](./fk-cascade-inventory.md)
 
@@ -347,7 +339,7 @@ For exact policy names and verification expectations, use:
    - a new user-facing domain is introduced
 4. If a fully exhaustive table or function snapshot is needed later, add it as a separate generated or maintenance-heavy document rather than overloading this summary.
 
-## Related docs
+## Related
 
 - [persona-model.md](./persona-model.md)
 - [rls-policy-inventory.md](./rls-policy-inventory.md)

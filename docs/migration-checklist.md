@@ -1,7 +1,6 @@
-# Migration Checklist
+# Migration checklist
 
-- Status: Active checklist
-- Purpose: Keep schema, RLS, docs, and tests aligned whenever database migrations change the system.
+Keep schema, RLS, docs, and tests aligned whenever a database migration changes the system. Work top to bottom for any migration.
 
 ## Use this checklist when
 
@@ -46,25 +45,19 @@ Update any affected docs in the same workstream:
 - `supabase/README.md` — add the migration to the "notable groups" list
 - `README.md` / `docs/setup-guide.md` — if the setup or feature surface changes
 
-The `check:doc-links` gate (CI + pre-push) catches a link broken by a doc move; it
-does **not** catch a doc left stale by a schema change — that is on this checklist.
+The `check:doc-links` gate (CI + pre-push) catches a link broken by a doc move; it does **not** catch a doc left stale by a schema change — that is on this checklist.
 
 ## 5. Rebuild alignment (required in the SAME change that adds a migration)
 
-A migration that advances the chain head changes the snapshot's expected `0001..NNNN`
-marker, and CI's rebuild-freshness check is now a **blocking gate** (`exit 1`, no longer
-warn-only). Regenerate the snapshot **in the same change that adds the migration** — not
-"later" — or the gate blocks the next, unrelated PR (this is exactly how the snapshot
-drifted 4 migrations behind before the gate was made blocking):
+A migration that advances the chain head changes the snapshot's expected `0001..NNNN` marker, and CI's rebuild-freshness check is now a **blocking gate** (`exit 1`, no longer warn-only). Regenerate the snapshot **in the same change that adds the migration** — not "later" — or the gate blocks the next, unrelated PR (this is exactly how the snapshot drifted 4 migrations behind before the gate was made blocking):
 
 1. `supabase db reset` — replay the full chain (`0001..NNNN`) onto a fresh local DB.
-2. `npm run db:rebuild-snapshot` — dump that end state into `supabase/rebuild/0000_full_rebuild.sql`
-   (the script re-derives the `0001..NNNN` marker the CI check parses).
+2. `npm run db:rebuild-snapshot` — dump that end state into `supabase/rebuild/0000_full_rebuild.sql` (the script re-derives the `0001..NNNN` marker the CI check parses).
 3. `git diff supabase/rebuild/0000_full_rebuild.sql` — review, then commit it **alongside** the migration.
 
-If you cannot run a local DB, the migration is **not ready to merge**: the snapshot would
-drift and the freshness gate would block the next PR. Regeneration needs the Supabase CLI +
-local Postgres.
+If you cannot run a local DB, the migration is **not ready to merge**: the snapshot would drift and the freshness gate would block the next PR. Regeneration needs the Supabase CLI + local Postgres.
+
+This is enforced locally, not just in CI: `.githooks/pre-commit` blocks a commit that stages a `supabase/migrations/*.sql` while the snapshot is stale, and `.githooks/pre-push` runs the same `scripts/check-snapshot-freshness.sh` — so migration and snapshot stay atomic before CI ever sees them (hooks are wired by the package.json `prepare` script; bypass in an emergency with `--no-verify`).
 
 ## 6. Test alignment
 
@@ -85,6 +78,4 @@ A migration change is not complete until:
 1. schema is correct
 2. docs are updated
 3. tests are aligned
-4. the rebuild snapshot has been regenerated in this same change whenever the migration
-   advanced the chain head (§5) — this is a hard requirement now that the freshness check
-   blocks CI, not an "if needed"
+4. the rebuild snapshot has been regenerated in this same change whenever the migration advanced the chain head (§5) — this is a hard requirement now that the freshness check blocks CI, not an "if needed"

@@ -1,25 +1,16 @@
-# Application Standards
+# Application standards
 
-- Date: 2026-07-23
-- Status: Active baseline — the code-style and naming conventions.
-- Purpose: The naming, file-organization, formatting, comment, method, variable, constant, and error-code conventions the codebase follows.
+The naming, file-organization, formatting, comment, method, variable, constant, and error-code conventions the codebase follows.
 
 ## Scope and canonical ownership
 
-This document owns **code style and conventions**. Architecture, layering, import
-direction, and query-safety **enforcement** are owned by
-[architecture-rules.md](architecture-rules.md) (the binding rulebook). Where this
-document restates any of those (notably §3 Coding Pattern and §5 Query Pattern),
-`architecture-rules.md` is authoritative and wins on any conflict — the sections
-here exist so a developer sees the style and the rule together, not as a second
-source of truth.
+This document owns **code style and conventions**. Architecture, layering, import direction, and query-safety **enforcement** are owned by [architecture-rules.md](architecture-rules.md) (the binding rulebook). Where this document restates any of those (notably §3 Coding Pattern and §5 Query Pattern), `architecture-rules.md` is authoritative and wins on any conflict — the sections here exist so a developer sees the style and the rule together, not as a second source of truth.
 
-[architecture-implementation-plan.md](architecture-implementation-plan.md) is the
-historical record of how that architecture was built (substantially implemented).
+[architecture-implementation-plan.md](architecture-implementation-plan.md) is the historical record of how that architecture was built (substantially implemented).
 
 ---
 
-## 1. File Paths
+## 1. File paths
 
 1. Route files must use Next.js conventions only where required: `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `route.ts`.
 2. Shared library files under `src/lib/` must use kebab-case file names, for example `actor-context.ts`, `calendar-events.ts`, `rate-limit.ts` (unified with the kebab-case app-layer helpers; the module's exported symbols stay camelCase).
@@ -27,15 +18,15 @@ historical record of how that architecture was built (substantially implemented)
 4. Folder names must stay lower-case unless a framework convention requires otherwise.
 5. Until the architecture rename phase is explicitly executed, new shared domain orchestration should prefer `src/lib/services/<domain>.ts` or `src/lib/services/<area>/<domain>.ts` instead of scattering helpers into pages.
 
-## 2. File Naming Convention
+## 2. File naming convention
 
 1. One file should own one primary concern.
 2. Avoid vague names such as `utils.ts`, `helpers.ts`, or `common.ts` unless the scope is truly generic and stable.
 3. Use domain-specific names for service modules, for example `class-attendance.ts` instead of generic loader names.
 4. Action files should be named for their transport role, for example `actions.ts`, `manage-actions.ts`, `submit-actions.ts`, until the route structure is simplified further.
-5. Files above 250 lines should be reviewed for splitting; files above 400 lines should usually be split by concern unless there is a clear reason not to.
+5. Files above 250 lines should be reviewed for splitting; files above 400 lines should usually be split by concern unless there is a clear reason not to; files above 600 lines are architecture debt unless there is a strong, explicit reason to keep them intact. (This file owns the size thresholds; [architecture-rules.md](architecture-rules.md) §9 points here.)
 
-## 3. Coding Pattern
+## 3. Coding pattern
 
 > Layering (items 1–2) restates [architecture-rules.md](architecture-rules.md), which is authoritative on the app → services → data boundary.
 
@@ -79,7 +70,7 @@ historical record of how that architecture was built (substantially implemented)
 8. If a method is intentionally idempotent or replay-safe, its implementation and comments should make that clear.
 9. Route and API helpers should preserve the chosen transport style consistently instead of mixing unrelated paradigms ad hoc.
 
-## 5. Query Pattern
+## 5. Query pattern
 
 > Query-**safety** rules (bounded reads, deterministic ordering, escaping filter input, DB-side aggregation, RLS vs service-role) restate [architecture-rules.md](architecture-rules.md), which is authoritative; the items below add the code-style naming layer on top.
 
@@ -101,7 +92,7 @@ historical record of how that architecture was built (substantially implemented)
 3. Request actor variables should default to `me` for authenticated action/route flows and `actor` for service-layer parameters.
 4. Avoid one-letter names except for short callback parameters with obvious local meaning.
 
-## 7. Formatting and Layout
+## 7. Formatting and layout
 
 1. Follow the repository formatter and lint rules as the source of truth for indentation, spacing, quotes, trailing commas, and line wrapping.
 2. Do not manually introduce formatting that fights the formatter output.
@@ -114,7 +105,7 @@ historical record of how that architecture was built (substantially implemented)
 9. Keep import groups stable and readable: external packages first, then internal aliases, then relative imports where still required.
 10. Remove dead commented-out code instead of leaving it in place as an informal archive.
 
-## 8. Comment Structure
+## 8. Comment structure
 
 1. Prefer no comment over a redundant comment.
 2. Add comments only when the code alone does not make the intent, invariant, permission boundary, lifecycle rule, performance constraint, or workaround obvious.
@@ -141,7 +132,7 @@ historical record of how that architecture was built (substantially implemented)
 8. Retention, timeout, and retry policy values should be named constants once shared across a workflow or integration.
 9. Route-local hardcoded content or configuration arrays should be extracted when they make a screen harder to maintain, test, or reuse.
 
-## 10. Error Codes
+## 10. Error codes
 
 1. Shared application error codes must come from `src/lib/api/error-codes.ts`.
 2. The baseline shared codes are:
@@ -160,7 +151,7 @@ historical record of how that architecture was built (substantially implemented)
 5. Internal authentication/authorization guard codes such as `unauthorized`, `no-access`, `revoked`, and `forbidden` must never be sent to users verbatim. They are transport-internal markers and must be translated through the shared response helpers into user-facing messages plus shared error codes.
 6. Plain-text endpoints such as downloads, exports, or PDF routes must use the same shared auth-message mapping as JSON APIs rather than returning ad hoc `Forbidden` text.
 
-## 11. Authentication And Authorization
+## 11. Authentication and authorization
 
 1. Authentication identity, profile binding, persona resolution, and capability resolution must flow through the shared actor-context and guard helpers rather than route-local rewrites.
 2. UI visibility is not authorization. Every page, action, route, and service must enforce its own boundary even when the UI already hides the entry point.
@@ -169,7 +160,7 @@ historical record of how that architecture was built (substantially implemented)
 5. Ownership-scoped or relationship-scoped document access must verify both the feature gate and the target record type before reading or rendering data.
 6. Auth failures must fail closed and loud in code, but user-facing responses must stay generic enough not to leak internal auth-state markers or schema detail.
 
-## 12. Responsiveness Verification
+## 12. Responsiveness verification
 
 1. Every touched screen must be checked at least at one narrow mobile viewport and one standard desktop viewport before the work is considered complete.
 2. Layouts must not require horizontal scrolling for primary workflows unless the UI is explicitly a data table with a deliberate overflow strategy.
@@ -178,7 +169,7 @@ historical record of how that architecture was built (substantially implemented)
 5. Dialogs, drawers, tables, and dense cards must have an explicit small-screen behavior rather than relying on accidental shrinkage.
 6. New or touched forms must expose visible labels, maintain usable tap targets on mobile, and avoid relying on placeholder text as the only field description.
 
-## 13. Immediate Adoption Rule
+## 13. Immediate adoption rule
 
 1. All new files and all touched files in the overhaul must follow this standard.
 2. Existing naming drift may be tolerated only to avoid unsafe broad churn, but any touched hotspot should be normalized toward the current standard when safe.

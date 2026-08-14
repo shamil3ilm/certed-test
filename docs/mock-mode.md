@@ -1,4 +1,4 @@
-# Mock Mode
+# Mock mode
 
 Mock mode lets you run the portal locally without a real Supabase project.
 
@@ -67,7 +67,7 @@ Resetting those local artifacts returns the app to the seed state.
 - `src/lib/mock/client.ts`
 - `src/lib/mock/session.ts`
 
-## Related docs
+## Related
 
 - [setup-guide.md](./setup-guide.md)
 - [schema-reference.md](./schema-reference.md)

@@ -52,20 +52,9 @@ npm run dev
 
 When Supabase env vars are absent locally, the app runs against the JSON-backed mock harness in `src/lib/mock`.
 
-Demo accounts in mock mode include:
+Demo accounts (all use password `cert-ed`): `admin@mock.test`, `tutor@mock.test`, `mentor@mock.test`, `student@mock.test`, and more.
 
-- `admin@mock.test`
-- `subadmin@mock.test`
-- `tutor@mock.test`
-- `mentor@mock.test`
-- `student@mock.test`
-- `student2@mock.test`
-
-Default mock password:
-
-- `cert-ed`
-
-See [docs/mock-mode.md](docs/mock-mode.md) for details.
+See [docs/mock-mode.md](docs/mock-mode.md) for the full seeded account list — including the sub-admin and hybrid tutor-mentor personas — and how the mock client behaves.
 
 ## Going live
 

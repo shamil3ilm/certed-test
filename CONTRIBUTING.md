@@ -29,12 +29,21 @@ npm run build
 
 `npm run format` fixes formatting in place. Keep all five green.
 
+## Git hooks
+
+`npm install` runs the `prepare` script, which points git at `.githooks/` (`git config core.hooksPath .githooks`). Two guards then run automatically:
+
+- **pre-commit** — Prettier-checks the staged files, and (when the commit stages a `supabase/migrations/*.sql`) blocks unless the rebuild snapshot is current — keeping migration and snapshot atomic in one commit.
+- **pre-push** — runs the snapshot-freshness check and `check:doc-links`; a stale snapshot or a broken cross-doc link blocks the push.
+
+Both run the same scripts CI runs, so local and CI verdicts agree. Bypass in a genuine emergency with `--no-verify`.
+
 ## Database changes
 
 - Add a migration in `supabase/migrations/` using the next free number. Never trust a hard-coded range quoted in prose.
 - Migrations must be idempotent where practical and safe to replay.
 - Follow [docs/migration-checklist.md](docs/migration-checklist.md).
-- After schema changes, regenerate the rebuild snapshot with `npm run db:rebuild-snapshot`.
+- After schema changes, regenerate the rebuild snapshot with `npm run db:rebuild-snapshot` — the pre-commit hook blocks the migration commit until you do.
 - Read/write access is governed by RLS - see [docs/rls-policy-inventory.md](docs/rls-policy-inventory.md).
 
 ## Conventions
@@ -50,6 +59,7 @@ npm run build
 - Update the affected docs in the **same PR** as the change. For schema changes, [docs/migration-checklist.md](docs/migration-checklist.md) §4 lists exactly which docs to touch.
 - Deploying to production? Start at [docs/deployment.md](docs/deployment.md) and [docs/production-checklist.md](docs/production-checklist.md).
 - `npm run check:doc-links` (also a CI + pre-push gate) fails on a broken cross-doc link. Prose is written unwrapped (one line per bullet/paragraph); the formatter aligns tables.
+- House style: a sentence-case `#` title, a one-line purpose beneath it, single-line prose, and a `## Related` footer of sibling links where it helps. Debugging while building lives in [docs/troubleshooting.md](docs/troubleshooting.md); production incidents live in [docs/operations.md](docs/operations.md).
 
 ## Commits and PRs
 

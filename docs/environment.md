@@ -33,7 +33,7 @@ Server-only secrets (everything in the "Secret" column below) **should** be mark
 
 ## Custodial Drive attachment storage (optional — off unless all four are set)
 
-Server-only; a refresh token for the academy's dedicated Drive account, exchanged for short-lived access tokens. Never `NEXT_PUBLIC`. See [deployment.md](deployment.md) for the one-time consent flow.
+Server-only; a refresh token for the academy's dedicated Drive account, exchanged for short-lived access tokens. Never `NEXT_PUBLIC`. Mint the refresh token with `scripts/get-drive-refresh-token.mjs` (one-time OAuth consent); see [deployment.md](deployment.md) for the full flow.
 
 | Variable                      | Scope            | Secret  | Purpose                                     |
 | ----------------------------- | ---------------- | ------- | ------------------------------------------- |
@@ -51,14 +51,16 @@ Server-only; a refresh token for the academy's dedicated Drive account, exchange
 
 ## Other / operational
 
-| Variable                              | Scope            | Secret | Purpose                                                                 |
-| ------------------------------------- | ---------------- | ------ | ----------------------------------------------------------------------- |
-| `SEED_ADMIN_EMAIL`                    | runtime (server) | no     | Consumed only by the one-time first-admin seed command                  |
-| `GOOGLE_SCRIPT_URL`                   | runtime (server) | no     | Google Apps Script endpoint for the marketing contact form              |
-| `PORTAL_ONLY`                         | runtime          | no     | `1` on single-host preview deploys — forces every request to the portal |
-| `MOCK_MODE` / `NEXT_PUBLIC_MOCK_MODE` | build + runtime  | no     | `1` runs the keyless JSON-file fake of Supabase (local + E2E only)      |
-| `MOCK_PASSWORD`                       | runtime          | no     | Shared password for the seeded demo users (default `cert-ed`)           |
-| `MOCK_CHROME_PATH`                    | runtime          | no     | Chrome path for finance-PDF rendering in local dev                      |
+| Variable                              | Scope            | Secret | Purpose                                                                       |
+| ------------------------------------- | ---------------- | ------ | ----------------------------------------------------------------------------- |
+| `PRODUCTION_SEED_ADMIN_EMAIL`         | runtime (server) | no     | First admin email — allowlisted by `scripts/seed-production-allowlist.mjs`    |
+| `PRODUCTION_SEED_TEACHER_EMAIL`       | runtime (server) | no     | First teacher/tutor email — same seed script                                  |
+| `PRODUCTION_SEED_STUDENT_EMAIL`       | runtime (server) | no     | First student email — same script (all three also accept positional CLI args) |
+| `GOOGLE_SCRIPT_URL`                   | runtime (server) | no     | Google Apps Script endpoint for the marketing contact form                    |
+| `PORTAL_ONLY`                         | runtime          | no     | `1` on single-host preview deploys — forces every request to the portal       |
+| `MOCK_MODE` / `NEXT_PUBLIC_MOCK_MODE` | build + runtime  | no     | `1` runs the keyless JSON-file fake of Supabase (local + E2E only)            |
+| `MOCK_PASSWORD`                       | runtime          | no     | Shared password for the seeded demo users (default `cert-ed`)                 |
+| `MOCK_CHROME_PATH`                    | runtime          | no     | Chrome path for finance-PDF rendering in local dev                            |
 
 ## Environment separation
 

@@ -1,15 +1,8 @@
-# Messaging Domain Design
+# Messaging domain design
 
-- Status: Current design reference
-- Scope: v1 messaging model
+The v1 messaging domain model.
 
-Messaging is a separate domain from comments.
-
-Comments remain contextual discussion attached to:
-
-- submissions
-- resources
-- meet links
+Messaging is a separate domain from comments — comments are contextual discussion attached to specific entities, and the canonical `entity_type` set is defined in [schema-reference.md](schema-reference.md#comments).
 
 Messaging is standalone and has its own:
 
@@ -144,7 +137,7 @@ Any such change should preserve the separation between:
 - comments
 - messaging
 
-## Related docs
+## Related
 
 - [schema-reference.md](./schema-reference.md)
 - [persona-model.md](./persona-model.md)

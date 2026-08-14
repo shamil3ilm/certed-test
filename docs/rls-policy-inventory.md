@@ -1,10 +1,6 @@
-# RLS Policy Inventory
+# RLS policy inventory
 
-- Status: Verification reference
-- Scope: High-level policy inventory, not a line-by-line generated catalog
-- Source of truth: live migrations in `supabase/migrations`
-
-This document is a verification guide for the intended public-schema RLS surface.
+A high-level verification guide to the intended public-schema RLS surface — the policy families to check, not a line-by-line generated catalog. The source of truth is the live migrations in `supabase/migrations`.
 
 Use this file for:
 
@@ -119,6 +115,7 @@ This is the current functional inventory. It is intentionally grouped by purpose
 - `comments`
   - read
   - insert
+  - delete (author / authority)
 
 - `resource_versions`
   - read (mirrors the parent resource's read)
@@ -151,15 +148,19 @@ This is the current functional inventory. It is intentionally grouped by purpose
 
 - `receipts`
   - read
+  - admin write
 
 - `receipt_lines`
   - read
+  - admin write
 
 - `payslips`
   - read
+  - admin write
 
 - `payslip_lines`
   - read
+  - admin write
 
 - `exchange_rates`
   - admin-all (rate management); conversion reads go through the service-role client
@@ -184,7 +185,7 @@ This is the current functional inventory. It is intentionally grouped by purpose
 
 - `conversation_participants`
   - participant read
-  - self read-state update behavior as implemented
+  - no self-UPDATE policy; `last_read_at` (mark-read) is written server-side, not via RLS
 
 - `messages`
   - participant read

@@ -1,7 +1,6 @@
-# Design System
+# Design system
 
-- Status: Active baseline — the **visual** design system (tokens, typography, shared UI primitives).
-- Sibling docs: code style + naming live in [application-standards.md](application-standards.md); layering/imports in [architecture-rules.md](architecture-rules.md). This doc owns _how the UI looks and how to build it consistently_.
+The visual design system — tokens, typography, and shared UI primitives — and how to build UI consistently with them. Code style and naming live in [application-standards.md](application-standards.md); layering and imports in [architecture-rules.md](architecture-rules.md).
 
 The system has three layers: **tokens** (CSS custom properties surfaced as Tailwind utilities), **primitives** (`@/lib/ui` components + `(prt)/form` inputs), and **conventions** (rules a linter or reviewer enforces). Prefer a token over a literal, and a primitive over a hand-rolled element.
 
@@ -46,12 +45,14 @@ Rule of thumb: **anything a user reads is ≥ `text-meta` (11px)**; only `text-m
 - **Identity:** `Avatar`, `initials`, `roleTone`, `classBanner`.
 - **Filters:** `FilterBar`, `SearchFilterField`, `SelectFilterField`, `DateFilterField`, `FilterField`.
 - **Toggles:** `SEGMENTED_GROUP` + `segmentedButtonClass`, `pillButtonClass`.
-- **Charts:** `ColumnChart`, `LineChart`, `MiniBars`, `Donut`/`LegendDot` (dependency-free SVG/CSS).
+- **Charts:** `ColumnChart`, `LineChart`, `MiniBars`, `LegendDot` (dependency-free SVG/CSS).
 - **Nav:** `SectionJumpNav`, `ExternalActionLink`.
 
 ### Forms — `src/app/(prt)/form.tsx`
 
 `Field` (labelled wrapper), `Input`, `PasswordInput`, `Select`, `Textarea`, `SubmitButton` (pending-aware). Use these instead of bare `<input>`/`<button>` so styling + disabled/pending states stay uniform.
+
+> These form primitives still live under `(prt)/` rather than `src/lib/ui` — a known pending migration (see [architecture-rules.md](architecture-rules.md) §7).
 
 ### Buttons — the `.btn` system (`globals.css`, `.prt-scope`)
 
@@ -60,7 +61,7 @@ Rule of thumb: **anything a user reads is ≥ `text-meta` (11px)**; only `text-m
 ## 4. Conventions (what a reviewer / the linter checks)
 
 1. **No arbitrary font sizes.** `text-[Npx|rem|em]` is an eslint error (`no-restricted-syntax` in `eslint.config.mjs`). Use a scale step or add one to `@theme`.
-2. **Import UI primitives from `@/lib/ui`**, never from a route folder.
+2. **Import UI primitives from `@/lib/ui`**, never from a route folder. _Exception:_ a page may deep-import a specific sub-module (e.g. `@/lib/ui/layout`) when importing through the barrel triggers the webpack client-reference-manifest omission — a commented, guarded workaround enforced by `scripts/check-client-manifest.mjs` (see `src/app/(prt)/messages/[id]/page.tsx`).
 3. **Reach for a primitive before a `<div>`.** New surface → `Card`/`Panel`; new list → `ListRow`; new page → `PageHeader`.
 4. **Merge classes with `cx()`**, not string concatenation.
 5. **Responsive:** every page must survive 320px with no horizontal overflow (`html` clips stray overflow; verify at mobile width — see application-standards §12).

@@ -44,7 +44,7 @@ Work top to bottom before opening the portal to real users. Each item links to t
 
 ## First run
 
-- [ ] First admin seeded (`SEED_ADMIN_EMAIL`)
+- [ ] Allowlist seeded — admin + teacher + student — via `scripts/seed-production-allowlist.mjs` (reads `PRODUCTION_SEED_ADMIN/TEACHER/STUDENT_EMAIL`, or pass the three emails as positional args)
 - [ ] Real sign-in works on the production host (not a local build)
 - [ ] Smoke test: grade a submission, issue + render a receipt, upload + download a file
 
