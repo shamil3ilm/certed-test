@@ -7,7 +7,15 @@ import { MarkRead } from '../MarkRead'
 import { MessageComposer } from './MessageComposer'
 import { leaveConversationAction } from '../actions'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
-import { Avatar, BackLink, Badge, Card, EmptyState, FilterBar, PageHeader, SearchFilterField } from '@/lib/ui'
+import { Avatar, BackLink, Badge, EmptyState, FilterBar, PageHeader, SearchFilterField } from '@/lib/ui'
+// Card is deep-imported from the layout module, NOT the '@/lib/ui' barrel, on purpose:
+// under `next build --webpack` the barrel pull can drop THIS page's client boundary
+// (./MessageComposer) from the React client-reference manifest, so the thread page 500s
+// ("Something went wrong") for every user who opens a conversation. Invisible in dev,
+// typecheck, and unit tests - only E2E caught it. Do NOT "simplify" this back to the
+// barrel. The post-build guard (scripts/check-client-manifest.mjs) fails the build if the
+// omission ever recurs on any page.
+import { Card } from '@/lib/ui/layout'
 import { LocalTime } from '../../LocalTime'
 import { RenameGroupForm } from './RenameGroupForm'
 

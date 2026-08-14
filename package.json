@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node ./scripts/validate-build-env.mjs && next build --webpack",
+    "build": "node ./scripts/validate-build-env.mjs && next build --webpack && node ./scripts/check-client-manifest.mjs",
+    "check:client-manifest": "node scripts/check-client-manifest.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
