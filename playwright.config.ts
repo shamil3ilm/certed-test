@@ -1,4 +1,17 @@
-import { defineConfig } from '@playwright/test'
+import { chromium, defineConfig } from '@playwright/test'
+
+// Mock-mode PDF routes render with a real headless browser. The app's local-chrome
+// finder only knows Windows paths, so on a Linux/macOS CI runner it finds nothing and
+// the report-card/finance PDF routes 502. Point MOCK_CHROME_PATH at Playwright's own
+// Chromium (installed by `playwright install --with-deps chromium`) so it works on any
+// OS. Empty string if unresolved - the app then falls back to a system browser.
+const playwrightChromePath = (() => {
+  try {
+    return chromium.executablePath()
+  } catch {
+    return ''
+  }
+})()
 
 // E2E against the running production build in MOCK mode. Two servers on one build:
 //   - PORTAL on localhost:3100 with PORTAL_ONLY=1 (forces the app host without an
@@ -16,6 +29,7 @@ const MOCK_ENV = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-anon-key',
   SUPABASE_SECRET_KEY: 'mock-secret',
   CRON_SECRET: 'mock-cron',
+  MOCK_CHROME_PATH: playwrightChromePath,
 }
 
 export default defineConfig({
