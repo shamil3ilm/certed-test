@@ -31,30 +31,23 @@ Seed the founding admin, teacher, and student allowlist rows with `scripts/seed-
 
 ## 5. Cron jobs
 
-All three jobs are declared in `vercel.json` `crons`, so they deploy with the app - no manual wiring:
+`vercel.json` commits only the **keepalive** ping — daily, so the repo deploys on any Vercel plan (a Hobby preview or test fork included):
 
 ```json
-{
-  "regions": ["bom1"],
-  "crons": [
-    { "path": "/api/cron/keepalive", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/drain-emails", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/reconcile-attachments", "schedule": "0 3 * * *" }
-  ]
-}
+{ "regions": ["bom1"], "crons": [{ "path": "/api/cron/keepalive", "schedule": "0 6 * * *" }] }
 ```
 
-| Job                  | Route                             | Schedule      | Why / if unwired                                          |
-| -------------------- | --------------------------------- | ------------- | --------------------------------------------------------- |
-| Keepalive            | `/api/cron/keepalive`             | `0 6 * * *`   | Pings the DB daily so Supabase doesn't pause              |
-| Email drain          | `/api/cron/drain-emails`          | `*/5 * * * *` | Sends queued `pending_emails`; else mail never sends      |
-| Attachment reconcile | `/api/cron/reconcile-attachments` | `0 3 * * *`   | Sweeps orphaned uploads / pending rows; else they pile up |
+Two more jobs must be wired **at deploy time on the production project**, or the features they back do not run:
 
-Notes:
+| Job                  | Route                             | Cadence      | If unwired                                 |
+| -------------------- | --------------------------------- | ------------ | ------------------------------------------ |
+| Email drain          | `/api/cron/drain-emails`          | every ~5 min | Queued `pending_emails` are never sent     |
+| Attachment reconcile | `/api/cron/reconcile-attachments` | daily        | Orphaned uploads / pending rows accumulate |
 
-- Sub-daily schedules (the 5-minute drain) need **Vercel Pro**; Hobby caps crons at once-daily. Tighten the drain to `* * * * *` for near-instant mail, or relax it if invocation volume matters.
-- Vercel automatically sends `Authorization: Bearer $CRON_SECRET` on these calls when `CRON_SECRET` is set, which every `/api/cron/*` route requires (fails closed otherwise).
-- **Alternative (plan-independent): pg_cron + pg_net** — schedule a Postgres job that `POST`s to the route with the `Authorization: Bearer <CRON_SECRET>` header. The `0058` migration ships this option commented at the bottom. Use this instead of `vercel.json` if you're not on Vercel Pro.
+Wire them one of two ways (both hit the same `CRON_SECRET`-guarded routes; Vercel auto-sends `Authorization: Bearer $CRON_SECRET` when the secret is set, and every `/api/cron/*` route fails closed without it):
+
+- **Vercel Cron (needs Pro)** — add them to the production project's `vercel.json` `crons`. The 5-minute drain is sub-daily, which requires **Vercel Pro**; Hobby caps crons at 2 jobs, once-daily. Do **not** commit these to the repo's `vercel.json` if any deploy target (a preview or test fork) is on Hobby — Vercel rejects the whole deployment.
+- **pg_cron + pg_net (plan-independent)** — schedule a Postgres job that `POST`s to the route with the `Authorization: Bearer <CRON_SECRET>` header. The `0058` migration ships this option commented at the bottom; use it when you are not on Vercel Pro everywhere.
 
 ## 6. Custodial Drive storage (optional)
 
