@@ -272,6 +272,29 @@ describe('validateCreateDocumentInput / validateEditDocumentInput', () => {
       }),
     ).toThrow(ValidationError)
   })
+
+  it('treats an EMPTY link as optional (null), not an error - a link can be cleared', () => {
+    expect(
+      validateEditDocumentInput({ id: classId, title: 'Paper 1', url: '', category: 'general_documents' }),
+    ).toMatchObject({ drive_link: null })
+  })
+
+  it('treats a MISSING link as optional (null) on create', () => {
+    expect(validateCreateDocumentInput({ classId, title: 'Paper 1', category: 'general_documents' })).toMatchObject({
+      drive_link: null,
+    })
+  })
+
+  it('still enforces the Drive host when a link IS provided', () => {
+    expect(() =>
+      validateEditDocumentInput({
+        id: classId,
+        title: 'x',
+        url: 'https://evil.example.com/x',
+        category: 'general_documents',
+      }),
+    ).toThrow(ValidationError)
+  })
 })
 
 describe('listResourcesPage filters', () => {

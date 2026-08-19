@@ -48,7 +48,9 @@ export function EditResource({ resource }: { resource: EditableDocument }) {
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!title.trim() || !url.trim()) return
+    // Link is optional (a document may carry a custodial file, or the link may be
+    // intentionally cleared); only the title is required to save.
+    if (!title.trim()) return
 
     const formData = new FormData()
     formData.set('id', resource.id)
@@ -115,13 +117,12 @@ export function EditResource({ resource }: { resource: EditableDocument }) {
             ))}
           </Select>
         </Field>
-        <Field label="Link">
+        <Field label="Link (optional)">
           <Input
             type="url"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://drive.google.com/..."
-            required
           />
         </Field>
       </div>

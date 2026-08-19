@@ -185,7 +185,7 @@ export type DocumentActionInput = {
 
 type DocumentMetaInput = {
   title: string
-  drive_link: string
+  drive_link: string | null
   description: string | null
   category: DocumentCategory
   subject: string | null
@@ -198,10 +198,20 @@ type EditDocumentInput = DocumentMetaInput & { id: string }
 
 const metaSchema = {
   title: titleField,
-  // A document link must be a Google Drive/Docs URL (not just any http link): the
-  // storage model is Drive, and the download route redirects to this value, so a
-  // host allowlist here stops it becoming an open-redirect gadget.
-  drive_link: linkUrl.refine(isAllowedDriveUrl, 'Link must be a Google Drive or Google Docs link'),
+  // Link is OPTIONAL: a document may instead carry a custodial uploaded file, and
+  // an existing link may be intentionally cleared. Empty/absent normalises to null.
+  // WHEN a link IS present it must still be a Google Drive/Docs URL (not just any
+  // http link): the download route redirects to this value, so the host allowlist
+  // stops it becoming an open-redirect gadget.
+  drive_link: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => v || null)
+    .refine(
+      (v) => v === null || (linkUrl.safeParse(v).success && isAllowedDriveUrl(v)),
+      'Link must be a Google Drive or Google Docs link',
+    ),
   description: optionalText(2000),
   category: categoryField,
   subject: optionalText(120),

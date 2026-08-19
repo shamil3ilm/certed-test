@@ -19,7 +19,6 @@ export type FinanceDoc = {
    *  rate for that date (see @/lib/services/finance/fx-conversion). */
   base_currency: string | null
   base_total: number | null
-  fx_rate: number | null
   voided: boolean
   created_by: string | null
   created_at: string

@@ -27,11 +27,8 @@ export type OrgSettingsRow = {
   terms_text: string | null
   signatory_name: string | null
   signatory_title: string | null
-  signature_mode: 'text' | 'image'
   signature_text: string | null
-  default_currency: string
-  /** The currency every finance figure normalises INTO for academy-wide rollups
-   *  (distinct from default_currency, the default for new documents). */
+  /** The currency every finance figure normalises INTO for academy-wide rollups. */
   base_currency: string
   timezone: string
   receipt_prefix: string
@@ -54,6 +51,34 @@ export async function updateMessagingMatrix(matrix: Record<string, boolean>): Pr
   const admin = createAdminClient()
   const { error } = await admin.from('org_settings').update({ messaging_matrix: matrix }).not('id', 'is', null)
   if (error) throw new Error(`org_settings.updateMessagingMatrix: ${error.message}`)
+}
+
+/** The institute-profile fields an admin edits from the Organization settings page
+ *  (the letterhead/identity/bank/signatory/prefix fields that print on documents).
+ *  Excludes base_currency, timezone and messaging_matrix, which have their own
+ *  dedicated flows. */
+export type OrgProfilePatch = Pick<
+  OrgSettingsRow,
+  | 'institute_name'
+  | 'contact_email'
+  | 'contact_phone'
+  | 'bank_account'
+  | 'bank_ifsc'
+  | 'bank_branch'
+  | 'terms_text'
+  | 'signatory_name'
+  | 'signatory_title'
+  | 'signature_text'
+  | 'receipt_prefix'
+  | 'payslip_prefix'
+>
+
+/** Persist the institute-profile fields onto the singleton row (admin-gated at the
+ *  service layer). Updates every row - there is only ever one. */
+export async function updateOrgProfile(patch: OrgProfilePatch): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('org_settings').update(patch).not('id', 'is', null)
+  if (error) throw new Error(`org_settings.updateOrgProfile: ${error.message}`)
 }
 
 /** Sets the academy-wide reporting base currency on the singleton row. Changing
