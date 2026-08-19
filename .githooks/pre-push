@@ -34,3 +34,12 @@ if [ -f scripts/check-doc-links.sh ] && ! bash scripts/check-doc-links.sh; then
   echo "--no-verify if you understand the consequences." >&2
   exit 1
 fi
+
+# Guard the guards: a hook committed non-executable is silently skipped on Unix, so
+# a new hook could ship dead. Same script CI runs (scripts/check-hooks-executable.sh).
+if [ -f scripts/check-hooks-executable.sh ] && ! bash scripts/check-hooks-executable.sh; then
+  echo "" >&2
+  echo "pre-push blocked: a git hook is not executable and would be silently skipped." >&2
+  echo "Run: git update-index --chmod=+x <file>" >&2
+  exit 1
+fi

@@ -18,6 +18,7 @@
     "db:rebuild-snapshot": "bash scripts/rebuild-snapshot.sh",
     "check:snapshot": "bash scripts/check-snapshot-freshness.sh",
     "check:doc-links": "bash scripts/check-doc-links.sh",
+    "check:hooks": "bash scripts/check-hooks-executable.sh",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {

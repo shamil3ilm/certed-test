@@ -7,8 +7,8 @@
 //   "Could not find the module ...#Component in the React Client Manifest"
 // - and renders "Something went wrong" for every user, while dev, typecheck, and unit tests
 // all stay green. Only E2E catches it, and only if a spec happens to open that page.
-// (First seen: /messages/[id]'s MessageComposer, fixed by deep-importing Card from
-// @/lib/ui/layout instead of the @/lib/ui barrel.)
+// (The known case: /messages/[id]'s MessageComposer, kept in the manifest by
+// deep-importing Card from @/lib/ui/layout instead of the @/lib/ui barrel.)
 //
 // Same spirit as the duplicate-migration-prefix and snapshot-freshness gates: turn an
 // otherwise-invisible failure into a loud, mechanical build-time error.

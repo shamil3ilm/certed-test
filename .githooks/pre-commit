@@ -1,19 +1,17 @@
 #!/bin/bash
 
-# Pre-commit guard: catch, at the earliest possible point, the two failures that keep
-# reaching CI/push during large refactors - because the existing gates fire at push
-# (snapshot) or in CI (format:check), by which time the bad state has already landed
-# in a commit.
+# Pre-commit guard: catch two bad states at the earliest point - the commit itself.
+# The other gates fire later (snapshot at push, format:check in CI), by which time the
+# bad state has already landed in a commit.
 #
-#  1. Unformatted files (recurred: NEW-26 / rev 2, both during big refactors).
-#     format:check is CI's FIRST step, so a single unformatted file fails CI before
-#     anything downstream runs. Block a commit that stages a file Prettier would rewrite.
+#  1. Unformatted files. format:check is CI's FIRST step, so a single unformatted file
+#     fails CI before anything downstream runs. Block a commit that stages a file
+#     Prettier would rewrite.
 #
-#  2. Stale rebuild snapshot (recurred 5x: NEW-27 the latest, first since the pre-push
-#     hook was added). A migration committed without regenerating the snapshot drifts
-#     the one-shot provisioning file. The pre-push hook already blocks the PUSH; this
-#     blocks the COMMIT that introduces it, so migration + snapshot stay atomic and the
-#     drift never enters history.
+#  2. Stale rebuild snapshot. A migration committed without regenerating the snapshot
+#     drifts the one-shot provisioning file. The pre-push hook blocks the PUSH; this
+#     blocks the COMMIT that introduces it, so migration and snapshot stay atomic in one
+#     commit.
 #
 # Both reuse the exact scripts/commands CI runs, so local and CI verdicts can't diverge.
 # Bypass in a genuine emergency with `git commit --no-verify`.

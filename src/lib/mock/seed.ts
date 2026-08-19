@@ -46,6 +46,26 @@ export function buildSeed(): MockDb {
         messaging_matrix: {},
       },
     ],
+    // The academy's managed subject list (migration 0064). Mirrors the starter set
+    // 0064 seeds, so the assignment/class pickers have data in mock mode.
+    subjects: [
+      'Mathematics',
+      'Physics',
+      'Chemistry',
+      'Biology',
+      'English',
+      'Computer Science',
+      'Accountancy',
+      'Economics',
+      'Business Studies',
+      'Hindi',
+    ].map((name, i) => ({
+      id: `d0000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+      name,
+      active: true,
+      created_by: null,
+      created_at: NOW,
+    })),
     profiles: [
       {
         id: IDS.admin,
@@ -617,6 +637,24 @@ export function buildSeed(): MockDb {
       },
     ],
     reminders: [],
+    // Tables the app reads/writes but that start empty in mock mode - populated at
+    // runtime by the flows that exercise them (attendance, messaging, attachments,
+    // tags) or genuinely empty (finance rates, queues, counters). Declared explicitly
+    // so the mock-schema-parity gate stays green and every new table is a conscious add.
+    attendance: [],
+    class_sessions: [],
+    conversations: [],
+    conversation_participants: [],
+    messages: [],
+    notifications: [],
+    tags: [],
+    entity_tags: [],
+    attachments: [],
+    resource_versions: [],
+    capability_overrides: [],
+    exchange_rates: [],
+    pending_emails: [],
+    rate_limit_counters: [],
     audit_log: [
       {
         id: 'a1000000-0000-4000-8000-000000000001',

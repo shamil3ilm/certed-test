@@ -51,6 +51,12 @@ jobs:
       - name: Documentation links resolve
         run: bash scripts/check-doc-links.sh
 
+      # Git silently skips a non-executable hook on Unix, so a hook committed 100644
+      # never runs and its guard becomes a no-op. Assert the exec bit here,
+      # where hooks don't run anyway - the one place that catches a birth-defect hook.
+      - name: Git hooks are executable
+        run: bash scripts/check-hooks-executable.sh
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
