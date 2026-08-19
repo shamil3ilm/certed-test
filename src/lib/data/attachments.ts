@@ -125,6 +125,14 @@ export async function markAttachmentsFailed(ids: string[]): Promise<void> {
   if (error) throw new Error(`attachments.markFailed(bulk): ${error.message}`)
 }
 
+/** Count of attachments stuck in `failed` - a rising number means the custodial
+ *  upload path (Drive) is erroring. Used by the queue-health alarm. Service role. */
+export async function countFailedAttachments(): Promise<number> {
+  const admin = createAdminClient()
+  const { count } = await admin.from('attachments').select('id', { count: 'exact', head: true }).eq('status', 'failed')
+  return count ?? 0
+}
+
 /**
  * Of the given ids, the ones whose row is still LIVE - active, or pending within
  * the hour (an upload possibly still in flight). Reconciliation keeps the Drive

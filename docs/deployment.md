@@ -39,10 +39,13 @@ Seed the founding admin, teacher, and student allowlist rows with `scripts/seed-
 
 Two more jobs must be wired **at deploy time on the production project**, or the features they back do not run:
 
-| Job                  | Route                             | Cadence      | If unwired                                 |
-| -------------------- | --------------------------------- | ------------ | ------------------------------------------ |
-| Email drain          | `/api/cron/drain-emails`          | every ~5 min | Queued `pending_emails` are never sent     |
-| Attachment reconcile | `/api/cron/reconcile-attachments` | daily        | Orphaned uploads / pending rows accumulate |
+| Job                  | Route                             | Cadence       | If unwired                                        |
+| -------------------- | --------------------------------- | ------------- | ------------------------------------------------- |
+| Email drain          | `/api/cron/drain-emails`          | every ~5 min  | Queued `pending_emails` are never sent            |
+| Attachment reconcile | `/api/cron/reconcile-attachments` | daily         | Orphaned uploads / pending rows accumulate        |
+| Queue health (alarm) | `/api/cron/queue-health`          | every ~15 min | A backed-up email/attachment queue fails silently |
+
+The queue-health alarm checks email-queue depth/age and failed-upload counts and, on a breach, logs a structured `queue.health` error (surfaced by whatever ingests server logs — it is deliberately not an email, since the email queue itself may be the fault). The **drain cron already runs the same check after each pass** for free, so wiring queue-health separately only matters as an independent signal for when the drain itself isn't running. Thresholds live in `src/lib/services/queue-health.ts`.
 
 Wire them one of two ways (both hit the same `CRON_SECRET`-guarded routes; Vercel auto-sends `Authorization: Bearer $CRON_SECRET` when the secret is set, and every `/api/cron/*` route fails closed without it):
 

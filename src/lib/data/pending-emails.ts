@@ -18,6 +18,32 @@ export async function enqueuePendingEmails(rows: PendingEmailInput[]): Promise<v
   if (error) throw new Error(`pendingEmails.enqueue: ${error.message}`)
 }
 
+/** Queue-health snapshot: pending depth, terminal-failed count, and the age of the
+ *  oldest still-pending email - so a stuck drain or a failing Resend can be alarmed. */
+export async function selectEmailQueueStats(): Promise<{
+  pending: number
+  failed: number
+  oldestPendingAt: string | null
+}> {
+  const admin = createAdminClient()
+  const [pending, failed, oldest] = await Promise.all([
+    admin.from('pending_emails').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    admin.from('pending_emails').select('id', { count: 'exact', head: true }).eq('status', 'failed'),
+    admin
+      .from('pending_emails')
+      .select('created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ])
+  return {
+    pending: pending.count ?? 0,
+    failed: failed.count ?? 0,
+    oldestPendingAt: (oldest.data as { created_at: string } | null)?.created_at ?? null,
+  }
+}
+
 /** The oldest still-pending emails, for one drain pass. */
 export async function selectPendingEmails(limit: number): Promise<PendingEmailRow[]> {
   const admin = createAdminClient()

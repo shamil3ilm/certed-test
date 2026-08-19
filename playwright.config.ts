@@ -53,7 +53,11 @@ export default defineConfig({
       command:
         'node scripts/reset-e2e-state.mjs && npm run build && node scripts/fix-next-proxy-build.mjs && npm run start -- -p 3100',
       port: 3100,
-      reuseExistingServer: !process.env.CI,
+      // Never reuse a running server - not even locally. This command rebuilds
+      // `.next`; reusing a stale :3100 that was serving the OLD build makes its HTML
+      // reference chunks that no longer exist, so no JS loads and every test fails
+      // (login included) - a phantom "regression" that is really a build/serve skew.
+      reuseExistingServer: false,
       timeout: 240000,
       env: { ...MOCK_ENV, PORTAL_ONLY: '1' },
     },
@@ -62,7 +66,8 @@ export default defineConfig({
       // so the two servers never race on the shared `.next`.
       command: 'node scripts/e2e-wait-port.mjs 3100 && npm run start -- -p 3101',
       port: 3101,
-      reuseExistingServer: !process.env.CI,
+      // Fresh server every run (see the portal note above) - never reuse a stale one.
+      reuseExistingServer: false,
       timeout: 240000,
       env: MOCK_ENV,
     },

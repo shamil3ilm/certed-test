@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { authFail, ok, serverError } from '@/lib/api/response'
 import { drainPendingEmails } from '@/lib/services/email-drain'
+import { assessQueueHealth } from '@/lib/services/queue-health'
 import { logError } from '@/lib/observability/log'
 
 /** Length-checked constant-time compare (mirrors the keepalive cron guard):
@@ -23,7 +24,12 @@ export async function GET(req: Request) {
     return authFail(new Error('unauthorized'))
   }
   try {
-    return ok(await drainPendingEmails())
+    // Drain, then self-monitor: whatever is left after a pass is checked for a
+    // backlog/age/failure breach (alarmed via the log). Free queue-watch on the
+    // schedule the drain already runs on.
+    const drained = await drainPendingEmails()
+    const health = await assessQueueHealth(Date.now())
+    return ok({ ...drained, health })
   } catch (error) {
     logError('cron.drainEmails', error)
     return serverError()
