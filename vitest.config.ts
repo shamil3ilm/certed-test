@@ -26,11 +26,11 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/lib/**/*.test.ts',
       ],
-      // Regression ratchet: set just below the current measured level (lines 73 /
-      // stmts 68 / funcs 67 / branches 58) so the gate passes today but blocks any
-      // backslide. Target is 80% - raise these as coverage grows (a real quality
-      // win now that CI enforces them).
-      thresholds: { lines: 72, functions: 65, branches: 57, statements: 67 },
+      // Regression ratchet: set ~1-2 points below the current measured level
+      // (lines 77.7 / stmts 74.0 / funcs 73.1 / branches 63.8) so the gate holds a
+      // real buffer rather than repairing a 1-point margin every feature window.
+      // Target is 80% - raise these as coverage grows.
+      thresholds: { lines: 76, functions: 72, branches: 62, statements: 73 },
     },
   },
   resolve: {
