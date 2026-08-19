@@ -223,3 +223,41 @@ export async function selectRowsForStudentsAsService(
   if (error) throw new Error(`menteeOverview.attendanceBatch: ${error.message}`)
   return (data ?? []) as (Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'> & { student_id: string })[]
 }
+
+/** Attendance rows WITH `join_at` for a SET of classes (service role). The caller
+ *  scopes classIds to the mentor's authority; used by the mentor session-timing
+ *  list to show/edit the student joined time. */
+export async function selectJoinRowsForClassesAsService(
+  classIds: string[],
+): Promise<Pick<AttendanceRow, 'class_id' | 'student_id' | 'session_date' | 'join_at'>[]> {
+  if (classIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('attendance')
+    .select('class_id, student_id, session_date, join_at')
+    .in('class_id', classIds)
+  if (error) throw new Error(`sessionTimings.joinRows: ${error.message}`)
+  return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'student_id' | 'session_date' | 'join_at'>[]
+}
+
+/** Update ONLY the student join time on an existing attendance row (service role;
+ *  domain gates on canManageClass). Returns false if no row exists for that
+ *  (class, student, date) - the caller surfaces that instead of creating one.
+ *  Status and leave time are left untouched. */
+export async function updateJoinAtAsService(
+  classId: string,
+  studentId: string,
+  sessionDate: string,
+  joinAt: string | null,
+): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('attendance')
+    .update({ join_at: joinAt, updated_at: new Date().toISOString() })
+    .eq('class_id', classId)
+    .eq('student_id', studentId)
+    .eq('session_date', sessionDate)
+    .select('id')
+  if (error) throw new Error(`sessionTimings.updateJoinAt: ${error.message}`)
+  return (data?.length ?? 0) > 0
+}

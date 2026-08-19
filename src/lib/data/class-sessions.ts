@@ -87,6 +87,21 @@ export async function upsertSessionStudentFeedback(
   if (error) throw new Error(`classSessions.feedback: ${error.message}`)
 }
 
+/** Sessions for a SET of classes, newest first (service role). The caller scopes
+ *  classIds to the mentor's authority (mentorAuthorityClassIds / all-classes for
+ *  oversight); used by the mentor session-timing list. */
+export async function selectSessionsForClassesAsService(classIds: string[]): Promise<ClassSessionRow[]> {
+  if (classIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('class_sessions')
+    .select(COLUMNS)
+    .in('class_id', classIds)
+    .order('session_date', { ascending: false })
+  if (error) throw new Error(`classSessions.forClasses: ${error.message}`)
+  return (data ?? []) as ClassSessionRow[]
+}
+
 /** Recent sessions for a class, newest first - bounded for the summaries + the
  *  per-row hours join. */
 export async function selectRecentSessions(classId: string, limit = 500): Promise<ClassSessionRow[]> {
