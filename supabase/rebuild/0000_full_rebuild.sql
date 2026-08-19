@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0060) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0065) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -14,6 +14,7 @@
 -- PostgreSQL database dump
 --
 
+\restrict fiHEAWfjkxiSHRqfH2k05sF3XFIKj64YtnXs6qUfdVauahf6Dgero3GhZB2U2lp
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -50,7 +51,8 @@ CREATE TYPE public.calendar_event_kind AS ENUM (
     'event',
     'holiday',
     'cancellation',
-    'reschedule'
+    'reschedule',
+    'exam'
 );
 
 
@@ -980,8 +982,9 @@ CREATE TABLE public.attachments (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     deleted_at timestamp with time zone,
+    assignment_id uuid,
     CONSTRAINT attachments_active_has_file CHECK (((status <> 'active'::text) OR (drive_file_id IS NOT NULL))),
-    CONSTRAINT attachments_one_owner CHECK ((((((submission_id IS NOT NULL))::integer + ((resource_id IS NOT NULL))::integer) + ((announcement_id IS NOT NULL))::integer) = 1)),
+    CONSTRAINT attachments_one_owner CHECK (((((((submission_id IS NOT NULL))::integer + ((resource_id IS NOT NULL))::integer) + ((announcement_id IS NOT NULL))::integer) + ((assignment_id IS NOT NULL))::integer) = 1)),
     CONSTRAINT attachments_provider_check CHECK ((storage_provider = 'google_drive'::text)),
     CONSTRAINT attachments_size_check CHECK (((file_size > 0) AND (file_size <= 26214400))),
     CONSTRAINT attachments_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'active'::text, 'failed'::text, 'deleted'::text])))
@@ -1114,8 +1117,16 @@ CREATE TABLE public.classes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    subject_id uuid
 );
+
+
+--
+-- Name: COLUMN classes.subject_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.classes.subject_id IS 'The subject this 1:1 class teaches (the class already fixes the student + tutor). NULL for legacy classes.';
 
 
 --
@@ -1305,9 +1316,7 @@ CREATE TABLE public.org_settings (
     terms_text text,
     signatory_name text,
     signatory_title text,
-    signature_mode text DEFAULT 'text'::text NOT NULL,
     signature_text text DEFAULT 'Digitally signed'::text,
-    default_currency text DEFAULT 'INR'::text NOT NULL,
     timezone text DEFAULT 'Asia/Kolkata'::text NOT NULL,
     receipt_prefix text DEFAULT 'CEA-R'::text NOT NULL,
     payslip_prefix text DEFAULT 'CEA-P'::text NOT NULL,
@@ -1388,7 +1397,17 @@ CREATE TABLE public.profiles (
     class_level text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     setup_code_hash text,
-    setup_code_expires_at timestamp with time zone
+    setup_code_expires_at timestamp with time zone,
+    country text,
+    phone text,
+    guardian_name text,
+    guardian_phone text,
+    date_of_birth date,
+    gender text,
+    address text,
+    joined_on date,
+    qualifications text,
+    bio text
 );
 
 
@@ -1464,7 +1483,6 @@ CREATE TABLE public.resources (
     uploaded_by uuid,
     status text DEFAULT 'active'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    topic text,
     category public.document_category DEFAULT 'general_documents'::public.document_category NOT NULL,
     description text,
     subject text,
@@ -1472,6 +1490,19 @@ CREATE TABLE public.resources (
     download_count integer DEFAULT 0 NOT NULL,
     visibility public.document_visibility DEFAULT 'class'::public.document_visibility NOT NULL,
     CONSTRAINT resources_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
+);
+
+
+--
+-- Name: subjects; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.subjects (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1507,6 +1538,13 @@ CREATE TABLE public.timetable_slots (
     CONSTRAINT timetable_slots_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 6))),
     CONSTRAINT timetable_slots_time_order CHECK ((end_time > start_time))
 );
+
+
+--
+-- Name: COLUMN timetable_slots.timezone; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.timetable_slots.timezone IS 'IANA zone the slot''s day_of_week/start_time/end_time wall-clock is anchored to (the creator''s zone). NULL = fall back to org_settings.timezone.';
 
 
 --
@@ -1894,6 +1932,14 @@ ALTER TABLE ONLY public.resources
 
 
 --
+-- Name: subjects subjects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subjects
+    ADD CONSTRAINT subjects_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: submissions submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1943,6 +1989,13 @@ CREATE INDEX assignments_status_due_idx ON public.assignments USING btree (statu
 --
 
 CREATE INDEX attachments_announcement_idx ON public.attachments USING btree (announcement_id, created_at DESC) WHERE ((announcement_id IS NOT NULL) AND (status = 'active'::text));
+
+
+--
+-- Name: attachments_assignment_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX attachments_assignment_idx ON public.attachments USING btree (assignment_id) WHERE (assignment_id IS NOT NULL);
 
 
 --
@@ -2034,6 +2087,13 @@ CREATE INDEX class_tutors_class_idx ON public.class_tutors USING btree (class_id
 --
 
 CREATE INDEX class_tutors_tutor_idx ON public.class_tutors USING btree (tutor_id, active);
+
+
+--
+-- Name: classes_subject_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX classes_subject_idx ON public.classes USING btree (subject_id);
 
 
 --
@@ -2296,6 +2356,13 @@ CREATE INDEX resources_subject_idx ON public.resources USING btree (subject) WHE
 
 
 --
+-- Name: subjects_name_lower_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX subjects_name_lower_key ON public.subjects USING btree (lower(name));
+
+
+--
 -- Name: submissions_one_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2403,6 +2470,14 @@ ALTER TABLE ONLY public.assignments
 
 ALTER TABLE ONLY public.attachments
     ADD CONSTRAINT attachments_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id) ON DELETE CASCADE;
+
+
+--
+-- Name: attachments attachments_assignment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.attachments
+    ADD CONSTRAINT attachments_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES public.assignments(id) ON DELETE CASCADE;
 
 
 --
@@ -2531,6 +2606,14 @@ ALTER TABLE ONLY public.class_tutors
 
 ALTER TABLE ONLY public.class_tutors
     ADD CONSTRAINT class_teachers_teacher_id_fkey FOREIGN KEY (tutor_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: classes classes_subject_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.classes
+    ADD CONSTRAINT classes_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id) ON DELETE SET NULL;
 
 
 --
@@ -2790,6 +2873,14 @@ ALTER TABLE ONLY public.resources
 
 
 --
+-- Name: subjects subjects_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subjects
+    ADD CONSTRAINT subjects_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: submissions submissions_assignment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2995,7 +3086,9 @@ CREATE POLICY attachments_read ON public.attachments FOR SELECT USING (((status 
    FROM public.resources r
   WHERE ((r.id = attachments.resource_id) AND (public.is_active_admin() OR public.teaches_class(r.class_id) OR (public.is_enrolled(r.class_id) AND (r.status = 'active'::text) AND (r.visibility = 'class'::public.document_visibility)))))) OR (EXISTS ( SELECT 1
    FROM public.announcements an
-  WHERE ((an.id = attachments.announcement_id) AND (public.is_active_admin() OR public.teaches_class(an.class_id) OR ((an.status = 'active'::text) AND ((an.publish_at IS NULL) OR (an.publish_at <= now())) AND ((an.expires_at IS NULL) OR (an.expires_at > now())) AND (((an.class_id IS NULL) AND (public.current_status() = 'active'::public.user_status)) OR public.is_enrolled(an.class_id))))))))));
+  WHERE ((an.id = attachments.announcement_id) AND (public.is_active_admin() OR public.teaches_class(an.class_id) OR ((an.status = 'active'::text) AND ((an.publish_at IS NULL) OR (an.publish_at <= now())) AND ((an.expires_at IS NULL) OR (an.expires_at > now())) AND (((an.class_id IS NULL) AND (public.current_status() = 'active'::public.user_status)) OR public.is_enrolled(an.class_id))))))) OR (EXISTS ( SELECT 1
+   FROM public.assignments a
+  WHERE ((a.id = attachments.assignment_id) AND (public.is_active_admin() OR (public.is_enrolled(a.class_id) AND (a.status = 'active'::text)) OR public.teaches_class(a.class_id))))))));
 
 
 --
@@ -3551,6 +3644,19 @@ CREATE POLICY resources_update ON public.resources FOR UPDATE USING ((public.is_
 
 
 --
+-- Name: subjects; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: subjects subjects_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY subjects_read ON public.subjects FOR SELECT USING ((public.current_status() = 'active'::public.user_status));
+
+
+--
 -- Name: submissions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3864,7 +3970,50 @@ GRANT UPDATE(full_name) ON TABLE public.profiles TO authenticated;
 
 
 --
+-- Name: COLUMN profiles.phone; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(phone) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.date_of_birth; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(date_of_birth) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.gender; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(gender) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.address; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(address) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.qualifications; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(qualifications) ON TABLE public.profiles TO authenticated;
+
+
+--
+-- Name: COLUMN profiles.bio; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
+\unrestrict fiHEAWfjkxiSHRqfH2k05sF3XFIKj64YtnXs6qUfdVauahf6Dgero3GhZB2U2lp
 
