@@ -19,11 +19,12 @@ export const mentorAuthorityClassIds = cache(async (profileId: string): Promise<
   return new Set(await selectActiveClassIdsForStudents(menteeIds))
 })
 
-/** Can this user manage the class (roster + settings)? Admin, a tutor of it, or a
- *  mentor of a student enrolled in it. */
+/** Can this user manage the class (roster + settings)? An academy-wide class admin
+ *  (admin or sub_admin - anyone with manageClasses), a tutor of it, or a mentor of a
+ *  student enrolled in it. */
 export async function canManageClass(profile: Pick<Profile, 'id'>, classId: string): Promise<boolean> {
-  const { isAdmin, isTutor, hasMentorAuthority } = await loadPersonaFlags(profile.id)
-  if (isAdmin) return true
+  const { isAdmin, isClassAdmin, isTutor, hasMentorAuthority } = await loadPersonaFlags(profile.id)
+  if (isAdmin || isClassAdmin) return true
   const [teaches, mentors] = await Promise.all([
     isTutor ? isActiveClassTutor(profile.id, classId) : Promise.resolve(false),
     hasMentorAuthority ? mentorAuthorityClassIds(profile.id).then((ids) => ids.has(classId)) : Promise.resolve(false),

@@ -40,8 +40,8 @@ The workflow rules that must remain true across code, RLS, and admin operations 
 1. `viewClasses` is the coarse class-entry capability.
 2. Actual entry to a class workspace also requires class membership through `canAccessClass(...)`.
 3. Teaching management for a class must be based on the actor teaching that class, not on holding a global tutor persona alone.
-4. Whole-class lifecycle actions such as create, rename, archive, and restore are admin-only.
-5. Changing class teaching staff is admin-only.
+4. Whole-class lifecycle actions such as create, rename, archive, and restore require the `manageClasses` capability (admin and sub_admin by default; override-grantable).
+5. Changing class teaching staff requires `manageClasses`.
 6. Attendance, class content, and grading changes must remain class-scoped.
 
 ## 5. Submissions and grading

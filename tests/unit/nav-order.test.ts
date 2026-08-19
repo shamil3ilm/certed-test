@@ -14,17 +14,33 @@ describe('nav ordering by persona', () => {
       'Grading',
       'Documents',
       'Mentoring', // admin holds viewUsers: /students is an oversight view, not "my mentees"
+      'Session times',
       'Messages',
       'Calendar',
       'Users',
       'Finance',
       'History',
       'Access management',
+      'Organization',
     ])
   })
 
   it('keeps the sub-admin main-nav order stable', () => {
-    expect(labelsFor(['sub_admin'])).toEqual(['Dashboard', 'Messages', 'Calendar', 'Users', 'Access management'])
+    // Sub-admin is now an operational admin: class management + mentoring on top of
+    // user administration (see capabilities/index.ts). Finance and History stay
+    // admin-only, so they remain absent here.
+    expect(labelsFor(['sub_admin'])).toEqual([
+      'Dashboard',
+      'Classes',
+      'Grading',
+      'Documents',
+      'Mentoring',
+      'Messages',
+      'Calendar',
+      'Users',
+      'Access management',
+      'Organization',
+    ])
   })
 
   it('keeps the tutor main-nav order stable', () => {
@@ -41,6 +57,7 @@ describe('nav ordering by persona', () => {
       'Grading',
       'Documents',
       'Mentees',
+      'Session times',
       'Messages',
       'Calendar',
     ])
@@ -53,6 +70,7 @@ describe('nav ordering by persona', () => {
       'Grading',
       'Documents',
       'Mentees',
+      'Session times',
       'Messages',
       'Calendar',
     ])

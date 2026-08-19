@@ -139,7 +139,9 @@ export default async function ClassroomPage(props: {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewClasses')
   const [allClasses, flags, allTags] = await Promise.all([listMyClasses(me), loadPersonaFlags(me.id), listTags()])
-  const isAdmin = flags.isAdmin
+  // Academy-wide class authority (admin or sub_admin) drives the "+ New class" control,
+  // the all-classes subtitle, and the create hint - not the admin tier specifically.
+  const isAdmin = flags.isClassAdmin
   const isStudent = flags.isStudent
   const isTeacher = flags.isTutor
 

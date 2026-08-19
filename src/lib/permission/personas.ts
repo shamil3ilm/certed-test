@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { getBaseCapabilities } from '@/lib/capabilities'
 import { selectActivePersonaAssignments } from '@/lib/data/personas'
 import { getActorContext } from '@/lib/session/actor-context'
 import type { Profile } from '@/lib/auth/profile'
@@ -84,6 +85,10 @@ export async function loadPersonaFlags(profileId: string) {
     isSubAdmin: hasPersona(personas, 'sub_admin'),
     isTutor,
     isManager: isAdmin || isTutor,
+    /** Holds academy-wide class authority: any active persona confers manageClasses
+     *  (admin or sub_admin). Used as the class-scope equivalent of isAdmin, so a
+     *  sub_admin can manage every class the same way an admin does. */
+    isClassAdmin: getBaseCapabilities(personas).has('manageClasses'),
     isStudent: hasPersona(personas, 'student'),
     /** IDENTITY: holds the GLOBAL mentor persona (a dedicated mentor account). A
      *  tutor who mentors is FALSE here - see hasMentorAuthority. */

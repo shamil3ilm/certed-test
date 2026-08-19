@@ -8,6 +8,7 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/classroom', label: 'Classes', capability: 'viewClasses' },
   { href: '/documents', label: 'Documents', capability: 'viewClasses' },
   { href: '/students', label: 'Mentees', capability: 'viewMentees' },
+  { href: '/session-timings', label: 'Session times', capability: 'viewMentees' },
   { href: '/messages', label: 'Messages', capability: 'viewMessages' },
   { href: '/calendar', label: 'Calendar', capability: 'viewCalendar' },
   { href: '/payslips', label: 'Pay slips', capability: 'viewPayslips' },
@@ -16,6 +17,7 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/admin/finance', label: 'Finance', capability: 'viewFinance' },
   { href: '/admin/history', label: 'History', capability: 'viewHistory' },
   { href: '/admin/messaging', label: 'Access management', capability: 'manageUsers' },
+  { href: '/admin/settings', label: 'Organization', capability: 'manageUsers' },
 ]
 
 /**
@@ -37,6 +39,12 @@ export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
     // A viewFinance holder reaches every receipt/payslip through the Finance hub,
     // so the standalone personal ledgers are hidden from the nav for them.
     if (hasFinanceHub && (item.href === '/payslips' || item.href === '/receipts')) return false
+    // Session times is a per-actor list: an admin sees every class's timings, a
+    // mentor sees their mentees'. A sub_admin holds viewMentees for oversight but has
+    // no mentees and no admin-tier all-classes view, so the page is empty for them -
+    // hide it. Non-admin oversight = viewUsers without the admin-tier manageAdminTier.
+    if (item.href === '/session-timings' && capabilities.has('viewUsers') && !capabilities.has('manageAdminTier'))
+      return false
     return true
   }).map(({ href, label }) => ({
     href,

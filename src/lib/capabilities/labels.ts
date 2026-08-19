@@ -29,6 +29,11 @@ export const CAPABILITY_META: Record<Capability, CapabilityMeta> = {
     description: 'Post announcements, resources, assignments and attendance.',
     group: 'Classes & teaching',
   },
+  manageClasses: {
+    label: 'Manage classes',
+    description: 'Create, rename and archive classes and assign teaching staff - academy-wide.',
+    group: 'Classes & teaching',
+  },
   viewMentees: { label: 'View mentees', description: 'See assigned mentees and their overviews.', group: 'Mentoring' },
   manageMentorships: {
     label: 'Assign mentors',

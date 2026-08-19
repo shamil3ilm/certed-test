@@ -19,11 +19,36 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('student'), 'viewGrading')).toBe(false)
   })
 
-  it('manageClassContent (announcements/resources/meet-links/attendance) is admin + tutor only', () => {
+  it('manageClassContent (announcements/resources/meet-links/attendance) is admin + tutor + sub_admin', () => {
     expect(hasCapability(profile('admin'), 'manageClassContent')).toBe(true)
     expect(hasCapability(profile('tutor'), 'manageClassContent')).toBe(true)
-    expect(hasCapability(profile('sub_admin'), 'manageClassContent')).toBe(false)
+    expect(hasCapability(profile('sub_admin'), 'manageClassContent')).toBe(true)
     expect(hasCapability(profile('student'), 'manageClassContent')).toBe(false)
+  })
+
+  it('manageClasses (whole-class lifecycle + teaching staff) is admin + sub_admin only', () => {
+    expect(hasCapability(profile('admin'), 'manageClasses')).toBe(true)
+    expect(hasCapability(profile('sub_admin'), 'manageClasses')).toBe(true)
+    expect(hasCapability(profile('tutor'), 'manageClasses')).toBe(false)
+    expect(hasCapability(profile('mentor'), 'manageClasses')).toBe(false)
+    expect(hasCapability(profile('student'), 'manageClasses')).toBe(false)
+  })
+
+  it('sub_admin is an operational admin: class management + mentoring, no finance/audit/admin-tier', () => {
+    const sa = profile('sub_admin')
+    for (const cap of [
+      'viewClasses',
+      'manageClasses',
+      'manageCalendar',
+      'viewGrading',
+      'manageMentorships',
+      'viewMentees',
+    ] as const) {
+      expect(hasCapability(sa, cap), `sub_admin should hold ${cap}`).toBe(true)
+    }
+    for (const cap of ['viewFinance', 'viewHistory', 'manageAdminTier', 'viewPayslips', 'viewReceipts'] as const) {
+      expect(hasCapability(sa, cap), `sub_admin should NOT hold ${cap}`).toBe(false)
+    }
   })
 
   it('every base role can enter the dashboard and messages', () => {

@@ -10,6 +10,7 @@ export const ALL_CAPABILITIES = [
   'manageCalendar',
   'viewGrading',
   'manageClassContent',
+  'manageClasses',
   'viewUsers',
   'manageUsers',
   'viewFinance',
@@ -58,6 +59,7 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'manageCalendar',
     'viewGrading',
     'manageClassContent',
+    'manageClasses',
     'viewUsers',
     'manageUsers',
     'viewFinance',
@@ -74,7 +76,24 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewReceipts',
     'manageAdminTier',
   ]),
-  sub_admin: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewCalendar', 'viewUsers', 'manageUsers']),
+  // An operational admin: manages users, classes (lifecycle + teaching staff +
+  // content + timetable + grading, academy-wide) and mentorships. Deliberately
+  // WITHOUT the admin-tier structural power, the finance ledger, or the audit
+  // history - those stay admin-only (grantable per user via an audited override).
+  sub_admin: new Set<Capability>([
+    'viewDashboard',
+    'viewMessages',
+    'viewClasses',
+    'viewCalendar',
+    'manageCalendar',
+    'viewGrading',
+    'manageClassContent',
+    'manageClasses',
+    'viewUsers',
+    'manageUsers',
+    'viewMentees',
+    'manageMentorships',
+  ]),
   tutor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',

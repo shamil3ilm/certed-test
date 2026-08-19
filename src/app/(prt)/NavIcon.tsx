@@ -42,6 +42,14 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M9 13l2 2 4-4" />
     </>
   ),
+  // Session times: a stopwatch (distinct from History's plain clock).
+  '/session-timings': (
+    <>
+      <circle cx="12" cy="13.5" r="7" />
+      <path d="M12 10.5v3l2.2 1.3" />
+      <path d="M9.5 3.5h5M12 3.5v3" />
+    </>
+  ),
   '/calendar': (
     <>
       <rect x="3.5" y="5" width="17" height="15" rx="2" />
@@ -84,6 +92,13 @@ const ICONS: Record<string, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  // Organization settings: an institution/building.
+  '/admin/settings': (
+    <>
+      <path d="M4 21h16M6 21V8l6-4 6 4v13" />
+      <path d="M10 21v-5h4v5M9 11h.01M15 11h.01" />
     </>
   ),
   // Access management: a shield-check (permissions / who-can-do-what).

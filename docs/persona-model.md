@@ -62,11 +62,11 @@ Reserved for future expansion:
 
 ### `sub_admin`
 
-- operational user-management authority
-- narrower than admin
-- current creation and management scope is intentionally narrower than admin
-- current model allows tutor and student account management only by default
-- mentorship assignment and other sensitive delegation rules must stay explicit and documented
+- an operational admin: manages users, classes, and mentorships across the academy
+- **users** - add, edit, and revoke users (`manageUsers`)
+- **classes** - create, rename, and archive classes, assign teaching staff, manage the timetable, post class content, and work the grading queue, academy-wide (`manageClasses`, `manageCalendar`, `manageClassContent`, `viewGrading`, `viewClasses`)
+- **mentorships** - assign and remove a student's mentor and view mentees (`manageMentorships`, `viewMentees`)
+- deliberately WITHOUT the admin-tier structural power (`manageAdminTier`), the finance ledger (`viewFinance`), and the audit history (`viewHistory`) - those stay admin-only, grantable per user via an audited capability override
 
 ### `tutor`
 
