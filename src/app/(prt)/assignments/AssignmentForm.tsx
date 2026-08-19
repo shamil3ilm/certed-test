@@ -92,13 +92,11 @@ export function AssignmentForm({ classes }: { classes: ClassRow[] }) {
       <Field label="Description (optional)">
         <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} />
       </Field>
-      <Field label="Brief / attachment (optional)" hint="Paste a Google Drive link to the question paper or brief.">
-        <Input
-          type="url"
-          value={brief}
-          onChange={(event) => setBrief(event.target.value)}
-          placeholder="https://drive.google.com/..."
-        />
+      <Field
+        label="Brief link (optional)"
+        hint="Link to a brief or resource - Google Drive, Docs, Loom, YouTube, etc. To attach a PDF, use the PDF uploader on the assignment after saving."
+      >
+        <Input type="url" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="https://..." />
       </Field>
       <div className="flex flex-wrap gap-3">
         <Field label="Topic (optional)" className="min-w-[10rem] flex-1" hint="e.g. Algebra - groups classwork">

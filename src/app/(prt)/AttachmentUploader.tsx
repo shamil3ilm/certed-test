@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import type { AttachmentView } from './AttachmentList'
 
-type OwnerKind = 'submission' | 'resource' | 'announcement'
+type OwnerKind = 'submission' | 'resource' | 'announcement' | 'assignment'
 
 /** Extensions the server accepts (see lib/attachments/validation). Used only to
  *  pre-filter the OS file dialog - the server re-validates authoritatively. */

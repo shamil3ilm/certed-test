@@ -14,6 +14,7 @@ function toView(row: AttachmentRow): AttachmentView {
 function ownerIdOf(row: AttachmentRow, kind: AttachmentOwner['kind']): string | null {
   if (kind === 'submission') return row.submission_id
   if (kind === 'resource') return row.resource_id
+  if (kind === 'assignment') return row.assignment_id
   return row.announcement_id
 }
 

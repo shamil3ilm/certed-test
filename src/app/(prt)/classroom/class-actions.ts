@@ -1,7 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireRole, requireCapability } from '@/lib/auth/require-role'
+import { requireCapability } from '@/lib/auth/require-role'
 import { ServiceError } from '@/lib/errors'
 import {
   createClassFromActionInput,
@@ -25,18 +25,15 @@ const refresh = () => revalidatePath('/classroom', 'layout')
 // intent. redirect() throws NEXT_REDIRECT, so it must stay outside the catch.
 const peopleErrorUrl = (formData: FormData) => classErrorUrl(formData, { sub: 'people' })
 
-// DELIBERATE role guard, not capability drift: the class *lifecycle* below is an
-// admin-tier structural rule, and each underlying service already enforces
-// requireAdminPersona + audit. Capability overrides reach only the entry guards
-// and nav (not the service layer), so gating these on a capability would let an
-// override pass the action while the service still denied it. Keep them role-based
-// until service-layer capability resolution exists (then a `manageClasses`
-// capability could make class administration override-grantable). Day-to-day
-// enrolment (bottom) is capability-based because its service is not admin-only.
+// Whole-class lifecycle + teaching staff are gated on the manageClasses capability
+// (admin and sub_admin by default; override-grantable). Both this action guard AND
+// the underlying services resolve the capability WITH overrides (requireCapability
+// here, requireActorCapability in the service), so the two can't disagree. Day-to-day
+// enrolment (bottom) uses manageClassContent because its service is not class-admin-only.
 
-/** Create a class (admin-only - admins own the class lifecycle; tutors run day-to-day). */
+/** Create a class (manageClasses - class admins own the lifecycle; tutors run day-to-day). */
 export async function createClassAction(formData: FormData) {
-  const me = await requireRole(['admin'])
+  const me = await requireCapability('manageClasses')
   let course
   try {
     course = await createClassFromActionInput(me, { name: formData.get('name') })
@@ -47,14 +44,14 @@ export async function createClassAction(formData: FormData) {
   redirect(`/classroom/${course.id}`)
 }
 
-// Whole-class management (rename, archive/restore, co-tutor add/remove) is
-// ADMIN-ONLY - a single tutor shouldn't be able to rename/hide a shared class or
+// Whole-class management (rename, archive/restore, co-tutor add/remove) requires
+// manageClasses - a single tutor shouldn't be able to rename/hide a shared class or
 // change its teaching staff. Day-to-day student enrolment (below) stays with tutors.
 // These actions stay transport-thin: permission, validation, and audit live in
 // the domain services, and ServiceError is surfaced back onto the people page.
 
 export async function renameClassAction(formData: FormData) {
-  const me = await requireRole(['admin'])
+  const me = await requireCapability('manageClasses')
   try {
     await renameClassFromActionInput(me, {
       id: formData.get('id'),
@@ -68,7 +65,7 @@ export async function renameClassAction(formData: FormData) {
 }
 
 export async function archiveClassAction(formData: FormData) {
-  const me = await requireRole(['admin'])
+  const me = await requireCapability('manageClasses')
   try {
     await archiveClassFromActionInput(me, { id: formData.get('id') })
   } catch (error) {
@@ -79,7 +76,7 @@ export async function archiveClassAction(formData: FormData) {
 }
 
 export async function restoreClassAction(formData: FormData) {
-  const me = await requireRole(['admin'])
+  const me = await requireCapability('manageClasses')
   try {
     await restoreClassFromActionInput(me, { id: formData.get('id') })
   } catch (error) {
@@ -90,7 +87,7 @@ export async function restoreClassAction(formData: FormData) {
 }
 
 export async function addTutorAction(formData: FormData) {
-  const me = await requireRole(['admin'])
+  const me = await requireCapability('manageClasses')
   try {
     await addTutorFromActionInput(me, {
       class_id: formData.get('class_id'),
@@ -104,7 +101,7 @@ export async function addTutorAction(formData: FormData) {
 }
 
 export async function removeTutorAction(formData: FormData) {
-  const me = await requireRole(['admin'])
+  const me = await requireCapability('manageClasses')
   try {
     await removeTutorFromActionInput(me, {
       class_id: formData.get('class_id'),

@@ -13,13 +13,17 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export type AttachmentStatus = 'pending' | 'active' | 'failed' | 'deleted'
 
 export type AttachmentOwner =
-  { kind: 'submission'; id: string } | { kind: 'resource'; id: string } | { kind: 'announcement'; id: string }
+  | { kind: 'submission'; id: string }
+  | { kind: 'resource'; id: string }
+  | { kind: 'announcement'; id: string }
+  | { kind: 'assignment'; id: string }
 
 export type AttachmentRow = {
   id: string
   submission_id: string | null
   resource_id: string | null
   announcement_id: string | null
+  assignment_id: string | null
   uploaded_by: string
   original_filename: string
   mime_type: string
@@ -37,12 +41,16 @@ export type AttachmentRow = {
 // One string literal (not a concatenation): a widened `string` makes supabase-js
 // infer an error row type instead of the selected shape.
 const COLUMNS =
-  'id, submission_id, resource_id, announcement_id, uploaded_by, original_filename, mime_type, file_size, checksum_sha256, storage_provider, drive_file_id, drive_folder_id, status, created_at, updated_at, deleted_at'
+  'id, submission_id, resource_id, announcement_id, assignment_id, uploaded_by, original_filename, mime_type, file_size, checksum_sha256, storage_provider, drive_file_id, drive_folder_id, status, created_at, updated_at, deleted_at'
 
-const OWNER_COLUMN: Record<AttachmentOwner['kind'], 'submission_id' | 'resource_id' | 'announcement_id'> = {
+const OWNER_COLUMN: Record<
+  AttachmentOwner['kind'],
+  'submission_id' | 'resource_id' | 'announcement_id' | 'assignment_id'
+> = {
   submission: 'submission_id',
   resource: 'resource_id',
   announcement: 'announcement_id',
+  assignment: 'assignment_id',
 }
 
 /**

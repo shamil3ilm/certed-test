@@ -10,13 +10,14 @@ import type { AttachmentOwner, AttachmentRow } from '@/lib/data/attachments'
 import { selectSubmissionOwnerAsService } from '@/lib/data/submissions-service-reads'
 import { selectResourceClassIdAsService } from '@/lib/data/resources'
 import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
+import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
 import { assertCanDocument } from '@/lib/permission/documents'
 import { canWriteClass } from '@/lib/permission/class-write'
 
 // Node runtime: the upload service streams bytes and talks to the Drive REST API.
 export const runtime = 'nodejs'
 
-const OWNER_KINDS = new Set<AttachmentOwner['kind']>(['submission', 'resource', 'announcement'])
+const OWNER_KINDS = new Set<AttachmentOwner['kind']>(['submission', 'resource', 'announcement', 'assignment'])
 function isOwnerKind(value: string): value is AttachmentOwner['kind'] {
   return OWNER_KINDS.has(value as AttachmentOwner['kind'])
 }
@@ -28,6 +29,7 @@ function isOwnerKind(value: string): value is AttachmentOwner['kind'] {
  *  - submission   -> only the owning student attaches their own work
  *  - resource     -> canDocument 'upload' for the document's class
  *  - announcement -> canWriteClass for the announcement's class
+ *  - assignment   -> canWriteClass for the assignment's class (a manager of the class)
  * A missing owner is a 404, never a hint that it exists.
  */
 async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<void> {
@@ -42,6 +44,14 @@ async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<voi
     if (!resource) throw new NotFoundError()
     if (!resource.class_id) throw new PermissionError('Not allowed to attach to this document.')
     await assertCanDocument(me, 'upload', { class_id: resource.class_id })
+    return
+  }
+  if (owner.kind === 'assignment') {
+    const assignment = await selectAssignmentClassIdAsService(owner.id)
+    if (!assignment) throw new NotFoundError()
+    if (!(await canWriteClass(me, assignment.class_id))) {
+      throw new PermissionError('Not allowed to attach to this assignment.')
+    }
     return
   }
   const announcement = await selectAnnouncementClassIdAsService(owner.id)
@@ -105,6 +115,12 @@ export async function POST(req: Request) {
   }
 
   const owner: AttachmentOwner = { kind: ownerKind, id: ownerId }
+  // Assignments accept PDF ONLY. This extension/mime gate plus the upload
+  // validator's magic-byte check (a .pdf must actually begin with %PDF) enforce
+  // "PDF only" server-side - a renamed non-PDF is rejected by the validator.
+  if (owner.kind === 'assignment' && !(/\.pdf$/i.test(file.name) || file.type === 'application/pdf')) {
+    return invalidInput('Assignments accept PDF files only.')
+  }
   try {
     await assertMayAttach(me, owner)
     // Fail fast and friendly if custodial storage isn't provisioned, rather than

@@ -27,6 +27,7 @@ const OWNER_FOLDER: Record<AttachmentOwner['kind'], string> = {
   submission: 'submissions',
   resource: 'resources',
   announcement: 'announcements',
+  assignment: 'assignments',
 }
 
 /** The deployment environment, stamped into folders + appProperties so a staging

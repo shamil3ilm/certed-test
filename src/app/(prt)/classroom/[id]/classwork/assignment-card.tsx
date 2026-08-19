@@ -10,6 +10,7 @@ import { archiveAssignmentAction } from '../../../assignments/manage-actions'
 import { CommentThread } from '../../../CommentThread'
 import { LocalTime } from '../../../LocalTime'
 import { listAttachmentsForOwner } from '@/lib/services/attachments/read'
+import { AssignmentAttachments } from './AssignmentAttachments'
 
 type ClassworkPageData = Awaited<ReturnType<typeof loadClassworkPageData>>
 type AssignmentView = ClassworkPageData['assignmentViews'][number]
@@ -31,6 +32,9 @@ export async function AssignmentCard({
   const submissionAttachments = submission
     ? await listAttachmentsForOwner({ kind: 'submission', id: submission.id })
     : []
+  // The custodial PDF brief(s) on this assignment. RLS-scoped: a viewer who cannot
+  // read the assignment gets an empty list.
+  const assignmentAttachments = await listAttachmentsForOwner({ kind: 'assignment', id: assignment.id })
 
   return (
     <Card
@@ -99,6 +103,12 @@ export async function AssignmentCard({
           </form>
         </div>
       )}
+
+      <AssignmentAttachments
+        assignmentId={assignment.id}
+        initialAttachments={assignmentAttachments}
+        canManage={data.canManageContent}
+      />
 
       {data.isStudent && (assignment.status === 'active' || submission || submissionHistory.length > 0) && (
         <div className="mt-3 border-t border-slate-100 pt-3">

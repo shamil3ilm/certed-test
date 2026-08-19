@@ -106,13 +106,8 @@ export function EditAssignment({
           placeholder="e.g. 20"
         />
       </Field>
-      <Field label="Brief link (optional)">
-        <Input
-          type="url"
-          value={brief}
-          onChange={(event) => setBrief(event.target.value)}
-          placeholder="https://drive.google.com/..."
-        />
+      <Field label="Brief link (optional)" hint="Drive, Docs, Loom, YouTube, etc. Upload a PDF separately below.">
+        <Input type="url" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="https://..." />
       </Field>
       <label className="flex items-center gap-2 text-sm text-slate-600">
         <input
