@@ -53,8 +53,11 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
     throw new PermissionError('Not authorized for this class.')
   }
   const student = await getProfileById(params.studentId)
-  if (!student || student.role !== 'student' || student.status !== 'active') {
-    throw new ValidationError('student_id must be an active student')
+  // Allow a PENDING student (added but not yet claimed) so an admin can set up their
+  // classes/subjects at onboarding, before the student first signs in. Only a revoked
+  // (disabled) account is rejected.
+  if (!student || student.role !== 'student' || student.status === 'disabled') {
+    throw new ValidationError('student_id must be a student who has not been revoked')
   }
   // Don't add members to an archived class (soft-deleted state).
   if ((await selectClassStatus(params.classId)) !== 'active') {

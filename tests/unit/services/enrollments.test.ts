@@ -87,6 +87,26 @@ describe('enrolStudent', () => {
     await enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'class.enroll' }))
   })
+
+  it('allows a PENDING student (onboarding before they claim their account)', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'stud-2', role: 'student', status: 'pending' } as any)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // no active student yet
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertEnrollment
+    await enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-2' })
+    expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'class.enroll' }))
+  })
+
+  it('still rejects a DISABLED (revoked) student', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'stud-3', role: 'student', status: 'disabled' } as any)
+    await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-3' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
 })
 
 describe('removeStudent', () => {

@@ -41,8 +41,11 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to assign subjects.')
 
   const student = await getProfileById(input.studentId)
-  if (!student || student.role !== 'student' || student.status !== 'active') {
-    throw new ValidationError('Pick an active student.')
+  // Pending (not-yet-claimed) students are allowed so subjects can be set up at
+  // onboarding; only a revoked (disabled) account is rejected. enrolStudent applies
+  // the same rule.
+  if (!student || student.role !== 'student' || student.status === 'disabled') {
+    throw new ValidationError('Pick a student who has not been revoked.')
   }
   const subject = await selectSubjectById(input.subjectId)
   if (!subject) throw new ValidationError('Unknown subject.')
