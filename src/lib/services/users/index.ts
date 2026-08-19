@@ -29,7 +29,7 @@ export type { PaginatedProfiles, PeopleCounts, UsersHubStats, ProfileLite } from
 export { completePasswordRegistration } from './registration'
 export type { RegistrationTarget, RegisterResult } from './registration'
 
-export { updateOwnProfile, changeOwnPassword, changeOwnEmail } from './self-service'
+export { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwnEmail } from './self-service'
 
 export {
   addUser,

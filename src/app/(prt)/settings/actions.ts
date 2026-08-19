@@ -3,8 +3,13 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { RateLimitError, ValidationError } from '@/lib/errors'
-import { updateOwnProfile, changeOwnPassword, changeOwnEmail } from '@/lib/services/users'
-import { updateProfileSchema, changePasswordSchema, changeEmailSchema } from '@/lib/validation/user'
+import { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwnEmail } from '@/lib/services/users'
+import {
+  updateProfileSchema,
+  selfProfileDetailsSchema,
+  changePasswordSchema,
+  changeEmailSchema,
+} from '@/lib/validation/user'
 
 export async function updateProfileAction(formData: FormData) {
   const me = await requireActiveProfile()
@@ -14,6 +19,25 @@ export async function updateProfileAction(formData: FormData) {
   await updateOwnProfile(me, { full_name: parsed.data.full_name || null })
   revalidatePath('/settings')
   redirect('/settings?saved=profile')
+}
+
+/** Self-complete the softer profile fields (contact, DOB, gender, address, bio). */
+export async function updateProfileDetailsAction(formData: FormData) {
+  const me = await requireActiveProfile()
+  const get = (name: string) => (formData.get(name) as string) || undefined
+  const parsed = selfProfileDetailsSchema.safeParse({
+    phone: get('phone'),
+    date_of_birth: get('date_of_birth'),
+    gender: get('gender'),
+    address: get('address'),
+    qualifications: get('qualifications'),
+    bio: get('bio'),
+  })
+  if (!parsed.success) redirect('/settings?error=details')
+
+  await updateOwnProfileDetails(me, parsed.data)
+  revalidatePath('/settings')
+  redirect('/settings?saved=details')
 }
 
 export async function changePasswordAction(formData: FormData) {

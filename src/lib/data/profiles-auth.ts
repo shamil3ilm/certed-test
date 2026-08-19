@@ -38,7 +38,16 @@ export async function bindAuthUserToProfile(profileId: string, authUserId: strin
 
 export async function updateOwnProfile(
   profileId: string,
-  patch: { full_name?: string | null; class_level?: string | null },
+  patch: {
+    full_name?: string | null
+    class_level?: string | null
+    phone?: string | null
+    date_of_birth?: string | null
+    gender?: string | null
+    address?: string | null
+    qualifications?: string | null
+    bio?: string | null
+  },
 ): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from('profiles').update(patch).eq('id', profileId)

@@ -26,6 +26,21 @@ export type ProfilePageOptions = {
   sortOrder?: 'asc' | 'desc'
 }
 
+/** Admin-owned detail fields set when adding a user or editing them later. All
+ *  optional - an omitted field is left untouched on upsert. */
+type ProfileDetailFields = {
+  country?: string | null
+  phone?: string | null
+  guardian_name?: string | null
+  guardian_phone?: string | null
+  joined_on?: string | null
+  date_of_birth?: string | null
+  gender?: string | null
+  address?: string | null
+  qualifications?: string | null
+  bio?: string | null
+}
+
 type AllowlistedProfileRow = {
   email: string
   full_name: string | null
@@ -34,7 +49,7 @@ type AllowlistedProfileRow = {
   status: string
   setup_code_hash: string
   setup_code_expires_at: string
-}
+} & ProfileDetailFields
 
 export type RevokeProfileOutcome = 'ok' | 'not_found' | 'last_admin'
 
@@ -116,6 +131,30 @@ export async function selectProfileById(id: string): Promise<Profile | null> {
   return (data as Profile) ?? null
 }
 
+/** The lean auth Profile plus the richer person-detail fields, for the admin user
+ *  detail page. Kept separate from Profile so the common auth path stays lean. */
+export type ProfileDetails = Profile & {
+  created_at: string
+  country: string | null
+  phone: string | null
+  guardian_name: string | null
+  guardian_phone: string | null
+  date_of_birth: string | null
+  gender: string | null
+  address: string | null
+  joined_on: string | null
+  qualifications: string | null
+  bio: string | null
+}
+
+const PROFILE_DETAIL_COLUMNS = `${PROFILE_COLUMNS_WITH_CREATED}, country, phone, guardian_name, guardian_phone, date_of_birth, gender, address, joined_on, qualifications, bio`
+
+export async function selectProfileDetailsById(id: string): Promise<ProfileDetails | null> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('profiles').select(PROFILE_DETAIL_COLUMNS).eq('id', id).maybeSingle()
+  return (data as ProfileDetails) ?? null
+}
+
 export async function selectProfileRole(id: string): Promise<Profile['role'] | null> {
   const admin = createAdminClient()
   const { data, error } = await admin.from('profiles').select('role').eq('id', id).single()
@@ -162,7 +201,13 @@ export async function upsertAllowlistedProfile(row: AllowlistedProfileRow): Prom
 
 export async function updateProfile(
   id: string,
-  patch: { full_name?: string | null; class_level?: string | null; status?: string; password?: string; email?: string },
+  patch: {
+    full_name?: string | null
+    class_level?: string | null
+    status?: string
+    password?: string
+    email?: string
+  } & ProfileDetailFields,
 ): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin.from('profiles').update(patch).eq('id', id)

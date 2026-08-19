@@ -46,6 +46,11 @@ export async function addUserAction(_prev: AddUserState, formData: FormData): Pr
       role: formData.get('role'),
       class_level: formData.get('class_level'),
       mentor_id: formData.get('mentor_id'),
+      country: formData.get('country'),
+      phone: formData.get('phone'),
+      guardian_name: formData.get('guardian_name'),
+      guardian_phone: formData.get('guardian_phone'),
+      joined_on: formData.get('joined_on'),
     })
     // Pre-flight the mentor BEFORE creating the account so no profile is created
     // (and its one-time setup code burned) on a request that can't complete:

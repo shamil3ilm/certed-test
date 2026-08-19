@@ -28,12 +28,45 @@ export function passwordAvoidsEmail(password: string, email: string): boolean {
   return !password.toLowerCase().includes(local)
 }
 
-export const addUserSchema = z.object({
-  email: z.string().email(),
-  full_name: z.string().min(1).max(120).optional(),
-  role: roleSchema,
-  class_level: z.string().max(20).optional(),
-})
+/** Optional trimmed free text with a length cap - the person-detail fields. */
+const optText = (max: number) => z.string().trim().max(max).optional()
+/** A calendar date as YYYY-MM-DD, or absent. */
+const optDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date')
+  .optional()
+
+/**
+ * Adding a user captures identity + the details an admin/sub-admin owns. Country
+ * and class/grade are required for students (a student must be reachable and placed);
+ * everything else is optional here and can be self-completed at first sign-in. Role
+ * decides which fields the form shows - the schema only enforces the student minimums.
+ */
+export const addUserSchema = z
+  .object({
+    email: z.string().email(),
+    full_name: z.string().min(1).max(120).optional(),
+    role: roleSchema,
+    class_level: optText(40), // grade, e.g. "Grade 10"
+    country: optText(60),
+    phone: optText(30),
+    guardian_name: optText(120),
+    guardian_phone: optText(30),
+    joined_on: optDate,
+  })
+  .superRefine((v, ctx) => {
+    if (v.role !== 'student') return
+    if (!v.country?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['country'], message: 'Country is required for students' })
+    }
+    if (!v.class_level?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['class_level'],
+        message: 'Class / grade is required for students',
+      })
+    }
+  })
 export type AddUserInput = z.infer<typeof addUserSchema>
 
 /**
@@ -44,9 +77,20 @@ export type AddUserInput = z.infer<typeof addUserSchema>
  * operation that reconciles class memberships, mentorships, scoped personas,
  * and finance expectations.
  */
+const nullableText = (max: number) => z.string().trim().max(max).nullable().optional()
+
 export const editUserSchema = z.object({
   full_name: z.string().max(120).nullable().optional(),
-  class_level: z.string().max(20).nullable().optional(),
+  class_level: nullableText(40),
+  country: nullableText(60),
+  phone: nullableText(30),
+  guardian_name: nullableText(120),
+  guardian_phone: nullableText(30),
+  joined_on: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date')
+    .nullable()
+    .optional(),
 })
 export type EditUserInput = z.infer<typeof editUserSchema>
 
@@ -67,6 +111,21 @@ export type RegisterInput = z.infer<typeof registerSchema>
 export const updateProfileSchema = z.object({
   full_name: z.string().trim().max(120).optional(),
 })
+
+/**
+ * The softer profile fields a person completes themselves at first sign-in
+ * (settings). Identity, class/grade, country and guardian stay admin-owned; these
+ * are the person's own to fill. All optional - an empty field just clears it.
+ */
+export const selfProfileDetailsSchema = z.object({
+  phone: optText(30),
+  date_of_birth: optDate,
+  gender: optText(30),
+  address: z.string().trim().max(300).optional(),
+  qualifications: z.string().trim().max(300).optional(),
+  bio: z.string().trim().max(500).optional(),
+})
+export type SelfProfileDetailsInput = z.infer<typeof selfProfileDetailsSchema>
 
 /** Self-service email change - the new sign-in email. */
 export const changeEmailSchema = z.object({

@@ -169,6 +169,7 @@ describe('user action-input helpers', () => {
         full_name: 'Student Name',
         role: 'student',
         class_level: 'Grade 7',
+        country: 'India',
         mentor_id: '550e8400-e29b-41d4-a716-446655440000',
       }),
     ).toEqual({
@@ -177,6 +178,7 @@ describe('user action-input helpers', () => {
         full_name: 'Student Name',
         role: 'student',
         class_level: 'Grade 7',
+        country: 'India',
       },
       mentorId: '550e8400-e29b-41d4-a716-446655440000',
     })

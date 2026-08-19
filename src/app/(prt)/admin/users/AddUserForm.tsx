@@ -1,17 +1,28 @@
 'use client'
+import { useState } from 'react'
 import { useFormState } from 'react-dom'
 import { AlertBanner, CARD, cx } from '@/lib/ui'
 import { addUserAction, type AddUserState } from './actions'
 import { Field, Input, Select, SubmitButton } from '../../form'
+import { COMMON_COUNTRIES } from '@/lib/geo/countries'
 
 type MentorCandidate = { id: string; name: string }
 
 const initial: AddUserState = {}
 
-/** Add-user form (client) - surfaces the one-time setup code inline on success,
- *  so the code is never put in a URL. Role options are scoped to the caller. */
+/**
+ * Add-user form (client) - surfaces the one-time setup code inline on success, so
+ * the code is never put in a URL. Role options are scoped to the caller, and the
+ * form is ROLE-AWARE: a student shows class/country/guardian; a tutor or mentor
+ * shows contact + joined date. Softer fields (DOB, address, bio, qualifications) are
+ * self-completed by the person at first sign-in, so they are not asked here.
+ */
 export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; mentorCandidates: MentorCandidate[] }) {
   const [state, formAction] = useFormState(addUserAction, initial)
+  const [role, setRole] = useState(roles[0] ?? 'student')
+  const isStudent = role === 'student'
+  const isTeacher = role === 'tutor' || role === 'mentor'
+
   return (
     <div className={cx(CARD, 'mt-6 p-4')}>
       <form action={formAction} className="flex flex-wrap items-end gap-3">
@@ -22,7 +33,7 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
           <Input name="full_name" />
         </Field>
         <Field label="Role" className="w-full sm:w-32">
-          <Select name="role" defaultValue={roles[0]}>
+          <Select name="role" value={role} onChange={(event) => setRole(event.target.value)}>
             {roles.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -30,32 +41,70 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
             ))}
           </Select>
         </Field>
-        <Field label="Class" className="w-full sm:w-28">
-          <Input name="class_level" />
-        </Field>
-        {/* Hidden entirely when the viewer can't assign mentors - an empty picker
-            would just be a control that fails on submit. */}
-        {mentorCandidates.length > 0 && (
-          <Field
-            label={
-              <>
-                Mentor <span className="text-slate-400">(students)</span>
-              </>
-            }
-            className="w-full sm:w-40"
-          >
-            <Select name="mentor_id" defaultValue="">
-              <option value="">None</option>
-              {mentorCandidates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+
+        {isStudent && (
+          <>
+            <Field label="Class / grade" className="w-full sm:w-28">
+              <Input name="class_level" placeholder="e.g. Grade 10" required />
+            </Field>
+            <Field label="Country" className="w-full sm:w-40">
+              <Input name="country" list="country-list" placeholder="Start typing…" autoComplete="off" required />
+            </Field>
+            <Field label="Phone" className="w-full sm:w-36">
+              <Input name="phone" type="tel" placeholder="Optional" />
+            </Field>
+            <Field label="Guardian name" className="w-full sm:w-40">
+              <Input name="guardian_name" placeholder="Optional" />
+            </Field>
+            <Field label="Guardian phone" className="w-full sm:w-36">
+              <Input name="guardian_phone" type="tel" placeholder="Optional" />
+            </Field>
+            {mentorCandidates.length > 0 && (
+              <Field
+                label={
+                  <>
+                    Mentor <span className="text-slate-400">(students)</span>
+                  </>
+                }
+                className="w-full sm:w-40"
+              >
+                <Select name="mentor_id" defaultValue="">
+                  <option value="">None</option>
+                  {mentorCandidates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+          </>
         )}
+
+        {isTeacher && (
+          <>
+            <Field label="Phone" className="w-full sm:w-36">
+              <Input name="phone" type="tel" placeholder="Optional" />
+            </Field>
+            <Field label="Country" className="w-full sm:w-40">
+              <Input name="country" list="country-list" placeholder="Optional" autoComplete="off" />
+            </Field>
+            <Field label="Joined on" className="w-full sm:w-40">
+              <Input name="joined_on" type="date" />
+            </Field>
+          </>
+        )}
+
         <SubmitButton pendingLabel="Adding...">Add user</SubmitButton>
       </form>
+
+      {/* A datalist backs the country field: a search-and-pick dropdown that still
+          accepts a free-typed country not on the list. */}
+      <datalist id="country-list">
+        {COMMON_COUNTRIES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
 
       {state.error && (
         <AlertBanner tone="warning" className="mt-3">

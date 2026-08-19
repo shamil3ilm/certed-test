@@ -1,5 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
+import type { SelfProfileDetailsInput } from '@/lib/validation/user'
 import { isMock } from '@/lib/mock/env'
 import { RateLimitError, ValidationError } from '@/lib/errors'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -21,6 +22,29 @@ export async function updateOwnProfile(
 ): Promise<void> {
   await updateOwnProfileRow(actor.id, patch)
   await auditPrivilegedAction(actor, 'profile.update', 'profile', actor.id)
+}
+
+/**
+ * Self-service: the person completes their own SOFTER profile fields (contact, DOB,
+ * gender, address, and - for staff - qualifications/bio). Deliberately narrowed to
+ * these: identity, class/grade, country, guardian and joined date are admin-owned, so
+ * the RLS own-row client is never handed them here even if a caller forwarded them.
+ * An empty field clears it (the settings form renders them all).
+ */
+export async function updateOwnProfileDetails(
+  actor: Pick<Profile, 'id'>,
+  patch: SelfProfileDetailsInput,
+): Promise<void> {
+  const nn = (v?: string) => (v && v.trim() ? v.trim() : null)
+  await updateOwnProfileRow(actor.id, {
+    phone: nn(patch.phone),
+    date_of_birth: nn(patch.date_of_birth),
+    gender: nn(patch.gender),
+    address: nn(patch.address),
+    qualifications: nn(patch.qualifications),
+    bio: nn(patch.bio),
+  })
+  await auditPrivilegedAction(actor, 'profile.details', 'profile', actor.id)
 }
 
 /** Self-service password change. Real mode updates the auth account; mock mode

@@ -1,16 +1,21 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { isMock } from '@/lib/mock/env'
 import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
+import { selectProfileDetailsById } from '@/lib/data/profiles'
 import { AlertBanner, PageHeader, Panel } from '@/lib/ui'
 import { ChangePasswordForm } from './ChangePasswordForm'
 import { Field, Input } from '../form'
-import { changeEmailAction, changePasswordAction, updateProfileAction } from './actions'
+import { changeEmailAction, changePasswordAction, updateProfileAction, updateProfileDetailsAction } from './actions'
 
 export default async function SettingsPage(props: { searchParams: Promise<SettingsSearchParams> }) {
   const searchParams = await props.searchParams
   // Self-service page: any signed-in active user manages their own profile.
   const me = await requireActiveProfile()
-  const data = await loadSettingsPageData(me, searchParams, isMock())
+  const [data, details] = await Promise.all([
+    loadSettingsPageData(me, searchParams, isMock()),
+    selectProfileDetailsById(me.id),
+  ])
+  const isStaff = me.role === 'tutor' || me.role === 'mentor'
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -62,6 +67,46 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
                 Change email
               </button>
               <p className="mt-2 text-xs text-slate-400">This becomes your sign-in email, effective immediately.</p>
+            </div>
+          </form>
+        </Panel>
+
+        <Panel title="Personal details">
+          <p className="mb-3 text-xs text-slate-400">
+            These help your academy reach you. Your grade, country and (for students) guardian details are set by your
+            academy.
+          </p>
+          <form action={updateProfileDetailsAction} className="grid gap-3 sm:grid-cols-2">
+            <Field label="Phone">
+              <Input name="phone" type="tel" defaultValue={details?.phone ?? ''} />
+            </Field>
+            <Field label="Date of birth">
+              <Input name="date_of_birth" type="date" defaultValue={details?.date_of_birth ?? ''} />
+            </Field>
+            <Field label="Gender">
+              <Input name="gender" defaultValue={details?.gender ?? ''} placeholder="Optional" />
+            </Field>
+            <Field label="Address" className="sm:col-span-2">
+              <Input name="address" defaultValue={details?.address ?? ''} placeholder="Optional" />
+            </Field>
+            {isStaff && (
+              <>
+                <Field label="Qualifications" className="sm:col-span-2">
+                  <Input
+                    name="qualifications"
+                    defaultValue={details?.qualifications ?? ''}
+                    placeholder="e.g. MSc Mathematics"
+                  />
+                </Field>
+                <Field label="Short bio" className="sm:col-span-2">
+                  <Input name="bio" defaultValue={details?.bio ?? ''} placeholder="A line or two about you" />
+                </Field>
+              </>
+            )}
+            <div className="sm:col-span-2">
+              <button type="submit" className="btn btn-primary">
+                Save details
+              </button>
             </div>
           </form>
         </Panel>
