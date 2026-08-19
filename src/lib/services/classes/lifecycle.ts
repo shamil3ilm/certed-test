@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { requireAdminPersona } from '@/lib/permission/personas'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { insertClass, updateClassName, updateClassStatus, type ClassRow } from '@/lib/data/classes'
 import {
@@ -13,17 +13,18 @@ import {
 } from './validation'
 
 /**
- * Whole-class management (create, rename, archive/restore) is ADMIN-ONLY - a
- * single tutor shouldn't be able to rename/hide a shared class or change its
- * teaching staff. Day-to-day student enrolment lives in enrollments.ts.
+ * Whole-class management (create, rename, archive/restore) requires the
+ * manageClasses capability (admin and sub_admin hold it by default) - a single
+ * tutor shouldn't be able to rename/hide a shared class. Day-to-day student
+ * enrolment lives in enrollments.ts.
  *
- * Every function here follows the same shape: assert the admin persona, write,
- * then audit. Reads live in ./queries.
+ * Every function here follows the same shape: require the capability, write, then
+ * audit. Reads live in ./queries.
  */
 
-export async function createClass(actor: Profile, name: string): Promise<ClassRow> {
-  await requireAdminPersona(actor)
-  const created = await insertClass(name)
+export async function createClass(actor: Profile, name: string, subjectId: string | null = null): Promise<ClassRow> {
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
+  const created = await insertClass(name, subjectId)
   await auditPrivilegedAction(actor, 'class.create', 'class', created.id)
   return created
 }
@@ -34,7 +35,7 @@ export async function createClassFromActionInput(actor: Profile, input: CreateCl
 }
 
 export async function renameClass(actor: Profile, id: string, name: string): Promise<void> {
-  await requireAdminPersona(actor)
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   await updateClassName(id, name)
   await auditPrivilegedAction(actor, 'class.rename', 'class', id)
 }
@@ -45,7 +46,7 @@ export async function renameClassFromActionInput(actor: Profile, input: RenameCl
 }
 
 export async function archiveClass(actor: Profile, id: string): Promise<void> {
-  await requireAdminPersona(actor)
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   await updateClassStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'class.archive', 'class', id)
 }
@@ -55,7 +56,7 @@ export async function archiveClassFromActionInput(actor: Profile, input: ClassId
 }
 
 export async function restoreClass(actor: Profile, id: string): Promise<void> {
-  await requireAdminPersona(actor)
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   await updateClassStatus(id, 'active')
   await auditPrivilegedAction(actor, 'class.restore', 'class', id)
 }

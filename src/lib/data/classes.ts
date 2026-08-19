@@ -19,6 +19,7 @@ export type ClassRow = {
   name: string
   status: 'active' | 'archived'
   created_at: string
+  subject_id: string | null
 }
 
 export async function selectAllClasses(): Promise<ClassRow[]> {
@@ -68,10 +69,15 @@ export async function selectClassesByIds(ids: string[]): Promise<ClassRow[]> {
   return (data ?? []) as ClassRow[]
 }
 
-/** Explicit status (don't rely on the DB default) so mock mode also marks it active. */
-export async function insertClass(name: string): Promise<ClassRow> {
+/** Explicit status (don't rely on the DB default) so mock mode also marks it active.
+ *  `subjectId` links the subject this 1:1 class teaches (null when unknown/legacy). */
+export async function insertClass(name: string, subjectId: string | null = null): Promise<ClassRow> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('classes').insert({ name, status: 'active' }).select('*').single()
+  const { data, error } = await admin
+    .from('classes')
+    .insert({ name, status: 'active', subject_id: subjectId })
+    .select('*')
+    .single()
   if (error) throw new Error(`classes.create: ${error.message}`)
   return data as ClassRow
 }

@@ -4,14 +4,15 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/permission/personas', () => ({
   loadActivePersonas: vi.fn(),
   hasPersona: vi.fn(),
-  requireAdminPersona: vi.fn(),
   loadPersonaFlags: vi.fn(),
 }))
+vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { loadActivePersonas, hasPersona, requireAdminPersona, loadPersonaFlags } from '@/lib/permission/personas'
+import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
@@ -40,26 +41,26 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('class lifecycle is admin-only', () => {
   it('createClass rejects a non-admin, without a DB write or audit', async () => {
-    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
     await expect(createClass(tutor, 'New class')).rejects.toBeInstanceOf(PermissionError)
     expect(createAdminClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('renameClass/archiveClass/restoreClass reject a non-admin', async () => {
-    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
     await expect(renameClass(tutor, 'class-1', 'New name')).rejects.toBeInstanceOf(PermissionError)
 
-    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
     await expect(archiveClass(tutor, 'class-1')).rejects.toBeInstanceOf(PermissionError)
 
-    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
     await expect(restoreClass(tutor, 'class-1')).rejects.toBeInstanceOf(PermissionError)
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
   it('createClass creates and audits class.create for an admin', async () => {
-    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: classRow, error: null }) as any)
     const created = await createClass(admin, 'Math')
     expect(created.id).toBe('class-1')
@@ -72,7 +73,7 @@ describe('class lifecycle is admin-only', () => {
   })
 
   it('archiveClass/restoreClass audit class.archive/class.restore for an admin', async () => {
-    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'class-1' }], error: null }) as any)
     await archiveClass(admin, 'class-1')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -82,7 +83,7 @@ describe('class lifecycle is admin-only', () => {
       entity_id: 'class-1',
     })
 
-    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'class-1' }], error: null }) as any)
     await restoreClass(admin, 'class-1')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -97,11 +98,11 @@ describe('class lifecycle is admin-only', () => {
     // The UPDATE matches 0 rows (stale/deleted id): the data layer .select()s the
     // row, finds none, and throws NotFound - so auditPrivilegedAction never runs
     // and the caller is not handed a phantom success for a mutation that never happened.
-    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
     await expect(renameClass(admin, 'gone', 'New name')).rejects.toBeInstanceOf(NotFoundError)
 
-    vi.mocked(requireAdminPersona).mockResolvedValueOnce(undefined)
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
     await expect(archiveClass(admin, 'gone')).rejects.toBeInstanceOf(NotFoundError)
 

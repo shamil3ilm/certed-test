@@ -46,7 +46,13 @@ export function UserRow({
           <Avatar name={p.full_name ?? p.email} role={p.role} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-slate-900">
-              {p.full_name ?? p.email}
+              {manageable ? (
+                <Link href={`/admin/users/${p.id}`} className="hover:underline">
+                  {p.full_name ?? p.email}
+                </Link>
+              ) : (
+                (p.full_name ?? p.email)
+              )}
               {self && (
                 <Badge tone="slate" className="ml-2">
                   You

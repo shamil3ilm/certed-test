@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission/personas', () => ({
-  requireAdminPersona: vi.fn(),
-}))
+vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { requireAdminPersona } from '@/lib/permission/personas'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
@@ -28,17 +26,17 @@ const activeMentor = { id: 'mentor-2', role: 'mentor', status: 'active' } as any
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.mocked(requireAdminPersona).mockResolvedValue(undefined)
+  vi.mocked(requireActorCapability).mockResolvedValue(undefined)
 })
 
 describe('addTutor / removeTutor are admin-only', () => {
   it('reject a non-admin actor, without touching the DB', async () => {
-    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
     await expect(addTutor(tutorActor, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(
       PermissionError,
     )
 
-    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new PermissionError('Admin only.'))
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
     await expect(removeTutor(tutorActor, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(
       PermissionError,
     )

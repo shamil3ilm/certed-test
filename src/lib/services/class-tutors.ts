@@ -7,7 +7,7 @@ import {
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
 import { deactivateGlobalPersona, selectActiveProfileIdsByPersona, upsertGlobalPersona } from '@/lib/data/personas'
-import { requireAdminPersona } from '@/lib/permission/personas'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { ValidationError } from '@/lib/errors'
@@ -49,14 +49,14 @@ export function validateClassTutorParams(input: ClassTutorActionInput): ClassTut
 }
 
 /**
- * Admin-only - changing a class's teaching staff is a whole-class management
- * action (see classes.ts). The UI only offers valid options, but a crafted
+ * Requires manageClasses - changing a class's teaching staff is a whole-class
+ * management action (see classes.ts). The UI only offers valid options, but a crafted
  * POST could pair an arbitrary profile id - verify it's really an active
  * tutor-capable teacher before granting class_tutors membership (which itself
  * grants full tutor-level RLS access to the class).
  */
 export async function addTutor(actor: Profile, params: ClassTutorParams): Promise<void> {
-  await requireAdminPersona(actor)
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   const tutor = await getProfileById(params.tutorId)
   if (!tutor || (tutor.role !== 'tutor' && tutor.role !== 'mentor') || tutor.status !== 'active') {
     throw new ValidationError('tutor_id must be an active tutor or mentor')
@@ -100,7 +100,7 @@ export async function addTutorFromActionInput(actor: Profile, input: ClassTutorA
 
 /** Soft-remove (scoped by class + tutor) - keeps the row for later re-assign. */
 export async function removeTutor(actor: Profile, params: ClassTutorParams): Promise<void> {
-  await requireAdminPersona(actor)
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   await deactivateClassTutor(params.classId, params.tutorId)
   // If this was a dedicated mentor account that no longer teaches any class,
   // remove the extra tutor persona we granted when teaching began. A true tutor
