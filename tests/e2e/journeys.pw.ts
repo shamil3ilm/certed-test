@@ -66,6 +66,9 @@ test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', 
   await add.locator('input[name=email]').fill('e2e-newbie@mock.test')
   await add.locator('input[name=full_name]').fill('Eve Newbie')
   await add.locator('select[name=role]').selectOption('student')
+  // A student is role-aware: class/grade and country are required to add one.
+  await add.locator('input[name=class_level]').fill('Grade 10')
+  await add.locator('input[name=country]').fill('India')
   await submitAndReload(page, () => add.getByRole('button', { name: 'Add user' }).click())
   await expect(page.getByText('e2e-newbie@mock.test')).toBeVisible()
 

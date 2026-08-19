@@ -19,14 +19,25 @@ const BLOCKED: Record<string, string[]> = {
   // bounced (the staff view of a student's marks lives on /students/[id]).
   'tutor@mock.test': ['/grades', '/students', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
   'mentor@mock.test': ['/grades', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
-  'subadmin@mock.test': ['/classroom', '/documents', '/students', '/grades', '/admin/finance', '/admin/history'],
+  // Sub-admin is now an operational admin (holds viewClasses + viewMentees), so it
+  // reaches /classroom, /documents and /students. It still lacks viewFinance/
+  // viewHistory, and /grades is a student's own card - those stay blocked.
+  'subadmin@mock.test': ['/grades', '/admin/finance', '/admin/history'],
 }
 
 const ALLOWED: Record<string, string[]> = {
   'student@mock.test': ['/classroom', '/documents', '/grades', '/calendar', '/messages'],
   'tutor@mock.test': ['/classroom', '/documents', '/calendar', '/messages'],
   'mentor@mock.test': ['/students', '/classroom', '/documents', '/calendar', '/messages'],
-  'subadmin@mock.test': ['/admin/users', '/admin/messaging', '/calendar', '/messages'],
+  'subadmin@mock.test': [
+    '/admin/users',
+    '/admin/messaging',
+    '/calendar',
+    '/messages',
+    '/classroom',
+    '/documents',
+    '/students',
+  ],
 }
 
 const DASHBOARD = /\/dashboard(\?|$|#)/
