@@ -42,7 +42,9 @@ export function validateEventId(input: unknown): string {
 }
 
 // RLS scopes the rows: global events + enrolled/taught course events / admin sees all.
-export async function listEvents(opts: { from?: string; to?: string; limit?: number } = {}): Promise<CalendarEvent[]> {
+export async function listEvents(
+  opts: { from?: string; to?: string; limit?: number; kind?: CalendarEventKind } = {},
+): Promise<CalendarEvent[]> {
   return selectEvents(opts)
 }
 

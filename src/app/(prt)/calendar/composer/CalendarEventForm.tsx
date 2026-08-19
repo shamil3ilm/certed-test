@@ -28,6 +28,11 @@ const EVENT_KIND_META = {
     titlePlaceholder: 'e.g. Science moved to Friday',
     submitLabel: 'Save reschedule',
   },
+  exam: {
+    titleLabel: 'Exam title',
+    titlePlaceholder: 'e.g. Physics Paper 2',
+    submitLabel: 'Save exam',
+  },
 } as const
 
 export function CalendarEventForm({

@@ -8,7 +8,7 @@ import { isCalendarDate } from '@/lib/time/format'
 // format regex would let through to the Postgres `date` column as a 500.
 const isoDate = z.string().refine(isCalendarDate, 'must be a valid YYYY-MM-DD date')
 
-const calendarEventKind = z.enum(['event', 'holiday', 'cancellation', 'reschedule'])
+const calendarEventKind = z.enum(['event', 'holiday', 'cancellation', 'reschedule', 'exam'])
 
 export const createEventSchema = z
   .object({

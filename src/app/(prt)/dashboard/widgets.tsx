@@ -7,3 +7,4 @@ export {
   SubmissionsToReviewWidget,
 } from './tutor-widgets'
 export { LatestAnnouncementWidget, GradeTrajectoryWidget, DueWorkWidget } from './student-widgets'
+export { UpcomingExamsWidget } from './exam-widget'

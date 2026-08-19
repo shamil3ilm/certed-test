@@ -22,7 +22,9 @@ type CalendarPageData = {
  */
 export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<Capability>): Promise<CalendarPageData> {
   const flags = await loadPersonaFlags(profile.id)
-  const isAdmin = caps.has('manageAdminTier')
+  // "Admin" here means academy-wide class authority - admin-tier OR a sub_admin holding
+  // manageClasses - which drives the all-classes view and the academy-wide event option.
+  const isAdmin = caps.has('manageAdminTier') || flags.isClassAdmin
   // Class write authority is structural: admin, a tutor of a class, or a mentor of
   // a student in it (canManageClass / canWriteClass enforce the same scoping). Keep
   // the management UI aligned with those write paths so the page never advertises

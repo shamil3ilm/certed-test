@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
  * top of that.
  */
 
-export type CalendarEventKind = 'event' | 'holiday' | 'cancellation' | 'reschedule'
+export type CalendarEventKind = 'event' | 'holiday' | 'cancellation' | 'reschedule' | 'exam'
 
 export type CalendarEventRow = {
   id: string
@@ -28,14 +28,21 @@ export type CalendarEventRow = {
 type CalendarEventInsert = Omit<CalendarEventRow, 'id' | 'created_at'>
 type CalendarEventPatch = Partial<Omit<CalendarEventRow, 'id' | 'created_at' | 'created_by'>>
 
-/** Events in an optional date window, soonest first. */
+/** Events in an optional date window, soonest first (by date then start time).
+ *  Optional `kind` narrows to one kind (e.g. 'exam') in the query, so callers that
+ *  need only one kind don't over-fetch. RLS still scopes rows to the caller. */
 export async function selectEvents(
-  opts: { from?: string; to?: string; limit?: number } = {},
+  opts: { from?: string; to?: string; limit?: number; kind?: CalendarEventKind } = {},
 ): Promise<CalendarEventRow[]> {
   const supabase = await createClient()
-  let q = supabase.from('calendar_events').select('*').order('event_date', { ascending: true })
+  let q = supabase
+    .from('calendar_events')
+    .select('*')
+    .order('event_date', { ascending: true })
+    .order('start_time', { ascending: true, nullsFirst: true })
   if (opts.from) q = q.gte('event_date', opts.from)
   if (opts.to) q = q.lte('event_date', opts.to)
+  if (opts.kind) q = q.eq('kind', opts.kind)
   if (opts.limit) q = q.limit(opts.limit)
   const { data, error } = await q
   if (error) throw new Error(`listEvents: ${error.message}`)

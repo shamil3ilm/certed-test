@@ -61,7 +61,7 @@ export const VIEW_LABELS: Record<string, string> = {
   listYear: 'Agenda / year',
 }
 
-export const EVENT_KINDS = ['event', 'holiday', 'cancellation', 'reschedule'] as const
+export const EVENT_KINDS = ['event', 'holiday', 'cancellation', 'reschedule', 'exam'] as const
 
 export function calendarUrl(from: string, to: string) {
   const params = new URLSearchParams({ from, to })

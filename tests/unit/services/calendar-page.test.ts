@@ -16,7 +16,16 @@ import { listActiveTeacherCandidates } from '@/lib/services/users'
 // baseline + admin overrides), so tests supply that set directly.
 const caps = (...names: Capability[]) => new Set<Capability>(names)
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  // loadPersonaFlags always returns a full flags object in production; default it so
+  // the loader's isClassAdmin read is safe when a test doesn't set specific flags.
+  vi.mocked(loadPersonaFlags).mockResolvedValue({
+    isClassAdmin: false,
+    isTutor: false,
+    hasMentorAuthority: false,
+  } as any)
+})
 
 describe('loadCalendarPageData', () => {
   it('returns empty management data for a read-only actor (no manageCalendar)', async () => {
@@ -46,10 +55,29 @@ describe('loadCalendarPageData', () => {
     })
   })
 
+  it('treats a sub_admin (isClassAdmin, no admin tier) as an academy-wide class manager', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({
+      isClassAdmin: true,
+      isTutor: false,
+      hasMentorAuthority: false,
+    } as any)
+    vi.mocked(listClasses).mockResolvedValueOnce([{ id: 'c1', name: 'Math', status: 'active' }] as any)
+    vi.mocked(listActiveTeacherCandidates).mockResolvedValueOnce([{ id: 't1', name: 'Maya Mentor' }] as any)
+
+    await expect(
+      loadCalendarPageData({ id: 'sub-1', role: 'sub_admin' } as any, caps('manageCalendar')),
+    ).resolves.toEqual({
+      canManage: true,
+      isAdmin: true, // academy-wide: all classes + the academy-wide event option
+      classes: [{ id: 'c1', name: 'Math' }],
+      tutors: [{ id: 't1', name: 'Maya Mentor' }],
+    })
+  })
+
   it('loads only the tutor-owned active classes for a manager without the admin tier', async () => {
     // A tutor manager sees only classes they actively teach, not classes they
     // merely attend via another persona.
-    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isTutor: true } as any)
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isTutor: true, isClassAdmin: false } as any)
     vi.mocked(selectActiveClassIdsForTutor).mockResolvedValueOnce(['c1', 'c3'] as any)
     vi.mocked(listClassesByIds).mockResolvedValueOnce([
       { id: 'c1', name: 'Math', status: 'active' },

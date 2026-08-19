@@ -17,6 +17,7 @@ import {
   RemindersWidget,
   SubmissionsToReviewWidget,
   UpcomingClassesWidget,
+  UpcomingExamsWidget,
   WidgetSkeleton,
 } from './widgets'
 
@@ -140,6 +141,11 @@ export function TutorDashboardContent({
         )}
         {canViewClasses && (
           <Suspense fallback={<WidgetSkeleton />}>
+            <UpcomingExamsWidget />
+          </Suspense>
+        )}
+        {canViewClasses && (
+          <Suspense fallback={<WidgetSkeleton />}>
             <TutorPendingAttendance me={me} sharedDataPromise={sharedDataPromise} />
           </Suspense>
         )}
@@ -198,6 +204,9 @@ export function StudentDashboardContent({
       <DashboardWidgetGrid>
         <Suspense fallback={<WidgetSkeleton />}>
           <ClassUpcomingClasses me={me} now={now} classIdsPromise={classIdsPromise} />
+        </Suspense>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <UpcomingExamsWidget />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />
