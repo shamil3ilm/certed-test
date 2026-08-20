@@ -32,7 +32,11 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     if (error) throw new Error(error.message)
     return true
   } catch (error) {
-    logError('email.send', error, { to })
+    // Log the domain only, never the recipient address: meta is forwarded to the
+    // error tracker, and a student's/guardian's email must not leave for a third
+    // party. The domain is enough to tell "our sender is misconfigured" from "one
+    // provider is bouncing".
+    logError('email.send', error, { toDomain: to.split('@')[1] ?? 'unknown' })
     return false
   }
 }

@@ -25,11 +25,14 @@ export function onRouterTransitionStart(...args: unknown[]): void {
 }
 
 if (process.env.NEXT_PUBLIC_SENTRY_ENABLED === '1') {
-  void import('@sentry/nextjs').then((Sentry) => {
+  void import('@sentry/nextjs').then(async (Sentry) => {
+    const { scrubPiiFromEvent } = await import('@/lib/observability/scrub-pii')
     Sentry.init({
       dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
       tracesSampleRate: 0.1,
       environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development',
+      // Last-line PII guard: strip any email/IP that reached extra/tags.
+      beforeSend: (event) => scrubPiiFromEvent(event),
     })
     captureTransition = Sentry.captureRouterTransitionStart as (...args: unknown[]) => void
   })

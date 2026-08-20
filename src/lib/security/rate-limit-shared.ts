@@ -42,8 +42,12 @@ export async function rateLimitShared(
       // was never applied), not a transient blip - and it silently disables this
       // control. Flag it distinctly so it's actioned, not lost among network noise.
       const rpcMissing = error.code === 'PGRST202' || /could not find the function|does not exist/i.test(error.message)
+      // Log the limiter scope ('register' / 'contact'), never the full key - the
+      // key embeds the caller's raw IP, and meta is forwarded to the error tracker.
+      // The scope alone tells which limiter is failing, which is all the diagnostic
+      // value the address carried.
       logError(rpcMissing ? 'rateLimitShared:rpc-missing' : 'rateLimitShared', new Error(error.message), {
-        key,
+        scope: key.split(':')[0],
         ...(rpcMissing ? { action: 'apply the rate_limit_counters migration (rate_limit_hit RPC)' } : {}),
       })
       return inProcessFallback(key, opts) // degrade to the per-instance limiter, not unlimited
@@ -54,7 +58,8 @@ export async function rateLimitShared(
     if (!row) return { ok: true, retryAfterSec: 0 }
     return { ok: row.allowed === true, retryAfterSec: row.retry_after_seconds ?? 0 }
   } catch (error) {
-    logError('rateLimitShared', error, { key })
+    // Scope only, not the IP-bearing key - see the rpc-error branch above.
+    logError('rateLimitShared', error, { scope: key.split(':')[0] })
     return inProcessFallback(key, opts) // degrade to the per-instance limiter, not unlimited
   }
 }
