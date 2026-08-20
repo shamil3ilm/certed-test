@@ -1,4 +1,4 @@
-import { requireCapability } from '@/lib/auth/require-role'
+import { requireRole } from '@/lib/auth/require-role'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { PageHeader } from '@/lib/ui'
 import { OrgSettingsForm } from './OrgSettingsForm'
@@ -8,7 +8,10 @@ import { OrgSettingsForm } from './OrgSettingsForm'
  *  only in the database. base_currency, timezone and the messaging matrix keep their
  *  own dedicated flows and are not edited here. */
 export default async function OrgSettingsPage() {
-  await requireCapability('manageUsers')
+  // Admin-persona ONLY - matches the DB org_settings policy (is_active_admin(), 0017).
+  // The page renders the bank/IFSC fields (fetched via the service-role client), which
+  // the DB restricts to admins; gating on manageUsers would leak them to a sub_admin.
+  await requireRole(['admin'])
   const org = await getOrgSettings()
 
   return (

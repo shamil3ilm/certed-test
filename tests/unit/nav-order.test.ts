@@ -28,7 +28,9 @@ describe('nav ordering by persona', () => {
   it('keeps the sub-admin main-nav order stable', () => {
     // Sub-admin is now an operational admin: class management + mentoring on top of
     // user administration (see capabilities/index.ts). Finance and History stay
-    // admin-only, so they remain absent here.
+    // admin-only, so they remain absent here. Organization settings are admin-only too
+    // (the bank/IFSC fields the DB restricts to is_active_admin(), 0017), so despite
+    // holding manageUsers a sub_admin does NOT get the Organization item.
     expect(labelsFor(['sub_admin'])).toEqual([
       'Dashboard',
       'Classes',
@@ -39,7 +41,6 @@ describe('nav ordering by persona', () => {
       'Calendar',
       'Users',
       'Access management',
-      'Organization',
     ])
   })
 

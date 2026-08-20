@@ -17,7 +17,11 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/admin/finance', label: 'Finance', capability: 'viewFinance' },
   { href: '/admin/history', label: 'History', capability: 'viewHistory' },
   { href: '/admin/messaging', label: 'Access management', capability: 'manageUsers' },
-  { href: '/admin/settings', label: 'Organization', capability: 'manageUsers' },
+  // Admin-tier only: Organization settings expose the bank/IFSC fields the DB
+  // restricts to admins (is_active_admin(), 0017), so this must match the page's
+  // requireRole(['admin']) guard - manageAdminTier is the hard admin-only marker
+  // (never override-grantable), keeping the nav in lockstep with the guard.
+  { href: '/admin/settings', label: 'Organization', capability: 'manageAdminTier' },
 ]
 
 /**
