@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0065) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0067) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict fiHEAWfjkxiSHRqfH2k05sF3XFIKj64YtnXs6qUfdVauahf6Dgero3GhZB2U2lp
+\restrict kQrJDvxUowx5D9CVPu4pfyPkZ8eppkgXpgXrdNgx3xzEQugfYenJZgTYp1aHmjr
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -35,12 +35,14 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
+CREATE SCHEMA public;
 
 
 --
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
 --
 
+COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
@@ -140,6 +142,50 @@ CREATE TYPE public.user_status AS ENUM (
     'pending',
     'disabled'
 );
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: pending_emails; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pending_emails (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    to_email text NOT NULL,
+    subject text NOT NULL,
+    html text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    claimed_at timestamp with time zone,
+    CONSTRAINT pending_emails_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text])))
+);
+
+
+--
+-- Name: claim_pending_emails(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_pending_emails(p_limit integer) RETURNS SETOF public.pending_emails
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  update pending_emails
+     set status = 'sending', claimed_at = now()
+   where id in (
+     select id from pending_emails
+      where status = 'pending'
+      order by created_at
+      limit p_limit
+      for update skip locked
+   )
+  returning *;
+$$;
 
 
 --
@@ -350,10 +396,6 @@ CREATE FUNCTION public.is_self_active(p_id uuid) RETURNS boolean
   )
 $$;
 
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
 
 --
 -- Name: payslips; Type: TABLE; Schema: public; Owner: -
@@ -711,6 +753,12 @@ begin
     raise exception 'assignment_not_found';
   end if;
 
+  -- Hard deadline: once the due instant has passed on an enforce_deadline assignment,
+  -- no new/replacement submission is accepted - the rule recordSubmission applies.
+  if v_assignment.enforce_deadline and now() > v_assignment.due_date then
+    raise exception 'deadline_passed';
+  end if;
+
   select id
   into v_student_id
   from profiles
@@ -744,19 +792,8 @@ begin
     and student_id = v_student_id
     and is_active = true;
 
-  insert into submissions (
-    assignment_id,
-    student_id,
-    drive_link,
-    file_name,
-    is_active
-  ) values (
-    p_assignment_id,
-    v_student_id,
-    p_drive_link,
-    p_file_name,
-    true
-  )
+  insert into submissions (assignment_id, student_id, drive_link, file_name, is_active)
+  values (p_assignment_id, v_student_id, p_drive_link, p_file_name, true)
   returning *
   into v_created;
 
@@ -1337,24 +1374,6 @@ CREATE TABLE public.payslip_lines (
     hours numeric(8,2) NOT NULL,
     rate numeric(16,3) NOT NULL,
     amount numeric(16,3) NOT NULL
-);
-
-
---
--- Name: pending_emails; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.pending_emails (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    to_email text NOT NULL,
-    subject text NOT NULL,
-    html text NOT NULL,
-    status text DEFAULT 'pending'::text NOT NULL,
-    attempts integer DEFAULT 0 NOT NULL,
-    last_error text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    sent_at timestamp with time zone,
-    CONSTRAINT pending_emails_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text])))
 );
 
 
@@ -2283,6 +2302,13 @@ CREATE INDEX payslips_tutor_idx ON public.payslips USING btree (tutor_id);
 --
 
 CREATE INDEX pending_emails_drain_idx ON public.pending_emails USING btree (created_at) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: pending_emails_sending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX pending_emails_sending_idx ON public.pending_emails USING btree (claimed_at) WHERE (status = 'sending'::text);
 
 
 --
@@ -3723,6 +3749,14 @@ CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_
 
 
 --
+-- Name: FUNCTION claim_pending_emails(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.claim_pending_emails(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.claim_pending_emails(p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION current_app_role(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -3849,52 +3883,10 @@ REVOKE ALL ON FUNCTION public.reclassify_submissions_on_due_change() FROM PUBLIC
 
 
 --
--- Name: COLUMN submissions.assignment_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(assignment_id) ON TABLE public.submissions TO authenticated;
-
-
---
--- Name: COLUMN submissions.student_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(student_id) ON TABLE public.submissions TO authenticated;
-
-
---
--- Name: COLUMN submissions.drive_link; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(drive_link) ON TABLE public.submissions TO authenticated;
-
-
---
--- Name: COLUMN submissions.file_name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(file_name) ON TABLE public.submissions TO authenticated;
-
-
---
--- Name: COLUMN submissions.status; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(status) ON TABLE public.submissions TO authenticated;
-
-
---
--- Name: COLUMN submissions.submitted_at; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(submitted_at) ON TABLE public.submissions TO authenticated;
-
-
---
 -- Name: COLUMN submissions.is_active; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT INSERT(is_active),UPDATE(is_active) ON TABLE public.submissions TO authenticated;
+GRANT UPDATE(is_active) ON TABLE public.submissions TO authenticated;
 
 
 --
@@ -4015,5 +4007,5 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fiHEAWfjkxiSHRqfH2k05sF3XFIKj64YtnXs6qUfdVauahf6Dgero3GhZB2U2lp
+\unrestrict kQrJDvxUowx5D9CVPu4pfyPkZ8eppkgXpgXrdNgx3xzEQugfYenJZgTYp1aHmjr
 
