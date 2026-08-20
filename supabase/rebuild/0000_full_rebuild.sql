@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0067) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0069) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -4009,3 +4009,65 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 
 \unrestrict kQrJDvxUowx5D9CVPu4pfyPkZ8eppkgXpgXrdNgx3xzEQugfYenJZgTYp1aHmjr
 
+
+
+-- ============================================================================
+-- HAND-APPENDED: migrations 0068-0069
+-- ============================================================================
+-- Everything above is a pg_dump through 0067. The two blocks below are the exact
+-- DDL of migrations 0068-0069, appended by hand because no Supabase CLI/Docker was
+-- available to re-dump. Dependency-safe here (every table, function and role they
+-- reference is defined above). REPLACE this whole file with a clean dump via
+--   supabase db reset && npm run db:rebuild-snapshot
+-- as soon as the CLI is available.
+
+-- 0068_class_sessions_student_feedback_rls
+GRANT INSERT (class_id, session_date, student_feedback) ON TABLE public.class_sessions TO authenticated;
+GRANT UPDATE (student_feedback) ON TABLE public.class_sessions TO authenticated;
+
+DROP POLICY IF EXISTS class_sessions_student_feedback_insert ON public.class_sessions;
+CREATE POLICY class_sessions_student_feedback_insert ON public.class_sessions
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    public.is_enrolled(class_id)
+    AND EXISTS (
+      SELECT 1 FROM public.attendance a
+      WHERE a.class_id = class_sessions.class_id
+        AND a.student_id = public.current_profile_id()
+        AND a.session_date = class_sessions.session_date
+    )
+  );
+
+DROP POLICY IF EXISTS class_sessions_student_feedback_update ON public.class_sessions;
+CREATE POLICY class_sessions_student_feedback_update ON public.class_sessions
+  FOR UPDATE TO authenticated
+  USING (
+    public.is_enrolled(class_id)
+    AND EXISTS (
+      SELECT 1 FROM public.attendance a
+      WHERE a.class_id = class_sessions.class_id
+        AND a.student_id = public.current_profile_id()
+        AND a.session_date = class_sessions.session_date
+    )
+  )
+  WITH CHECK (public.is_enrolled(class_id));
+
+-- 0069_rls_health_check
+CREATE OR REPLACE FUNCTION public.rls_disabled_tables(p_tables text[])
+RETURNS text[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  select coalesce(array_agg(c.relname order by c.relname), array[]::text[])
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind = 'r'
+    and c.relname = any(p_tables)
+    and c.relrowsecurity = false;
+$$;
+
+REVOKE ALL ON FUNCTION public.rls_disabled_tables(text[]) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rls_disabled_tables(text[]) TO service_role;
