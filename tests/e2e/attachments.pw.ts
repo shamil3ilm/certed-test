@@ -11,7 +11,11 @@ import { loginAs, SEED } from './support'
  * round-trip and the app-layer write gates.
  */
 
-const STUDENT_SUBMISSION = 'fa000000-0000-4000-8000-000000000001' // owned by student@mock.test
+// Owned by student@mock.test and ACTIVE + UNGRADED (on the open "Chapter 6 practice"
+// assignment), so it still accepts work: attaching to a submission is gated on the same
+// active + ungraded + open rules as recordSubmission, so the round-trip needs an open
+// one - the student's other seeded submissions are graded and correctly reject attaches.
+const STUDENT_SUBMISSION = 'fa000000-0000-4000-8000-000000000003'
 
 async function uploadTo(page: Page, owner: string, ownerId: string) {
   return page.evaluate(

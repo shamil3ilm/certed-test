@@ -422,6 +422,23 @@ export function buildSeed(): MockDb {
         status: 'active',
         created_at: NOW,
       },
+      // An OPEN, ungraded assignment kept as the fixture for the attachment
+      // round-trip E2E: attaching a file to a submission is now gated on the same
+      // rules as recordSubmission (active + ungraded + open), so that test needs a
+      // submission still accepting work - the other two Math submissions are graded.
+      {
+        id: 'a5000000-0000-4000-8000-000000000004',
+        class_id: IDS.math,
+        title: 'Chapter 6 practice',
+        description: 'Open practice set - accepts work until the term ends.',
+        due_date: '2026-12-31T18:30:00.000Z',
+        max_marks: 10,
+        attachment_drive_link: null,
+        enforce_deadline: false,
+        created_by: IDS.tutor,
+        status: 'active',
+        created_at: NOW,
+      },
     ],
     submissions: [
       // Two graded MATH submissions across dates give the student's dashboard a
@@ -454,6 +471,24 @@ export function buildSeed(): MockDb {
         graded_at: '2026-07-16T09:00:00.000Z',
         graded_by: IDS.tutor,
         feedback: 'Clear method and strong analysis.',
+        is_active: true,
+        created_at: NOW,
+      },
+      // Active + UNGRADED submission on the open "Chapter 6 practice" assignment.
+      // The attachment round-trip E2E attaches to this one: it still accepts work,
+      // where the two submissions above are graded (attaching to graded work is now
+      // blocked). No score/graded_at, so evaluated/report-card reads skip it.
+      {
+        id: 'fa000000-0000-4000-8000-000000000003',
+        assignment_id: 'a5000000-0000-4000-8000-000000000004',
+        student_id: IDS.student,
+        drive_link: 'https://drive.google.com/file/d/mock-sub-3/view',
+        status: 'submitted',
+        submitted_at: '2026-07-20T09:00:00.000Z',
+        score: null,
+        graded_at: null,
+        graded_by: null,
+        feedback: null,
         is_active: true,
         created_at: NOW,
       },
