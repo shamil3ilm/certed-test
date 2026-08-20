@@ -261,3 +261,17 @@ export async function updateJoinAtAsService(
   if (error) throw new Error(`sessionTimings.updateJoinAt: ${error.message}`)
   return (data?.length ?? 0) > 0
 }
+
+/** Whether a student has an attendance row for (class, date) - used to scope student
+ *  session feedback to sessions they actually attended (service role). */
+export async function studentHasAttendance(classId: string, studentId: string, date: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from('attendance')
+    .select('id', { count: 'exact', head: true })
+    .eq('class_id', classId)
+    .eq('student_id', studentId)
+    .eq('session_date', date)
+  if (error) throw new Error(`attendance.exists: ${error.message}`)
+  return (count ?? 0) > 0
+}

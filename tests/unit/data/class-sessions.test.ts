@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   selectSession,
   upsertSession,
-  upsertSessionStudentFeedback,
+  writeStudentSessionFeedback,
   selectSessionsForClassesAsService,
   selectRecentSessions,
 } from '@/lib/data/class-sessions'
@@ -42,17 +42,32 @@ describe('class-sessions data layer', () => {
     await expect(upsertSession({ class_id: 'c1', session_date: 'd' } as any)).rejects.toThrow(/classSessions.upsert: e/)
   })
 
-  it('upsertSessionStudentFeedback upserts only the feedback and throws on error', async () => {
-    const client = makeClient({ data: null, error: null })
-    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
-    await upsertSessionStudentFeedback('c1', '2026-06-20', 'great class')
-    const builder = client.from.mock.results[0].value
-    expect(builder.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ class_id: 'c1', student_feedback: 'great class' }),
-      { onConflict: 'class_id,session_date' },
+  it('writeStudentSessionFeedback updates via the RLS client, no insert when the row exists', async () => {
+    const client = makeClient({ data: [{ id: 'ses1' }], error: null })
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await writeStudentSessionFeedback('c1', '2026-06-20', 'great class')
+    const updateBuilder = client.from.mock.results[0].value
+    expect(updateBuilder.update).toHaveBeenCalledWith({ student_feedback: 'great class' })
+    expect(client.from).toHaveBeenCalledTimes(1) // the row existed - no insert
+    expect(createAdminClient).not.toHaveBeenCalled() // NOT service role
+  })
+
+  it('writeStudentSessionFeedback inserts a feedback-only row when none exists', async () => {
+    const client = makeClient({ data: [], error: null })
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await writeStudentSessionFeedback('c1', '2026-06-20', 'ok')
+    expect(client.from).toHaveBeenCalledTimes(2)
+    const insertBuilder = client.from.mock.results[1].value
+    expect(insertBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ class_id: 'c1', session_date: '2026-06-20', student_feedback: 'ok' }),
     )
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(upsertSessionStudentFeedback('c1', 'd', null)).rejects.toThrow(/classSessions.feedback: e/)
+  })
+
+  it('writeStudentSessionFeedback throws on update error', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
+    await expect(writeStudentSessionFeedback('c1', 'd', null)).rejects.toThrow(
+      /classSessions.studentFeedback\(update\): e/,
+    )
   })
 
   it('selectSessionsForClassesAsService short-circuits on [] and returns rows otherwise', async () => {

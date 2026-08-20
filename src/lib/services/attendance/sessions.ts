@@ -8,10 +8,14 @@ import {
   selectRecentSessions,
   selectSession,
   upsertSession,
-  upsertSessionStudentFeedback,
+  writeStudentSessionFeedback,
   type ClassSessionRow,
 } from '@/lib/data/class-sessions'
-import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
+import { selectActiveClassIdsForStudent, selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
+import { studentHasAttendance } from '@/lib/data/attendance'
+import { loadPersonaFlags } from '@/lib/permission/personas'
+import { validateUuidField } from '@/lib/validation/id'
+import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { z } from 'zod'
 
 /** A free-text session note: trimmed, bounded, empty -> null (clears it). */
@@ -55,6 +59,15 @@ export type SaveSessionActionInput = {
   summary?: FormDataEntryValue | null
 }
 
+/** The tutor to attribute a session to when none is specified: the recorder if they
+ *  teach the class, otherwise the class's assigned tutor (a mentor/admin recording is
+ *  not the tutor). null when the class has no assigned tutor. */
+async function defaultSessionTutor(actorId: string, classId: string): Promise<string | null> {
+  const tutorIds = (await selectActiveTutorRowsForClass(classId)).map((t) => t.tutor_id)
+  if (tutorIds.includes(actorId)) return actorId
+  return tutorIds[0] ?? null
+}
+
 export async function saveSessionTimes(actor: Profile, input: SaveSessionActionInput): Promise<ClassSession> {
   const classId = String(input.classId ?? '')
   const sessionDate = String(input.sessionDate ?? '')
@@ -75,9 +88,25 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   if (!parsed.success) {
     throw new ValidationError('Invalid session times.')
   }
-  // Default the tutor to whoever is recording (usually the class tutor); an admin
-  // may pass an explicit tutor_id.
-  const tutorId = String(input.tutor_id ?? '') || actor.id
+  // The tutor attributed to a session must be a real tutor of this class. An EXPLICIT
+  // id is admin-only unless it's the recorder's own, and is validated + confirmed
+  // assigned to the class either way (so a mentor who passes their own id is rejected,
+  // not silently mislabelled). With NO explicit id, default to the class's assigned
+  // tutor - the recorder only if they teach it - so a mentor/admin recording is never
+  // written as the tutor.
+  const explicitTutorId = String(input.tutor_id ?? '').trim()
+  let tutorId: string | null
+  if (explicitTutorId) {
+    if (explicitTutorId !== actor.id) {
+      const { isAdmin } = await loadPersonaFlags(actor.id)
+      if (!isAdmin) throw new PermissionError('Only an admin may record a session for another tutor.')
+    }
+    validateUuidField(explicitTutorId, 'Invalid tutor id.')
+    await assertClassTutor(explicitTutorId, classId)
+    tutorId = explicitTutorId
+  } else {
+    tutorId = await defaultSessionTutor(actor.id, classId)
+  }
 
   const saved = await upsertSession({
     class_id: classId,
@@ -112,7 +141,13 @@ export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackAct
   if (!enrolledClassIds.includes(classId)) {
     throw new PermissionError('Only the enrolled student can leave feedback for this class.')
   }
-  await upsertSessionStudentFeedback(classId, sessionDate, noteField.parse(String(input.feedback ?? '')))
+  // Feedback is per REAL session: the student must have an attendance record for this
+  // date (that is the only place the feedback field is surfaced). Without this, a
+  // crafted POST could create class_sessions rows for arbitrary dates via the upsert.
+  if (!(await studentHasAttendance(classId, actor.id, sessionDate))) {
+    throw new ValidationError('You can leave feedback only for a session you attended.')
+  }
+  await writeStudentSessionFeedback(classId, sessionDate, noteField.parse(String(input.feedback ?? '')))
   await auditPrivilegedAction(actor, 'attendance.feedback', 'class', classId)
 }
 

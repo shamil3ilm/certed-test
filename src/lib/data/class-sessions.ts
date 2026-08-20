@@ -28,7 +28,7 @@ export type ClassSessionRow = {
 }
 
 // summary/student_feedback are written through their own paths (staff summary via
-// the session save, student feedback via upsertSessionStudentFeedback), so they
+// the session save, student feedback via writeStudentSessionFeedback), so they
 // are optional here and an omitted field is left untouched on conflict.
 export type ClassSessionUpsert = Omit<
   ClassSessionRow,
@@ -65,26 +65,43 @@ export async function upsertSession(row: ClassSessionUpsert): Promise<ClassSessi
   return data as ClassSessionRow
 }
 
-/** Set ONLY a session's student feedback (creating the row if the tutor hasn't
- *  recorded times yet). Service role - the domain gates it on the caller being
- *  the class's enrolled student. Times/summary are not in the payload, so the
- *  on-conflict update leaves them untouched. */
-export async function upsertSessionStudentFeedback(
+/** Set ONLY a session's student feedback through the caller's OWN RLS session (not
+ *  service role), so the class_sessions RLS - enrolled + attended, student_feedback
+ *  column only (migration 0068) - is the real control. Updates the existing row's
+ *  feedback; inserts a feedback-only row when the tutor hasn't recorded the session
+ *  yet. Two steps (+ a conflict retry) because the student is column-granted only
+ *  student_feedback: a plain upsert would try to write the conflict-key columns on the
+ *  update path and be denied. `updated_at` is left to the DB default on insert; a
+ *  feedback-only update doesn't refresh it (that column is not student-writable). */
+export async function writeStudentSessionFeedback(
   classId: string,
   date: string,
   feedback: string | null,
 ): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('class_sessions').upsert(
-    {
-      class_id: classId,
-      session_date: date,
-      student_feedback: feedback,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'class_id,session_date' },
-  )
-  if (error) throw new Error(`classSessions.feedback: ${error.message}`)
+  const supabase = await createClient()
+  const updated = await supabase
+    .from('class_sessions')
+    .update({ student_feedback: feedback })
+    .eq('class_id', classId)
+    .eq('session_date', date)
+    .select('id')
+  if (updated.error) throw new Error(`classSessions.studentFeedback(update): ${updated.error.message}`)
+  if ((updated.data?.length ?? 0) > 0) return
+
+  const inserted = await supabase
+    .from('class_sessions')
+    .insert({ class_id: classId, session_date: date, student_feedback: feedback })
+  // A tutor may have created the row between the update and the insert - retry as update.
+  if (inserted.error?.code === '23505') {
+    const retry = await supabase
+      .from('class_sessions')
+      .update({ student_feedback: feedback })
+      .eq('class_id', classId)
+      .eq('session_date', date)
+    if (retry.error) throw new Error(`classSessions.studentFeedback(retry): ${retry.error.message}`)
+    return
+  }
+  if (inserted.error) throw new Error(`classSessions.studentFeedback(insert): ${inserted.error.message}`)
 }
 
 /** Sessions for a SET of classes, newest first (service role). The caller scopes

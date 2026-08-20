@@ -16,10 +16,9 @@ import {
 import { parseOrThrow } from '@/lib/validation/parse'
 import { assertTimeOrder } from '@/lib/validation/time-order'
 import { canWriteClass, assertClassActive } from '@/lib/permission'
-import { isActiveClassTutor } from '@/lib/data/class-membership'
-import { getProfileById } from '@/lib/services/users'
+import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+import { PermissionError, NotFoundError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
 
@@ -46,22 +45,6 @@ export async function listSlots(opts: SlotFilters = {}): Promise<TimetableSlot[]
 
 export async function getSlot(id: string): Promise<TimetableSlot | null> {
   return selectSlotById(id)
-}
-
-/** tutor_id is optional (a slot can be created unassigned); when present, make
- *  sure it's an active teacher account AND that they actually teach THIS class.
- *  Without the class scope, a tutor authorized for class X could label a slot in
- *  X with an unrelated colleague's id - a data-integrity/labeling defect. A
- *  dedicated mentor who teaches (i.e. is in class_tutors for the class) is valid
- *  here too, which is exactly what isActiveClassTutor checks. */
-async function assertClassTutor(tutorId: string, classId: string): Promise<void> {
-  const t = await getProfileById(tutorId)
-  if (!t || (t.role !== 'tutor' && t.role !== 'mentor') || t.status !== 'active') {
-    throw new ValidationError('tutor_id must be an active tutor or mentor')
-  }
-  if (!(await isActiveClassTutor(tutorId, classId))) {
-    throw new ValidationError('tutor_id must be a tutor assigned to this class')
-  }
 }
 
 export async function createSlot(actor: Profile, input: CreateSlotInput): Promise<TimetableSlot> {
