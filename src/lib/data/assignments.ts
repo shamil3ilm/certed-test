@@ -138,6 +138,26 @@ export async function selectAssignmentClassIdAsService(id: string): Promise<{ cl
   return (data as { class_id: string }) ?? null
 }
 
+export type AssignmentState = {
+  class_id: string
+  status: AssignmentRow['status']
+  enforce_deadline: boolean
+  due_date: string
+}
+
+/** An assignment's state (status + hard-deadline fields), SERVICE-ROLE. Backs the
+ *  /api/attachments submission guard so an attach honours the same active + deadline
+ *  rules as recordSubmission, regardless of whether the row is RLS-visible. */
+export async function selectAssignmentStateAsService(id: string): Promise<AssignmentState | null> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('assignments')
+    .select('class_id, status, enforce_deadline, due_date')
+    .eq('id', id)
+    .maybeSingle()
+  return (data as AssignmentState) ?? null
+}
+
 export type AssignmentReportRow = {
   id: string
   title: string

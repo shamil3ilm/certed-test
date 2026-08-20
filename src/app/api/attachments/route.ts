@@ -7,12 +7,11 @@ import { uploadAttachment } from '@/lib/services/attachments/upload'
 import { driveStorageAvailable } from '@/lib/google/drive-storage'
 import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments/validation'
 import type { AttachmentOwner, AttachmentRow } from '@/lib/data/attachments'
-import { selectSubmissionOwnerAsService } from '@/lib/data/submissions-service-reads'
-import { selectResourceClassIdAsService } from '@/lib/data/resources'
 import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
 import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
-import { assertCanDocument } from '@/lib/permission/documents'
 import { canWriteClass } from '@/lib/permission/class-write'
+import { assertSubmissionAcceptsWork, assertMayAttachToResource } from '@/lib/services/attachments/attach-guards'
+import { recordResourceAttachmentReplacement } from '@/lib/services/resources'
 
 // Node runtime: the upload service streams bytes and talks to the Drive REST API.
 export const runtime = 'nodejs'
@@ -23,28 +22,25 @@ function isOwnerKind(value: string): value is AttachmentOwner['kind'] {
 }
 
 /**
- * Gate the write against the SAME rule that governs the owner itself, resolved
- * from the owner row (service-role lookups - the row may not be RLS-visible to a
- * caller who can still legitimately attach to it, e.g. a tutor on a class doc):
- *  - submission   -> only the owning student attaches their own work
- *  - resource     -> canDocument 'upload' for the document's class
+ * Gate the write against the SAME rules that govern a first-class write on the owner -
+ * not ownership alone. Attaching a file is a state change on the owner, so:
+ *  - submission   -> the owning student, and the submission still accepts work
+ *                    (active, ungraded, assignment open, deadline not passed)
+ *  - resource     -> canDocument for the document's class - 'edit' (own rule) when it
+ *                    already has an attachment, 'upload' for the first; class active
  *  - announcement -> canWriteClass for the announcement's class
  *  - assignment   -> canWriteClass for the assignment's class (a manager of the class)
- * A missing owner is a 404, never a hint that it exists.
+ * Reads are service-role (the row may not be RLS-visible to a caller who can still
+ * legitimately attach); a missing owner is a 404, never a hint that it exists.
  */
-async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<void> {
+async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<{ replacedResourceId: string | null }> {
   if (owner.kind === 'submission') {
-    const sub = await selectSubmissionOwnerAsService(owner.id)
-    if (!sub) throw new NotFoundError()
-    if (sub.student_id !== me.id) throw new PermissionError('Not allowed to attach to this submission.')
-    return
+    await assertSubmissionAcceptsWork(me, owner.id)
+    return { replacedResourceId: null }
   }
   if (owner.kind === 'resource') {
-    const resource = await selectResourceClassIdAsService(owner.id)
-    if (!resource) throw new NotFoundError()
-    if (!resource.class_id) throw new PermissionError('Not allowed to attach to this document.')
-    await assertCanDocument(me, 'upload', { class_id: resource.class_id })
-    return
+    const isReplacement = await assertMayAttachToResource(me, owner.id)
+    return { replacedResourceId: isReplacement ? owner.id : null }
   }
   if (owner.kind === 'assignment') {
     const assignment = await selectAssignmentClassIdAsService(owner.id)
@@ -52,13 +48,14 @@ async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<voi
     if (!(await canWriteClass(me, assignment.class_id))) {
       throw new PermissionError('Not allowed to attach to this assignment.')
     }
-    return
+    return { replacedResourceId: null }
   }
   const announcement = await selectAnnouncementClassIdAsService(owner.id)
   if (!announcement) throw new NotFoundError()
   if (!(await canWriteClass(me, announcement.class_id))) {
     throw new PermissionError('Not allowed to attach to this announcement.')
   }
+  return { replacedResourceId: null }
 }
 
 // The attachments table is absent until migrations 0057-0059 are applied to the live
@@ -122,7 +119,7 @@ export async function POST(req: Request) {
     return invalidInput('Assignments accept PDF files only.')
   }
   try {
-    await assertMayAttach(me, owner)
+    const { replacedResourceId } = await assertMayAttach(me, owner)
     // Fail fast and friendly if custodial storage isn't provisioned, rather than
     // buffering the bytes only to 500 in the Drive token exchange.
     if (!driveStorageAvailable()) throw new StorageUnavailableError()
@@ -134,6 +131,12 @@ export async function POST(req: Request) {
       mimeType: file.type,
       bytes,
     })
+    // A new file superseding a document's current one is an edit: snapshot the prior
+    // state into version history + write a resource.edit audit. Best-effort - the upload
+    // is committed, so a history/audit failure must not fail the request.
+    if (replacedResourceId) {
+      await recordResourceAttachmentReplacement(me, replacedResourceId).catch(() => {})
+    }
     return created(toClientAttachment(row))
   } catch (error) {
     if (isMissingAttachmentsTable(error)) return apiError(new StorageUnavailableError())

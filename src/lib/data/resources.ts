@@ -189,3 +189,24 @@ export async function selectResourceClassIdAsService(id: string): Promise<{ clas
   const { data } = await admin.from('resources').select('class_id').eq('id', id).maybeSingle()
   return (data as { class_id: string | null }) ?? null
 }
+
+export type ResourceAttachTarget = {
+  class_id: string | null
+  uploaded_by: string | null
+  visibility: DocumentVisibility
+  status: ResourceRow['status']
+}
+
+/** The fields the /api/attachments resource guard needs, SERVICE-ROLE: the owner +
+ *  visibility (so replacing an existing attachment is authorised as an EDIT under the
+ *  tutor `own` rule, not a bare `upload`) and the status (so an archived document
+ *  can't be silently re-attached). */
+export async function selectResourceForAttachAsService(id: string): Promise<ResourceAttachTarget | null> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('resources')
+    .select('class_id, uploaded_by, visibility, status')
+    .eq('id', id)
+    .maybeSingle()
+  return (data as ResourceAttachTarget) ?? null
+}

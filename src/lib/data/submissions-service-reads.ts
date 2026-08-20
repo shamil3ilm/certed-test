@@ -32,6 +32,28 @@ export async function selectSubmissionOwnerAsService(
   return (data as { student_id: string; assignment_id: string }) ?? null
 }
 
+export type SubmissionState = {
+  student_id: string
+  assignment_id: string
+  is_active: boolean
+  score: number | null
+  graded_at: string | null
+}
+
+/** A submission's full transition state, SERVICE-ROLE. Backs the /api/attachments
+ *  guard, which must enforce the SAME rules as recordSubmission/withdrawSubmission
+ *  (own + still-active + ungraded) before a file lands on an existing submission -
+ *  ownership alone let a student attach after the deadline or after grading. */
+export async function selectSubmissionStateAsService(id: string): Promise<SubmissionState | null> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('submissions')
+    .select('student_id, assignment_id, is_active, score, graded_at')
+    .eq('id', id)
+    .maybeSingle()
+  return (data as SubmissionState) ?? null
+}
+
 /** Every active submission's assignment + score for one student, SERVICE-ROLE.
  *  Feeds the report card, which a mentor or admin may pull for a student whose
  *  classes they don't teach. THROWS on error - a transient failure must not

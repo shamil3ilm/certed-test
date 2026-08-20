@@ -366,6 +366,23 @@ export async function editDocumentFromActionInput(actor: Profile, input: Documen
   return editDocument(actor, validateEditDocumentInput(input))
 }
 
+/**
+ * A custodial file REPLACED the current one on a document (a newer attachment supersedes
+ * the prior active one, which /api/resources/[id]/download then serves as newest). Record
+ * it exactly like editDocument's Drive-link replacement: snapshot the superseded state
+ * into version history and write a resource.edit audit, so the swap is on record and
+ * accountable rather than silently changing what everyone downloads. The authorization
+ * (edit, `own` rule) has already run in the upload route's guard. Best-effort by contract
+ * of its caller: the upload is already committed, so a history/audit hiccup must never
+ * fail the request.
+ */
+export async function recordResourceAttachmentReplacement(actor: Profile, resourceId: string): Promise<void> {
+  const doc = await getResource(resourceId)
+  if (!doc) return
+  await snapshotDocument(doc, 'File replaced')
+  await auditPrivilegedAction(actor, 'resource.edit', 'resource', resourceId)
+}
+
 /** Soft-remove (archive). canDocument('delete', doc) - tutors delete only their own. */
 export async function archiveDocument(actor: Profile, id: string): Promise<void> {
   throttleWrite('resource', actor.id, 'document')

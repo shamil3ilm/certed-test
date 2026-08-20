@@ -47,6 +47,10 @@ function mapReplaceSubmissionError(message: string): Error {
   switch (message) {
     case 'submission_already_graded':
       return new ValidationError('This work has been graded - ask your tutor to reopen it before resubmitting.')
+    // The DB-level backstop (0067) for a hard deadline - fires when a direct RPC call
+    // races past the app-side check, or comes straight from PostgREST.
+    case 'deadline_passed':
+      return new ValidationError('This assignment is closed - its deadline has passed.')
     case 'assignment_not_found':
       return new NotFoundError('Assignment not found')
     case 'not_enrolled':
