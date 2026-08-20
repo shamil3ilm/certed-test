@@ -136,21 +136,32 @@ function parseFilters(searchParams: {
   }
 }
 
-function rolesForFilter(role: RoleFilter): Profile['role'] | ReadonlyArray<Profile['role']> {
-  switch (role) {
-    case 'staff':
-      return ['tutor', 'mentor']
-    case 'student':
-      return 'student'
-    case 'tutor':
-      return 'tutor'
-    case 'mentor':
-      return 'mentor'
-    case 'admin':
-      return ['admin', 'sub_admin']
-    default:
-      return ['student', 'tutor', 'mentor', 'admin', 'sub_admin']
-  }
+// The roles a sub_admin (non-super) may ever see in the People list - the same
+// tier they may manage. Any requested filter is intersected with this, so a
+// sub_admin cannot list admin-tier or mentor accounts by picking (or hand-editing)
+// a role filter. A full admin (isSuper) sees the unclamped set.
+const SUB_ADMIN_VISIBLE_ROLES: ReadonlyArray<Profile['role']> = ['student', 'tutor']
+
+function rolesForFilter(role: RoleFilter, isSuper: boolean): Profile['role'] | ReadonlyArray<Profile['role']> {
+  const requested: Profile['role'] | ReadonlyArray<Profile['role']> = (() => {
+    switch (role) {
+      case 'staff':
+        return ['tutor', 'mentor']
+      case 'student':
+        return 'student'
+      case 'tutor':
+        return 'tutor'
+      case 'mentor':
+        return 'mentor'
+      case 'admin':
+        return ['admin', 'sub_admin']
+      default:
+        return ['student', 'tutor', 'mentor', 'admin', 'sub_admin']
+    }
+  })()
+  if (isSuper) return requested
+  const requestedList = Array.isArray(requested) ? requested : [requested as Profile['role']]
+  return requestedList.filter((r) => SUB_ADMIN_VISIBLE_ROLES.includes(r))
 }
 
 function groupMentorsByStudent(links: UsersHubMentorLink[]): Map<string, UsersHubMentorLink[]> {
@@ -185,7 +196,7 @@ export async function loadAdminUsersPageData(
 
   // The Mentor-assignments tab is student-centric (each row is a student + their
   // mentor links), so it always loads students regardless of the People role filter.
-  const rolesToLoad = filters.tab === 'mentors' ? 'student' : rolesForFilter(filters.role)
+  const rolesToLoad = filters.tab === 'mentors' ? 'student' : rolesForFilter(filters.role, isSuper)
   const [stats, mentorCandidates, links, { items: tabProfiles, total: tabTotal }] = await Promise.all([
     countUsersHubStats(),
     listActiveMentorCandidates(),

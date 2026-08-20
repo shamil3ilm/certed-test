@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { selectProfileDetailsById, selectActiveProfilesByRoles } from '@/lib/data/profiles-directory'
 import { loadStudentSubjects, loadTutorRoster } from '@/lib/services/page-data/user-detail'
+import { canManageTarget } from '@/lib/services/users/admin-lifecycle'
 import { listSubjects } from '@/lib/services/subjects'
 import { AlertBanner, BackLink, Card, EmptyState } from '@/lib/ui'
 import { DetailsCard } from './DetailsCard'
@@ -12,10 +13,15 @@ export default async function UserDetailPage(props: {
   searchParams: Promise<{ error?: string }>
 }) {
   const [{ id }, { error }] = await Promise.all([props.params, props.searchParams])
-  await requireCapability('manageUsers')
+  const me = await requireCapability('manageUsers')
 
   const profile = await selectProfileDetailsById(id)
   if (!profile) notFound()
+  // manageUsers opens the page, but the tier rule decides WHOSE record you may see:
+  // a sub_admin may read tutor/student profiles only, never the admin tier or mentor
+  // accounts (the same boundary revoke/edit enforce). Treat a disallowed target as
+  // absent rather than disclosing its personal detail.
+  if (!(await canManageTarget(me, profile.role))) notFound()
 
   const isStudent = profile.role === 'student'
   const isTeacher = profile.role === 'tutor' || profile.role === 'mentor'

@@ -31,8 +31,11 @@ import {
 // the admin tier AND mentor accounts - is a full-admin responsibility.
 const SUB_ADMIN_MANAGEABLE = new Set(['tutor', 'student'])
 
-/** A Sub Admin may only act on tutor/student accounts; a Super Admin on anyone. */
-async function canManageTarget(actor: Profile, targetRole: string): Promise<boolean> {
+/** A Sub Admin may only act on tutor/student accounts; a Super Admin on anyone.
+ *  Exported so the READ surfaces (the user-detail page) gate on the same tier rule
+ *  the writes here enforce - otherwise a sub_admin could open an admin-tier or
+ *  mentor profile and read its personal detail even though every write is refused. */
+export async function canManageTarget(actor: Profile, targetRole: string): Promise<boolean> {
   const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
   if (isAdmin) return true
   return isSubAdmin && SUB_ADMIN_MANAGEABLE.has(targetRole)

@@ -171,6 +171,24 @@ describe('loadAdminUsersPageData', () => {
     )
   })
 
+  it('clamps a sub-admin to tutor/student rows whatever role filter is requested', async () => {
+    // A sub_admin (non-super) must never load admin-tier or mentor accounts, even by
+    // hand-editing ?role=admin - the read side mirrors the tier rule the writes use.
+    primeMocks(false)
+    await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people', role: 'admin' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith([], expect.objectContaining({ page: 1 }))
+
+    vi.mocked(listProfilesByRole).mockClear()
+    primeMocks(false)
+    await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people', role: 'staff' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['tutor'], expect.objectContaining({ page: 1 }))
+
+    vi.mocked(listProfilesByRole).mockClear()
+    primeMocks(false)
+    await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['student', 'tutor'], expect.objectContaining({ page: 1 }))
+  })
+
   it('always loads students on the Mentor-assignments tab, ignoring the role filter', async () => {
     primeMocks()
     const result = await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'mentors', role: 'admin' })
