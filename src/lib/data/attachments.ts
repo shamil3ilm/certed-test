@@ -153,7 +153,17 @@ export async function selectLiveAttachmentIds(ids: string[]): Promise<Set<string
  */
 export async function selectReadableActiveAttachment(id: string): Promise<AttachmentRow | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('attachments').select(COLUMNS).eq('id', id).eq('status', 'active').maybeSingle()
+  const { data, error } = await supabase
+    .from('attachments')
+    .select(COLUMNS)
+    .eq('id', id)
+    .eq('status', 'active')
+    .maybeSingle()
+  // Surface a REAL error (table missing / RLS misconfigured) so the caller can 502
+  // loudly instead of masking a provisioning fault as a silent 404. An RLS-FILTERED
+  // read returns no error, just no row - so an unauthorized read still resolves to
+  // null -> 404 (fail closed), unchanged.
+  if (error) throw new Error(`attachments.readable: ${error.message}`)
   return (data as AttachmentRow) ?? null
 }
 

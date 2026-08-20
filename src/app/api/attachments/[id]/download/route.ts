@@ -3,6 +3,7 @@ import { requireCapabilityApi } from '@/lib/auth/require-role'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { selectReadableActiveAttachment } from '@/lib/data/attachments'
 import { getDriveStorage } from '@/lib/google/drive-storage'
+import { logError } from '@/lib/observability/log'
 
 // Node runtime: the route streams bytes from the Drive REST API.
 export const runtime = 'nodejs'
@@ -51,7 +52,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!rl.ok) return tooManyRequestsText(undefined, rl.retryAfterSec)
 
   const { id } = await ctx.params
-  const attachment = await selectReadableActiveAttachment(id)
+  let attachment
+  try {
+    attachment = await selectReadableActiveAttachment(id)
+  } catch (error) {
+    // A real read error (attachments table missing / RLS misconfigured) is a
+    // provisioning fault, not "not found" - log it and 502 so it is observable,
+    // never a silent 404 that masks a fail-open-shaped misconfiguration.
+    logError('attachments.download.read', error)
+    return textFail('Could not open the file. Please try again in a moment.', 502)
+  }
   // Not readable (RLS), not active, or somehow lacking a file id -> identical 404,
   // never revealing which of those it was.
   if (!attachment || !attachment.drive_file_id) return notFoundText()
