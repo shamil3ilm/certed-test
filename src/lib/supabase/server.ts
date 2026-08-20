@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { isMock } from '@/lib/mock/env'
 import { supabaseAnonEnv } from '@/lib/env'
 import { createMockServerClient } from '@/lib/mock/client'
+import { hardenCookieOptions } from './cookie-options'
 
 export async function createClient() {
   if (isMock()) return createMockServerClient()
@@ -15,7 +16,7 @@ export async function createClient() {
         // Called from a Server Component -> the cookie store is read-only.
         // Middleware (updateSession) refreshes the session cookie instead.
         try {
-          toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, hardenCookieOptions(options)))
         } catch {
           /* no-op in read-only contexts */
         }

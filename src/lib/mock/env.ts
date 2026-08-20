@@ -15,9 +15,15 @@ export function readMockModeFlag(): boolean {
 }
 
 export function isMock(): boolean {
-  // Mock mode is LOCAL-only: it writes a JSON file (impossible on Vercel's
-  // read-only FS) and stores plaintext demo passwords, so it must NEVER activate
-  // on a deployed environment even if MOCK_MODE were mistakenly set there.
+  // Mock mode writes a JSON DB to disk, stores plaintext demo passwords, and
+  // authenticates off an UNSIGNED identity cookie - so it must NEVER activate where
+  // real users exist, on ANY host, not just Vercel. Fail closed:
+  //   - a Vercel deployment is always excluded;
+  //   - any other PRODUCTION runtime (e.g. a self-hosted `next start`) is excluded
+  //     too, UNLESS ALLOW_MOCK_AUTH=1 is set - the affirmative, dev-only opt-in the
+  //     E2E build sets and no real deployment ever would.
+  // Local `next dev` is NODE_ENV=development, so MOCK_MODE=1 alone still works there.
   if (process.env.VERCEL === '1') return false
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== '1') return false
   return readMockModeFlag()
 }

@@ -21,11 +21,13 @@ async function getUserReal(request: NextRequest, response: NextResponse) {
   // process.version) stays out of the eagerly-parsed Edge middleware bundle and
   // loads only on the real-auth path, never in mock mode.
   const { createServerClient } = await import('@supabase/ssr')
+  const { hardenCookieOptions } = await import('./cookie-options')
   const { url, anonKey } = supabaseAnonEnv()
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: (toSet) => toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)),
+      setAll: (toSet) =>
+        toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, hardenCookieOptions(options))),
     },
   })
   const {

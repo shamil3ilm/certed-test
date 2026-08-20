@@ -25,6 +25,11 @@ const MOCK_ENV = {
   MOCK_MODE: '1',
   NEXT_PUBLIC_MOCK_MODE: '1',
   VERCEL: '0',
+  // The E2E app is a production build (`next build` + `next start`), so isMock()'s
+  // fail-closed prod check needs this affirmative dev-only opt-in to keep mock auth
+  // on. No real deployment sets it. Without it the mock app would boot with real
+  // (unconfigured) auth and every test would fail at login.
+  ALLOW_MOCK_AUTH: '1',
   NEXT_PUBLIC_SUPABASE_URL: 'http://mock.local',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-anon-key',
   SUPABASE_SECRET_KEY: 'mock-secret',
