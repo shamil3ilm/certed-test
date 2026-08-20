@@ -44,35 +44,52 @@ export async function selectEmailQueueStats(): Promise<{
   }
 }
 
-/** The oldest still-pending emails, for one drain pass. */
-export async function selectPendingEmails(limit: number): Promise<PendingEmailRow[]> {
+/** Atomically claim the oldest pending emails for one drain pass: the claim_pending_emails
+ *  RPC flips them to 'sending' and returns them under FOR UPDATE SKIP LOCKED, so two
+ *  concurrent drains get DISJOINT batches and a slow pass can't be re-sent by the next
+ *  one. Returns the same shape as a plain read (extra row columns are ignored). */
+export async function claimPendingEmails(limit: number): Promise<PendingEmailRow[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('pending_emails')
-    .select('id, to_email, subject, html, attempts')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(limit)
-  if (error) throw new Error(`pendingEmails.selectPending: ${error.message}`)
+  const { data, error } = await admin.rpc('claim_pending_emails', { p_limit: limit })
+  if (error) throw new Error(`pendingEmails.claim: ${error.message}`)
   return (data ?? []) as PendingEmailRow[]
 }
 
+/** Return rows stuck 'sending' past their lease to 'pending', so emails a drain
+ *  claimed but never finished (process crash mid-send) are retried instead of
+ *  stranded. Run at the start of a pass, before claiming. */
+export async function requeueStaleClaims(claimedBeforeIso: string): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('pending_emails')
+    .update({ status: 'pending', claimed_at: null })
+    .eq('status', 'sending')
+    .lt('claimed_at', claimedBeforeIso)
+  if (error) throw new Error(`pendingEmails.requeueStale: ${error.message}`)
+}
+
+/** Records a successful send. Compare-and-swap on the 'sending' claim: only the
+ *  drain that still holds the claim writes the outcome, so a row reaped and
+ *  re-claimed by another pass isn't double-marked. */
 export async function markEmailSent(id: string, attempts: number): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin
     .from('pending_emails')
-    .update({ status: 'sent', attempts, sent_at: new Date().toISOString() })
+    .update({ status: 'sent', attempts, sent_at: new Date().toISOString(), claimed_at: null })
     .eq('id', id)
+    .eq('status', 'sending')
   if (error) throw new Error(`pendingEmails.markSent: ${error.message}`)
 }
 
 /** Records a failed attempt. `terminal` (attempts exhausted) moves the row to
- *  'failed'; otherwise it stays 'pending' for the next drain to retry. */
+ *  'failed'; otherwise it returns to 'pending' for the next drain to re-claim.
+ *  Compare-and-swap on the 'sending' claim, as with markEmailSent. */
 export async function markEmailFailed(id: string, attempts: number, terminal: boolean, message: string): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin
     .from('pending_emails')
-    .update({ status: terminal ? 'failed' : 'pending', attempts, last_error: message.slice(0, 500) })
+    .update({ status: terminal ? 'failed' : 'pending', attempts, last_error: message.slice(0, 500), claimed_at: null })
     .eq('id', id)
+    .eq('status', 'sending')
   if (error) throw new Error(`pendingEmails.markFailed: ${error.message}`)
 }
