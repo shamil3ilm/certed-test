@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
+import CookieNotice from '@/app/components/CookieNotice'
 
 export const metadata: Metadata = {
   title: 'Cert-Ed Academia | Online Tuition for CBSE & ICSE Students',
@@ -31,6 +32,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <Navbar />
       <main className="flex-grow">{children}</main>
       <Footer />
+      <CookieNotice />
     </div>
   )
 }

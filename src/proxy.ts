@@ -6,7 +6,7 @@ import { ERROR_CODES } from '@/lib/api/error-codes'
 import { UNAUTHORIZED_MESSAGE } from '@/lib/api/messages'
 import { generateNonce, buildContentSecurityPolicy } from '@/lib/security/csp'
 
-const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact']
+const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact', '/privacy', '/terms']
 
 /**
  * A redirect that carries over what the base response accumulated: the refreshed

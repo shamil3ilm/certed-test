@@ -5,6 +5,7 @@ import { GENERIC_ERROR_MESSAGE } from '@/lib/api/messages'
 import { Mail, Phone, Send, Loader2 } from 'lucide-react'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 export default function Contact() {
   const successResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -124,7 +125,15 @@ export default function Contact() {
 
           {/* Contact Form */}
           <div className="p-8 md:p-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Send us a Message</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a Message</h2>
+            <p className="mb-6 text-sm leading-relaxed text-gray-500">
+              We use your details only to respond to your enquiry. Please don&rsquo;t include sensitive personal
+              information in your message. See our{' '}
+              <Link href="/privacy" className="text-primary underline hover:no-underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
             {status === 'success' ? (
               <div
                 role="status"

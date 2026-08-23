@@ -54,6 +54,15 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
           Set up your account
         </a>
       </p>
+      <p className="mt-2 text-center text-xs text-slate-400">
+        <a href="/terms" className="hover:underline">
+          Terms of Use
+        </a>
+        {' · '}
+        <a href="/privacy" className="hover:underline">
+          Privacy Policy
+        </a>
+      </p>
     </AuthShell>
   )
 }

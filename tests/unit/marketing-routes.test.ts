@@ -4,6 +4,9 @@ import path from 'node:path'
 import { MARKETING_BLOGS } from '@/lib/content/marketing'
 
 const MARKETING_NAV_HREFS = ['/', '/about', '/classes', '/blogs', '/contact'] as const
+// Footer-only legal pages (not in the nav). They must also be in proxy MARKETING_PATHS
+// to route correctly on the marketing host - this guards the page files exist.
+const FOOTER_LEGAL_HREFS = ['/privacy', '/terms'] as const
 
 function marketingPagePath(href: string) {
   if (href === '/') {
@@ -15,6 +18,11 @@ function marketingPagePath(href: string) {
 
 describe('marketing route guardrails', () => {
   it.each(MARKETING_NAV_HREFS)('marketing route "%s" maps to a real page.tsx', (href) => {
+    const pagePath = marketingPagePath(href)
+    expect(existsSync(pagePath), `${href} -> ${pagePath} does not exist`).toBe(true)
+  })
+
+  it.each(FOOTER_LEGAL_HREFS)('footer legal route "%s" maps to a real page.tsx', (href) => {
     const pagePath = marketingPagePath(href)
     expect(existsSync(pagePath), `${href} -> ${pagePath} does not exist`).toBe(true)
   })
