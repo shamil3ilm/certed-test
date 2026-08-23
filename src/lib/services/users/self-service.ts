@@ -26,7 +26,7 @@ export async function updateOwnProfile(
 
 /**
  * Self-service: the person completes their own SOFTER profile fields (contact, DOB,
- * gender, address, and - for staff - qualifications/bio). Deliberately narrowed to
+ * and - for staff - qualifications/bio). Deliberately narrowed to
  * these: identity, class/grade, country, guardian and joined date are admin-owned, so
  * the RLS own-row client is never handed them here even if a caller forwarded them.
  * An empty field clears it (the settings form renders them all).
@@ -39,8 +39,6 @@ export async function updateOwnProfileDetails(
   await updateOwnProfileRow(actor.id, {
     phone: nn(patch.phone),
     date_of_birth: nn(patch.date_of_birth),
-    gender: nn(patch.gender),
-    address: nn(patch.address),
     qualifications: nn(patch.qualifications),
     bio: nn(patch.bio),
   })

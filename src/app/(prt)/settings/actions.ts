@@ -21,15 +21,13 @@ export async function updateProfileAction(formData: FormData) {
   redirect('/settings?saved=profile')
 }
 
-/** Self-complete the softer profile fields (contact, DOB, gender, address, bio). */
+/** Self-complete the softer profile fields (contact, DOB, bio). */
 export async function updateProfileDetailsAction(formData: FormData) {
   const me = await requireActiveProfile()
   const get = (name: string) => (formData.get(name) as string) || undefined
   const parsed = selfProfileDetailsSchema.safeParse({
     phone: get('phone'),
     date_of_birth: get('date_of_birth'),
-    gender: get('gender'),
-    address: get('address'),
     qualifications: get('qualifications'),
     bio: get('bio'),
   })

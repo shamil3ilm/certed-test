@@ -43,8 +43,6 @@ export async function updateOwnProfile(
     class_level?: string | null
     phone?: string | null
     date_of_birth?: string | null
-    gender?: string | null
-    address?: string | null
     qualifications?: string | null
     bio?: string | null
   },

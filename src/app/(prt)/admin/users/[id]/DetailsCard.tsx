@@ -21,8 +21,8 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
 
 /**
  * The user's identity + details, with an admin edit form for the admin-owned fields
- * (name, class, country, phone, guardian, joined date). Softer fields (DOB, gender,
- * address, qualifications, bio) are shown read-only here - the person self-completes
+ * (name, class, country, phone, guardian, joined date). Softer fields (DOB,
+ * qualifications, bio) are shown read-only here - the person self-completes
  * them in settings. This page is admin/sub-admin only, so joined_on is visible.
  */
 export function DetailsCard({ profile }: { profile: ProfileDetails }) {
@@ -91,8 +91,6 @@ export function DetailsCard({ profile }: { profile: ProfileDetails }) {
         {isStudent && <DetailRow label="Guardian phone" value={profile.guardian_phone} />}
         <DetailRow label="Joined on" value={profile.joined_on} />
         <DetailRow label="Date of birth" value={profile.date_of_birth} />
-        <DetailRow label="Gender" value={profile.gender} />
-        <DetailRow label="Address" value={profile.address} />
         {!isStudent && <DetailRow label="Qualifications" value={profile.qualifications} />}
         {!isStudent && <DetailRow label="Bio" value={profile.bio} />}
       </dl>

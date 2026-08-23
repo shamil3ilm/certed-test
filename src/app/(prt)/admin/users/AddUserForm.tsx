@@ -14,7 +14,7 @@ const initial: AddUserState = {}
  * Add-user form (client) - surfaces the one-time setup code inline on success, so
  * the code is never put in a URL. Role options are scoped to the caller, and the
  * form is ROLE-AWARE: a student shows class/country/guardian; a tutor or mentor
- * shows contact + joined date. Softer fields (DOB, address, bio, qualifications) are
+ * shows contact + joined date. Softer fields (DOB, bio, qualifications) are
  * self-completed by the person at first sign-in, so they are not asked here.
  */
 export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; mentorCandidates: MentorCandidate[] }) {

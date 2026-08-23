@@ -77,17 +77,11 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
             academy.
           </p>
           <form action={updateProfileDetailsAction} className="grid gap-3 sm:grid-cols-2">
-            <Field label="Phone">
+            <Field label="Phone" hint="Optional - for class communication">
               <Input name="phone" type="tel" defaultValue={details?.phone ?? ''} />
             </Field>
             <Field label="Date of birth">
               <Input name="date_of_birth" type="date" defaultValue={details?.date_of_birth ?? ''} />
-            </Field>
-            <Field label="Gender">
-              <Input name="gender" defaultValue={details?.gender ?? ''} placeholder="Optional" />
-            </Field>
-            <Field label="Address" className="sm:col-span-2">
-              <Input name="address" defaultValue={details?.address ?? ''} placeholder="Optional" />
             </Field>
             {isStaff && (
               <>

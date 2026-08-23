@@ -53,9 +53,7 @@ describe('selfProfileDetailsSchema - admin-only fields are excluded from self-se
   it('accepts the self-completed fields', () => {
     const r = selfProfileDetailsSchema.safeParse({
       date_of_birth: '2005-06-01',
-      gender: 'Female',
       phone: '+91 99999 99999',
-      address: '12 Main St',
       bio: 'Loves maths',
       qualifications: 'MSc',
     })

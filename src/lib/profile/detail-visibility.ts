@@ -19,8 +19,6 @@ export type ProfileDetailField =
   | 'guardian_name'
   | 'guardian_phone'
   | 'date_of_birth'
-  | 'gender'
-  | 'address'
   | 'joined_on'
   | 'qualifications'
   | 'bio'
@@ -28,14 +26,7 @@ export type ProfileDetailField =
 export type DetailViewer = 'admin' | 'self' | 'other'
 
 export const ADMIN_ONLY_DETAIL_FIELDS = ['joined_on'] as const
-export const PRIVATE_DETAIL_FIELDS = [
-  'phone',
-  'guardian_name',
-  'guardian_phone',
-  'date_of_birth',
-  'gender',
-  'address',
-] as const
+export const PRIVATE_DETAIL_FIELDS = ['phone', 'guardian_name', 'guardian_phone', 'date_of_birth'] as const
 export const SHARED_DETAIL_FIELDS = ['country', 'class_level', 'qualifications', 'bio'] as const
 
 /** May `viewer` see `field`? Admin sees all; the person sees all but admin-only; a

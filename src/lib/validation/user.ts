@@ -120,8 +120,6 @@ export const updateProfileSchema = z.object({
 export const selfProfileDetailsSchema = z.object({
   phone: optText(30),
   date_of_birth: optDate,
-  gender: optText(30),
-  address: z.string().trim().max(300).optional(),
   qualifications: z.string().trim().max(300).optional(),
   bio: z.string().trim().max(500).optional(),
 })

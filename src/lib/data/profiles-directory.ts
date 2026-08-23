@@ -35,8 +35,6 @@ type ProfileDetailFields = {
   guardian_phone?: string | null
   joined_on?: string | null
   date_of_birth?: string | null
-  gender?: string | null
-  address?: string | null
   qualifications?: string | null
   bio?: string | null
 }
@@ -140,14 +138,12 @@ export type ProfileDetails = Profile & {
   guardian_name: string | null
   guardian_phone: string | null
   date_of_birth: string | null
-  gender: string | null
-  address: string | null
   joined_on: string | null
   qualifications: string | null
   bio: string | null
 }
 
-const PROFILE_DETAIL_COLUMNS = `${PROFILE_COLUMNS_WITH_CREATED}, country, phone, guardian_name, guardian_phone, date_of_birth, gender, address, joined_on, qualifications, bio`
+const PROFILE_DETAIL_COLUMNS = `${PROFILE_COLUMNS_WITH_CREATED}, country, phone, guardian_name, guardian_phone, date_of_birth, joined_on, qualifications, bio`
 
 export async function selectProfileDetailsById(id: string): Promise<ProfileDetails | null> {
   const admin = createAdminClient()

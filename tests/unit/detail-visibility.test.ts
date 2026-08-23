@@ -10,7 +10,6 @@ describe('canViewDetailField - profile detail visibility tiers', () => {
 
   it('the person sees their own private fields but NOT admin-only ones', () => {
     expect(canViewDetailField('date_of_birth', 'self')).toBe(true)
-    expect(canViewDetailField('address', 'self')).toBe(true)
     expect(canViewDetailField('joined_on', 'self')).toBe(false) // admin-only
   })
 
