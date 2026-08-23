@@ -4,9 +4,11 @@ import { selectProfileDetailsById, selectActiveProfilesByRoles } from '@/lib/dat
 import { loadStudentSubjects, loadTutorRoster } from '@/lib/services/page-data/user-detail'
 import { canManageTarget } from '@/lib/services/users/admin-lifecycle'
 import { listSubjects } from '@/lib/services/subjects'
+import { listGuardians } from '@/lib/services/guardians'
 import { AlertBanner, BackLink, Card, EmptyState } from '@/lib/ui'
 import { DetailsCard } from './DetailsCard'
 import { SubjectsPanel } from './SubjectsPanel'
+import { GuardiansPanel } from './GuardiansPanel'
 
 export default async function UserDetailPage(props: {
   params: Promise<{ id: string }>
@@ -18,9 +20,9 @@ export default async function UserDetailPage(props: {
   const profile = await selectProfileDetailsById(id)
   if (!profile) notFound()
   // manageUsers opens the page, but the tier rule decides WHOSE record you may see:
-  // a sub_admin may read tutor/student profiles only, never the admin tier or mentor
-  // accounts (the same boundary revoke/edit enforce). Treat a disallowed target as
-  // absent rather than disclosing its personal detail.
+  // a sub_admin may read tutor/mentor/student profiles (the same tier they manage),
+  // never the ADMIN tier (the same boundary revoke/edit enforce). Treat a disallowed
+  // target as absent rather than disclosing its personal detail.
   if (!(await canManageTarget(me, profile.role))) notFound()
 
   const isStudent = profile.role === 'student'
@@ -36,9 +38,15 @@ export default async function UserDetailPage(props: {
       <DetailsCard profile={profile} />
 
       {isStudent && <StudentSubjects studentId={id} />}
+      {isStudent && <StudentGuardians studentId={id} />}
       {isTeacher && <TutorRoster tutorId={id} />}
     </main>
   )
+}
+
+async function StudentGuardians({ studentId }: { studentId: string }) {
+  const guardians = await listGuardians(studentId)
+  return <GuardiansPanel studentId={studentId} guardians={guardians} />
 }
 
 async function StudentSubjects({ studentId }: { studentId: string }) {
