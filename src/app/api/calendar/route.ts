@@ -6,14 +6,17 @@ import { listSlots } from '@/lib/services/timetable-slots'
 import { listEvents } from '@/lib/services/calendar-events'
 import { listAssignments } from '@/lib/services/assignments'
 import { listMeetLinks } from '@/lib/services/meet-links'
+import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
+import { getProfileNamesByIds } from '@/lib/services/users'
 import { expandSlots, zonedDayStartMs, nextCalendarDate, type ExpandableSlot } from '@/lib/time/expand-slots'
 import { mergeCalendar } from '@/lib/calendar/merge'
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(request: Request) {
+  let actor
   try {
-    await requireCapabilityApi('viewCalendar')
+    actor = await requireCapabilityApi('viewCalendar')
   } catch (error) {
     return authFail(error)
   }
@@ -74,7 +77,7 @@ export async function GET(request: Request) {
         const ms = Date.parse(a.due_date)
         return ms >= windowStartMs && ms < windowEndMs
       })
-      .map((a) => ({ id: a.id, title: a.title, due_date: a.due_date, class_id: a.class_id }))
+      .map((a) => ({ id: a.id, title: a.title, due_date: a.due_date, class_id: a.class_id, type: a.type }))
 
     // Scheduled meet links whose start falls in the window (RLS already scoped the
     // list to what this actor may see). Unscheduled/always-available links have no
@@ -87,9 +90,39 @@ export async function GET(request: Request) {
       })
       .map((m) => ({ id: m.id, title: m.title, scheduled_at: m.scheduled_at as string, class_id: m.class_id }))
 
+    // A viewer who sees more than their own class (any non-student persona) gets every
+    // class-scoped item - slots, events, assignments/exams, meets - labelled with the
+    // class's enrolled student, so otherwise-identical rows across students are
+    // distinguishable. A student's feed is already only their own class, so no label.
+    let classLabels: Record<string, string> | undefined
+    if (actor.role !== 'student') {
+      const labelClassIds = [
+        ...new Set(
+          [
+            ...slots.map((s) => s.class_id),
+            ...events.map((e) => e.class_id),
+            ...dueInRange.map((a) => a.class_id),
+            ...meetsInRange.map((m) => m.class_id),
+          ].filter((id): id is string => id != null),
+        ),
+      ]
+      if (labelClassIds.length > 0) {
+        const refs = await selectActiveEnrollmentRefsByClassIds(labelClassIds)
+        const names = await getProfileNamesByIds([...new Set(refs.map((ref) => ref.student_id))])
+        const byClass: Record<string, string> = {}
+        for (const ref of refs) {
+          const name = names.get(ref.student_id)
+          // One active student per class in the 1:1 model; keep the first if ever more.
+          if (name && !byClass[ref.class_id]) byClass[ref.class_id] = name
+        }
+        classLabels = byClass
+      }
+    }
+
     const items = mergeCalendar({
       slotOccurrences,
       slotMeta,
+      classLabels,
       events: events.map((e) => ({
         id: e.id,
         title: e.title,

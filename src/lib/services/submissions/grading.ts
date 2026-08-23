@@ -5,7 +5,8 @@ import { getAssignment } from '@/lib/services/assignments'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { notifyBestEffort } from '@/lib/services/notifications'
-import { updateGrade } from '@/lib/data/submissions'
+import { updateGrade, selectActiveSubmissionIdForStudent, insertResultGrade } from '@/lib/data/submissions'
+import { selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
 import { gradeSchema } from '@/lib/validation/assignment'
 import { z } from 'zod'
 import { getSubmission } from './queries'
@@ -109,4 +110,103 @@ export async function gradeSubmissionFromActionInput(
   input: GradeSubmissionActionInput,
 ): Promise<{ assignmentId: string }> {
   return gradeSubmission(actor, validateGradeSubmissionInput(input))
+}
+
+/** A TUTOR recording a mark for IN-PERSON work (an exam/quiz/test with no online
+ *  submission). Keyed on (assignment, student) rather than a submission id: there
+ *  may be no submission to reference, so the mark lands on the student's active
+ *  submission if one exists, else on a fresh graded result row - which then feeds
+ *  the report card exactly like a graded upload. A null score clears the mark. */
+export type GradeStudentResultInput = {
+  assignmentId: string
+  studentId: string
+  score: number | null
+  feedback: string | null
+}
+
+export type GradeStudentResultActionInput = {
+  assignment_id?: FormDataEntryValue | null
+  student_id?: FormDataEntryValue | null
+  score?: FormDataEntryValue | null
+  feedback?: FormDataEntryValue | null
+}
+
+export function validateGradeStudentResultInput(input: GradeStudentResultActionInput): GradeStudentResultInput {
+  const assignmentId = submissionIdSchema.safeParse(String(input.assignment_id ?? '').trim())
+  const studentId = submissionIdSchema.safeParse(String(input.student_id ?? '').trim())
+  if (!assignmentId.success || !studentId.success) {
+    throw new ValidationError('Missing assignment or student.')
+  }
+  const scoreRaw = String(input.score ?? '').trim()
+  const feedbackRaw = String(input.feedback ?? '').trim()
+  const parsed = gradeSchema.safeParse({
+    score: scoreRaw === '' ? null : Number(scoreRaw),
+    feedback: feedbackRaw || undefined,
+  })
+  if (!parsed.success) {
+    throw new ValidationError('Enter a valid mark (0-9999.99).')
+  }
+  return {
+    assignmentId: assignmentId.data,
+    studentId: studentId.data,
+    score: parsed.data.score,
+    feedback: parsed.data.feedback ?? null,
+  }
+}
+
+export async function gradeStudentResult(
+  actor: Profile,
+  input: GradeStudentResultInput,
+): Promise<{ assignmentId: string }> {
+  const assignment = await getAssignment(input.assignmentId)
+  if (!assignment || !(await canManageClass(actor, assignment.class_id))) {
+    throw new PermissionError('Not allowed to grade this.')
+  }
+  // Only an actively-enrolled student of THIS class may be marked - never an
+  // arbitrary profile id a crafted request supplied.
+  const enrolled = await selectActiveStudentIdsByClassIds([assignment.class_id])
+  if (!enrolled.includes(input.studentId)) {
+    throw new ValidationError('That student is not enrolled in this class.')
+  }
+  if (input.score != null && assignment.max_marks != null && input.score > Number(assignment.max_marks)) {
+    throw new ValidationError(`Mark can't exceed the maximum (${Number(assignment.max_marks)}).`)
+  }
+
+  const cleared = input.score == null
+  const patch = {
+    score: input.score,
+    feedback: cleared ? null : input.feedback,
+    graded_at: cleared ? null : new Date().toISOString(),
+    graded_by: cleared ? null : actor.id,
+  }
+  const existingId = await selectActiveSubmissionIdForStudent(input.assignmentId, input.studentId)
+  if (existingId) {
+    await updateGrade(existingId, patch)
+  } else if (!cleared) {
+    // No submission yet - create the graded result row. (Clearing a non-existent
+    // mark is a no-op.)
+    await insertResultGrade(input.assignmentId, input.studentId, {
+      score: input.score as number,
+      feedback: input.feedback,
+      graded_at: patch.graded_at as string,
+      graded_by: actor.id,
+    })
+  }
+  await auditPrivilegedAction(actor, 'submission.grade', 'submission', existingId ?? input.assignmentId)
+  if (!cleared) {
+    await notifyBestEffort([input.studentId], {
+      kind: 'grade',
+      title: 'Your work was graded',
+      body: assignment.title,
+      link: `/classroom/${assignment.class_id}/classwork`,
+    })
+  }
+  return { assignmentId: input.assignmentId }
+}
+
+export async function gradeStudentResultFromActionInput(
+  actor: Profile,
+  input: GradeStudentResultActionInput,
+): Promise<{ assignmentId: string }> {
+  return gradeStudentResult(actor, validateGradeStudentResultInput(input))
 }

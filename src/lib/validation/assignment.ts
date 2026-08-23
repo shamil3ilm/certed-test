@@ -24,6 +24,13 @@ export const createAssignmentSchema = z.object({
   // Hard deadline: when true, submissions close after due_date (enforced in
   // recordSubmission). Optional/absent -> false (always-accept-late, the default).
   enforce_deadline: z.boolean().optional(),
+  // The kind of classwork. Absent -> 'assignment' (today's behaviour).
+  type: z.enum(['assignment', 'exam', 'quiz', 'test', 'project']).optional(),
+  // Whether a student submits online. Absent -> defaulted from type in the service
+  // (false for a sat exam/quiz/test, true otherwise).
+  expects_submission: z.boolean().optional(),
+  // Optional END of a timed window (e.g. a 10:00-12:00 exam); due_date is the start.
+  ends_at: isoDate.optional(),
 })
 
 /** A tutor's mark + optional feedback on one submission. A null score un-grades it. */

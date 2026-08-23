@@ -14,7 +14,7 @@ import { Field, Input, SubmitButton, Textarea } from '../../form'
 import { restoreMeetLinkAction } from '../../meetings/actions'
 import { MeetList } from '../../meetings/MeetList'
 import { AttachmentList } from './AttachmentList'
-import { AttachmentList as CustodialAttachmentList } from '../../AttachmentList'
+import { AnnouncementAttachments } from './AnnouncementAttachments'
 import { StreamComposer } from './StreamComposer'
 import {
   AlertBanner,
@@ -112,9 +112,10 @@ export default async function ClassStreamPage(props: {
                   </h3>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{a.message}</p>
                   <AttachmentList attachments={a.attachments} />
-                  <CustodialAttachmentList
-                    attachments={data.attachmentsByAnnouncement.get(a.id) ?? []}
-                    className="mt-2"
+                  <AnnouncementAttachments
+                    announcementId={a.id}
+                    initialAttachments={data.attachmentsByAnnouncement.get(a.id) ?? []}
+                    canManage={data.canManageContent && (data.isAdmin || a.class_id === course.id)}
                   />
                   <p className="mt-2 text-xs text-slate-400">
                     <LocalTime iso={a.created_at} />

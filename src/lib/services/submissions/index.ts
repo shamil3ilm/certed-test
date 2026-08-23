@@ -30,4 +30,10 @@ export {
 export type { RecordSubmissionInput, RecordSubmissionActionInput } from './student-actions'
 
 export { validateGradeSubmissionInput, gradeSubmission, gradeSubmissionFromActionInput } from './grading'
+export {
+  validateGradeStudentResultInput,
+  gradeStudentResult,
+  gradeStudentResultFromActionInput,
+  type GradeStudentResultInput,
+} from './grading'
 export type { GradeSubmissionInput, GradeSubmissionActionInput } from './grading'

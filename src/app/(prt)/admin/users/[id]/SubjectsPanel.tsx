@@ -3,7 +3,7 @@ import { Card, EmptyState } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import type { StudentSubject } from '@/lib/services/page-data/user-detail'
-import { addSubjectAction, removeSubjectAction } from './actions'
+import { addSubjectAction, addSubjectTutorAction, removeSubjectTutorAction, removeSubjectAction } from './actions'
 
 type TutorOption = { id: string; name: string }
 
@@ -33,27 +33,68 @@ export function SubjectsPanel({
       ) : (
         <ul className="mt-3 divide-y divide-slate-100">
           {subjects.map((s) => (
-            <li key={s.classId} className="flex items-center justify-between gap-3 py-2 text-sm">
-              <span>
-                <span className="font-medium text-slate-900">{s.subjectName}</span>
-                {s.tutorName ? (
-                  <span className="text-slate-500"> - {s.tutorName}</span>
+            <li key={s.classId} className="py-2 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="min-w-[8rem] font-medium text-slate-900">{s.subjectName}</span>
+                <form action={removeSubjectAction}>
+                  <input type="hidden" name="student_id" value={studentId} />
+                  <input type="hidden" name="class_id" value={s.classId} />
+                  <ConfirmSubmit
+                    className="btn btn-sm btn-danger"
+                    title="Remove this subject?"
+                    message="The class is archived (kept on record) and stops appearing in schedules."
+                    confirmLabel="Remove"
+                  >
+                    Remove
+                  </ConfirmSubmit>
+                </form>
+              </div>
+              {/* A subject may have SEVERAL tutors: list each with its own remove, and an
+                  add-tutor picker that never touches the others. */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {s.tutors.length === 0 ? (
+                  <span className="text-xs text-amber-600">No tutor yet</span>
                 ) : (
-                  <span className="text-amber-600"> - no tutor yet</span>
+                  s.tutors.map((t) => (
+                    <span
+                      key={t.id}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                    >
+                      {t.name}
+                      <form action={removeSubjectTutorAction} className="contents">
+                        <input type="hidden" name="student_id" value={studentId} />
+                        <input type="hidden" name="class_id" value={s.classId} />
+                        <input type="hidden" name="tutor_id" value={t.id} />
+                        <button
+                          type="submit"
+                          aria-label={`Remove ${t.name}`}
+                          title={`Remove ${t.name}`}
+                          className="text-slate-400 hover:text-red-600"
+                        >
+                          ×
+                        </button>
+                      </form>
+                    </span>
+                  ))
                 )}
-              </span>
-              <form action={removeSubjectAction}>
-                <input type="hidden" name="student_id" value={studentId} />
-                <input type="hidden" name="class_id" value={s.classId} />
-                <ConfirmSubmit
-                  className="btn btn-sm btn-danger"
-                  title="Remove this subject?"
-                  message="The class is archived (kept on record) and stops appearing in schedules."
-                  confirmLabel="Remove"
-                >
-                  Remove
-                </ConfirmSubmit>
-              </form>
+                <form action={addSubjectTutorAction} className="flex items-center gap-1">
+                  <input type="hidden" name="student_id" value={studentId} />
+                  <input type="hidden" name="class_id" value={s.classId} />
+                  <Select name="tutor_id" defaultValue="" className="w-40" required>
+                    <option value="" disabled>
+                      Add tutor…
+                    </option>
+                    {tutors.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <SubmitButton className="btn-soft btn-sm" pendingLabel="Adding...">
+                    Add
+                  </SubmitButton>
+                </form>
+              </div>
             </li>
           ))}
         </ul>

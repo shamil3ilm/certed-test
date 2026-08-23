@@ -1,14 +1,17 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { Card, PageHeader, SectionLabel } from '@/lib/ui'
 import { getMessagingMatrixRecord } from '@/lib/services/messaging/matrix-config'
 import { MessagingMatrixForm } from './MessagingMatrixForm'
 
-/** Admin access hub: per-user capability editing lives in the Users flow, while
- *  academy-wide messaging rules live here as a shared matrix. */
+/** Admin access hub: per-user capability editing lives in the Users flow (open to
+ *  sub_admins too), while the academy-wide messaging matrix is ADMIN-only - it writes
+ *  org_settings, which the DB restricts to admins, so only admins see/edit it here. */
 export default async function AdminAccessManagementPage() {
-  await requireCapability('manageUsers')
-  const enabled = await getMessagingMatrixRecord()
+  const me = await requireCapability('manageUsers')
+  const { isAdmin } = await loadPersonaFlags(me.id)
+  const enabled = isAdmin ? await getMessagingMatrixRecord() : {}
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -32,16 +35,18 @@ export default async function AdminAccessManagementPage() {
         </Card>
       </section>
 
-      <section className="mt-8 space-y-3">
-        <SectionLabel>Messaging rules</SectionLabel>
-        <p className="text-sm text-slate-500">
-          Everyone can always message their <span className="font-medium text-slate-700">direct contacts</span> -
-          students and their class tutors, and mentors with their mentees and those mentees&apos; tutors. Tick a pair
-          below to <span className="font-medium text-slate-700">additionally</span> let everyone of one role message
-          everyone of another across the whole academy. All pairs are off by default.
-        </p>
-        <MessagingMatrixForm initialEnabled={enabled} />
-      </section>
+      {isAdmin && (
+        <section className="mt-8 space-y-3">
+          <SectionLabel>Messaging rules</SectionLabel>
+          <p className="text-sm text-slate-500">
+            Everyone can always message their <span className="font-medium text-slate-700">direct contacts</span> -
+            students and their class tutors, and mentors with their mentees and those mentees&apos; tutors. Tick a pair
+            below to <span className="font-medium text-slate-700">additionally</span> let everyone of one role message
+            everyone of another across the whole academy. All pairs are off by default.
+          </p>
+          <MessagingMatrixForm initialEnabled={enabled} />
+        </section>
+      )}
     </main>
   )
 }

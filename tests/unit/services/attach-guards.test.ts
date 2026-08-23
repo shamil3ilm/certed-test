@@ -8,7 +8,11 @@ vi.mock('@/lib/data/attachments', () => ({ selectActiveAttachmentsForOwner: vi.f
 vi.mock('@/lib/permission/documents', () => ({ assertCanDocument: vi.fn() }))
 vi.mock('@/lib/permission/class', () => ({ assertClassActive: vi.fn() }))
 
-import { assertSubmissionAcceptsWork, assertMayAttachToResource } from '@/lib/services/attachments/attach-guards'
+import {
+  assertSubmissionAcceptsWork,
+  assertMayAttachToResource,
+  assertUnderAttachmentCap,
+} from '@/lib/services/attachments/attach-guards'
 import { selectSubmissionStateAsService } from '@/lib/data/submissions-service-reads'
 import { selectAssignmentStateAsService } from '@/lib/data/assignments'
 import { selectResourceForAttachAsService } from '@/lib/data/resources'
@@ -122,5 +126,18 @@ describe('assertMayAttachToResource (Vuln 3 - a replacement is an edit, not a ba
       'edit',
       expect.objectContaining({ uploaded_by: 'tutor-1', visibility: 'class' }),
     )
+  })
+})
+
+describe('assertUnderAttachmentCap (server-side spam guard, max 5 active)', () => {
+  it('allows an upload below the cap', async () => {
+    vi.mocked(selectActiveAttachmentsForOwner).mockResolvedValueOnce([{ id: '1' }, { id: '2' }] as never)
+    await expect(assertUnderAttachmentCap({ kind: 'submission', id: 's-1' })).resolves.toBeUndefined()
+  })
+  it('rejects once the owner already has 5 active attachments', async () => {
+    vi.mocked(selectActiveAttachmentsForOwner).mockResolvedValueOnce(
+      [1, 2, 3, 4, 5].map((n) => ({ id: String(n) })) as never,
+    )
+    await expect(assertUnderAttachmentCap({ kind: 'assignment', id: 'a-1' })).rejects.toBeInstanceOf(ValidationError)
   })
 })

@@ -1,35 +1,37 @@
 import Link from 'next/link'
-import { listEvents } from '@/lib/services/calendar-events'
+import { listAssignments } from '@/lib/services/assignments'
 import { listClassesByIds } from '@/lib/services/classes'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { todayInZone } from '@/lib/time/format'
+import { zonedDayStartMs } from '@/lib/time/expand-slots'
 import { ACADEMY_WIDE_LABEL, Panel } from '@/lib/ui'
 import { WIDGET_CTA_LINK, WIDGET_ROW_STACK } from './widget-shared'
 
 const EXAM_LIMIT = 5
 
-/** Formats a wall-clock calendar date (YYYY-MM-DD) without timezone drift - parsed
- *  at UTC noon and printed in UTC. These dates are wall-clock, not instants. */
-function formatExamDate(dateYmd: string): string {
-  const parsed = new Date(`${dateYmd}T12:00:00Z`)
-  if (Number.isNaN(parsed.getTime())) return dateYmd
+/** Formats an absolute instant as a short date + time in the institute timezone. */
+function formatExamWhen(iso: string, tz: string): string {
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    timeZone: 'UTC',
-  }).format(parsed)
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: tz,
+  }).format(new Date(iso))
 }
 
 /**
- * Upcoming exams on the dashboard: calendar events of kind 'exam' dated today or
- * later, soonest first, scoped by RLS to the viewer's classes + global events.
- * Reuses calendar_events (title, date, optional time, class scope) and listEvents -
- * no exam-specific table or query. Past exams are excluded by `from: today`.
+ * Upcoming exams on the dashboard: assignments of type 'exam' dated today or later,
+ * soonest first, scoped by RLS to the viewer's classes. Exams are typed assignments
+ * (migration 0071), so this reads the assignments table - NOT the legacy
+ * calendar_events 'exam' kind, which is no longer created. Past exams are excluded
+ * by `dueFrom: start-of-today`.
  */
 export async function UpcomingExamsWidget() {
-  const today = todayInZone(await getInstituteTimeZone())
-  const exams = await listEvents({ from: today, kind: 'exam', limit: EXAM_LIMIT })
+  const tz = await getInstituteTimeZone()
+  const fromIso = new Date(zonedDayStartMs(todayInZone(tz), tz)).toISOString()
+  const exams = (await listAssignments({ type: 'exam', activeOnly: true, dueFrom: fromIso })).slice(0, EXAM_LIMIT)
 
   if (exams.length === 0) {
     return (
@@ -40,7 +42,7 @@ export async function UpcomingExamsWidget() {
   }
 
   // Resolve the class/subject name for the (few) exams in one batched query - no N+1.
-  const classIds = [...new Set(exams.map((exam) => exam.class_id).filter((id): id is string => id != null))]
+  const classIds = [...new Set(exams.map((exam) => exam.class_id))]
   const classes = classIds.length ? await listClassesByIds(classIds) : []
   const classNameById = new Map(classes.map((course) => [course.id, course.name]))
 
@@ -49,17 +51,14 @@ export async function UpcomingExamsWidget() {
       <ul className="space-y-2 text-sm">
         {exams.map((exam) => (
           <li key={exam.id}>
-            <Link href="/calendar" className={WIDGET_ROW_STACK}>
+            <Link href={`/assignments/${exam.id}`} className={WIDGET_ROW_STACK}>
               <span className="w-full truncate font-medium" title={exam.title}>
                 {exam.title}
               </span>
-              <span className="shrink-0 text-xs text-slate-400">
-                {formatExamDate(exam.event_date)}
-                {exam.start_time ? ` - ${exam.start_time.slice(0, 5)}` : ''}
-              </span>
+              <span className="shrink-0 text-xs text-slate-400">{formatExamWhen(exam.due_date, tz)}</span>
             </Link>
             <p className="mt-0.5 truncate text-xs text-slate-400">
-              {exam.class_id ? (classNameById.get(exam.class_id) ?? 'Class') : ACADEMY_WIDE_LABEL}
+              {classNameById.get(exam.class_id) ?? ACADEMY_WIDE_LABEL}
             </p>
           </li>
         ))}

@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ValidationError } from '@/lib/errors'
 import type { SubmissionRow } from './submissions-shared'
 
 /**
@@ -67,4 +68,55 @@ export async function updateGrade(
     .select('id')
   if (error) throw new Error(`submissions.grade: ${error.message}`)
   return (data?.length ?? 0) > 0
+}
+
+/** The id of a student's ACTIVE submission for an assignment, or null. Service-role:
+ *  used by the tutor result-grading path, which isn't in the submissions RLS. */
+export async function selectActiveSubmissionIdForStudent(
+  assignmentId: string,
+  studentId: string,
+): Promise<string | null> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('submissions')
+    .select('id')
+    .eq('assignment_id', assignmentId)
+    .eq('student_id', studentId)
+    .eq('is_active', true)
+  if (error) throw new Error(`submissions.activeForStudent: ${error.message}`)
+  return (data as { id: string }[] | null)?.[0]?.id ?? null
+}
+
+/** Creates a GRADED, submission-less result row for in-person work (no student
+ *  upload). drive_link/file_name stay null; the mark is written straight onto the
+ *  new active row so the report card (which reads active submissions' scores) picks
+ *  it up. Service-role: tutor writes aren't in the submissions RLS. Caller must have
+ *  authorized the class and confirmed the student is enrolled. */
+export async function insertResultGrade(
+  assignmentId: string,
+  studentId: string,
+  patch: { score: number; feedback: string | null; graded_at: string; graded_by: string },
+): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('submissions').insert({
+    assignment_id: assignmentId,
+    student_id: studentId,
+    drive_link: null,
+    file_name: null,
+    status: 'submitted',
+    is_active: true,
+    score: patch.score,
+    feedback: patch.feedback,
+    graded_at: patch.graded_at,
+    graded_by: patch.graded_by,
+  })
+  if (error) {
+    // 23505 = submissions_one_active: the student submitted their own work between our
+    // read and this insert. Surface the same friendly "reload" guidance as the
+    // update-grade race path, not a raw 500.
+    if (error.code === '23505') {
+      throw new ValidationError('This student just submitted their own work - reload and grade the latest submission.')
+    }
+    throw new Error(`submissions.resultInsert: ${error.message}`)
+  }
 }

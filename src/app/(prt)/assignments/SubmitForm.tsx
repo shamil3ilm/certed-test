@@ -7,6 +7,7 @@ import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
 import { AttachmentUploader } from '../AttachmentUploader'
 import { AttachmentList, type AttachmentView } from '../AttachmentList'
+import { MAX_ATTACHMENTS_PER_OWNER } from '@/lib/attachments/validation'
 import { startSubmissionAction, submitLinkAction } from './submit-actions'
 
 /**
@@ -77,10 +78,18 @@ export function SubmitForm({
 
       <div>
         <p className="mb-1 text-xs font-medium text-slate-500">Upload your work</p>
-        <AttachmentUploader owner="submission" resolveOwnerId={resolveSubmissionId} onUploaded={onUploaded} />
-        <p className="mt-1 text-xs text-slate-400">
-          Kept by the academy - PDF, Office documents, images or zip, up to 25 MB.
-        </p>
+        {attachments.length < MAX_ATTACHMENTS_PER_OWNER ? (
+          <>
+            <AttachmentUploader owner="submission" resolveOwnerId={resolveSubmissionId} onUploaded={onUploaded} />
+            <p className="mt-1 text-xs text-slate-400">
+              Kept by the academy - PDF, Office documents, images or zip, up to 25 MB.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-slate-400">
+            You&apos;ve attached the maximum of {MAX_ATTACHMENTS_PER_OWNER} files.
+          </p>
+        )}
       </div>
 
       <details className="text-xs">

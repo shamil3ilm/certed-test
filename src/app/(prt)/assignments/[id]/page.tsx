@@ -5,6 +5,7 @@ import { CommentThread } from '../../CommentThread'
 import { LocalTime } from '../../LocalTime'
 import { Avatar, Badge, BackLink, Card, EmptyState, ExternalActionLink, PageHeader, statusLabel } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
+import { ResultGradeForm } from '../ResultGradeForm'
 
 export default async function AssignmentDetail(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -21,13 +22,44 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
         title={data.assignment.title}
         description={
           <>
-            Due <LocalTime iso={data.assignment.due_date} /> - {data.submissions.length} submission(s)
+            {data.expectsSubmission ? 'Due ' : 'On '}
+            <LocalTime iso={data.assignment.due_date} />
+            {' - '}
+            {data.expectsSubmission ? `${data.submissions.length} submission(s)` : `${data.roster.length} student(s)`}
             {data.assignment.max_marks != null && <> - out of {Number(data.assignment.max_marks)}</>}
           </>
         }
       />
 
-      <div className="mt-6 space-y-4">
+      {!data.expectsSubmission && (
+        <div className="mt-6 space-y-4">
+          {data.roster.length === 0 && <EmptyState>No student enrolled yet.</EmptyState>}
+          {data.roster.map((entry) => (
+            <Card key={entry.studentId} className="p-4">
+              <div className="flex items-center gap-3">
+                <Avatar name={entry.studentName} role="student" />
+                <div>
+                  <p className="font-medium text-slate-900">{entry.studentName}</p>
+                  <p className="text-xs text-slate-400">
+                    {entry.submission?.score != null
+                      ? `Marked${data.assignment.max_marks != null ? ` - ${Number(entry.submission.score)}/${Number(data.assignment.max_marks)}` : ''}`
+                      : 'Not yet marked'}
+                  </p>
+                </div>
+              </div>
+              <ResultGradeForm
+                assignmentId={data.assignment.id}
+                studentId={entry.studentId}
+                maxMarks={data.assignment.max_marks}
+                score={entry.submission?.score ?? null}
+                feedback={entry.submission?.feedback ?? null}
+              />
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <div className={data.expectsSubmission ? 'mt-6 space-y-4' : 'hidden'}>
         {data.submissions.length === 0 && <EmptyState>No submissions yet.</EmptyState>}
 
         {data.submissions.map((submission) => (

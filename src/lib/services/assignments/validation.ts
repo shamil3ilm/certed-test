@@ -2,6 +2,7 @@ import { ValidationError } from '@/lib/errors'
 import { createAssignmentSchema } from '@/lib/validation/assignment'
 import { linkUrl } from '@/lib/validation/url'
 import { titleField } from '@/lib/validation/fields'
+import type { AssignmentType } from '@/lib/data/assignments'
 import { z } from 'zod'
 
 /** Raw API/form values -> trusted inputs. Pure: no IO, no authorization. */
@@ -15,6 +16,9 @@ export type CreateAssignmentInput = {
   topic?: string | null
   max_marks?: number | null
   enforce_deadline?: boolean
+  type?: AssignmentType
+  expects_submission?: boolean
+  ends_at?: string | null
 }
 
 export type CreateAssignmentApiInput = {
@@ -26,6 +30,15 @@ export type CreateAssignmentApiInput = {
   topic?: unknown
   max_marks?: unknown
   enforce_deadline?: unknown
+  type?: unknown
+  expects_submission?: unknown
+  ends_at?: unknown
+}
+
+/** In-person assessments (exam/quiz/test) default to no online submission; other
+ *  classwork defaults to online submission. */
+export function defaultExpectsSubmission(type: AssignmentType): boolean {
+  return type === 'assignment' || type === 'project'
 }
 
 const assignmentIdSchema = z.string().uuid()
@@ -37,6 +50,8 @@ const editAssignmentActionSchema = z.object({
   due_date: z.string().datetime(),
   attachment_drive_link: z.string().trim(),
   topic: z.string().trim().max(60),
+  type: z.enum(['assignment', 'exam', 'quiz', 'test', 'project']).optional(),
+  ends_at: z.string().datetime().optional(),
 })
 
 /** A checkbox form value ("on"/"true"/absent) -> boolean. */
@@ -61,6 +76,9 @@ export type EditAssignmentActionInput = {
   topic?: FormDataEntryValue | null
   max_marks?: FormDataEntryValue | null
   enforce_deadline?: FormDataEntryValue | null
+  type?: FormDataEntryValue | null
+  expects_submission?: FormDataEntryValue | null
+  ends_at?: FormDataEntryValue | null
 }
 
 export function validateArchiveAssignmentInput(input: ArchiveAssignmentActionInput): {
@@ -82,15 +100,28 @@ export function validateCreateAssignmentInput(input: CreateAssignmentApiInput): 
   if (!parsed.success) {
     throw new ValidationError('Invalid assignment data')
   }
+  const type = parsed.data.type ?? 'assignment'
+  const expectsSubmission = parsed.data.expects_submission ?? defaultExpectsSubmission(type)
+  const dueIso = new Date(parsed.data.due_date).toISOString()
+  let endsAt: string | null = null
+  if (parsed.data.ends_at) {
+    endsAt = new Date(parsed.data.ends_at).toISOString()
+    // Both are UTC ...Z ISO strings, so lexical compare is chronological.
+    if (endsAt <= dueIso) throw new ValidationError('End time must be after the start/due time')
+  }
   return {
     class_id: parsed.data.class_id,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
-    due_date: new Date(parsed.data.due_date).toISOString(),
+    due_date: dueIso,
     attachment_drive_link: parsed.data.attachment_drive_link ?? null,
     topic: parsed.data.topic ?? null,
     max_marks: parsed.data.max_marks ?? null,
-    enforce_deadline: parsed.data.enforce_deadline ?? false,
+    // In-person work has no online submission, so a submission deadline can't apply.
+    enforce_deadline: expectsSubmission ? (parsed.data.enforce_deadline ?? false) : false,
+    type,
+    expects_submission: expectsSubmission,
+    ends_at: endsAt,
   }
 }
 
@@ -104,8 +135,12 @@ export function validateEditAssignmentInput(input: EditAssignmentActionInput): {
     topic: string | null
     max_marks: number | null
     enforce_deadline: boolean
+    type?: AssignmentType
+    expects_submission?: boolean
+    ends_at?: string | null
   }
 } {
+  const hasTypeFields = input.type != null && String(input.type) !== ''
   const parsed = editAssignmentActionSchema.safeParse({
     id: String(input.id ?? ''),
     title: String(input.title ?? ''),
@@ -113,6 +148,8 @@ export function validateEditAssignmentInput(input: EditAssignmentActionInput): {
     due_date: String(input.due_date ?? ''),
     attachment_drive_link: String(input.attachment_drive_link ?? ''),
     topic: String(input.topic ?? ''),
+    type: hasTypeFields ? String(input.type) : undefined,
+    ends_at: input.ends_at != null && String(input.ends_at) !== '' ? String(input.ends_at) : undefined,
   })
   if (!parsed.success) {
     throw new ValidationError('Invalid assignment update data')
@@ -129,16 +166,38 @@ export function validateEditAssignmentInput(input: EditAssignmentActionInput): {
   if (Number.isNaN(max_marks) || max_marks <= 0 || max_marks > 9999.99) {
     throw new ValidationError('Max marks must be a positive number')
   }
+  const dueIso = new Date(parsed.data.due_date).toISOString()
+  const enforceDeadline = parseCheckbox(input.enforce_deadline)
+
+  // Classwork-type fields are only patched when the (updated) form sends them, so an
+  // older client that omits them leaves type/submission/window untouched rather than
+  // silently reverting an exam to a plain assignment.
+  const typePatch: { type?: AssignmentType; expects_submission?: boolean; ends_at?: string | null } = {}
+  if (hasTypeFields) {
+    const type = parsed.data.type ?? 'assignment'
+    const expectsSubmission = parseCheckbox(input.expects_submission)
+    let endsAt: string | null = null
+    if (parsed.data.ends_at) {
+      endsAt = new Date(parsed.data.ends_at).toISOString()
+      if (endsAt <= dueIso) throw new ValidationError('End time must be after the start/due time')
+    }
+    typePatch.type = type
+    typePatch.expects_submission = expectsSubmission
+    typePatch.ends_at = endsAt
+  }
+
   return {
     id: parsed.data.id,
     patch: {
       title: parsed.data.title,
       description: parsed.data.description || null,
-      due_date: new Date(parsed.data.due_date).toISOString(),
+      due_date: dueIso,
       attachment_drive_link: brief || null,
       topic: parsed.data.topic || null,
       max_marks,
-      enforce_deadline: parseCheckbox(input.enforce_deadline),
+      // In-person work has no online submission, so a deadline can't apply.
+      enforce_deadline: hasTypeFields && typePatch.expects_submission === false ? false : enforceDeadline,
+      ...typePatch,
     },
   }
 }

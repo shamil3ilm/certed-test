@@ -4,6 +4,7 @@ import { formatMark } from '@/lib/grades'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
 import { Badge, Card, statusLabel } from '@/lib/ui'
 import { EditAssignment } from '../../../assignments/EditAssignment'
+import { classworkTypeLabel } from '../../../assignments/classwork-types'
 import { SubmitForm } from '../../../assignments/SubmitForm'
 import { WithdrawButton } from '../../../assignments/WithdrawButton'
 import { archiveAssignmentAction } from '../../../assignments/manage-actions'
@@ -47,6 +48,7 @@ export async function AssignmentCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium text-slate-900">{assignment.title}</h3>
+            {assignment.type !== 'assignment' && <Badge tone="success">{classworkTypeLabel(assignment.type)}</Badge>}
             {assignment.topic && <Badge tone="primary">{assignment.topic}</Badge>}
             {assignment.max_marks != null ? (
               <span className="text-xs text-slate-400">/ {Number(assignment.max_marks)} marks</span>

@@ -43,9 +43,10 @@ describe('getAdminAnalytics', () => {
 describe('getTutorAnalytics', () => {
   it('sums working time, counts marked work, rates attendance, and returns class ids', async () => {
     vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
+    // Teaching hours come from the actual session window (start -> end).
     vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([
-      { tutor_join_at: '2026-07-01T10:00:00Z', tutor_leave_at: '2026-07-01T11:00:00Z' },
-      { tutor_join_at: '2026-07-02T10:00:00Z', tutor_leave_at: '2026-07-02T11:00:00Z' },
+      { actual_start: '2026-07-01T10:00:00Z', actual_end: '2026-07-01T11:00:00Z' },
+      { actual_start: '2026-07-02T10:00:00Z', actual_end: '2026-07-02T11:00:00Z' },
     ] as any)
     vi.mocked(selectAttendanceStatusesForClasses).mockResolvedValueOnce([
       { status: 'present' },

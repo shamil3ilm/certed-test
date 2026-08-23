@@ -61,7 +61,10 @@ export const VIEW_LABELS: Record<string, string> = {
   listYear: 'Agenda / year',
 }
 
-export const EVENT_KINDS = ['event', 'holiday', 'cancellation', 'reschedule', 'exam'] as const
+// 'exam' is intentionally NOT here: exams are now typed assignments (create one from
+// Assignments / Classwork with type = Exam). Legacy calendar_events of kind 'exam'
+// still render; the app just no longer creates new ones.
+export const EVENT_KINDS = ['event', 'holiday', 'cancellation', 'reschedule'] as const
 
 export function calendarUrl(from: string, to: string) {
   const params = new URLSearchParams({ from, to })

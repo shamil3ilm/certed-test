@@ -16,6 +16,8 @@ export type CalendarItem = {
   classId: string | null
   kind: string
   location?: string | null
+  /** For an assignment-source item, the classwork type. */
+  type?: 'assignment' | 'exam' | 'quiz' | 'test' | 'project'
 }
 
 export type CalendarPayload = { items: CalendarItem[] }

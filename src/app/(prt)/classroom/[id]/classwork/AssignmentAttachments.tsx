@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AttachmentUploader } from '../../../AttachmentUploader'
 import { AttachmentList, type AttachmentView } from '../../../AttachmentList'
+import { MAX_ATTACHMENTS_PER_OWNER } from '@/lib/attachments/validation'
 
 /**
  * The custodial PDF(s) attached to an assignment: a download/preview list for
@@ -36,8 +37,13 @@ export function AssignmentAttachments({
           <AttachmentList attachments={attachments} />
         </div>
       )}
-      {canManage && (
-        <AttachmentUploader owner="assignment" ownerId={assignmentId} onUploaded={onUploaded} accept=".pdf" />
+      {/* Capped at MAX_ATTACHMENTS_PER_OWNER (enforced server-side too): the uploader
+          hides once the assignment is at the limit. Attachments are never deleted here. */}
+      {canManage && attachments.length < MAX_ATTACHMENTS_PER_OWNER && (
+        <div>
+          <p className="mb-1 text-xs font-medium text-slate-500">Add Attachment</p>
+          <AttachmentUploader owner="assignment" ownerId={assignmentId} onUploaded={onUploaded} accept=".pdf" />
+        </div>
       )}
     </div>
   )

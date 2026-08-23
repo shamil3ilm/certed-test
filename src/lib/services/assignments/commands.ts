@@ -14,6 +14,7 @@ import {
 } from '@/lib/data/assignments'
 import { getAssignment, type Assignment } from './queries'
 import {
+  defaultExpectsSubmission,
   validateArchiveAssignmentInput,
   validateCreateAssignmentInput,
   validateEditAssignmentInput,
@@ -49,6 +50,9 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
     topic: input.topic ?? null,
     max_marks: input.max_marks ?? null,
     enforce_deadline: input.enforce_deadline ?? false,
+    type: input.type ?? 'assignment',
+    expects_submission: input.expects_submission ?? defaultExpectsSubmission(input.type ?? 'assignment'),
+    ends_at: input.ends_at ?? null,
     status: 'active',
     created_by: actor.id,
   })
@@ -64,9 +68,12 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
  * never fail creation.
  */
 async function notifyClassOfAssignment(assignment: Assignment): Promise<void> {
+  // "New exam: ..." / "New quiz: ..." reads better than a blanket "assignment" for
+  // the typed kinds; the notification's routing `kind` stays 'assignment'.
+  const label = assignment.type === 'assignment' ? 'assignment' : assignment.type
   await notifyClassRoleBestEffort(assignment.class_id, 'students', {
     kind: 'assignment',
-    title: `New assignment: ${assignment.title}`,
+    title: `New ${label}: ${assignment.title}`,
     body: assignment.description ? assignment.description.slice(0, 140) : null,
     link: `/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`,
   })
@@ -135,11 +142,15 @@ export async function editAssignment(actor: Profile, id: string, patch: Assignme
       topic: field('topic'),
       max_marks: field('max_marks'),
     })
-    // enforce_deadline is orthogonal to lateness, so it isn't part of the
-    // reclassify RPC - apply it directly so a same-edit toggle still takes effect.
-    if (patch.enforce_deadline !== undefined) {
-      await updateAssignment(id, { enforce_deadline: patch.enforce_deadline })
-    }
+    // enforce_deadline + the classwork-type fields are orthogonal to lateness, so
+    // they aren't part of the reclassify RPC - apply any that changed directly, so a
+    // same-edit toggle still takes effect.
+    const extra: AssignmentPatch = {}
+    if (patch.enforce_deadline !== undefined) extra.enforce_deadline = patch.enforce_deadline
+    if (patch.type !== undefined) extra.type = patch.type
+    if (patch.expects_submission !== undefined) extra.expects_submission = patch.expects_submission
+    if (patch.ends_at !== undefined) extra.ends_at = patch.ends_at
+    if (Object.keys(extra).length > 0) await updateAssignment(id, extra)
   } else {
     await updateAssignment(id, patch)
   }

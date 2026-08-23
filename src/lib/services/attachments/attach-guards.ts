@@ -4,7 +4,8 @@ import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 import { selectSubmissionStateAsService } from '@/lib/data/submissions-service-reads'
 import { selectAssignmentStateAsService } from '@/lib/data/assignments'
 import { selectResourceForAttachAsService } from '@/lib/data/resources'
-import { selectActiveAttachmentsForOwner } from '@/lib/data/attachments'
+import { selectActiveAttachmentsForOwner, type AttachmentOwner } from '@/lib/data/attachments'
+import { MAX_ATTACHMENTS_PER_OWNER } from '@/lib/attachments/validation'
 import { assertCanDocument } from '@/lib/permission/documents'
 import { assertClassActive } from '@/lib/permission/class'
 
@@ -35,6 +36,20 @@ export async function assertSubmissionAcceptsWork(actor: Profile, submissionId: 
   if (!assignment || assignment.status !== 'active') throw new NotFoundError()
   if (assignment.enforce_deadline && Date.parse(assignment.due_date) < Date.now()) {
     throw new ValidationError('This assignment is closed - its deadline has passed.')
+  }
+}
+
+/**
+ * A guardrail against runaway/spam uploads: cap the number of ACTIVE attachments on an
+ * owner. Applied to the purely-additive owners (submission / assignment / announcement);
+ * resources are NOT capped here because a document replace supersedes its prior file, so
+ * its active count stays at one and a cap would wrongly freeze it. Enforced server-side
+ * because the UI hide is bypassable via a direct PostgREST/API call.
+ */
+export async function assertUnderAttachmentCap(owner: AttachmentOwner): Promise<void> {
+  const existing = await selectActiveAttachmentsForOwner(owner)
+  if (existing.length >= MAX_ATTACHMENTS_PER_OWNER) {
+    throw new ValidationError(`You can attach at most ${MAX_ATTACHMENTS_PER_OWNER} files here.`)
   }
 }
 

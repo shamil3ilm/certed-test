@@ -57,7 +57,9 @@ export async function getTutorAnalytics(me: Profile): Promise<TutorAnalytics> {
   ])
   const submissions = assignments.length ? await listActiveSubmissions(assignments.map((a) => a.id)) : []
   const graded = submissions.filter((s) => s.score != null && s.graded_at != null).length
-  const teachingMinutes = sumMinutes(sessions.map((s) => minutesBetween(s.tutor_join_at, s.tutor_leave_at)))
+  // Teaching hours come from the recorded session window (start -> end). The session
+  // form records this actual window (the separate tutor join/leave fields were retired).
+  const teachingMinutes = sumMinutes(sessions.map((s) => minutesBetween(s.actual_start, s.actual_end)))
   const attendance = summarizeAttendance(statuses as ReadonlyArray<{ status: AttendanceStatus }>)
   return {
     teachingHours: formatHours(teachingMinutes),

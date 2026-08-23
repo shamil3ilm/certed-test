@@ -119,7 +119,7 @@ describe('loadAdminUsersPageData', () => {
     expect(result.mentorsByStudent.get('s1')).toEqual([{ id: 'm1', mentor_id: 't1', student_id: 's1' }])
   })
 
-  it('defaults invalid filters and uses restricted role options for sub-admins', async () => {
+  it('defaults invalid filters and offers sub-admins every non-admin role (student/tutor/mentor)', async () => {
     vi.mocked(isAdminTier).mockReturnValueOnce(false as any)
     vi.mocked(countUsersHubStats).mockResolvedValueOnce({ students: 0, tutors: 0, adminTier: 0 } as any)
     vi.mocked(listActiveMentorCandidates).mockResolvedValueOnce([] as any)
@@ -150,7 +150,7 @@ describe('loadAdminUsersPageData', () => {
       sortBy: undefined,
       sortOrder: undefined,
     })
-    expect(result.roleOptions).toEqual(['student', 'tutor'])
+    expect(result.roleOptions).toEqual(['student', 'tutor', 'mentor'])
   })
 
   it('maps the role filter to the roles it loads (staff spans tutor + mentor; admin spans admin + sub_admin; all spans everyone)', async () => {
@@ -171,9 +171,10 @@ describe('loadAdminUsersPageData', () => {
     )
   })
 
-  it('clamps a sub-admin to tutor/student rows whatever role filter is requested', async () => {
-    // A sub_admin (non-super) must never load admin-tier or mentor accounts, even by
-    // hand-editing ?role=admin - the read side mirrors the tier rule the writes use.
+  it('clamps a sub-admin to tutor/mentor/student rows whatever role filter is requested', async () => {
+    // A sub_admin (non-super) must never load the ADMIN tier, even by hand-editing
+    // ?role=admin - the read side mirrors the tier rule the writes use
+    // (SUB_ADMIN_MANAGEABLE: tutor/mentor/student).
     primeMocks(false)
     await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people', role: 'admin' })
     expect(listProfilesByRole).toHaveBeenLastCalledWith([], expect.objectContaining({ page: 1 }))
@@ -181,12 +182,20 @@ describe('loadAdminUsersPageData', () => {
     vi.mocked(listProfilesByRole).mockClear()
     primeMocks(false)
     await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people', role: 'staff' })
-    expect(listProfilesByRole).toHaveBeenLastCalledWith(['tutor'], expect.objectContaining({ page: 1 }))
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['tutor', 'mentor'], expect.objectContaining({ page: 1 }))
+
+    vi.mocked(listProfilesByRole).mockClear()
+    primeMocks(false)
+    await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people', role: 'mentor' })
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(['mentor'], expect.objectContaining({ page: 1 }))
 
     vi.mocked(listProfilesByRole).mockClear()
     primeMocks(false)
     await loadAdminUsersPageData({ id: 'sub', role: 'sub_admin' } as any, { tab: 'people' })
-    expect(listProfilesByRole).toHaveBeenLastCalledWith(['student', 'tutor'], expect.objectContaining({ page: 1 }))
+    expect(listProfilesByRole).toHaveBeenLastCalledWith(
+      ['student', 'tutor', 'mentor'],
+      expect.objectContaining({ page: 1 }),
+    )
   })
 
   it('always loads students on the Mentor-assignments tab, ignoring the role filter', async () => {

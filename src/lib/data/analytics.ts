@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import type { ClassSessionRow } from '@/lib/data/class-sessions'
 
 /**
@@ -45,40 +46,49 @@ export function countAuditByActorAction(actorId: string, action: string): Promis
  *  on the admin row. Sums the maintained counter rather than scanning the audit
  *  log, so it stays O(documents). */
 export async function sumResourceDownloads(): Promise<number> {
-  const { data, error } = await createAdminClient().from('resources').select('download_count').eq('status', 'active')
-  if (error) throw new Error(`analytics.sumResourceDownloads: ${error.message}`)
-  return ((data ?? []) as { download_count: number | null }[]).reduce((total, r) => total + (r.download_count ?? 0), 0)
+  const admin = createAdminClient()
+  const rows = await fetchAllPaged<{ download_count: number | null }>(
+    (from, to) => admin.from('resources').select('download_count').eq('status', 'active').range(from, to),
+    'analytics.sumResourceDownloads',
+  )
+  return rows.reduce((total, r) => total + (r.download_count ?? 0), 0)
 }
 
 /** Every session timing row for a set of classes - the base for teaching-hours
  *  and sessions-held. Empty in, empty out (no all-rows fetch on []). */
 export async function selectSessionsForClasses(classIds: string[]): Promise<ClassSessionRow[]> {
   if (classIds.length === 0) return []
-  const { data, error } = await createAdminClient()
-    .from('class_sessions')
-    .select('tutor_join_at, tutor_leave_at, class_id, session_date')
-    .in('class_id', classIds)
-  if (error) throw new Error(`analytics.selectSessionsForClasses: ${error.message}`)
-  return (data ?? []) as unknown as ClassSessionRow[]
+  const admin = createAdminClient()
+  const rows = await fetchAllPaged(
+    (from, to) =>
+      admin
+        .from('class_sessions')
+        .select('actual_start, actual_end, class_id, session_date')
+        .in('class_id', classIds)
+        .range(from, to),
+    'analytics.selectSessionsForClasses',
+  )
+  return rows as unknown as ClassSessionRow[]
 }
 
 /** A student's own attendance join/leave times - the base for learning-hours. */
 export async function selectTimedAttendanceForStudent(
   studentId: string,
 ): Promise<Array<{ join_at: string | null; leave_at: string | null }>> {
-  const { data, error } = await createAdminClient()
-    .from('attendance')
-    .select('join_at, leave_at')
-    .eq('student_id', studentId)
-  if (error) throw new Error(`analytics.selectTimedAttendanceForStudent: ${error.message}`)
-  return (data ?? []) as Array<{ join_at: string | null; leave_at: string | null }>
+  const admin = createAdminClient()
+  return fetchAllPaged<{ join_at: string | null; leave_at: string | null }>(
+    (from, to) => admin.from('attendance').select('join_at, leave_at').eq('student_id', studentId).range(from, to),
+    'analytics.selectTimedAttendanceForStudent',
+  )
 }
 
 /** Attendance statuses across a set of classes - the base for a tutor's overall
  *  attendance rate (summarized in the service). */
 export async function selectAttendanceStatusesForClasses(classIds: string[]): Promise<Array<{ status: string }>> {
   if (classIds.length === 0) return []
-  const { data, error } = await createAdminClient().from('attendance').select('status').in('class_id', classIds)
-  if (error) throw new Error(`analytics.selectAttendanceStatusesForClasses: ${error.message}`)
-  return (data ?? []) as Array<{ status: string }>
+  const admin = createAdminClient()
+  return fetchAllPaged<{ status: string }>(
+    (from, to) => admin.from('attendance').select('status').in('class_id', classIds).range(from, to),
+    'analytics.selectAttendanceStatusesForClasses',
+  )
 }

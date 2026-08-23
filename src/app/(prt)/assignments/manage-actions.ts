@@ -5,7 +5,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { ServiceError } from '@/lib/errors'
 import { archiveAssignmentFromActionInput, editAssignmentFromActionInput } from '@/lib/services/assignments'
-import { gradeSubmissionFromActionInput } from '@/lib/services/submissions'
+import { gradeSubmissionFromActionInput, gradeStudentResultFromActionInput } from '@/lib/services/submissions'
 import {
   archiveDocumentFromActionInput,
   restoreDocumentFromActionInput,
@@ -53,6 +53,10 @@ export async function editAssignmentAction(formData: FormData): Promise<ActionSt
       // average). The form always submits them - EditAssignment.tsx.
       topic: formData.get('topic'),
       max_marks: formData.get('max_marks'),
+      enforce_deadline: formData.get('enforce_deadline'),
+      type: formData.get('type'),
+      expects_submission: formData.get('expects_submission'),
+      ends_at: formData.get('ends_at'),
     })
     revalidatePath('/classroom', 'layout')
     return actionDone()
@@ -71,6 +75,25 @@ export async function gradeSubmissionAction(formData: FormData): Promise<ActionS
   try {
     const { assignmentId } = await gradeSubmissionFromActionInput(me, {
       submission_id: formData.get('submission_id'),
+      score: formData.get('score'),
+      feedback: formData.get('feedback'),
+    })
+    revalidatePath('/classroom', 'layout')
+    revalidatePath(`/assignments/${assignmentId}`)
+    return actionDone()
+  } catch (e) {
+    return toActionError(e)
+  }
+}
+
+/** Record a mark for in-person work (an exam/quiz/test with no online submission),
+ *  keyed on (assignment, student) rather than a submission id. */
+export async function recordResultAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('viewGrading')
+  try {
+    const { assignmentId } = await gradeStudentResultFromActionInput(me, {
+      assignment_id: formData.get('assignment_id'),
+      student_id: formData.get('student_id'),
       score: formData.get('score'),
       feedback: formData.get('feedback'),
     })

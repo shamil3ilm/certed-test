@@ -181,6 +181,27 @@ export async function selectActiveAttachmentsForOwner(owner: AttachmentOwner): P
 }
 
 /**
+ * Retire a resource's PRIOR active attachment(s) after a newer file has been uploaded,
+ * so only the newest stays active. A document is replace-by-newest (the download serves
+ * the newest active attachment), so this keeps exactly one active file - the count never
+ * climbs, which is what lets resources stay exempt from the per-owner cap without ever
+ * freezing. Soft-delete via the existing 'deleted' status (attachments_read hides it and
+ * the active indexes drop it); the row is kept and history lives in resource_versions.
+ * Service role: the caller has already authorized the replacement.
+ */
+export async function supersedePriorResourceAttachments(resourceId: string, exceptId: string): Promise<void> {
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+  const { error } = await admin
+    .from('attachments')
+    .update({ status: 'deleted', deleted_at: now, updated_at: now })
+    .eq('resource_id', resourceId)
+    .eq('status', 'active')
+    .neq('id', exceptId)
+  if (error) throw new Error(`attachments.supersedeResource: ${error.message}`)
+}
+
+/**
  * Live attachments for MANY owners of one kind, newest first (RLS-scoped). Lets a
  * list page (e.g. the class Stream) render every post's attachments in one query
  * instead of N. The caller groups the rows back onto each owner.

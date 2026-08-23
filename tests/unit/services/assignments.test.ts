@@ -36,6 +36,9 @@ const assignmentRow = {
   attachment_drive_link: null,
   topic: null,
   max_marks: 100,
+  type: 'assignment',
+  expects_submission: true,
+  ends_at: null,
   created_by: 'tutor-1',
   status: 'active',
   created_at: 't',
@@ -130,7 +133,38 @@ describe('createAssignment API-input helpers', () => {
       topic: 'Chapter 1',
       max_marks: 100,
       enforce_deadline: false,
+      type: 'assignment',
+      expects_submission: true,
+      ends_at: null,
     })
+  })
+
+  it('defaults an exam to no online submission and keeps its time window', () => {
+    const result = validateCreateAssignmentInput({
+      class_id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'Midterm',
+      due_date: '2026-07-20T09:00:00.000Z',
+      max_marks: 50,
+      type: 'exam',
+      ends_at: '2026-07-20T11:00:00.000Z',
+    })
+    expect(result.type).toBe('exam')
+    expect(result.expects_submission).toBe(false)
+    expect(result.ends_at).toBe('2026-07-20T11:00:00.000Z')
+    expect(result.enforce_deadline).toBe(false)
+  })
+
+  it('rejects a create whose ends_at is not after due_date', () => {
+    expect(() =>
+      validateCreateAssignmentInput({
+        class_id: '550e8400-e29b-41d4-a716-446655440000',
+        title: 'Midterm',
+        due_date: '2026-07-20T11:00:00.000Z',
+        max_marks: 50,
+        type: 'exam',
+        ends_at: '2026-07-20T10:00:00.000Z',
+      }),
+    ).toThrow(ValidationError)
   })
 
   it('rejects invalid create payloads with a typed validation error', () => {
@@ -256,6 +290,14 @@ describe('listAssignments', () => {
     const builder = client.from.mock.results[0].value
     expect(builder.in).toHaveBeenCalledWith('class_id', ['class-1', 'class-2'])
   })
+
+  it('filters by type via .eq() (the dashboard exam widget)', async () => {
+    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null })) }
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await listAssignments({ type: 'exam', activeOnly: true })
+    const builder = client.from.mock.results[0].value
+    expect(builder.eq).toHaveBeenCalledWith('type', 'exam')
+  })
 })
 
 describe('assignment action-input helpers', () => {
@@ -293,6 +335,42 @@ describe('assignment action-input helpers', () => {
         enforce_deadline: false,
       },
     })
+  })
+
+  it('patches the type/window fields on edit when the form sends them', () => {
+    const result = validateEditAssignmentInput({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'Midterm',
+      description: '',
+      due_date: '2026-07-20T09:00:00.000Z',
+      attachment_drive_link: '',
+      topic: '',
+      max_marks: '50',
+      type: 'exam',
+      expects_submission: '',
+      ends_at: '2026-07-20T11:00:00.000Z',
+      enforce_deadline: 'on',
+    })
+    expect(result.patch.type).toBe('exam')
+    expect(result.patch.expects_submission).toBe(false)
+    expect(result.patch.ends_at).toBe('2026-07-20T11:00:00.000Z')
+    // In-person -> the deadline can't apply, so it's forced off despite the checkbox.
+    expect(result.patch.enforce_deadline).toBe(false)
+  })
+
+  it('leaves the type fields untouched on edit when the form omits them (old client)', () => {
+    const result = validateEditAssignmentInput({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'HW',
+      description: '',
+      due_date: '2026-07-20T09:00:00.000Z',
+      attachment_drive_link: '',
+      topic: '',
+      max_marks: '20',
+    })
+    expect(result.patch).not.toHaveProperty('type')
+    expect(result.patch).not.toHaveProperty('expects_submission')
+    expect(result.patch).not.toHaveProperty('ends_at')
   })
 
   it('preserves topic and max_marks in the edit patch when supplied', () => {

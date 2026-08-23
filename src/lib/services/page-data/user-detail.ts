@@ -21,8 +21,8 @@ export type StudentSubject = {
   classId: string
   subjectId: string | null
   subjectName: string
-  tutorId: string | null
-  tutorName: string | null
+  /** A subject (1:1 class) may have MORE THAN ONE tutor for the same student. */
+  tutors: { id: string; name: string }[]
 }
 
 export type TutorRosterItem = {
@@ -42,24 +42,26 @@ export async function loadStudentSubjects(studentId: string): Promise<StudentSub
     selectActiveTutorPairsByClassIds(classIds),
   ])
   const subjectIds = [...new Set(classes.map((c) => c.subject_id).filter((id): id is string => Boolean(id)))]
-  const tutorByClass = new Map(tutorPairs.map((t) => [t.class_id, t.tutor_id]))
   const [subjects, tutors] = await Promise.all([
     selectSubjectsByIds(subjectIds),
     selectProfilesLiteByIds([...new Set(tutorPairs.map((t) => t.tutor_id))]),
   ])
   const subjectName = new Map(subjects.map((s) => [s.id, s.name]))
   const tutorById = new Map(tutors.map((t) => [t.id, t]))
+  // A class may have several active tutor pairs - collect ALL of them per class.
+  const tutorsByClass = new Map<string, { id: string; name: string }[]>()
+  for (const pair of tutorPairs) {
+    const list = tutorsByClass.get(pair.class_id) ?? []
+    list.push({ id: pair.tutor_id, name: nameOf(tutorById.get(pair.tutor_id)) ?? 'Tutor' })
+    tutorsByClass.set(pair.class_id, list)
+  }
   return classes
-    .map((c) => {
-      const tutorId = tutorByClass.get(c.id) ?? null
-      return {
-        classId: c.id,
-        subjectId: c.subject_id,
-        subjectName: c.subject_id ? (subjectName.get(c.subject_id) ?? c.name) : c.name,
-        tutorId,
-        tutorName: tutorId ? nameOf(tutorById.get(tutorId)) : null,
-      }
-    })
+    .map((c) => ({
+      classId: c.id,
+      subjectId: c.subject_id,
+      subjectName: c.subject_id ? (subjectName.get(c.subject_id) ?? c.name) : c.name,
+      tutors: tutorsByClass.get(c.id) ?? [],
+    }))
     .sort((a, b) => a.subjectName.localeCompare(b.subjectName))
 }
 

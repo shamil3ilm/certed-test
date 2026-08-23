@@ -3,16 +3,21 @@ import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
 import {
   selectRecentSessions,
   selectSession,
+  selectSessionAsService,
   upsertSession,
   writeStudentSessionFeedback,
   type ClassSessionRow,
 } from '@/lib/data/class-sessions'
-import { selectActiveClassIdsForStudent, selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
-import { studentHasAttendance } from '@/lib/data/attendance'
+import {
+  selectActiveClassIdsForStudent,
+  selectActiveEnrollmentRefsByClassIds,
+  selectActiveTutorRowsForClass,
+} from '@/lib/data/class-membership'
+import { studentHasAttendance, updateJoinAtAsService } from '@/lib/data/attendance'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { validateUuidField } from '@/lib/validation/id'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
@@ -37,26 +42,26 @@ const isoOrNull = z
   .nullable()
   .transform((v) => v || null)
 
+// The session records just three times now: start + end (the actual window) and the
+// student's entry. Start/end live on class_sessions; student entry is the enrolled
+// student's attendance join, kept as the single source so the mentor "Session times"
+// page and this form never diverge. scheduled/tutor columns are no longer collected.
 const sessionTimesSchema = z.object({
-  scheduled_start: isoOrNull,
-  scheduled_end: isoOrNull,
   actual_start: isoOrNull,
   actual_end: isoOrNull,
-  tutor_join_at: isoOrNull,
-  tutor_leave_at: isoOrNull,
 })
 
 export type SaveSessionActionInput = {
   classId?: FormDataEntryValue | null
   sessionDate?: FormDataEntryValue | null
   tutor_id?: FormDataEntryValue | null
-  scheduled_start?: FormDataEntryValue | null
-  scheduled_end?: FormDataEntryValue | null
   actual_start?: FormDataEntryValue | null
   actual_end?: FormDataEntryValue | null
-  tutor_join_at?: FormDataEntryValue | null
-  tutor_leave_at?: FormDataEntryValue | null
+  /** The enrolled student's entry time (their attendance join). Empty clears it. */
+  student_entry?: FormDataEntryValue | null
   summary?: FormDataEntryValue | null
+  /** A staff-private note, not shared with the student. */
+  staff_note?: FormDataEntryValue | null
 }
 
 /** The tutor to attribute a session to when none is specified: the recorder if they
@@ -78,16 +83,34 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     throw new ValidationError('Invalid session date.')
   }
   const parsed = sessionTimesSchema.safeParse({
-    scheduled_start: String(input.scheduled_start ?? ''),
-    scheduled_end: String(input.scheduled_end ?? ''),
     actual_start: String(input.actual_start ?? ''),
     actual_end: String(input.actual_end ?? ''),
-    tutor_join_at: String(input.tutor_join_at ?? ''),
-    tutor_leave_at: String(input.tutor_leave_at ?? ''),
   })
   if (!parsed.success) {
     throw new ValidationError('Invalid session times.')
   }
+
+  // Resolve + fully validate the student entry BEFORE any write, so a bad entry never
+  // leaves a half-saved session. Empty clears it. Entry is the enrolled student's
+  // attendance join, so it needs an existing attendance row (mark attendance first).
+  const studentEntryRaw = String(input.student_entry ?? '').trim()
+  let studentEntry: { studentId: string; joinAt: string } | null = null
+  if (studentEntryRaw) {
+    const entryDate = new Date(studentEntryRaw)
+    if (Number.isNaN(entryDate.getTime())) {
+      throw new ValidationError('Enter a valid student entry time.')
+    }
+    if (parsed.data.actual_end && entryDate.getTime() > Date.parse(parsed.data.actual_end)) {
+      throw new ValidationError('Student entry cannot be after the session end time.')
+    }
+    const student = (await selectActiveEnrollmentRefsByClassIds([classId]))[0]?.student_id
+    if (!student) throw new NotFoundError('This class has no active student.')
+    if (!(await studentHasAttendance(classId, student, sessionDate))) {
+      throw new ValidationError('Mark attendance for this student first, then set their entry time.')
+    }
+    studentEntry = { studentId: student, joinAt: entryDate.toISOString() }
+  }
+
   // The tutor attributed to a session must be a real tutor of this class. An EXPLICIT
   // id is admin-only unless it's the recorder's own, and is validated + confirmed
   // assigned to the class either way (so a mentor who passes their own id is rejected,
@@ -112,9 +135,15 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     class_id: classId,
     session_date: sessionDate,
     tutor_id: tutorId,
-    ...parsed.data,
+    actual_start: parsed.data.actual_start,
+    actual_end: parsed.data.actual_end,
     summary: noteField.parse(String(input.summary ?? '')),
+    staff_note: noteField.parse(String(input.staff_note ?? '')),
   })
+  // Entry was fully validated above (an attendance row exists), so this update lands.
+  if (studentEntry) {
+    await updateJoinAtAsService(classId, studentEntry.studentId, sessionDate, studentEntry.joinAt)
+  }
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId)
   return saved
 }
@@ -153,6 +182,14 @@ export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackAct
 
 export async function getSession(classId: string, date: string): Promise<ClassSession | null> {
   return selectSession(classId, date)
+}
+
+/** The session INCLUDING the staff-private note, for a manager's own view/form. The
+ *  caller must already have proved manage rights on the class (the attendance
+ *  page-data does, in its canManageClass branch). Service-role, because staff_note is
+ *  withheld from the authenticated SELECT grant (0070). */
+export async function getManagerSession(classId: string, date: string): Promise<ClassSession | null> {
+  return selectSessionAsService(classId, date)
 }
 
 export async function listRecentSessions(classId: string, limit?: number): Promise<ClassSession[]> {

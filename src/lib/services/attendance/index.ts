@@ -24,5 +24,5 @@ export { markAttendance, clearAttendanceSession } from './marking'
 export type { MarkAttendanceInput } from './marking'
 export type { AttendanceMark } from '@/lib/data/attendance'
 
-export { saveSessionTimes, saveSessionFeedback, getSession, listRecentSessions } from './sessions'
+export { saveSessionTimes, saveSessionFeedback, getSession, getManagerSession, listRecentSessions } from './sessions'
 export type { ClassSession, SaveSessionActionInput, SaveFeedbackActionInput } from './sessions'

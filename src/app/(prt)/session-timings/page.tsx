@@ -22,7 +22,7 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Session times"
-        description="Tutor joined, student joined and class end for your mentees' sessions. You can adjust a student's joined time."
+        description="Start time, student entry and end time for your mentees' sessions. You can adjust a student's entry time."
       />
 
       {rows.length === 0 ? (
@@ -42,13 +42,13 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                   Date
                 </th>
                 <th scope="col" className="p-2">
-                  Tutor joined
+                  Start time
                 </th>
                 <th scope="col" className="p-2">
-                  Class end
+                  End time
                 </th>
                 <th scope="col" className="p-2">
-                  Student joined
+                  Student entry
                 </th>
               </tr>
             </thead>
@@ -59,24 +59,20 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                   <td className="p-2 text-slate-600">{row.className}</td>
                   <td className="p-2 text-slate-600">{row.sessionDate}</td>
                   <td className="p-2 text-slate-600">
-                    {row.tutorJoinAt ? (
-                      <LocalTime iso={row.tutorJoinAt} mode="time" />
+                    {row.startAt ? (
+                      <LocalTime iso={row.startAt} mode="time" />
                     ) : (
                       <span className="text-slate-300">-</span>
                     )}
                   </td>
                   <td className="p-2 text-slate-600">
-                    {row.classEnd ? (
-                      <LocalTime iso={row.classEnd} mode="time" />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
+                    {row.endAt ? <LocalTime iso={row.endAt} mode="time" /> : <span className="text-slate-300">-</span>}
                   </td>
                   <td className="p-2">
                     <EditJoinTime
                       classId={row.classId}
                       sessionDate={row.sessionDate}
-                      studentJoinAt={row.studentJoinAt}
+                      studentJoinAt={row.studentEntryAt}
                     />
                   </td>
                 </tr>

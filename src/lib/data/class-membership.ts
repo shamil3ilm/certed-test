@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertMutated } from '@/lib/data/mutation'
+import { fetchAllPaged } from '@/lib/data/paginate'
 
 /**
  * Table access for the two membership tables - `class_tutors` and `enrollments`.
@@ -162,9 +163,12 @@ export async function deactivateClassTutor(classId: string, tutorId: string): Pr
  *  the caller only wants to tally head counts. RLS-scoped. */
 export async function selectAllActiveEnrollmentRefs(): Promise<MembershipRef[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('enrollments').select('class_id').eq('active', true)
-  if (error) throw new Error(`enrollments.countPerClass: ${error.message}`)
-  return (data ?? []) as MembershipRef[]
+  // Feeds the "students per class" tally, so it must count EVERY active enrolment,
+  // not just the first PostgREST page - page through all rows.
+  return fetchAllPaged<MembershipRef>(
+    (from, to) => supabase.from('enrollments').select('class_id').eq('active', true).range(from, to),
+    'enrollments.countPerClass',
+  )
 }
 
 /** Re-enrolling reactivates a previously soft-removed row, keeping its history. */

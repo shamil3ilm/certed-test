@@ -5,6 +5,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { ServiceError } from '@/lib/errors'
 import { createOrReuseSubject } from '@/lib/services/subjects'
 import { addSubjectToStudent } from '@/lib/services/class-subjects'
+import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/services/class-tutors'
 import { archiveClassFromActionInput } from '@/lib/services/classes/lifecycle'
 import { editUserFromActionInput } from '@/lib/services/users'
 
@@ -27,6 +28,33 @@ export async function addSubjectAction(formData: FormData) {
       subjectId: subject.id,
       tutorId: String(formData.get('tutor_id') ?? '').trim() || undefined,
     })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(errorUrl(studentId))
+    throw error
+  }
+  revalidatePath(`/admin/users/${studentId}`)
+}
+
+/** Add a tutor to a student's subject (its 1:1 class). A subject may have several
+ *  tutors, so this ADDS one without touching the others. manageClasses-gated. */
+export async function addSubjectTutorAction(formData: FormData) {
+  const me = await requireCapability('manageClasses')
+  const studentId = String(formData.get('student_id') ?? '')
+  try {
+    await addTutorFromActionInput(me, { class_id: formData.get('class_id'), tutor_id: formData.get('tutor_id') })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(errorUrl(studentId))
+    throw error
+  }
+  revalidatePath(`/admin/users/${studentId}`)
+}
+
+/** Remove ONE tutor from a student's subject, leaving any co-tutors in place. */
+export async function removeSubjectTutorAction(formData: FormData) {
+  const me = await requireCapability('manageClasses')
+  const studentId = String(formData.get('student_id') ?? '')
+  try {
+    await removeTutorFromActionInput(me, { class_id: formData.get('class_id'), tutor_id: formData.get('tutor_id') })
   } catch (error) {
     if (error instanceof ServiceError) redirect(errorUrl(studentId))
     throw error

@@ -2,6 +2,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { escapeOrIlike } from '@/lib/text/ilike'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import type { FinanceDoc, FinanceKind, FinanceLine } from './finance-docs'
 import { docColumns, KIND, toDoc, type FinanceTotal } from './finance-docs-shared'
 
@@ -20,9 +21,14 @@ export async function selectDocsForParty(kind: FinanceKind, partyId: string): Pr
 export async function selectAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
   const k = KIND[kind]
   const supabase = createAdminClient()
-  const { data, error } = await supabase.from(k.table).select(docColumns(k)).order('created_at', { ascending: false })
-  if (error) throw new Error(`${kind}.listAll: ${error.message}`)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row))
+  // The CSV export treats this as the COMPLETE ledger, so it must not stop at the
+  // PostgREST row cap - page through every row (see fetchAllPaged).
+  const rows = await fetchAllPaged(
+    (from, to) =>
+      supabase.from(k.table).select(docColumns(k)).order('created_at', { ascending: false }).range(from, to),
+    `${kind}.listAll`,
+  )
+  return (rows as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row))
 }
 
 export async function selectRecentDocs(kind: FinanceKind, limit: number): Promise<FinanceDoc[]> {

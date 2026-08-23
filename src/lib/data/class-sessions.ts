@@ -23,29 +23,64 @@ export type ClassSessionRow = {
   tutor_leave_at: string | null
   summary: string | null
   student_feedback: string | null
+  /** A staff-private note NOT shared with the student. The DB column grant (0070)
+   *  withholds it from the authenticated SELECT, so it is only ever read through the
+   *  service-role manager path below - never via the RLS client a student holds. */
+  staff_note: string | null
   created_at: string
   updated_at: string
 }
 
-// summary/student_feedback are written through their own paths (staff summary via
-// the session save, student feedback via writeStudentSessionFeedback), so they
-// are optional here and an omitted field is left untouched on conflict.
-export type ClassSessionUpsert = Omit<
-  ClassSessionRow,
-  'id' | 'created_at' | 'updated_at' | 'summary' | 'student_feedback'
-> & {
+// summary/student_feedback/staff_note are written through their own paths (staff
+// summary + staff_note via the session save, student feedback via
+// writeStudentSessionFeedback), so they are optional here and an omitted field is
+// left untouched on conflict. The timing columns are optional too: the session form
+// records only the actual window, and omitting the others preserves their values.
+export type ClassSessionUpsert = {
+  class_id: string
+  session_date: string
+  tutor_id?: string | null
+  scheduled_start?: string | null
+  scheduled_end?: string | null
+  actual_start?: string | null
+  actual_end?: string | null
+  tutor_join_at?: string | null
+  tutor_leave_at?: string | null
   summary?: string | null
+  staff_note?: string | null
 }
 
+// The columns the RLS client may read. staff_note is DELIBERATELY excluded: a
+// student holds SELECT on these columns only (0070), and the app never asks for
+// staff_note on a student-reachable path. Managers read it via MANAGER_COLUMNS
+// (service role) instead.
 const COLUMNS =
   'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, tutor_join_at, tutor_leave_at, summary, student_feedback, created_at, updated_at'
 
-/** The timing record for one class session, or null if none yet. */
+// Everything above plus the staff-private note, for the service-role manager read.
+const MANAGER_COLUMNS = `${COLUMNS}, staff_note`
+
+/** The timing record for one class session, or null if none yet. RLS client, so it
+ *  never returns staff_note (that column is not granted to the caller's role). */
 export async function selectSession(classId: string, date: string): Promise<ClassSessionRow | null> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('class_sessions')
     .select(COLUMNS)
+    .eq('class_id', classId)
+    .eq('session_date', date)
+    .maybeSingle()
+  return (data as ClassSessionRow) ?? null
+}
+
+/** The full session record INCLUDING the staff-private note, via the service role.
+ *  The caller MUST have proved manage rights on the class first (the attendance
+ *  page-data resolves this only in its canManageClass branch). */
+export async function selectSessionAsService(classId: string, date: string): Promise<ClassSessionRow | null> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('class_sessions')
+    .select(MANAGER_COLUMNS)
     .eq('class_id', classId)
     .eq('session_date', date)
     .maybeSingle()

@@ -90,7 +90,10 @@ export function StreamComposer({ courseId, isAdmin }: { courseId: string; isAdmi
         }
 
         if (failed.length > 0) {
-          toast(`Posted, but ${failed.length} file(s) couldn't attach. Edit the post to try again.`, 'error')
+          toast(
+            `Posted, but ${failed.length} file(s) couldn't attach. Use "Add Attachment" on the post to retry.`,
+            'error',
+          )
         } else {
           toast('Posted to the class', 'success')
         }

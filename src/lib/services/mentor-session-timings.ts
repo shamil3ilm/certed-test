@@ -13,10 +13,10 @@ import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 /**
  * The mentor session-timing list and its narrow "edit student joined time" write.
  *
- * REUSES existing columns only - tutor joined = class_sessions.tutor_join_at,
- * student joined = attendance.join_at, class end = class_sessions.actual_end. No
- * new timing fields. Authorization reuses canManageClass (a mentor of a class's
- * mentee already passes it); the edit touches ONLY the student join time.
+ * REUSES existing columns only - start = class_sessions.actual_start, student entry
+ * = attendance.join_at, end = class_sessions.actual_end (the same actual window the
+ * session-times form records). Authorization reuses canManageClass (a mentor of a
+ * class's mentee already passes it); the edit touches ONLY the student entry time.
  */
 
 export type MenteeSessionTiming = {
@@ -25,9 +25,9 @@ export type MenteeSessionTiming = {
   studentId: string
   studentName: string
   sessionDate: string
-  tutorJoinAt: string | null
-  studentJoinAt: string | null
-  classEnd: string | null
+  startAt: string | null
+  studentEntryAt: string | null
+  endAt: string | null
 }
 
 const rowKey = (classId: string, sessionDate: string) => `${classId}|${sessionDate}`
@@ -84,9 +84,9 @@ export async function listMenteeSessionTimings(actor: Profile): Promise<MenteeSe
       studentId,
       studentName: names.get(studentId) ?? 'Unknown',
       sessionDate,
-      tutorJoinAt: session?.tutor_join_at ?? null,
-      studentJoinAt: join?.join_at ?? null,
-      classEnd: session?.actual_end ?? null,
+      startAt: session?.actual_start ?? null,
+      studentEntryAt: join?.join_at ?? null,
+      endAt: session?.actual_end ?? null,
     })
   }
   rows.sort((a, b) => (a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0))

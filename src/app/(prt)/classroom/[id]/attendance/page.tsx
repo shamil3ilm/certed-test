@@ -16,7 +16,6 @@ import {
   FilterBar,
   CARD,
   StatCard,
-  StatGrid,
   PaginationBar,
   SelectFilterField,
   cx,
@@ -159,13 +158,16 @@ export default async function AttendancePage(props: {
           </button>
         </form>
 
-        <SessionTimesForm classId={course.id} date={data.date} session={data.session} />
+        <SessionTimesForm
+          classId={course.id}
+          date={data.date}
+          session={data.session}
+          studentEntryAt={data.studentEntryAt}
+        />
 
-        <StatGrid cols={3}>
-          <StatCard label="Session" value={formatMinutes(sessionM.sessionMinutes)} />
-          <StatCard label="Scheduled" value={formatMinutes(sessionM.scheduledMinutes)} />
-          <StatCard label="Tutor working" value={formatMinutes(sessionM.tutorWorkingMinutes)} />
-        </StatGrid>
+        <div className="max-w-xs">
+          <StatCard label="Session length" value={formatMinutes(sessionM.sessionMinutes)} />
+        </div>
 
         {data.roster.length === 0 ? (
           <EmptyState>No students enrolled yet - add students on the People tab first.</EmptyState>

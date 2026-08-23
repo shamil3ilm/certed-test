@@ -137,10 +137,12 @@ function parseFilters(searchParams: {
 }
 
 // The roles a sub_admin (non-super) may ever see in the People list - the same
-// tier they may manage. Any requested filter is intersected with this, so a
-// sub_admin cannot list admin-tier or mentor accounts by picking (or hand-editing)
-// a role filter. A full admin (isSuper) sees the unclamped set.
-const SUB_ADMIN_VISIBLE_ROLES: ReadonlyArray<Profile['role']> = ['student', 'tutor']
+// tier they may manage (SUB_ADMIN_MANAGEABLE: tutor/mentor/student). Any requested
+// filter is intersected with this, so a sub_admin cannot list the ADMIN tier by
+// picking (or hand-editing) a role filter. A full admin (isSuper) sees the
+// unclamped set. Kept in lockstep with SUB_ADMIN_MANAGEABLE so the list shows
+// exactly the accounts a sub_admin may open and manage.
+const SUB_ADMIN_VISIBLE_ROLES: ReadonlyArray<Profile['role']> = ['student', 'tutor', 'mentor']
 
 function rolesForFilter(role: RoleFilter, isSuper: boolean): Profile['role'] | ReadonlyArray<Profile['role']> {
   const requested: Profile['role'] | ReadonlyArray<Profile['role']> = (() => {
@@ -190,9 +192,10 @@ export async function loadAdminUsersPageData(
   // Hard-rule identity (manageAdminTier is never override-granted), so the Profile
   // overload already equals the resolved answer - no resolved-set threading needed.
   const isSuper = isAdminTier(me)
-  // Only a full admin creates mentor and admin-tier accounts; a sub_admin is
-  // limited to students and tutors.
-  const roleOptions = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor']
+  // Only a full admin creates the admin tier (sub_admin / admin); a sub_admin creates
+  // every other non-admin account - students, tutors, and mentors (matches
+  // canManageTarget / SUB_ADMIN_MANAGEABLE).
+  const roleOptions = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor', 'mentor']
 
   // The Mentor-assignments tab is student-centric (each row is a student + their
   // mentor links), so it always loads students regardless of the People role filter.

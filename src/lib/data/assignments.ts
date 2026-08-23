@@ -13,6 +13,11 @@ import { assertMutated } from '@/lib/data/mutation'
  * bottom, which states why it needs to bypass policy.
  */
 
+/** The kind of classwork an assignment row represents. 'assignment' is the default
+ *  (online-submitted, graded work); exam/quiz/test are typically sat in person. */
+export type AssignmentType = 'assignment' | 'exam' | 'quiz' | 'test' | 'project'
+export const ASSIGNMENT_TYPES: readonly AssignmentType[] = ['assignment', 'exam', 'quiz', 'test', 'project']
+
 export type AssignmentRow = {
   id: string
   class_id: string
@@ -23,6 +28,9 @@ export type AssignmentRow = {
   topic: string | null
   max_marks: number | null
   enforce_deadline: boolean
+  type: AssignmentType
+  expects_submission: boolean
+  ends_at: string | null
   created_by: string | null
   status: 'active' | 'archived'
   created_at: string
@@ -34,6 +42,7 @@ export type AssignmentFilters = {
   dueFrom?: string
   dueTo?: string
   activeOnly?: boolean
+  type?: AssignmentType
 }
 
 type AssignmentInsert = {
@@ -45,6 +54,9 @@ type AssignmentInsert = {
   topic: string | null
   max_marks: number | null
   enforce_deadline: boolean
+  type: AssignmentType
+  expects_submission: boolean
+  ends_at: string | null
   status: AssignmentRow['status']
   created_by: string | null
 }
@@ -57,6 +69,9 @@ export type AssignmentPatch = Partial<{
   topic: string | null
   max_marks: number | null
   enforce_deadline: boolean
+  type: AssignmentType
+  expects_submission: boolean
+  ends_at: string | null
 }>
 
 /**
@@ -71,6 +86,7 @@ export async function selectAssignments(filters: AssignmentFilters = {}): Promis
   if (filters.classId) query = query.eq('class_id', filters.classId)
   if (filters.classIds) query = query.in('class_id', filters.classIds)
   if (filters.activeOnly) query = query.eq('status', 'active')
+  if (filters.type) query = query.eq('type', filters.type)
   if (filters.dueFrom) query = query.gte('due_date', filters.dueFrom)
   if (filters.dueTo) query = query.lt('due_date', filters.dueTo)
   const { data, error } = await query

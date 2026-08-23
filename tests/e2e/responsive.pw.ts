@@ -17,6 +17,8 @@ const PAGES: Record<string, string[]> = {
     `/classroom/${SEED.math}/people`,
     '/calendar',
     '/admin/users',
+    `/admin/users/${SEED.sara}`, // student detail: the multi-tutor Subjects panel
+    '/admin/messaging',
     '/admin/finance',
     '/settings',
     `/assignments/${SEED.asgMath}`,
@@ -38,7 +40,7 @@ const PAGES: Record<string, string[]> = {
   ],
   // A DEDICATED mentor (role mentor, teaches nothing) holds only viewDashboard,
   // viewMessages and viewMentees - no classes/calendar/payslips (those would redirect).
-  mentor: ['/dashboard', '/messages', '/students', `/students/${SEED.sara}`, '/settings'],
+  mentor: ['/dashboard', '/messages', '/students', `/students/${SEED.sara}`, '/session-timings', '/settings'],
   student: [
     '/dashboard',
     '/classroom',

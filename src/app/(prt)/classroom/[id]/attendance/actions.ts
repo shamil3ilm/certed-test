@@ -62,13 +62,11 @@ export async function saveSessionAction(formData: FormData): Promise<ActionResul
       classId,
       sessionDate: formData.get('session_date'),
       tutor_id: formData.get('tutor_id'),
-      scheduled_start: formData.get('scheduled_start'),
-      scheduled_end: formData.get('scheduled_end'),
       actual_start: formData.get('actual_start'),
       actual_end: formData.get('actual_end'),
-      tutor_join_at: formData.get('tutor_join_at'),
-      tutor_leave_at: formData.get('tutor_leave_at'),
+      student_entry: formData.get('student_entry'),
       summary: formData.get('summary'),
+      staff_note: formData.get('staff_note'),
     })
     revalidatePath(`/classroom/${classId}/attendance`)
     return actionOk({ ok: true })

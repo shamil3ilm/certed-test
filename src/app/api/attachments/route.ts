@@ -10,7 +10,12 @@ import type { AttachmentOwner, AttachmentRow } from '@/lib/data/attachments'
 import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
 import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
 import { canWriteClass } from '@/lib/permission/class-write'
-import { assertSubmissionAcceptsWork, assertMayAttachToResource } from '@/lib/services/attachments/attach-guards'
+import {
+  assertSubmissionAcceptsWork,
+  assertMayAttachToResource,
+  assertUnderAttachmentCap,
+} from '@/lib/services/attachments/attach-guards'
+import { supersedePriorResourceAttachments } from '@/lib/data/attachments'
 import { recordResourceAttachmentReplacement } from '@/lib/services/resources'
 
 // Node runtime: the upload service streams bytes and talks to the Drive REST API.
@@ -36,9 +41,12 @@ function isOwnerKind(value: string): value is AttachmentOwner['kind'] {
 async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<{ replacedResourceId: string | null }> {
   if (owner.kind === 'submission') {
     await assertSubmissionAcceptsWork(me, owner.id)
+    await assertUnderAttachmentCap(owner)
     return { replacedResourceId: null }
   }
   if (owner.kind === 'resource') {
+    // NOT cap-checked: a resource replace supersedes its prior file (below), so its
+    // active count stays at one - capping it would freeze the document after N edits.
     const isReplacement = await assertMayAttachToResource(me, owner.id)
     return { replacedResourceId: isReplacement ? owner.id : null }
   }
@@ -48,6 +56,7 @@ async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<{ r
     if (!(await canWriteClass(me, assignment.class_id))) {
       throw new PermissionError('Not allowed to attach to this assignment.')
     }
+    await assertUnderAttachmentCap(owner)
     return { replacedResourceId: null }
   }
   const announcement = await selectAnnouncementClassIdAsService(owner.id)
@@ -55,6 +64,7 @@ async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<{ r
   if (!(await canWriteClass(me, announcement.class_id))) {
     throw new PermissionError('Not allowed to attach to this announcement.')
   }
+  await assertUnderAttachmentCap(owner)
   return { replacedResourceId: null }
 }
 
@@ -90,7 +100,11 @@ export async function POST(req: Request) {
     return authFail(error)
   }
 
-  const rl = rateLimit(`attach:${me.id}`, { limit: 10, windowMs: 60 * 60 * 1000 })
+  // A per-minute burst budget, not 10/hour: setting up a class or submitting a
+  // multi-file assignment legitimately uploads several files in quick succession, and
+  // the per-owner cap (MAX_ATTACHMENTS_PER_OWNER) is the real anti-spam bound. Matches
+  // the sibling attach-download / write throttles (~60/min).
+  const rl = rateLimit(`attach:${me.id}`, { limit: 30, windowMs: 60 * 1000 })
   if (!rl.ok) return tooManyRequests(undefined, rl.retryAfterSec)
 
   let form: FormData
@@ -132,10 +146,13 @@ export async function POST(req: Request) {
       bytes,
     })
     // A new file superseding a document's current one is an edit: snapshot the prior
-    // state into version history + write a resource.edit audit. Best-effort - the upload
-    // is committed, so a history/audit failure must not fail the request.
+    // state into version history + write a resource.edit audit, then retire the prior
+    // active attachment so exactly the newest stays live. Best-effort - the upload is
+    // committed, so a history/supersede failure must not fail the request (and since
+    // resources are cap-exempt, a stray extra active row can never freeze the document).
     if (replacedResourceId) {
       await recordResourceAttachmentReplacement(me, replacedResourceId).catch(() => {})
+      await supersedePriorResourceAttachments(replacedResourceId, row.id).catch(() => {})
     }
     return created(toClientAttachment(row))
   } catch (error) {

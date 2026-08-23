@@ -98,6 +98,37 @@ test('TUTOR -- create assignment + comment on a student submission', async ({ pa
   await expect(page.getByText('Great work, Sara!')).toBeVisible()
 })
 
+test('TUTOR -- create an EXAM (in-person) + record a mark from the roster', async ({ page }) => {
+  await loginAs(page, 'tutor@mock.test')
+
+  // Create an EXAM-type classwork in the Math classwork tab. Located by the type
+  // <select> (stable) - the form heading flips to "Create exam" once the type changes.
+  await page.goto(`/classroom/${SEED.math}/classwork`)
+  const af = page.locator('form:has(select:has(option[value="exam"]))')
+  await af.locator('select:has(option[value="exam"])').selectOption('exam')
+  await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill('E2E Midterm Exam')
+  // Exam shows a "Starts" datetime (first) + an optional "Ends"; fill just the start.
+  await af.locator('input[type=datetime-local]').first().fill('2026-12-05T10:00')
+  await af.getByPlaceholder('e.g. 20').fill('50') // max marks is required
+  // Exam defaults to in-person (the "submit online" box is unchecked), so no upload.
+  await af.getByRole('button', { name: 'Create', exact: true }).click()
+
+  // It appears in the list with the Exam type badge.
+  await expect(page.getByRole('heading', { name: 'E2E Midterm Exam' })).toBeVisible()
+  const card = page.locator('li:has-text("E2E Midterm Exam")')
+  await expect(card.getByText('Exam', { exact: true })).toBeVisible()
+
+  // An in-person exam shows the enrolled roster to mark directly (no submissions list).
+  await card.getByRole('link', { name: 'View submissions' }).click()
+  await page.waitForURL(/\/assignments\/[0-9a-f-]{36}/)
+  await expect(page.getByText('Not yet marked').first()).toBeVisible()
+
+  // Record a mark for the enrolled student straight from the roster.
+  await page.locator('input[type=number]').first().fill('45')
+  await page.getByRole('button', { name: 'Save mark' }).first().click()
+  await expect(page.getByText(/Marked - 45\/50/).first()).toBeVisible()
+})
+
 test('STUDENT -- submit an assignment (custodial file upload)', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
 

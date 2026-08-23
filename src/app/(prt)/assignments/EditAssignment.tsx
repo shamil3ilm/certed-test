@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { assertActionOk } from '../action-client'
-import { Field, Input, Textarea } from '../form'
+import { Field, Input, Select, Textarea } from '../form'
 import { editAssignmentAction } from './manage-actions'
 import { isoToDatetimeLocal } from '@/lib/time/format'
+import { CLASSWORK_TYPES, isTimedAssessment, type ClassworkType } from './classwork-types'
 
 export function EditAssignment({
   assignment,
@@ -18,18 +19,25 @@ export function EditAssignment({
     topic: string | null
     max_marks: number | null
     enforce_deadline: boolean
+    type: ClassworkType
+    expects_submission: boolean
+    ends_at: string | null
   }
 }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState(assignment.title)
   const [description, setDescription] = useState(assignment.description ?? '')
   const [due, setDue] = useState(isoToDatetimeLocal(assignment.due_date))
+  const [endsAt, setEndsAt] = useState(assignment.ends_at ? isoToDatetimeLocal(assignment.ends_at) : '')
+  const [type, setType] = useState<ClassworkType>(assignment.type)
+  const [expectsSubmission, setExpectsSubmission] = useState(assignment.expects_submission)
   const [brief, setBrief] = useState(assignment.attachment_drive_link ?? '')
   const [topic, setTopic] = useState(assignment.topic ?? '')
   const [maxMarks, setMaxMarks] = useState(assignment.max_marks != null ? String(assignment.max_marks) : '')
   const [enforceDeadline, setEnforceDeadline] = useState(assignment.enforce_deadline)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const showEndTime = isTimedAssessment(type)
 
   // Re-seed every field from the CURRENT props each time the editor opens, not
   // once at mount: this instance is keyed by assignment.id and survives the
@@ -39,6 +47,9 @@ export function EditAssignment({
     setTitle(assignment.title)
     setDescription(assignment.description ?? '')
     setDue(isoToDatetimeLocal(assignment.due_date))
+    setEndsAt(assignment.ends_at ? isoToDatetimeLocal(assignment.ends_at) : '')
+    setType(assignment.type)
+    setExpectsSubmission(assignment.expects_submission)
     setBrief(assignment.attachment_drive_link ?? '')
     setTopic(assignment.topic ?? '')
     setMaxMarks(assignment.max_marks != null ? String(assignment.max_marks) : '')
@@ -57,10 +68,13 @@ export function EditAssignment({
     formData.set('title', title.trim())
     formData.set('description', description)
     formData.set('due_date', new Date(due).toISOString())
+    formData.set('ends_at', endsAt ? new Date(endsAt).toISOString() : '')
     formData.set('attachment_drive_link', brief.trim())
     formData.set('topic', topic.trim())
     formData.set('max_marks', maxMarks.trim())
-    formData.set('enforce_deadline', enforceDeadline ? 'on' : '')
+    formData.set('type', type)
+    formData.set('expects_submission', expectsSubmission ? 'on' : '')
+    formData.set('enforce_deadline', expectsSubmission && enforceDeadline ? 'on' : '')
 
     startTransition(async () => {
       try {
@@ -82,15 +96,29 @@ export function EditAssignment({
 
   return (
     <form onSubmit={submit} className="mt-3 w-full space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <Field label="Type">
+        <Select value={type} onChange={(event) => setType(event.target.value as ClassworkType)}>
+          {CLASSWORK_TYPES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
       <Field label="Title">
         <Input value={title} onChange={(event) => setTitle(event.target.value)} required />
       </Field>
       <Field label="Description (optional)">
         <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} />
       </Field>
-      <Field label="Due">
+      <Field label={showEndTime ? 'Starts' : 'Due'}>
         <Input type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} required />
       </Field>
+      {showEndTime && (
+        <Field label="Ends (optional)" hint="Sets a time window, e.g. a 2-hour exam.">
+          <Input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} />
+        </Field>
+      )}
       <Field label="Topic (optional)">
         <Input value={topic} onChange={(event) => setTopic(event.target.value)} maxLength={60} />
       </Field>
@@ -112,12 +140,23 @@ export function EditAssignment({
       <label className="flex items-center gap-2 text-sm text-slate-600">
         <input
           type="checkbox"
-          checked={enforceDeadline}
-          onChange={(event) => setEnforceDeadline(event.target.checked)}
+          checked={expectsSubmission}
+          onChange={(event) => setExpectsSubmission(event.target.checked)}
           className="h-4 w-4 accent-primary"
         />
-        Close submissions after the due date (block late work)
+        Students submit their work online
       </label>
+      {expectsSubmission && (
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={enforceDeadline}
+            onChange={(event) => setEnforceDeadline(event.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          Close submissions after the due date (block late work)
+        </label>
+      )}
       {error && (
         <p role="alert" className="text-sm text-red-600">
           {error}

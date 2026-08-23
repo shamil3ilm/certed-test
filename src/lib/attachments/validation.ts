@@ -15,6 +15,15 @@ import { ValidationError } from '@/lib/errors'
 /** 25 MB - matches the attachments_size_check constraint in migration 0057. */
 export const MAX_ATTACHMENT_BYTES = 26_214_400
 
+/**
+ * Max ACTIVE attachments per owner - a guardrail against runaway/spam uploads,
+ * enforced server-side in the attach guard. Applies to submission / assignment /
+ * announcement (purely additive owners). RESOURCES are exempt: replacing a document
+ * supersedes its prior file (active stays 1), so a count cap would wrongly freeze a
+ * document after N revisions.
+ */
+export const MAX_ATTACHMENTS_PER_OWNER = 5
+
 /** Allowed extension -> the MIME types that legitimately carry it. */
 const EXTENSION_MIME: Record<string, readonly string[]> = {
   pdf: ['application/pdf'],

@@ -24,7 +24,9 @@ const input: MergeInput = {
       kind: 'event',
     },
   ],
-  assignments: [{ id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', class_id: 'c-1' }],
+  assignments: [
+    { id: 'a-1', title: 'HW 1', due_date: '2026-07-12T18:30:00.000Z', class_id: 'c-1', type: 'assignment' },
+  ],
   meets: [],
   anchorTz: 'Asia/Kolkata',
 }
@@ -76,6 +78,46 @@ describe('mergeCalendar', () => {
     expect(due.title).toMatch(/Due: HW 1/)
     expect(due.start).toBe('2026-07-12T18:30:00.000Z')
     expect(due.allDay).toBe(false)
+  })
+
+  it('appends the class label to every class-scoped item when classLabels is set', () => {
+    const withLabels: MergeInput = {
+      ...input,
+      classLabels: { 'c-1': 'Rahul' },
+    }
+    const items = mergeCalendar(withLabels)
+    // Slot, class-scoped event, and assignment all carry the student label...
+    expect(items.find((i) => i.source === 'slot')!.title).toBe('Maths - Room 1 · Rahul')
+    expect(items.find((i) => i.id === 'event-e-2')!.title).toBe('Extra class · Rahul')
+    expect(items.find((i) => i.source === 'assignment')!.title).toBe('Due: HW 1 · Rahul')
+    // ...but an academy-wide event (null class_id) has nothing to label.
+    expect(items.find((i) => i.id === 'event-e-1')!.title).toBe('Holiday')
+  })
+
+  it('labels a scheduled meet with the class when classLabels is set', () => {
+    const withMeet: MergeInput = {
+      ...input,
+      meets: [{ id: 'm-1', title: 'Doubt session', scheduled_at: '2026-07-08T09:00:00.000Z', class_id: 'c-1' }],
+      classLabels: { 'c-1': 'Rahul' },
+    }
+    expect(mergeCalendar(withMeet).find((i) => i.source === 'meet')!.title).toBe('Meet: Doubt session · Rahul')
+  })
+
+  it('omits the class label when classLabels is not provided (a student feed)', () => {
+    const items = mergeCalendar(input)
+    expect(items.find((i) => i.source === 'assignment')!.title).toBe('Due: HW 1')
+  })
+
+  it('titles a sat assessment by its type ("Exam:") and carries the type through', () => {
+    const withExam: MergeInput = {
+      ...input,
+      assignments: [
+        { id: 'a-2', title: 'Midterm', due_date: '2026-07-20T04:30:00.000Z', class_id: 'c-1', type: 'exam' },
+      ],
+    }
+    const item = mergeCalendar(withExam).find((i) => i.id === 'assignment-a-2')!
+    expect(item.title).toBe('Exam: Midterm')
+    expect(item.type).toBe('exam')
   })
 
   it('produces stable, source-prefixed ids and a kind tag', () => {

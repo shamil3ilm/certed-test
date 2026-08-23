@@ -1,5 +1,16 @@
 import type { SlotOccurrence } from '@/lib/time/expand-slots'
 import type { CalendarEventKind } from '@/lib/services/calendar-events'
+import type { AssignmentType } from '@/lib/data/assignments'
+
+// A sat assessment reads as itself ("Exam: ...", "Quiz: ...", "Test: ..."); everything
+// else - submitted work (assignment/project) and any legacy/undefined type - reads as a
+// deadline ("Due: ..."). Fallback-to-deadline keeps a type-less mock/legacy row safe.
+function assignmentTitle(type: AssignmentType, title: string): string {
+  if (type === 'exam' || type === 'quiz' || type === 'test') {
+    return `${type[0].toUpperCase()}${type.slice(1)}: ${title}`
+  }
+  return `Due: ${title}`
+}
 
 // A wall-clock "YYYY-MM-DD" + "HH:mm" in `anchorTz` -> absolute UTC instant.
 // Reuses the same DST-correct primitive as expandSlots, kept local to avoid a circular import.
@@ -38,6 +49,8 @@ export type CalendarItem = {
   classId: string | null
   kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet'
   location?: string | null
+  /** For an assignment-source item, the classwork type (assignment/exam/quiz/...). */
+  type?: AssignmentType
 }
 
 export type MergeInput = {
@@ -53,9 +66,14 @@ export type MergeInput = {
     kind: CalendarEventKind
     slot_id?: string | null
   }>
-  assignments: Array<{ id: string; title: string; due_date: string; class_id: string }>
+  assignments: Array<{ id: string; title: string; due_date: string; class_id: string; type: AssignmentType }>
   /** Scheduled meet links (scheduled_at already an absolute UTC instant). */
   meets?: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
+  /** Optional classId -> human label (e.g. the enrolled student's name). When
+   *  present, exam events and assignment deadlines get " · {label}" appended so a
+   *  viewer who sees many classes (tutor/mentor/admin) can tell them apart. Omitted
+   *  for a student, whose feed is already only their own class. */
+  classLabels?: Record<string, string>
   anchorTz: string
 }
 
@@ -90,10 +108,12 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
   for (const occ of input.slotOccurrences) {
     if (suppressed.has(`${occ.slotId}|${wallClockDate(occ.startIso, input.anchorTz)}`)) continue
     const meta = input.slotMeta[occ.slotId]
+    const base = meta ? `${meta.subject}${meta.location ? ` - ${meta.location}` : ''}` : 'Class'
+    const label = meta ? input.classLabels?.[meta.classId] : undefined
     items.push({
       id: `slot-${occ.slotId}-${occ.startIso}`,
       source: 'slot',
-      title: meta ? `${meta.subject}${meta.location ? ` - ${meta.location}` : ''}` : 'Class',
+      title: label ? `${base} · ${label}` : base,
       start: occ.startIso,
       end: occ.endIso,
       allDay: false,
@@ -105,10 +125,13 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
 
   for (const ev of input.events) {
     const timed = ev.start_time != null
+    // Every class-scoped event carries the class label (academy-wide events, with a
+    // null class_id, have nothing to label).
+    const label = ev.class_id ? input.classLabels?.[ev.class_id] : undefined
     items.push({
       id: `event-${ev.id}`,
       source: 'event',
-      title: ev.title,
+      title: label ? `${ev.title} · ${label}` : ev.title,
       start: timed ? zonedDateTimeToIso(ev.event_date, ev.start_time!, input.anchorTz) : ev.event_date,
       end: timed && ev.end_time ? zonedDateTimeToIso(ev.event_date, ev.end_time, input.anchorTz) : null,
       allDay: !timed,
@@ -118,23 +141,28 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
   }
 
   for (const a of input.assignments) {
+    const label = input.classLabels?.[a.class_id]
+    const base = assignmentTitle(a.type, a.title)
     items.push({
       id: `assignment-${a.id}`,
       source: 'assignment',
-      title: `Due: ${a.title}`,
+      title: label ? `${base} · ${label}` : base,
       start: a.due_date, // already an absolute UTC instant
       end: null,
       allDay: false,
       classId: a.class_id,
       kind: 'deadline',
+      type: a.type,
     })
   }
 
   for (const m of input.meets ?? []) {
+    const label = m.class_id ? input.classLabels?.[m.class_id] : undefined
+    const base = `Meet: ${m.title}`
     items.push({
       id: `meet-${m.id}`,
       source: 'meet',
-      title: `Meet: ${m.title}`,
+      title: label ? `${base} · ${label}` : base,
       start: m.scheduled_at, // already an absolute UTC instant
       end: null,
       allDay: false,
