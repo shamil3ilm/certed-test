@@ -1,27 +1,39 @@
 import type { Capability } from '@/lib/capabilities'
 import { mentoringSectionLabel } from '@/lib/ui/labels'
 
-export type NavItem = { href: string; label: string }
+// Nav items are clustered into ordered sections. The desktop nav sets each cluster
+// apart with a hairline divider; the mobile menu (13+ items for an admin) gives each
+// a section heading. Items are listed contiguously by group so a group is one run.
+export type NavGroup = 'teaching' | 'mentoring' | 'messages' | 'money' | 'admin'
+export type NavItem = { href: string; label: string; group: NavGroup }
+
+export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
+  teaching: 'Teaching',
+  mentoring: 'Mentoring',
+  messages: 'Messages',
+  money: 'Money',
+  admin: 'Admin',
+}
 
 const NAV_RULES: Array<NavItem & { capability: Capability }> = [
-  { href: '/dashboard', label: 'Dashboard', capability: 'viewDashboard' },
-  { href: '/classroom', label: 'Classes', capability: 'viewClasses' },
-  { href: '/documents', label: 'Documents', capability: 'viewClasses' },
-  { href: '/students', label: 'Mentees', capability: 'viewMentees' },
-  { href: '/session-timings', label: 'Session times', capability: 'viewMentees' },
-  { href: '/messages', label: 'Messages', capability: 'viewMessages' },
-  { href: '/calendar', label: 'Calendar', capability: 'viewCalendar' },
-  { href: '/payslips', label: 'Pay slips', capability: 'viewPayslips' },
-  { href: '/receipts', label: 'Receipts', capability: 'viewReceipts' },
-  { href: '/admin/users', label: 'Users', capability: 'viewUsers' },
-  { href: '/admin/finance', label: 'Finance', capability: 'viewFinance' },
-  { href: '/admin/history', label: 'History', capability: 'viewHistory' },
-  { href: '/admin/messaging', label: 'Access management', capability: 'manageUsers' },
+  { href: '/dashboard', label: 'Dashboard', group: 'teaching', capability: 'viewDashboard' },
+  { href: '/classroom', label: 'Classes', group: 'teaching', capability: 'viewClasses' },
+  { href: '/documents', label: 'Documents', group: 'teaching', capability: 'viewClasses' },
+  { href: '/calendar', label: 'Calendar', group: 'teaching', capability: 'viewCalendar' },
+  { href: '/students', label: 'Mentees', group: 'mentoring', capability: 'viewMentees' },
+  { href: '/session-timings', label: 'Session times', group: 'mentoring', capability: 'viewMentees' },
+  { href: '/messages', label: 'Messages', group: 'messages', capability: 'viewMessages' },
+  { href: '/payslips', label: 'Pay slips', group: 'money', capability: 'viewPayslips' },
+  { href: '/receipts', label: 'Receipts', group: 'money', capability: 'viewReceipts' },
+  { href: '/admin/users', label: 'Users', group: 'admin', capability: 'viewUsers' },
+  { href: '/admin/finance', label: 'Finance', group: 'admin', capability: 'viewFinance' },
+  { href: '/admin/history', label: 'History', group: 'admin', capability: 'viewHistory' },
+  { href: '/admin/messaging', label: 'Access management', group: 'admin', capability: 'manageUsers' },
   // Admin-tier only: Organization settings expose the bank/IFSC fields the DB
   // restricts to admins (is_active_admin(), 0017), so this must match the page's
   // requireRole(['admin']) guard - manageAdminTier is the hard admin-only marker
   // (never override-grantable), keeping the nav in lockstep with the guard.
-  { href: '/admin/settings', label: 'Organization', capability: 'manageAdminTier' },
+  { href: '/admin/settings', label: 'Organization', group: 'admin', capability: 'manageAdminTier' },
 ]
 
 /**
@@ -50,19 +62,22 @@ export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
     if (item.href === '/session-timings' && capabilities.has('viewUsers') && !capabilities.has('manageAdminTier'))
       return false
     return true
-  }).map(({ href, label }) => ({
+  }).map(({ href, label, group }) => ({
     href,
+    group,
     label: href === '/students' ? mentoringSectionLabel(isOversight) : label,
   }))
 
   const classesIndex = base.findIndex((item) => item.href === '/classroom')
   if (classesIndex >= 0) {
     // A grader gets the marking queue (/grading, "Grading"); a student without
-    // that capability gets their own grade card (/grades, "Grades").
+    // that capability gets their own grade card (/grades, "Grades"). Sits with the
+    // teaching cluster, right after Classes.
     const canGrade = capabilities.has('viewGrading')
     base.splice(classesIndex + 1, 0, {
       href: canGrade ? '/grading' : '/grades',
       label: canGrade ? 'Grading' : 'Grades',
+      group: 'teaching',
     })
   }
 

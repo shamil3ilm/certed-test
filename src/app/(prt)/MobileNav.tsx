@@ -1,13 +1,12 @@
 'use client'
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cx } from '@/lib/ui'
 import { useFocusTrap } from '@/lib/ui/use-focus-trap'
 import { LogoutForm } from './LogoutForm'
 import { NavIcon } from './NavIcon'
-
-type NavItem = { href: string; label: string }
+import { NAV_GROUP_LABELS, type NavItem } from './nav'
 
 export function MobileNav({ links }: { links: NavItem[] }) {
   const [open, setOpen] = useState(false)
@@ -64,24 +63,33 @@ export function MobileNav({ links }: { links: NavItem[] }) {
               </button>
             </div>
             <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
-              {links.map((l) => {
+              {links.map((l, i) => {
                 const active = pathname === l.href || pathname.startsWith(l.href + '/')
+                // A section heading before each cluster's first item - the mobile menu
+                // holds 13+ items for an admin, so the groups aid scanning.
+                const startsGroup = i === 0 || l.group !== links[i - 1].group
                 return (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    onClick={() => setOpen(false)}
-                    aria-current={active ? 'page' : undefined}
-                    className={cx(
-                      'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition',
-                      active
-                        ? 'bg-gradient-to-r from-primary/15 to-secondary/10 font-semibold text-primary ring-1 ring-primary/10'
-                        : 'font-medium text-slate-600 hover:bg-primary/5 hover:text-primary',
+                  <Fragment key={l.href}>
+                    {startsGroup && (
+                      <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-400 first:pt-0">
+                        {NAV_GROUP_LABELS[l.group]}
+                      </p>
                     )}
-                  >
-                    <NavIcon href={l.href} />
-                    {l.label}
-                  </Link>
+                    <Link
+                      href={l.href}
+                      onClick={() => setOpen(false)}
+                      aria-current={active ? 'page' : undefined}
+                      className={cx(
+                        'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition',
+                        active
+                          ? 'bg-gradient-to-r from-primary/15 to-secondary/10 font-semibold text-primary ring-1 ring-primary/10'
+                          : 'font-medium text-slate-600 hover:bg-primary/5 hover:text-primary',
+                      )}
+                    >
+                      <NavIcon href={l.href} />
+                      {l.label}
+                    </Link>
+                  </Fragment>
                 )
               })}
             </nav>

@@ -12,11 +12,11 @@ export function NavLinks({ links }: { links: NavItem[] }) {
     <nav className="hidden flex-wrap items-center justify-center gap-1 border-t border-gray-100 py-2 md:flex">
       {links.map((l, i) => {
         const active = pathname === l.href || pathname.startsWith(l.href + '/')
-        // Set the admin cluster apart from the everyday tabs with a hairline divider.
-        const startsAdminGroup = i > 0 && l.href.startsWith('/admin/') && !links[i - 1].href.startsWith('/admin/')
+        // A hairline divider sets each nav section apart from the previous one.
+        const startsGroup = i > 0 && l.group !== links[i - 1].group
         return (
           <div key={l.href} className="flex items-center">
-            {startsAdminGroup && <span className="mx-1.5 h-5 w-px bg-gray-200" aria-hidden="true" />}
+            {startsGroup && <span className="mx-1.5 h-5 w-px bg-gray-200" aria-hidden="true" />}
             <Link
               href={l.href}
               aria-current={active ? 'page' : undefined}

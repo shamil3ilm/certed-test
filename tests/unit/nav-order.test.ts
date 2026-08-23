@@ -13,10 +13,10 @@ describe('nav ordering by persona', () => {
       'Classes',
       'Grading',
       'Documents',
+      'Calendar',
       'Mentoring', // admin holds viewUsers: /students is an oversight view, not "my mentees"
       'Session times',
       'Messages',
-      'Calendar',
       'Users',
       'Finance',
       'History',
@@ -36,16 +36,16 @@ describe('nav ordering by persona', () => {
       'Classes',
       'Grading',
       'Documents',
+      'Calendar',
       'Mentoring',
       'Messages',
-      'Calendar',
       'Users',
       'Access management',
     ])
   })
 
   it('keeps the tutor main-nav order stable', () => {
-    expect(labelsFor(['tutor'])).toEqual(['Dashboard', 'Classes', 'Grading', 'Documents', 'Messages', 'Calendar'])
+    expect(labelsFor(['tutor'])).toEqual(['Dashboard', 'Classes', 'Grading', 'Documents', 'Calendar', 'Messages'])
   })
 
   it('keeps the mentor main-nav order stable', () => {
@@ -57,10 +57,10 @@ describe('nav ordering by persona', () => {
       'Classes',
       'Grading',
       'Documents',
+      'Calendar',
       'Mentees',
       'Session times',
       'Messages',
-      'Calendar',
     ])
   })
 
@@ -70,15 +70,15 @@ describe('nav ordering by persona', () => {
       'Classes',
       'Grading',
       'Documents',
+      'Calendar',
       'Mentees',
       'Session times',
       'Messages',
-      'Calendar',
     ])
   })
 
   it('keeps the student main-nav order stable', () => {
-    expect(labelsFor(['student'])).toEqual(['Dashboard', 'Classes', 'Grades', 'Documents', 'Messages', 'Calendar'])
+    expect(labelsFor(['student'])).toEqual(['Dashboard', 'Classes', 'Grades', 'Documents', 'Calendar', 'Messages'])
   })
 
   it('collapses self-service finance items into the finance hub when finance is present', () => {
