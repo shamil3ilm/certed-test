@@ -34,10 +34,22 @@ function sweep(now: number): void {
   for (const [k, b] of buckets) if (now >= b.resetAt) buckets.delete(k)
 }
 
-/** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). Accepts
- *  both a fetch `Headers` and Next's `ReadonlyHeaders`. */
+/** Best-effort client IP from proxy headers. Accepts both a fetch `Headers` and Next's
+ *  `ReadonlyHeaders`. The value is a rate-limit key, so it must resist client spoofing:
+ *  a client can prepend its own `x-forwarded-for` entry, so the LEFTMOST entry is
+ *  attacker-controlled. Prefer Vercel's own `x-vercel-forwarded-for` (the client IP the
+ *  platform observed); otherwise take the RIGHTMOST x-forwarded-for entry (the hop our
+ *  trusted proxy appended), never the leftmost. */
 export function clientIp(headers: { get(name: string): string | null }): string {
+  const vercel = headers.get('x-vercel-forwarded-for')
+  if (vercel) return vercel.split(',')[0]!.trim()
   const xff = headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0]!.trim()
+  if (xff) {
+    const parts = xff
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+    if (parts.length > 0) return parts[parts.length - 1]!
+  }
   return headers.get('x-real-ip') ?? 'unknown'
 }

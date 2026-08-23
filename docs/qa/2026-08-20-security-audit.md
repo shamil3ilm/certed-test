@@ -17,6 +17,60 @@ The closest equivalent — Claude Code's **built-in `security-review` skill** �
 
 ---
 
+## Remediation status (re-verified 2026-08-23)
+
+Re-verified against current code — typecheck clean · 1153 unit tests · RLS 34/34 on real
+Postgres · build + client-manifest guard green. (Fixes are on the feature branch; some
+uncommitted pending the schema commit.)
+
+**🆕 New code since the audit — scanned, no new findings**
+
+- **`consents` (0073)** and **`guardians` (0076)** tables: RLS enabled with a **read-only
+  self+admin policy and NO write policy** → all writes are service-role-only (RLS denies
+  authenticated/anon writes even though the Data API exposes the tables).
+- **Guardian-management service** (`services/guardians.ts`): every mutation re-checks the
+  tier via `requireManageableTarget`, is Zod-validated, and every data-layer op is
+  **scoped by `student_id`** (no IDOR); `student_id` is passed separately from the
+  validated schema (no mass-assignment). 9 unit tests cover the tier gate + validation.
+- The A-12 / B-03 / B-05 fixes introduced no new surface.
+
+**✅ Fixed / verified fixed**
+
+- **A-01** — `saveOrgProfileAction` now `requireRole(['admin'])`, not `manageUsers`.
+- **A-02** — `assertSubmissionAcceptsWork` gates attach on own + active + ungraded + open deadline.
+- **A-03** — migration `0067` enforces the deadline in `replace_own_submission` and revokes direct `submissions` INSERT.
+- **A-05** — `cookie-options.ts` sets `secure` in production for both Supabase clients.
+- **A-08** — the user-detail read gates on `canManageTarget` (same tier rule as writes).
+- **A-11** — session `tutor_id`: explicit id is admin-only + `validateUuidField` + `assertClassTutor`.
+- **A-12** — `resources.ts` `.or()` search now uses `escapeOrIlike` (was `escapeIlike`). _(2026-08-23)_
+- **A-14** — resource attach authorizes `'edit'` on replacement + passes `uploaded_by`.
+- **B-03** — `clientIp` prefers `x-vercel-forwarded-for` / rightmost XFF, not the spoofable leftmost. _(2026-08-23)_
+- **B-05** — `/api/contact` no longer reflects the upstream Apps Script error to the caller. _(2026-08-23)_
+- **B-08** — `class-write.ts` comment corrected. Sentry PII `beforeSend` scrubber added; mock-mode gate now also fails closed on `NODE_ENV==='production'`.
+
+**🎯 Open — design decision required (coupled)**
+
+- **A-07 + A-10** — a mentor (and a tutor-who-mentors) gets tutor-level class/document WRITE via `teaches_class()` RLS and `documentRoleFor`. Resolving needs a product call on whether that authority is intended, plus a `teaches_class` read/write split (migration) and class-scoped role resolution.
+
+**🛠️ Open — involved code (next)**
+
+- **A-04** — require current password before email/password change; drop `email_confirm:true`; revoke other sessions.
+- **A-09** — make `canManageClass`/`isClassAdmin` override-aware (currently reads the persona baseline; needs resolved caps in the foundational `lib/permission` layer).
+- **B-01** — route password reset through a server action so `changePasswordSchema` is authoritative.
+
+**🔧 Open — ops / config (not code)**
+
+- **B-02 / §3.1** — Supabase dashboard controls (leaked-password, min length, brute-force, signup, OAuth allowlist, token rotation, session expiry) — UNKNOWN until verified.
+- **B-04** — shared secret between the relay and the Apps Script endpoint (script is external).
+- **B-06** — RLS harness re-grants table-wide DML after migrations, masking the column-grant boundary (test-infra; the "move before the loop" hint is itself flawed — tables don't exist yet — needs a rethink).
+- **B-11** — bootstrap seed script uses legacy `role:'teacher'` + `onConflict` overwrite.
+
+**🔽 Open — low / latent / accepted**
+
+- A-06 (`httpOnly:false` — architecturally required by `@supabase/ssr`; CSP-mitigated; accepted), A-13 (entity_tags RLS latent, not reachable), A-15 (revoked messaging — no live read exposure), B-09 (client-only idle logout), B-10 (setup code not required on the Google path), B-12 (`student_feedback` shared key — needs a migration), B-13 (`ownerId` uuid validation), CSP `form-action`, CI token scope.
+
+---
+
 ## 1. Claude Security findings (Audit A — built-in `security-review`)
 
 Post-filter set (confidence ≥ 8, HIGH/MEDIUM only, skill exclusions applied).

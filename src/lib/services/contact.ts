@@ -81,10 +81,13 @@ export async function relayContactSubmission(
     if (result.success || result.result === 'success') {
       return { success: true }
     }
+    // Don't reflect the upstream Apps Script error to an anonymous caller; log it
+    // server-side and return the same generic message as the catch branch below.
+    console.error('[contact] Apps Script reported a failure:', result.error ?? 'unknown')
     return {
       success: false,
       status: 500,
-      error: result.error || 'Unknown error',
+      error: 'Internal Server Error',
       code: ERROR_CODES.internalError,
     }
   } catch {

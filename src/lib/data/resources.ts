@@ -1,7 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { escapeIlike } from '@/lib/text/ilike'
+import { escapeIlike, escapeOrIlike } from '@/lib/text/ilike'
 import type { DocumentCategory, DocumentVisibility } from '@/lib/documents/categories'
 
 /**
@@ -76,7 +76,7 @@ export async function selectResourcePage(
   if (subject) query = query.ilike('subject', `%${escapeIlike(subject)}%`)
   const search = opts.search?.trim()
   if (search) {
-    const term = `%${escapeIlike(search)}%`
+    const term = `%${escapeOrIlike(search)}%`
     query = query.or(`title.ilike.${term},description.ilike.${term},subject.ilike.${term}`)
   }
   const { data, error, count } = await query.range(opts.from, opts.to)
@@ -113,7 +113,7 @@ export async function selectDocumentSearchPage(opts: {
   if (subject) query = query.ilike('subject', `%${escapeIlike(subject)}%`)
   const search = opts.search?.trim()
   if (search) {
-    const term = `%${escapeIlike(search)}%`
+    const term = `%${escapeOrIlike(search)}%`
     query = query.or(`title.ilike.${term},description.ilike.${term},subject.ilike.${term}`)
   }
   const { data, error, count } = await query.range(opts.from, opts.to)

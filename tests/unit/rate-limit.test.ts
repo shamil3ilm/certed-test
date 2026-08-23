@@ -26,8 +26,14 @@ describe('rateLimit', () => {
 })
 
 describe('clientIp', () => {
-  it('takes the first x-forwarded-for hop', () => {
-    expect(clientIp(new Headers({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8' }))).toBe('1.2.3.4')
+  it('prefers x-vercel-forwarded-for (the platform-observed client IP)', () => {
+    expect(clientIp(new Headers({ 'x-vercel-forwarded-for': '1.2.3.4', 'x-forwarded-for': '9.9.9.9, 1.2.3.4' }))).toBe(
+      '1.2.3.4',
+    )
+  })
+  it('takes the RIGHTMOST x-forwarded-for hop, not the spoofable leftmost one', () => {
+    // A client can prepend its own entry; the trusted proxy appends the real IP last.
+    expect(clientIp(new Headers({ 'x-forwarded-for': '6.6.6.6, 5.6.7.8' }))).toBe('5.6.7.8')
   })
   it('falls back to x-real-ip, then unknown', () => {
     expect(clientIp(new Headers({ 'x-real-ip': '9.9.9.9' }))).toBe('9.9.9.9')
