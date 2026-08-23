@@ -18,6 +18,13 @@ export const PUBLIC_APP_PATHS = [
   '/auth/callback',
   '/access-pending',
   '/access-revoked',
+  // Public legal pages. On the dual-host prod, the app host redirects these to the
+  // marketing host (proxy MARKETING_PATHS) before this gate is reached; on a
+  // single/portal-only host (PORTAL_ONLY preview) that redirect is skipped, so they
+  // must be reachable here too - otherwise the login/register policy links bounce a
+  // logged-out visitor back to /login.
+  '/privacy',
+  '/terms',
   '/api/contact', // public enquiry form; the handler rate-limits + honeypots itself
   '/api/dev/login', // dev-only mock sign-in (no-op unless MOCK_MODE)
   '/api/dev/logout',
