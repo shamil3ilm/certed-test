@@ -690,6 +690,8 @@ export function buildSeed(): MockDb {
     exchange_rates: [],
     pending_emails: [],
     rate_limit_counters: [],
+    consents: [],
+    guardians: [],
     audit_log: [
       {
         id: 'a1000000-0000-4000-8000-000000000001',

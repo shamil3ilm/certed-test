@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0069) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0076) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict kQrJDvxUowx5D9CVPu4pfyPkZ8eppkgXpgXrdNgx3xzEQugfYenJZgTYp1aHmjr
+\restrict bzLffEHPDoz2DH3SCTetCx8zaEQEtNldUGUaCzvyFcJUFnibmstEcOTl8VXWN5Z
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -843,6 +843,24 @@ $$;
 
 
 --
+-- Name: rls_disabled_tables(text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.rls_disabled_tables(p_tables text[]) RETURNS text[]
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select coalesce(array_agg(c.relname order by c.relname), array[]::text[])
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind = 'r'
+    and c.relname = any(p_tables)
+    and c.relrowsecurity = false;
+$$;
+
+
+--
 -- Name: set_submission_status(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -994,8 +1012,34 @@ CREATE TABLE public.assignments (
     topic text,
     max_marks numeric(6,2),
     enforce_deadline boolean DEFAULT false NOT NULL,
-    CONSTRAINT assignments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
+    type text DEFAULT 'assignment'::text NOT NULL,
+    expects_submission boolean DEFAULT true NOT NULL,
+    ends_at timestamp with time zone,
+    CONSTRAINT assignments_ends_after_start CHECK (((ends_at IS NULL) OR (ends_at > due_date))),
+    CONSTRAINT assignments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text]))),
+    CONSTRAINT assignments_type_check CHECK ((type = ANY (ARRAY['assignment'::text, 'exam'::text, 'quiz'::text, 'test'::text, 'project'::text])))
 );
+
+
+--
+-- Name: COLUMN assignments.type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.assignments.type IS 'The kind of classwork: assignment (default) | exam | quiz | test | project.';
+
+
+--
+-- Name: COLUMN assignments.expects_submission; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.assignments.expects_submission IS 'Whether a student submits online. false = sat in person; graded directly, no deadline enforcement.';
+
+
+--
+-- Name: COLUMN assignments.ends_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.assignments.ends_at IS 'Optional END of a timed window (e.g. a 10:00-12:00 exam). due_date is the anchor/start.';
 
 
 --
@@ -1129,7 +1173,8 @@ CREATE TABLE public.class_sessions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     summary text,
-    student_feedback text
+    student_feedback text,
+    staff_note text
 );
 
 
@@ -1178,6 +1223,22 @@ CREATE TABLE public.comments (
     content text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT comments_entity_type_check CHECK ((entity_type = ANY (ARRAY['submission'::text, 'resource'::text, 'meet'::text, 'announcement'::text])))
+);
+
+
+--
+-- Name: consents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.consents (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    profile_id uuid NOT NULL,
+    terms_version text NOT NULL,
+    privacy_version text NOT NULL,
+    guardian_consent boolean DEFAULT false NOT NULL,
+    cross_border_consent boolean DEFAULT false NOT NULL,
+    jurisdiction text,
+    accepted_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1269,6 +1330,22 @@ CREATE TABLE public.exchange_rates (
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT exchange_rates_rate_check CHECK ((rate > (0)::numeric))
+);
+
+
+--
+-- Name: guardians; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.guardians (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    student_id uuid NOT NULL,
+    name text NOT NULL,
+    phone text,
+    email text,
+    relationship text,
+    is_primary boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1422,8 +1499,6 @@ CREATE TABLE public.profiles (
     guardian_name text,
     guardian_phone text,
     date_of_birth date,
-    gender text,
-    address text,
     joined_on date,
     qualifications text,
     bio text
@@ -1687,6 +1762,14 @@ ALTER TABLE ONLY public.comments
 
 
 --
+-- Name: consents consents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.consents
+    ADD CONSTRAINT consents_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: conversation_participants conversation_participants_conversation_id_profile_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1756,6 +1839,14 @@ ALTER TABLE ONLY public.exchange_rates
 
 ALTER TABLE ONLY public.exchange_rates
     ADD CONSTRAINT exchange_rates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: guardians guardians_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guardians
+    ADD CONSTRAINT guardians_pkey PRIMARY KEY (id);
 
 
 --
@@ -2004,6 +2095,13 @@ CREATE INDEX assignments_status_due_idx ON public.assignments USING btree (statu
 
 
 --
+-- Name: assignments_type_due_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX assignments_type_due_idx ON public.assignments USING btree (type, due_date);
+
+
+--
 -- Name: attachments_announcement_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2123,6 +2221,13 @@ CREATE INDEX comments_entity_idx ON public.comments USING btree (entity_type, en
 
 
 --
+-- Name: consents_profile_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX consents_profile_idx ON public.consents USING btree (profile_id);
+
+
+--
 -- Name: conversations_direct_key_uniq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2169,6 +2274,13 @@ CREATE INDEX entity_tags_tag_idx ON public.entity_tags USING btree (tag_id);
 --
 
 CREATE INDEX exchange_rates_lookup_idx ON public.exchange_rates USING btree (base_currency, currency, effective_from DESC);
+
+
+--
+-- Name: guardians_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX guardians_student_idx ON public.guardians USING btree (student_id);
 
 
 --
@@ -2651,6 +2763,14 @@ ALTER TABLE ONLY public.comments
 
 
 --
+-- Name: consents consents_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.consents
+    ADD CONSTRAINT consents_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: conversation_participants conversation_participants_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2720,6 +2840,14 @@ ALTER TABLE ONLY public.entity_tags
 
 ALTER TABLE ONLY public.exchange_rates
     ADD CONSTRAINT exchange_rates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: guardians guardians_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guardians
+    ADD CONSTRAINT guardians_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -3199,6 +3327,24 @@ CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT USING ((pu
 
 
 --
+-- Name: class_sessions class_sessions_student_feedback_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_sessions_student_feedback_insert ON public.class_sessions FOR INSERT TO authenticated WITH CHECK ((public.is_enrolled(class_id) AND (EXISTS ( SELECT 1
+   FROM public.attendance a
+  WHERE ((a.class_id = class_sessions.class_id) AND (a.student_id = public.current_profile_id()) AND (a.session_date = class_sessions.session_date))))));
+
+
+--
+-- Name: class_sessions class_sessions_student_feedback_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_sessions_student_feedback_update ON public.class_sessions FOR UPDATE TO authenticated USING ((public.is_enrolled(class_id) AND (EXISTS ( SELECT 1
+   FROM public.attendance a
+  WHERE ((a.class_id = class_sessions.class_id) AND (a.student_id = public.current_profile_id()) AND (a.session_date = class_sessions.session_date)))))) WITH CHECK (public.is_enrolled(class_id));
+
+
+--
 -- Name: class_sessions class_sessions_write; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3299,6 +3445,21 @@ CREATE POLICY comments_read ON public.comments FOR SELECT USING ((public.is_acti
 
 
 --
+-- Name: consents; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.consents ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: consents consents_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY consents_read ON public.consents FOR SELECT USING ((public.is_active_admin() OR (EXISTS ( SELECT 1
+   FROM public.profiles p
+  WHERE ((p.id = consents.profile_id) AND (p.auth_user_id = auth.uid()))))));
+
+
+--
 -- Name: conversation_participants; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3381,6 +3542,19 @@ ALTER TABLE public.exchange_rates ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY exchange_rates_admin_all ON public.exchange_rates USING (public.is_active_admin()) WITH CHECK (public.is_active_admin());
+
+
+--
+-- Name: guardians; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.guardians ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: guardians guardians_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY guardians_read ON public.guardians FOR SELECT USING ((public.is_active_admin() OR public.is_self_active(student_id)));
 
 
 --
@@ -3906,6 +4080,14 @@ GRANT ALL ON FUNCTION public.revoke_profile_guarded(p_target uuid) TO service_ro
 
 
 --
+-- Name: FUNCTION rls_disabled_tables(p_tables text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rls_disabled_tables(p_tables text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rls_disabled_tables(p_tables text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION set_submission_status(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -3948,6 +4130,104 @@ GRANT ALL ON FUNCTION public.user_is_mentor_for_student(p_user_id uuid, p_studen
 
 
 --
+-- Name: COLUMN class_sessions.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.class_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(class_id),INSERT(class_id) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.session_date; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(session_date),INSERT(session_date) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.scheduled_start; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(scheduled_start) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.scheduled_end; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(scheduled_end) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.actual_start; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(actual_start) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.actual_end; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(actual_end) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.tutor_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tutor_id) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.tutor_join_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tutor_join_at) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.tutor_leave_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tutor_leave_at) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(created_at) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.updated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(updated_at) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.summary; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(summary) ON TABLE public.class_sessions TO authenticated;
+
+
+--
+-- Name: COLUMN class_sessions.student_feedback; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(student_feedback),INSERT(student_feedback),UPDATE(student_feedback) ON TABLE public.class_sessions TO authenticated;
+
+
+--
 -- Name: COLUMN notifications.read_at; Type: ACL; Schema: public; Owner: -
 --
 
@@ -3976,20 +4256,6 @@ GRANT UPDATE(date_of_birth) ON TABLE public.profiles TO authenticated;
 
 
 --
--- Name: COLUMN profiles.gender; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(gender) ON TABLE public.profiles TO authenticated;
-
-
---
--- Name: COLUMN profiles.address; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(address) ON TABLE public.profiles TO authenticated;
-
-
---
 -- Name: COLUMN profiles.qualifications; Type: ACL; Schema: public; Owner: -
 --
 
@@ -4007,67 +4273,5 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict kQrJDvxUowx5D9CVPu4pfyPkZ8eppkgXpgXrdNgx3xzEQugfYenJZgTYp1aHmjr
+\unrestrict bzLffEHPDoz2DH3SCTetCx8zaEQEtNldUGUaCzvyFcJUFnibmstEcOTl8VXWN5Z
 
-
-
--- ============================================================================
--- HAND-APPENDED: migrations 0068-0069
--- ============================================================================
--- Everything above is a pg_dump through 0067. The two blocks below are the exact
--- DDL of migrations 0068-0069, appended by hand because no Supabase CLI/Docker was
--- available to re-dump. Dependency-safe here (every table, function and role they
--- reference is defined above). REPLACE this whole file with a clean dump via
---   supabase db reset && npm run db:rebuild-snapshot
--- as soon as the CLI is available.
-
--- 0068_class_sessions_student_feedback_rls
-GRANT INSERT (class_id, session_date, student_feedback) ON TABLE public.class_sessions TO authenticated;
-GRANT UPDATE (student_feedback) ON TABLE public.class_sessions TO authenticated;
-
-DROP POLICY IF EXISTS class_sessions_student_feedback_insert ON public.class_sessions;
-CREATE POLICY class_sessions_student_feedback_insert ON public.class_sessions
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    public.is_enrolled(class_id)
-    AND EXISTS (
-      SELECT 1 FROM public.attendance a
-      WHERE a.class_id = class_sessions.class_id
-        AND a.student_id = public.current_profile_id()
-        AND a.session_date = class_sessions.session_date
-    )
-  );
-
-DROP POLICY IF EXISTS class_sessions_student_feedback_update ON public.class_sessions;
-CREATE POLICY class_sessions_student_feedback_update ON public.class_sessions
-  FOR UPDATE TO authenticated
-  USING (
-    public.is_enrolled(class_id)
-    AND EXISTS (
-      SELECT 1 FROM public.attendance a
-      WHERE a.class_id = class_sessions.class_id
-        AND a.student_id = public.current_profile_id()
-        AND a.session_date = class_sessions.session_date
-    )
-  )
-  WITH CHECK (public.is_enrolled(class_id));
-
--- 0069_rls_health_check
-CREATE OR REPLACE FUNCTION public.rls_disabled_tables(p_tables text[])
-RETURNS text[]
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
-  select coalesce(array_agg(c.relname order by c.relname), array[]::text[])
-  from pg_class c
-  join pg_namespace n on n.oid = c.relnamespace
-  where n.nspname = 'public'
-    and c.relkind = 'r'
-    and c.relname = any(p_tables)
-    and c.relrowsecurity = false;
-$$;
-
-REVOKE ALL ON FUNCTION public.rls_disabled_tables(text[]) FROM public, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.rls_disabled_tables(text[]) TO service_role;
