@@ -10,6 +10,7 @@ export const ALL_CAPABILITIES = [
   'manageCalendar',
   'viewGrading',
   'manageClassContent',
+  'manageAttendance',
   'manageClasses',
   'viewUsers',
   'manageUsers',
@@ -59,6 +60,7 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'manageCalendar',
     'viewGrading',
     'manageClassContent',
+    'manageAttendance',
     'manageClasses',
     'viewUsers',
     'manageUsers',
@@ -88,6 +90,7 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'manageCalendar',
     'viewGrading',
     'manageClassContent',
+    'manageAttendance',
     'manageClasses',
     'viewUsers',
     'manageUsers',
@@ -102,15 +105,18 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'manageCalendar',
     'viewGrading',
     'manageClassContent',
+    'manageAttendance',
     // NOT viewMentees: a plain tutor has no mentee access. It comes only from the
     // (student-scoped) mentor persona, auto-assigned when they're given a
     // mentorship - so a tutor sees /students only when they're also a mentor.
   ]),
   // A dedicated mentor is an oversight persona, not a teaching one by default.
-  // They can SEE mentee-related classes, calendar entries and grading context,
-  // but write-side class powers belong to the tutor persona. If a mentor also
-  // teaches, that account must also hold the tutor persona (or an explicit
-  // override) for manageCalendar/manageClassContent.
+  // They can SEE mentee-related classes, calendar entries and grading context, and
+  // may EDIT attendance (marks + session times) for a mentee's class to correct
+  // recording issues - but the other write-side class powers (announcements,
+  // resources, assignments, timetable) belong to the tutor persona. If a mentor also
+  // teaches, that account must also hold the tutor persona (or an explicit override)
+  // for manageCalendar/manageClassContent.
   mentor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',
@@ -118,6 +124,7 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewCalendar',
     'viewGrading',
     'viewMentees',
+    'manageAttendance',
   ]),
   student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar']),
   // Reserved personas are intentionally omitted here until the app can assign

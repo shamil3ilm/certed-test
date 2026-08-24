@@ -18,7 +18,7 @@ import { PermissionError, ServiceError } from '@/lib/errors'
  * roster-membership filtering, and audit all happen inside the service.
  */
 export async function markAttendanceAction(formData: FormData): Promise<ActionResult<{ saved: number }>> {
-  const me = await requireCapability('manageClassContent')
+  const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
   if (!classId || !date) return actionFail('Missing class or date.')
@@ -55,7 +55,7 @@ export async function markAttendanceAction(formData: FormData): Promise<ActionRe
  *  The client sends ISO instants (it converts its local time inputs). Permission
  *  + audit happen inside the service. */
 export async function saveSessionAction(formData: FormData): Promise<ActionResult<{ ok: true }>> {
-  const me = await requireCapability('manageClassContent')
+  const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
   try {
     await saveSessionTimes(me, {
@@ -98,7 +98,7 @@ export async function saveFeedbackAction(formData: FormData): Promise<ActionResu
  *  page revalidates and re-renders the now-unmarked roster. Permission + audit
  *  happen inside the service. */
 export async function clearAttendanceAction(formData: FormData): Promise<void> {
-  const me = await requireCapability('manageClassContent')
+  const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
   if (!classId || !date) return

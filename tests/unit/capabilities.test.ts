@@ -19,11 +19,20 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('student'), 'viewGrading')).toBe(false)
   })
 
-  it('manageClassContent (announcements/resources/meet-links/attendance) is admin + tutor + sub_admin', () => {
+  it('manageClassContent (announcements/resources/meet-links) is admin + tutor + sub_admin', () => {
     expect(hasCapability(profile('admin'), 'manageClassContent')).toBe(true)
     expect(hasCapability(profile('tutor'), 'manageClassContent')).toBe(true)
     expect(hasCapability(profile('sub_admin'), 'manageClassContent')).toBe(true)
     expect(hasCapability(profile('student'), 'manageClassContent')).toBe(false)
+  })
+
+  it('manageAttendance (marks + session times) is admin + sub_admin + tutor + mentor, not student', () => {
+    expect(hasCapability(profile('admin'), 'manageAttendance')).toBe(true)
+    expect(hasCapability(profile('sub_admin'), 'manageAttendance')).toBe(true)
+    expect(hasCapability(profile('tutor'), 'manageAttendance')).toBe(true)
+    // A dedicated mentor can correct attendance/session times for a mentee's class.
+    expect(hasCapability(profile('mentor'), 'manageAttendance')).toBe(true)
+    expect(hasCapability(profile('student'), 'manageAttendance')).toBe(false)
   })
 
   it('manageClasses (whole-class lifecycle + teaching staff) is admin + sub_admin only', () => {
@@ -73,11 +82,13 @@ describe('capabilities model', () => {
     expect(hasCapability([persona('mentor')], 'viewMessages')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewCalendar')).toBe(true)
     // A mentor is an OVERSIGHT persona: it can SEE its mentees' classes and
-    // grading context, but the write-side class powers (manage content / manage
+    // grading context and EDIT attendance (marks + session times) to fix recording
+    // issues, but the other write-side class powers (manage content / manage
     // calendar) belong to the tutor persona. A mentor who also teaches must hold
     // the tutor persona (or an explicit override) to gain them.
     expect(hasCapability([persona('mentor')], 'viewClasses')).toBe(true)
     expect(hasCapability([persona('mentor')], 'viewGrading')).toBe(true)
+    expect(hasCapability([persona('mentor')], 'manageAttendance')).toBe(true)
     expect(hasCapability([persona('mentor')], 'manageClassContent')).toBe(false)
     expect(hasCapability([persona('mentor')], 'manageCalendar')).toBe(false)
     // Still NOT an admin-tier / finance role.
@@ -95,6 +106,7 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('mentor'), 'viewCalendar')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewClasses')).toBe(true)
     expect(hasCapability(profile('mentor'), 'viewGrading')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'manageAttendance')).toBe(true)
     expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(false)
     expect(hasCapability(profile('mentor'), 'manageCalendar')).toBe(false)
     expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(false)

@@ -26,7 +26,12 @@ export const CAPABILITY_META: Record<Capability, CapabilityMeta> = {
   },
   manageClassContent: {
     label: 'Manage class content',
-    description: 'Post announcements, resources, assignments and attendance.',
+    description: 'Post announcements, resources and assignments.',
+    group: 'Classes & teaching',
+  },
+  manageAttendance: {
+    label: 'Manage attendance',
+    description: 'Record and correct attendance marks and session times.',
     group: 'Classes & teaching',
   },
   manageClasses: {
