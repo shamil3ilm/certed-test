@@ -6,13 +6,12 @@ export const metadata: Metadata = {
   description: 'The terms that govern use of the Cert-Ed Academia online tuition platform.',
 }
 
-// DRAFT scaffold. Content is the audit draft (certed-privacy-audit-full.md, D3) and MUST be
-// reviewed by a qualified advocate before this page is treated as in force.
+// Draft terms: must be reviewed by a qualified advocate before this page is treated as in force.
 
 const TERMS: { title: string; body: string }[] = [
   {
     title: '1. Eligibility',
-    body: 'Accounts are created by the academy; a minor’s account is set up and accepted by a guardian.',
+    body: 'Accounts are created by the academy; for a minor, the account is created with a parent or guardian’s consent.',
   },
   {
     title: '2. Your account',
@@ -35,7 +34,10 @@ const TERMS: { title: string; body: string }[] = [
     body: 'Materials are for personal educational use; you retain rights in work you upload and grant us a licence to store and display it to deliver the service; do not upload unlawful or sensitive third-party data.',
   },
   { title: '7. Availability', body: 'The service is provided “as is”; we may perform maintenance.' },
-  { title: '8. Third-party services', body: 'The service relies on the providers listed in the Privacy Policy.' },
+  {
+    title: '8. Third-party services',
+    body: 'The service relies on third-party service providers to operate, described in our Privacy Policy.',
+  },
   { title: '9. Suspension and termination', body: 'We may suspend accounts for breach or misuse.' },
   { title: '10. Liability', body: 'Our liability is limited to the extent permitted by law.' },
   { title: '11. Changes', body: 'We may update these Terms; material changes require re-acceptance.' },
@@ -53,7 +55,7 @@ export default function TermsOfUse() {
           role="note"
           className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
-          <strong>Draft — pending legal review.</strong> These terms are being finalised with legal counsel and are not
+          <strong>Draft: pending legal review.</strong> These terms are being finalised with legal counsel and are not
           yet in force.
         </div>
 

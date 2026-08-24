@@ -7,9 +7,9 @@ export const metadata: Metadata = {
     'How Cert-Ed Academia collects, uses, stores and protects personal data for students, guardians and staff.',
 }
 
-// DRAFT scaffold. Content is the audit draft (certed-privacy-audit-full.md, D2) and MUST be
-// reviewed by a qualified advocate before this page is treated as in force. Placeholders in
-// [brackets] are filled once the operating entity + grievance contact are confirmed.
+// Draft policy: must be reviewed by a qualified advocate before this page is treated as in
+// force. Bracketed placeholders are filled once the operating entity and grievance contact
+// are confirmed.
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -28,8 +28,8 @@ export default function PrivacyPolicy() {
           role="note"
           className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
-          <strong>Draft — pending legal review.</strong> This policy is being finalised with legal counsel and is not
-          yet in force.
+          <strong>Draft: pending legal review.</strong> This policy is being finalised with legal counsel and is not yet
+          in force.
         </div>
 
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Privacy Policy</h1>
@@ -45,9 +45,10 @@ export default function PrivacyPolicy() {
         <Section title="1. What we collect">
           <ul className="list-disc space-y-2 pl-6">
             <li>
-              <strong>Students:</strong> name, email, class/level, and — where the student is a minor — a
-              guardian&rsquo;s name and phone. Academic records you generate on the platform (assignments, submissions,
-              grades, attendance, report cards) and files uploaded for coursework.
+              <strong>Students:</strong> name, email, class/level, date of birth, and an optional phone number used only
+              for class communication. Where the student is a minor, we also hold a guardian&rsquo;s name, phone and
+              email. We keep the academic records you generate on the platform (assignments, submissions, grades,
+              attendance, report cards) and the files you upload for coursework.
             </li>
             <li>
               <strong>Staff (tutors/mentors/admins):</strong> name, email, role, and professional profile details.
@@ -57,8 +58,8 @@ export default function PrivacyPolicy() {
               message.
             </li>
             <li>
-              <strong>Technical:</strong> a sign-in session cookie and, to prevent abuse, your IP address for
-              rate-limiting. We use <strong>no advertising or analytics trackers.</strong>
+              <strong>Technical:</strong> essential cookies that keep you signed in and, to prevent abuse, your IP
+              address for rate-limiting. We use <strong>no advertising or analytics trackers.</strong>
             </li>
           </ul>
         </Section>
@@ -73,8 +74,8 @@ export default function PrivacyPolicy() {
 
         <Section title="3. Children">
           <p>
-            For students under 18, we rely on <strong>guardian consent</strong> and process their data only for
-            educational and administrative purposes.
+            Students are typically minors, so we process their data on the basis of a{' '}
+            <strong>parent or guardian&rsquo;s consent</strong>, and only for educational and administrative purposes.
           </p>
         </Section>
 
@@ -86,48 +87,36 @@ export default function PrivacyPolicy() {
         </Section>
 
         <Section title="5. Service providers">
-          <p>We use the following providers, who process data only on our instructions:</p>
-          <ul className="list-disc space-y-2 pl-6">
-            <li>
-              <strong>Supabase</strong> — secure database &amp; sign-in
-            </li>
-            <li>
-              <strong>Vercel</strong> — application hosting
-            </li>
-            <li>
-              <strong>Google Drive</strong> — storing your uploaded files (never shared publicly)
-            </li>
-            <li>
-              <strong>Google Apps Script / Sheets</strong> — contact-form enquiries
-            </li>
-            <li>
-              <strong>Resend</strong> — email
-            </li>
-            <li>
-              <strong>Sentry</strong> — error monitoring (with emails and IP addresses removed)
-            </li>
-          </ul>
+          <p>
+            We share personal data only with a small number of trusted service providers who help us operate the
+            platform, such as hosting and our secure database, coursework-file storage, and email delivery. We share
+            data with them only to run the platform, and each is bound by its own confidentiality and security terms. We
+            do not sell your data or share it for advertising.
+          </p>
         </Section>
 
         <Section title="6. Where it is stored, and transfers">
           <p>
-            Your data is stored with our database provider in <strong>Singapore</strong> and processed via hosting
-            infrastructure in <strong>India</strong>. Any cross-border transfer is made only as permitted under
-            applicable law. [Transfer basis to be confirmed with counsel per jurisdiction.]
+            Your account and the records you generate on the platform are stored and processed in <strong>India</strong>
+            . Files you upload are held by our file-storage provider, which may store them outside India. If you use the
+            platform from outside India (for example, from a GCC state), this involves transferring your data across
+            borders. We are finalising the legal basis for these transfers with legal counsel before this policy takes
+            effect.
           </p>
         </Section>
 
         <Section title="7. How long we keep it">
           <p>
-            For as long as your account is active and as needed for our records; specific periods are set out in our
-            Data Retention Policy. Read notifications, queued emails and audit logs are purged automatically.
+            We keep your data for as long as your account is active and as long as we need it for our records and to
+            meet legal obligations. Read notifications, queued emails and audit logs are purged automatically. Specific
+            retention periods are being confirmed with legal counsel.
           </p>
         </Section>
 
         <Section title="8. Security">
           <p>
-            Role-based access, row-level database security, encrypted transport, custodial (non-public) file storage,
-            and restricted administrative access.
+            We protect your data with role-based access (each person sees only what their role permits), encryption in
+            transit, restricted administrative access, and non-public file storage.
           </p>
         </Section>
 

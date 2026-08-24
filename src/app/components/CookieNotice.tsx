@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 const DISMISS_KEY = 'certed-cookie-notice-dismissed'
 
 /**
- * Strictly-necessary cookie notice. We set only a sign-in session cookie and use no
+ * Strictly-necessary cookie notice. We set only essential sign-in cookies and use no
  * tracking/advertising cookies, so this is an informational notice (a "got it" dismiss),
  * NOT a consent banner with accept/reject. Dismissal is remembered per browser.
  */
@@ -43,7 +43,7 @@ export default function CookieNotice() {
     >
       <div className="mx-auto flex max-w-5xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm leading-relaxed text-gray-700">
-          We use a single essential cookie to keep you signed in. We use no tracking or advertising cookies. See our{' '}
+          We use essential cookies to keep you signed in. We use no tracking or advertising cookies. See our{' '}
           <Link href="/privacy" className="text-primary underline hover:no-underline">
             Privacy Policy
           </Link>
