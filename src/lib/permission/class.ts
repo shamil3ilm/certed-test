@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import type { Profile } from '@/lib/auth/profile'
 import { isActiveClassTutor, isActiveEnrollee, selectActiveClassIdsForStudents } from '@/lib/data/class-membership'
-import { selectActiveMenteeIds } from '@/lib/data/mentorships'
+import { selectScopedMenteeIds } from '@/lib/data/personas'
 import { selectClassStatus } from '@/lib/data/classes'
 import { ValidationError } from '@/lib/errors'
 import { loadPersonaFlags } from './personas'
@@ -12,9 +12,15 @@ import { loadPersonaFlags } from './personas'
  * so they get a tutor's class powers here (and only here) - never academy-wide.
  * Empty for a non-mentor or a mentor whose mentees are in no active class.
  * Request-cached, so the mentee->class lookup runs once per request.
+ *
+ * Mentee ids come from the scoped-persona source (selectScopedMenteeIds) - the
+ * SAME row canMentor authorizes against - not the mentorships link table. This
+ * keeps class authority in step with per-student data access: removeMentor drops
+ * the persona first, so if its second write fails, this and canMentor fail closed
+ * together rather than leaving a "removed" mentor with lingering class powers.
  */
 export const mentorAuthorityClassIds = cache(async (profileId: string): Promise<ReadonlySet<string>> => {
-  const menteeIds = await selectActiveMenteeIds(profileId)
+  const menteeIds = await selectScopedMenteeIds(profileId)
   if (menteeIds.length === 0) return new Set<string>()
   return new Set(await selectActiveClassIdsForStudents(menteeIds))
 })
