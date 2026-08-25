@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0076) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0079) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict bzLffEHPDoz2DH3SCTetCx8zaEQEtNldUGUaCzvyFcJUFnibmstEcOTl8VXWN5Z
+\restrict 1sAxRv6fRpHufxr7c9RASzfyK8uAKYTg3T9ApMNuISSkmt6HlmJ6ErApzv4OKDs
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -284,6 +284,7 @@ $$;
 
 CREATE FUNCTION public.finance_totals_base(p_kind text) RETURNS TABLE(base_currency text, base_total numeric, converted_count bigint, unconverted_count bigint)
     LANGUAGE sql STABLE
+    SET search_path TO 'public'
     AS $$
   select
     (select base_currency from org_settings limit 1),
@@ -919,6 +920,31 @@ $$;
 
 
 --
+-- Name: teaches_class_write(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.teaches_class_write(p_class_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists(
+    select 1
+    from class_tutors ct
+    join profiles p on p.id = ct.tutor_id
+    join persona_assignments pa
+      on pa.profile_id = ct.tutor_id
+     and pa.persona_name = 'tutor'::persona_name
+     and pa.scope_type = 'global'::persona_scope_type
+     and pa.status = 'active'
+    where p.auth_user_id = auth.uid()
+      and p.status = 'active'
+      and ct.class_id = p_class_id
+      and ct.active
+  )
+$$;
+
+
+--
 -- Name: user_has_persona(uuid, public.persona_name, public.persona_scope_type, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1363,6 +1389,19 @@ CREATE TABLE public.meet_links (
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     scheduled_at timestamp with time zone
+);
+
+
+--
+-- Name: mentee_notes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mentee_notes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    student_id uuid NOT NULL,
+    author_id uuid,
+    body text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1855,6 +1894,14 @@ ALTER TABLE ONLY public.guardians
 
 ALTER TABLE ONLY public.meet_links
     ADD CONSTRAINT meet_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mentee_notes mentee_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentee_notes
+    ADD CONSTRAINT mentee_notes_pkey PRIMARY KEY (id);
 
 
 --
@@ -2358,6 +2405,13 @@ CREATE INDEX idx_persona_assignments_status ON public.persona_assignments USING 
 --
 
 CREATE INDEX meet_links_class_idx ON public.meet_links USING btree (class_id);
+
+
+--
+-- Name: mentee_notes_student_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mentee_notes_student_idx ON public.mentee_notes USING btree (student_id, created_at DESC);
 
 
 --
@@ -2867,6 +2921,22 @@ ALTER TABLE ONLY public.meet_links
 
 
 --
+-- Name: mentee_notes mentee_notes_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentee_notes
+    ADD CONSTRAINT mentee_notes_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: mentee_notes mentee_notes_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mentee_notes
+    ADD CONSTRAINT mentee_notes_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: mentorships mentorships_student_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3178,7 +3248,7 @@ ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 -- Name: announcements announcements_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY announcements_insert ON public.announcements FOR INSERT WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+CREATE POLICY announcements_insert ON public.announcements FOR INSERT WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id))));
 
 
 --
@@ -3192,7 +3262,7 @@ CREATE POLICY announcements_read ON public.announcements FOR SELECT USING ((publ
 -- Name: announcements announcements_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY announcements_update ON public.announcements FOR UPDATE USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+CREATE POLICY announcements_update ON public.announcements FOR UPDATE USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id))));
 
 
 --
@@ -3205,7 +3275,7 @@ ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
 -- Name: assignments assignments_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY assignments_insert ON public.assignments FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY assignments_insert ON public.assignments FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class_write(class_id)));
 
 
 --
@@ -3219,7 +3289,7 @@ CREATE POLICY assignments_read ON public.assignments FOR SELECT USING ((public.i
 -- Name: assignments assignments_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY assignments_update ON public.assignments FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY assignments_update ON public.assignments FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class_write(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class_write(class_id)));
 
 
 --
@@ -3304,7 +3374,7 @@ CREATE POLICY calendar_events_read ON public.calendar_events FOR SELECT USING ((
 -- Name: calendar_events calendar_events_write; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id))));
 
 
 --
@@ -3341,7 +3411,9 @@ CREATE POLICY class_sessions_student_feedback_insert ON public.class_sessions FO
 
 CREATE POLICY class_sessions_student_feedback_update ON public.class_sessions FOR UPDATE TO authenticated USING ((public.is_enrolled(class_id) AND (EXISTS ( SELECT 1
    FROM public.attendance a
-  WHERE ((a.class_id = class_sessions.class_id) AND (a.student_id = public.current_profile_id()) AND (a.session_date = class_sessions.session_date)))))) WITH CHECK (public.is_enrolled(class_id));
+  WHERE ((a.class_id = class_sessions.class_id) AND (a.student_id = public.current_profile_id()) AND (a.session_date = class_sessions.session_date)))))) WITH CHECK ((public.is_enrolled(class_id) AND (EXISTS ( SELECT 1
+   FROM public.attendance a
+  WHERE ((a.class_id = class_sessions.class_id) AND (a.student_id = public.current_profile_id()) AND (a.session_date = class_sessions.session_date))))));
 
 
 --
@@ -3574,7 +3646,20 @@ CREATE POLICY meet_links_read ON public.meet_links FOR SELECT USING ((public.is_
 -- Name: meet_links meet_links_write; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY meet_links_write ON public.meet_links USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+CREATE POLICY meet_links_write ON public.meet_links USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id))));
+
+
+--
+-- Name: mentee_notes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mentee_notes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mentee_notes mentee_notes_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mentee_notes_read ON public.mentee_notes FOR SELECT USING ((public.is_active_admin() OR public.mentors_student(student_id)));
 
 
 --
@@ -3826,7 +3911,7 @@ ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 -- Name: resources resources_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY resources_insert ON public.resources FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY resources_insert ON public.resources FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class_write(class_id)));
 
 
 --
@@ -3840,7 +3925,7 @@ CREATE POLICY resources_read ON public.resources FOR SELECT USING ((public.is_ac
 -- Name: resources resources_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY resources_update ON public.resources FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY resources_update ON public.resources FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class_write(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class_write(class_id)));
 
 
 --
@@ -3919,7 +4004,7 @@ CREATE POLICY timetable_slots_read ON public.timetable_slots FOR SELECT USING ((
 -- Name: timetable_slots timetable_slots_write; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_active_admin() OR public.teaches_class_write(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class_write(class_id)));
 
 
 --
@@ -3968,6 +4053,13 @@ GRANT ALL ON FUNCTION public.edit_assignment_and_reclassify(p_id uuid, p_title t
 
 REVOKE ALL ON FUNCTION public.finance_totals(p_kind text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.finance_totals(p_kind text) TO authenticated;
+
+
+--
+-- Name: FUNCTION finance_totals_base(p_kind text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.finance_totals_base(p_kind text) FROM PUBLIC;
 
 
 --
@@ -4022,6 +4114,7 @@ GRANT ALL ON FUNCTION public.issue_receipt_doc(p_party_id uuid, p_party_name tex
 -- Name: FUNCTION mentors_class(p_class_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
+REVOKE ALL ON FUNCTION public.mentors_class(p_class_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mentors_class(p_class_id uuid) TO authenticated;
 
 
@@ -4095,11 +4188,25 @@ REVOKE ALL ON FUNCTION public.set_submission_status() FROM PUBLIC;
 
 
 --
+-- Name: FUNCTION set_updated_at(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_updated_at() FROM PUBLIC;
+
+
+--
 -- Name: FUNCTION teaches_class(p_class_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.teaches_class(p_class_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.teaches_class(p_class_id uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION teaches_class_write(p_class_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.teaches_class_write(p_class_id uuid) TO authenticated;
 
 
 --
@@ -4273,5 +4380,5 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bzLffEHPDoz2DH3SCTetCx8zaEQEtNldUGUaCzvyFcJUFnibmstEcOTl8VXWN5Z
+\unrestrict 1sAxRv6fRpHufxr7c9RASzfyK8uAKYTg3T9ApMNuISSkmt6HlmJ6ErApzv4OKDs
 
