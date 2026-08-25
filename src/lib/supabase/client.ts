@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { MAX_SESSION_SECONDS } from './cookie-options'
 
 type PublicSupabaseEnvName = 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
 
@@ -29,8 +30,14 @@ export function getPublicSupabaseEnvError(): string | null {
 }
 
 export function createClient() {
+  // Sign-in runs client-side, so the BROWSER writes the session cookie first. Without
+  // these options @supabase/ssr uses its defaults (no `secure`, 400-day maxAge), which
+  // bypasses the server-side hardening. Mirror hardenCookieOptions here from the shared
+  // constant so the browser-written cookie matches the server-refreshed one and the two
+  // paths can't drift: Secure in production, capped to the 30-day inactivity ceiling.
   return createBrowserClient(
     requiredPublicEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL),
     requiredPublicEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+    { cookieOptions: { secure: process.env.NODE_ENV === 'production', maxAge: MAX_SESSION_SECONDS } },
   )
 }

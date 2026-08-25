@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { POLICY_EFFECTIVE_DATE } from '@/lib/policy/versions'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Cert-Ed Academia',
@@ -33,7 +34,7 @@ export default function PrivacyPolicy() {
         </div>
 
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-gray-500">Last updated: [date]</p>
+        <p className="mt-2 text-sm text-gray-500">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
         <p className="mt-6 text-gray-700 leading-relaxed">
           Cert-Ed Academia (&ldquo;we&rdquo;, &ldquo;us&rdquo;), operated by <strong>[legal entity name]</strong>,

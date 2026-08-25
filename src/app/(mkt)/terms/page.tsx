@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { POLICY_EFFECTIVE_DATE } from '@/lib/policy/versions'
 
 export const metadata: Metadata = {
   title: 'Terms of Use | Cert-Ed Academia',
@@ -60,7 +61,7 @@ export default function TermsOfUse() {
         </div>
 
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Terms of Use</h1>
-        <p className="mt-2 text-sm text-gray-500">Last updated: [date]</p>
+        <p className="mt-2 text-sm text-gray-500">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
         <div className="mt-6 space-y-6">
           {TERMS.map((t) => (

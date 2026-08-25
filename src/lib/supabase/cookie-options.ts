@@ -15,7 +15,7 @@
  *   exposure is mitigated by the per-request CSP instead (see proxy.ts).
  */
 
-const MAX_SESSION_SECONDS = 30 * 24 * 60 * 60 // 30 days
+export const MAX_SESSION_SECONDS = 30 * 24 * 60 * 60 // 30 days
 
 type HardenableCookieOptions = { maxAge?: number; secure?: boolean } & Record<string, unknown>
 

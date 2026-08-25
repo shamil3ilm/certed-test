@@ -4,6 +4,7 @@ import { setupCodeValid } from '@/lib/auth/setup-code'
 import type { RegisterInput } from '@/lib/validation/user'
 import { bindAuthUserToProfile, selectRegistrationFields, type RegistrationFieldsRow } from '@/lib/data/profiles'
 import { createAuthUser, deleteAuthUser } from '@/lib/data/auth-accounts'
+import { recordConsentAcceptance } from '@/lib/services/consents'
 
 /** Unauthenticated bootstrap: an allowlisted profile claiming its login. */
 
@@ -64,5 +65,13 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
       code: ERROR_CODES.invalidInput,
     }
   }
+
+  // Record acceptance of the current Terms + Privacy Policy versions - the append-only
+  // consent trail the privacy policy promises. Completing setup here is the acceptance
+  // (the register form states it). Best-effort: the account is already bound, so a
+  // consent-write hiccup must not fail registration - log it for follow-up instead.
+  await recordConsentAcceptance(target.id).catch((e) =>
+    console.error(`registration: consent record failed for profile ${target.id}`, e),
+  )
   return { ok: true }
 }
