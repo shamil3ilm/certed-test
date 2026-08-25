@@ -2,6 +2,7 @@ import 'server-only'
 import { z } from 'zod'
 import type { Profile } from '@/lib/auth/profile'
 import { ValidationError } from '@/lib/errors'
+import { validateUuidField } from '@/lib/validation/id'
 import { requireManageableTarget } from '@/lib/services/users/admin-lifecycle'
 import {
   clearPrimaryForStudent,
@@ -28,7 +29,11 @@ const guardianSchema = z.object({
   is_primary: z.boolean(),
 })
 
-export async function listGuardians(studentId: string): Promise<GuardianRow[]> {
+/** A student's guardians (minors' PII). Actor-gated on the same tier rule as the
+ *  mutations, so a service-role read can't be reached without proving remit - not left
+ *  to rely on the caller alone. */
+export async function listGuardians(actor: Profile, studentId: string): Promise<GuardianRow[]> {
+  await requireManageableTarget(actor, studentId)
   return selectGuardiansByStudent(studentId)
 }
 
@@ -54,11 +59,13 @@ export async function addGuardian(actor: Profile, studentId: string, raw: unknow
 
 export async function removeGuardian(actor: Profile, studentId: string, guardianId: string): Promise<void> {
   await requireManageableTarget(actor, studentId)
-  await deleteGuardian(guardianId, studentId)
+  const id = validateUuidField(guardianId, 'Invalid guardian id.')
+  await deleteGuardian(id, studentId)
 }
 
 export async function makeGuardianPrimary(actor: Profile, studentId: string, guardianId: string): Promise<void> {
   await requireManageableTarget(actor, studentId)
+  const id = validateUuidField(guardianId, 'Invalid guardian id.')
   await clearPrimaryForStudent(studentId)
-  await setGuardianPrimary(guardianId, studentId)
+  await setGuardianPrimary(id, studentId)
 }

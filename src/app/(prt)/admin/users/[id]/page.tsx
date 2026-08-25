@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import type { Profile } from '@/lib/auth/profile'
 import { requireCapability } from '@/lib/auth/require-role'
 import { selectProfileDetailsById, selectActiveProfilesByRoles } from '@/lib/data/profiles-directory'
 import { loadStudentSubjects, loadTutorRoster } from '@/lib/services/page-data/user-detail'
@@ -38,14 +39,14 @@ export default async function UserDetailPage(props: {
       <DetailsCard profile={profile} />
 
       {isStudent && <StudentSubjects studentId={id} />}
-      {isStudent && <StudentGuardians studentId={id} />}
+      {isStudent && <StudentGuardians studentId={id} actor={me} />}
       {isTeacher && <TutorRoster tutorId={id} />}
     </main>
   )
 }
 
-async function StudentGuardians({ studentId }: { studentId: string }) {
-  const guardians = await listGuardians(studentId)
+async function StudentGuardians({ studentId, actor }: { studentId: string; actor: Profile }) {
+  const guardians = await listGuardians(actor, studentId)
   return <GuardiansPanel studentId={studentId} guardians={guardians} />
 }
 

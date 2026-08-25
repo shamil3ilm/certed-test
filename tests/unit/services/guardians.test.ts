@@ -69,18 +69,26 @@ describe('addGuardian', () => {
   })
 })
 
+const G1 = '11111111-1111-4111-8111-111111111111'
+const G2 = '22222222-2222-4222-8222-222222222222'
+
 describe('removeGuardian', () => {
   it('checks the tier then deletes scoped to the student', async () => {
-    await removeGuardian(actor, STUDENT, 'g1')
+    await removeGuardian(actor, STUDENT, G1)
     expect(requireManageableTarget).toHaveBeenCalledWith(actor, STUDENT)
-    expect(deleteGuardian).toHaveBeenCalledWith('g1', STUDENT)
+    expect(deleteGuardian).toHaveBeenCalledWith(G1, STUDENT)
+  })
+
+  it('rejects a malformed guardian id before any DB write', async () => {
+    await expect(removeGuardian(actor, STUDENT, 'not-a-uuid')).rejects.toThrow(/Invalid guardian id/i)
+    expect(deleteGuardian).not.toHaveBeenCalled()
   })
 })
 
 describe('makeGuardianPrimary', () => {
   it('clears the others then sets the chosen one', async () => {
-    await makeGuardianPrimary(actor, STUDENT, 'g2')
+    await makeGuardianPrimary(actor, STUDENT, G2)
     expect(clearPrimaryForStudent).toHaveBeenCalledWith(STUDENT)
-    expect(setGuardianPrimary).toHaveBeenCalledWith('g2', STUDENT)
+    expect(setGuardianPrimary).toHaveBeenCalledWith(G2, STUDENT)
   })
 })
