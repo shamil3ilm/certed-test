@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
+import { getActorContext } from '@/lib/session/actor-context'
 import { actionFail, actionOk, toActionError, type ActionResult } from '@/lib/api/action-error'
 import {
   clearAttendanceSession,
@@ -51,12 +52,17 @@ export async function markAttendanceAction(formData: FormData): Promise<ActionRe
   }
 }
 
-/** Records the session's timing (scheduled + actual window, tutor join/leave).
- *  The client sends ISO instants (it converts its local time inputs). Permission
- *  + audit happen inside the service. */
+/** Records the session - times + the student-shared summary. A mentor overseeing a
+ *  mentee may edit these (manageAttendance), so that's the transport gate; the service
+ *  additionally scopes to the class (canManageClass). The staff-PRIVATE note is a
+ *  separate, higher gate applied inside the service (manageClassContent), so a mentor
+ *  can edit times/summary but never the private note. The client sends ISO instants. */
 export async function saveSessionAction(formData: FormData): Promise<ActionResult<{ ok: true }>> {
   const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
+  // Only a manageClassContent holder (tutor / admin) may write the staff-private note;
+  // a mentor editing times/summary cannot. Resolve it here from the actor's capabilities.
+  const canEditStaffNote = (await getActorContext()).capabilities.allowed.has('manageClassContent')
   try {
     await saveSessionTimes(me, {
       classId,
@@ -64,9 +70,9 @@ export async function saveSessionAction(formData: FormData): Promise<ActionResul
       tutor_id: formData.get('tutor_id'),
       actual_start: formData.get('actual_start'),
       actual_end: formData.get('actual_end'),
-      student_entry: formData.get('student_entry'),
       summary: formData.get('summary'),
       staff_note: formData.get('staff_note'),
+      canEditStaffNote,
     })
     revalidatePath(`/classroom/${classId}/attendance`)
     return actionOk({ ok: true })
@@ -93,12 +99,13 @@ export async function saveFeedbackAction(formData: FormData): Promise<ActionResu
   }
 }
 
-/** Clears every mark for a class on one session date (correcting a session
- *  recorded in error). Used as a plain <form> action, so it returns void; the
- *  page revalidates and re-renders the now-unmarked roster. Permission + audit
- *  happen inside the service. */
+/** Clears every mark for a class on one session date (correcting a session recorded
+ *  in error). This is a DESTRUCTIVE bulk delete, not routine marking, so it requires
+ *  manageClassContent (tutor / admin / sub_admin) - a mentor's manageAttendance lets
+ *  them mark/correct, not wipe a whole session. Used as a plain <form> action, so it
+ *  returns void; permission + audit also happen inside the service. */
 export async function clearAttendanceAction(formData: FormData): Promise<void> {
-  const me = await requireCapability('manageAttendance')
+  const me = await requireCapability('manageClassContent')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
   if (!classId || !date) return

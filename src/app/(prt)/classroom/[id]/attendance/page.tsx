@@ -1,4 +1,5 @@
 import { requireClassAccess } from '../../access'
+import { getActorContext } from '@/lib/session/actor-context'
 import { type AttendanceStatus } from '@/lib/services/attendance'
 import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/services/page-data/class-attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
@@ -125,6 +126,13 @@ export default async function AttendancePage(props: {
   }
 
   const sessionM = sessionMetrics(data.session ?? EMPTY_SESSION_TIMES)
+  // Everyone reaching this manager view holds manageAttendance, so all may mark and edit
+  // the session TIMES + SUMMARY (mentors included). The staff-PRIVATE note and the
+  // destructive "clear session" need manageClassContent (tutor / admin). Strip the note
+  // VALUE from a non-content actor's payload so it never reaches their browser, and hide
+  // the field + the clear control below.
+  const canManageContent = (await getActorContext()).capabilities.allowed.has('manageClassContent')
+  const sessionForForm = canManageContent ? data.session : data.session && { ...data.session, staff_note: null }
 
   return (
     <div className="space-y-8">
@@ -161,8 +169,8 @@ export default async function AttendancePage(props: {
         <SessionTimesForm
           classId={course.id}
           date={data.date}
-          session={data.session}
-          studentEntryAt={data.studentEntryAt}
+          session={sessionForForm}
+          canEditStaffNote={canManageContent}
         />
 
         <div className="max-w-xs">
@@ -174,7 +182,7 @@ export default async function AttendancePage(props: {
         ) : (
           <>
             <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={data.session} />
-            {data.hasMarks && (
+            {canManageContent && data.hasMarks && (
               <form action={clearAttendanceAction} className="flex justify-end">
                 <input type="hidden" name="class_id" value={course.id} />
                 <input type="hidden" name="session_date" value={data.date} />

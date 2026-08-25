@@ -133,7 +133,6 @@ describe('loadClassAttendancePageData', () => {
       kind: 'manager',
       date: '2026-07-16',
       session: null,
-      studentEntryAt: null,
       hasMarks: true,
       roster: [
         { id: 's1', name: 'Sara Student', status: 'late', join_at: null, leave_at: null },

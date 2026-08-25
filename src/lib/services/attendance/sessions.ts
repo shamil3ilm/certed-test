@@ -3,7 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
+import { PermissionError, ValidationError } from '@/lib/errors'
 import {
   selectRecentSessions,
   selectSession,
@@ -12,12 +12,8 @@ import {
   writeStudentSessionFeedback,
   type ClassSessionRow,
 } from '@/lib/data/class-sessions'
-import {
-  selectActiveClassIdsForStudent,
-  selectActiveEnrollmentRefsByClassIds,
-  selectActiveTutorRowsForClass,
-} from '@/lib/data/class-membership'
-import { studentHasAttendance, updateJoinAtAsService } from '@/lib/data/attendance'
+import { selectActiveClassIdsForStudent, selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
+import { studentHasAttendance } from '@/lib/data/attendance'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { validateUuidField } from '@/lib/validation/id'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
@@ -57,11 +53,14 @@ export type SaveSessionActionInput = {
   tutor_id?: FormDataEntryValue | null
   actual_start?: FormDataEntryValue | null
   actual_end?: FormDataEntryValue | null
-  /** The enrolled student's entry time (their attendance join). Empty clears it. */
-  student_entry?: FormDataEntryValue | null
   summary?: FormDataEntryValue | null
-  /** A staff-private note, not shared with the student. */
+  /** A staff-private note, not shared with the student. Only written when
+   *  `canEditStaffNote` is true (a manageClassContent holder). */
   staff_note?: FormDataEntryValue | null
+  /** Whether the caller may write the staff-private note (manageClassContent). The
+   *  action resolves this from the actor's capabilities; a mentor editing the
+   *  times/summary passes false, so staff_note is left untouched. */
+  canEditStaffNote?: boolean
 }
 
 /** The tutor to attribute a session to when none is specified: the recorder if they
@@ -90,26 +89,10 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     throw new ValidationError('Invalid session times.')
   }
 
-  // Resolve + fully validate the student entry BEFORE any write, so a bad entry never
-  // leaves a half-saved session. Empty clears it. Entry is the enrolled student's
-  // attendance join, so it needs an existing attendance row (mark attendance first).
-  const studentEntryRaw = String(input.student_entry ?? '').trim()
-  let studentEntry: { studentId: string; joinAt: string } | null = null
-  if (studentEntryRaw) {
-    const entryDate = new Date(studentEntryRaw)
-    if (Number.isNaN(entryDate.getTime())) {
-      throw new ValidationError('Enter a valid student entry time.')
-    }
-    if (parsed.data.actual_end && entryDate.getTime() > Date.parse(parsed.data.actual_end)) {
-      throw new ValidationError('Student entry cannot be after the session end time.')
-    }
-    const student = (await selectActiveEnrollmentRefsByClassIds([classId]))[0]?.student_id
-    if (!student) throw new NotFoundError('This class has no active student.')
-    if (!(await studentHasAttendance(classId, student, sessionDate))) {
-      throw new ValidationError('Mark attendance for this student first, then set their entry time.')
-    }
-    studentEntry = { studentId: student, joinAt: entryDate.toISOString() }
-  }
+  // Student entry (the student's attendance join) is a ROSTER fact, set on the mark-
+  // attendance form (manageAttendance - mentors too), not here on the session record.
+  // Keeping it in one place avoids two entry points and two capability gates for the
+  // same datum.
 
   // The tutor attributed to a session must be a real tutor of this class. An EXPLICIT
   // id is admin-only unless it's the recorder's own, and is validated + confirmed
@@ -131,6 +114,12 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     tutorId = await defaultSessionTutor(actor.id, classId)
   }
 
+  // Times + summary are editable by any manageAttendance holder (mentors included, via
+  // the action). The staff-PRIVATE note is a higher bar - only a manageClassContent
+  // holder (tutor / admin) may set it (the action resolves canEditStaffNote). When the
+  // caller lacks it, staff_note is OMITTED from the upsert entirely, so an existing note
+  // is PRESERVED (not cleared) and a mentor can never write it.
+  const canEditStaffNote = input.canEditStaffNote ?? false
   const saved = await upsertSession({
     class_id: classId,
     session_date: sessionDate,
@@ -138,12 +127,8 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     actual_start: parsed.data.actual_start,
     actual_end: parsed.data.actual_end,
     summary: noteField.parse(String(input.summary ?? '')),
-    staff_note: noteField.parse(String(input.staff_note ?? '')),
+    ...(canEditStaffNote ? { staff_note: noteField.parse(String(input.staff_note ?? '')) } : {}),
   })
-  // Entry was fully validated above (an attendance row exists), so this update lands.
-  if (studentEntry) {
-    await updateJoinAtAsService(classId, studentEntry.studentId, sessionDate, studentEntry.joinAt)
-  }
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId)
   return saved
 }

@@ -78,9 +78,6 @@ type ManagerAttendancePageData = {
   kind: 'manager'
   date: string
   session: ClassSession | null
-  /** The enrolled student's current entry (attendance join) for this date, seeding
-   *  the session-times "Student entry" field. Null until attendance is marked. */
-  studentEntryAt: string | null
   roster: RosterEntry[]
   // Whether the date has ANY attendance rows - independent of the current roster.
   // The clear control keys off this (not "is a current enrollee marked") so a
@@ -150,15 +147,10 @@ export async function loadClassAttendancePageData(
   const historicalNames = await getProfileNamesByIds(historyStudentIds)
   const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
 
-  // 1:1 tutoring: the single enrolled student's join for this date is the session's
-  // "student entry". Take the first marked student's join (null until marked).
-  const studentEntryAt = students.map((s) => byStudent.get(s.id)?.join_at ?? null).find((v) => v != null) ?? null
-
   return {
     kind: 'manager',
     date,
     session,
-    studentEntryAt,
     historyFilters,
     hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
     history: historyRows.map((r) => ({
