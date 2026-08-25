@@ -131,6 +131,25 @@ insert into messages(conversation_id,sender_id,body) values
 -- capability override on tutor1
 insert into capability_overrides(profile_id,capability,effect,scope_type,scope_id,status,created_by) values
  ('a0000000-0000-4000-8000-000000000010','viewFinance','allow','global',null,'active','a0000000-0000-4000-8000-000000000001');
+-- guardians for S1 (student contact PII; guardians_read = active admin OR the student).
+insert into guardians(student_id,name,relationship,is_primary) values
+ ('a0000000-0000-4000-8000-000000000030','Priya Parent','mother',true),
+ ('a0000000-0000-4000-8000-000000000030','Raj Parent','father',false);
+-- mentee_notes for S1 (mentor's pastoral PII; read = active admin OR the student's mentor).
+insert into mentee_notes(student_id,author_id,body) values
+ ('a0000000-0000-4000-8000-000000000030','a0000000-0000-4000-8000-000000000020','Pastoral note for S1');
+-- financial system-of-record: a receipt FOR student S1 and a payslip FOR tutor T1.
+-- Read policy = active admin OR the party the document is for; nobody else.
+insert into receipts(number,student_id,student_name_snapshot,currency,subtotal,total,created_by) values
+ ('CEA-R-TEST-0001','a0000000-0000-4000-8000-000000000030','S One','INR',600,600,'a0000000-0000-4000-8000-000000000001');
+insert into receipt_lines(receipt_id,subject,hours,rate,amount)
+ select id,'Maths',1,600,600 from receipts where number='CEA-R-TEST-0001';
+insert into payslips(number,tutor_id,tutor_name_snapshot,currency,subtotal,total,created_by) values
+ ('CEA-P-TEST-0001','a0000000-0000-4000-8000-000000000010','T One','INR',500,500,'a0000000-0000-4000-8000-000000000001');
+insert into payslip_lines(payslip_id,label,hours,rate,amount)
+ select id,'Teaching',1,500,500 from payslips where number='CEA-P-TEST-0001';
+-- org_settings single row (org_read = active admin only).
+insert into org_settings(id) values (true) on conflict do nothing;
 SQL
 
 pass=0; fail=0
@@ -142,10 +161,23 @@ check() {
   if [ "$got" = "$want" ]; then pass=$((pass+1)); # echo "  ok  $label";
   else fail=$((fail+1)); echo "  FAIL $label : expected $want, got ${got:-<none>}"; fi
 }
+# check_write LABEL UID SQL EXPECT(allow|block) - runs a WRITE in a rolled-back
+# transaction (so it never mutates the fixture) and asserts whether RLS permitted it.
+# "block" = the write raised a row-level-security / permission-denied error.
+check_write() {
+  local label="$1" uid="$2" sql="$3" expect="$4"
+  local out got
+  out=$(psql -h $HOST -U $USER -d "$DB" -tAqc \
+    "set role authenticated; set request.jwt.claims='{\"sub\":\"$uid\"}'; begin; $sql; rollback;" 2>&1)
+  if echo "$out" | grep -qiE "row-level security|permission denied"; then got=block; else got=allow; fi
+  if [ "$got" = "$expect" ]; then pass=$((pass+1));
+  else fail=$((fail+1)); echo "  FAIL $label : expected $expect, got $got ${out:+- $out}"; fi
+}
 A=a0000000-0000-4000-8000-000000000001   # admin
 T1=a0000000-0000-4000-8000-000000000010; T2=a0000000-0000-4000-8000-000000000011
 M=a0000000-0000-4000-8000-000000000020
 S1=a0000000-0000-4000-8000-000000000030; S2=a0000000-0000-4000-8000-000000000031; S3=a0000000-0000-4000-8000-000000000032
+C1=c0000000-0000-4000-8000-000000000001   # class C1: tutor T1, enrolled S1, mentored by M
 
 echo "== running RLS assertions =="
 # reminders: self only
@@ -191,8 +223,60 @@ check "personas: admin sees all"               $A  "select count(*) from persona
 check "overrides: T1 sees own"                 $T1 "select count(*) from capability_overrides where profile_id='$T1'" 1
 check "overrides: S1 cannot see T1's"          $S1 "select count(*) from capability_overrides" 0
 check "overrides: admin sees all"              $A  "select count(*) from capability_overrides" 1
+# guardians (0076): student contact PII - visible to an active admin and the student
+# THEMSELVES only (staff read via the service role, not RLS).
+check "guardians: admin sees S1's"             $A  "select count(*) from guardians where student_id='$S1'" 2
+check "guardians: S1 sees own"                 $S1 "select count(*) from guardians where student_id='$S1'" 2
+check "guardians: S2 cannot see S1's"          $S2 "select count(*) from guardians where student_id='$S1'" 0
+check "guardians: tutor cannot see S1's"       $T1 "select count(*) from guardians where student_id='$S1'" 0
+# mentee_notes (0078): mentor's pastoral PII - read by an active admin OR the student's
+# mentor(s); NEVER the student, and not a plain tutor. Writes are service-role only.
+check "mentee_notes: admin sees S1's"          $A  "select count(*) from mentee_notes where student_id='$S1'" 1
+check "mentee_notes: mentor sees mentee S1's"  $M  "select count(*) from mentee_notes where student_id='$S1'" 1
+check "mentee_notes: student cannot see own"   $S1 "select count(*) from mentee_notes where student_id='$S1'" 0
+check "mentee_notes: tutor cannot see S1's"    $T1 "select count(*) from mentee_notes where student_id='$S1'" 0
+# subjects (0064): any ACTIVE user reads all; writes are service-role only.
+check "subjects: active student sees all"      $S1 "select count(*) from subjects" 10
+check "subjects: active tutor sees all"        $T1 "select count(*) from subjects" 10
+# receipts/payslips (financial system-of-record): active admin, plus the party the
+# document is FOR (the student on a receipt, the teacher on a payslip). Nobody else.
+check "receipts: admin sees"                   $A  "select count(*) from receipts" 1
+check "receipts: S1 sees own"                  $S1 "select count(*) from receipts where student_id='$S1'" 1
+check "receipts: S2 cannot see"                $S2 "select count(*) from receipts" 0
+check "receipt_lines: admin sees"              $A  "select count(*) from receipt_lines" 1
+check "receipt_lines: S1 sees own"             $S1 "select count(*) from receipt_lines" 1
+check "receipt_lines: S2 cannot see"           $S2 "select count(*) from receipt_lines" 0
+check "payslips: admin sees"                   $A  "select count(*) from payslips" 1
+check "payslips: T1 sees own"                  $T1 "select count(*) from payslips where tutor_id='$T1'" 1
+check "payslips: T2 cannot see"                $T2 "select count(*) from payslips" 0
+check "payslip_lines: admin sees"              $A  "select count(*) from payslip_lines" 1
+check "payslip_lines: T1 sees own"             $T1 "select count(*) from payslip_lines" 1
+check "payslip_lines: T2 cannot see"           $T2 "select count(*) from payslip_lines" 0
+# org_settings: admin-only read (org_read = is_active_admin()).
+check "org_settings: admin sees"               $A  "select count(*) from org_settings" 1
+check "org_settings: non-admin sees 0"         $S1 "select count(*) from org_settings" 0
 # profiles: self visible
 check "profiles: S1 sees own row"              $S1 "select count(*) from profiles where id='$S1'" 1
+
+# ── A-07: mentor write authority is attendance-only (0077) ───────────────────
+# M holds only a student-scoped mentor persona over S1 (enrolled in C1). A mentor
+# READS the mentee's class but must NOT author its content - before 0077 these
+# INSERTs succeeded through teaches_class(). The tutor of C1 must still be able to;
+# attendance stays mentor-writable (the manageAttendance exception).
+check_write "A-07: mentor CANNOT insert assignment in mentee class" $M \
+  "insert into assignments(class_id,title,due_date,status) values ('$C1','hack',now(),'active')" block
+check_write "A-07: mentor CANNOT insert resource in mentee class" $M \
+  "insert into resources(class_id,title,status) values ('$C1','hack','active')" block
+check_write "A-07: mentor CANNOT insert announcement in mentee class" $M \
+  "insert into announcements(class_id,title,message,status) values ('$C1','hack','x','active')" block
+check_write "A-07: tutor CAN still insert assignment in own class" $T1 \
+  "insert into assignments(class_id,title,due_date,status) values ('$C1','real',now(),'active')" allow
+check_write "A-07: mentor CAN still write attendance (manageAttendance)" $M \
+  "insert into attendance(class_id,student_id,session_date,status,marked_by) values ('$C1','$S1','2999-01-01','present','$M')" allow
+# mentee_notes has no write policy: even the student's mentor cannot INSERT via the API
+# (notes are written service-role only, gated in-app by canMentor).
+check_write "mentee_notes: mentor CANNOT insert via API (service-role only)" $M \
+  "insert into mentee_notes(student_id,author_id,body) values ('$S1','$M','x')" block
 
 echo "== RLS RESULT: $pass passed, $fail failed =="
 psql -h $HOST -U $USER -q -c "drop database if exists $DB" >/dev/null 2>&1
