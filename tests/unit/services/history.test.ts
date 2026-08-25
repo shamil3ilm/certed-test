@@ -2,12 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/data/audit', () => ({ listAuditPage: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfilesByIds: vi.fn(), searchProfileIds: vi.fn() }))
+vi.mock('@/lib/capabilities', () => ({ isAdminTier: vi.fn() }))
 
 import { listAuditPage } from '@/lib/data/audit'
 import { getProfilesByIds, searchProfileIds } from '@/lib/services/users'
+import { isAdminTier } from '@/lib/capabilities'
 import { historyUrl, loadHistoryPageData } from '@/lib/services/page-data/history'
 
-beforeEach(() => vi.resetAllMocks())
+const admin = { id: 'admin-1' } as never
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(isAdminTier).mockReturnValue(true) // default: super viewer (unclamped, no redaction)
+})
 
 describe('historyUrl', () => {
   it('builds the history URL while omitting the default page', () => {
@@ -38,7 +45,7 @@ describe('loadHistoryPageData', () => {
       new Map([['p1', { id: 'p1', full_name: 'Maya Mentor', email: 'maya@test.com', role: 'tutor' }]]) as any,
     )
 
-    const result = await loadHistoryPageData({ page: '2', action: 'grade', actor: 'maya' })
+    const result = await loadHistoryPageData(admin, { page: '2', action: 'grade', actor: 'maya' })
 
     expect(listAuditPage).toHaveBeenCalledWith({
       page: 2,
@@ -67,7 +74,7 @@ describe('loadHistoryPageData', () => {
     vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(new Map() as any)
 
-    await loadHistoryPageData({ actor: 'nobody' })
+    await loadHistoryPageData(admin, { actor: 'nobody' })
 
     expect(listAuditPage).toHaveBeenCalledWith({
       page: 1,
@@ -81,7 +88,7 @@ describe('loadHistoryPageData', () => {
     vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(new Map() as any)
 
-    await loadHistoryPageData({})
+    await loadHistoryPageData(admin, {})
 
     expect(searchProfileIds).not.toHaveBeenCalled()
     expect(listAuditPage).toHaveBeenCalledWith({
@@ -90,5 +97,33 @@ describe('loadHistoryPageData', () => {
       action: undefined,
       actorIds: undefined,
     })
+  })
+
+  it('for a NON-super viewer, clamps the actor search to non-admin roles and redacts an admin-tier actor', async () => {
+    vi.mocked(isAdminTier).mockReturnValue(false)
+    vi.mocked(searchProfileIds).mockResolvedValueOnce(['admin1'])
+    vi.mocked(listAuditPage).mockResolvedValueOnce({
+      items: [
+        {
+          id: 'a2',
+          actor_id: 'admin1',
+          action: 'user.revoke',
+          entity_type: 'profile',
+          entity_id: 'e2',
+          created_at: '2026-07-16T10:00:00.000Z',
+        },
+      ],
+      total: 1,
+    } as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([['admin1', { id: 'admin1', full_name: 'Asha Admin', email: 'admin@test.com', role: 'admin' }]]) as any,
+    )
+
+    const result = await loadHistoryPageData({ id: 'sub-1' } as never, { actor: 'asha' })
+
+    // The search may only match non-admin roles - no admin existence oracle.
+    expect(searchProfileIds).toHaveBeenCalledWith('asha', ['student', 'tutor', 'mentor'])
+    // The admin actor's identity is redacted to the tier.
+    expect(result.rows[0].actorLabel).toBe('Administrator')
   })
 })

@@ -83,9 +83,11 @@ export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, s
   return new Map([...profiles].map(([id, p]) => [id, displayName(p)]))
 }
 
-/** Id-only search for admin filters that just need a narrowed actor set. */
-export async function searchProfileIds(search: string): Promise<string[]> {
-  return selectProfileIdsBySearch(search)
+/** Id-only search for admin filters that just need a narrowed actor set. `roles`
+ *  optionally clamps which roles can match (so a non-super caller can't oracle the
+ *  admin tier). */
+export async function searchProfileIds(search: string, roles?: readonly string[]): Promise<string[]> {
+  return selectProfileIdsBySearch(search, roles)
 }
 
 export async function getProfileById(id: string): Promise<Profile | null> {

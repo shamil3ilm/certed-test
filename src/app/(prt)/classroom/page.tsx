@@ -3,6 +3,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMyClasses, sortClassesByStudent, groupClassesByStudent, type ClassSummary } from '@/lib/services/classes'
 import { listTags, tagsForEntities, entityIdsForTag, type Tag } from '@/lib/services/tags'
+import { listSubjects } from '@/lib/services/subjects'
 import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 import {
   AlertBanner,
@@ -18,26 +19,16 @@ import {
 } from '@/lib/ui'
 
 const CLASSES_PAGE_SIZE = 12
-import { Field, Input, SubmitButton } from '../form'
 import { TagChips } from '../tags/TagChips'
-import { createClassAction } from './class-actions'
 
-function NewClass() {
+/** A class is always a student's SUBJECT (created from the student's page - "Add
+ *  subject"), so there is no standalone "new class" here; admins are pointed to the
+ *  student directory where subjects (= classes) are set up. */
+function AddSubjectCta() {
   return (
-    <details className="relative">
-      <summary className="btn btn-primary btn-sm cursor-pointer list-none">+ New class</summary>
-      <form
-        action={createClassAction}
-        className={cx(CARD, 'absolute right-0 z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] space-y-2 p-3 shadow-md')}
-      >
-        <Field label="Class name">
-          <Input name="name" required placeholder="e.g. Grade 10 Mathematics" />
-        </Field>
-        <SubmitButton className="btn-sm btn-primary" pendingLabel="Creating...">
-          Create class
-        </SubmitButton>
-      </form>
-    </details>
+    <Link href="/admin/users" className="btn btn-primary btn-sm">
+      Add a subject
+    </Link>
   )
 }
 
@@ -134,12 +125,17 @@ function ClassCard({
 }
 
 export default async function ClassroomPage(props: {
-  searchParams?: Promise<{ error?: string; tag?: string; page?: string }>
+  searchParams?: Promise<{ error?: string; tag?: string; subject?: string; page?: string }>
 }) {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewClasses')
-  const [allClasses, flags, allTags] = await Promise.all([listMyClasses(me), loadPersonaFlags(me.id), listTags()])
-  // Academy-wide class authority (admin or sub_admin) drives the "+ New class" control,
+  const [allClasses, flags, allTags, allSubjects] = await Promise.all([
+    listMyClasses(me),
+    loadPersonaFlags(me.id),
+    listTags(),
+    listSubjects(),
+  ])
+  // Academy-wide class authority (admin or sub_admin) drives the "Add a subject" CTA,
   // the all-classes subtitle, and the create hint - not the admin tier specifically.
   const isAdmin = flags.isClassAdmin
   const isStudent = flags.isStudent
@@ -150,10 +146,13 @@ export default async function ClassroomPage(props: {
   // under each student. The student's own view stays a flat per-subject list.
   const groupByStudentView = !isStudent
 
-  // Optional tag filter: narrow to the classes carrying the selected tag.
+  // Optional filters: by tag and/or by subject (both narrow the list; combine with AND).
   const tagFilter = searchParams?.tag ?? ''
+  const subjectFilter = searchParams?.subject ?? ''
   const taggedIds = tagFilter ? new Set(await entityIdsForTag('class', tagFilter)) : null
-  const classes = taggedIds ? allClasses.filter((c) => taggedIds.has(c.id)) : allClasses
+  const classes = allClasses.filter(
+    (c) => (!taggedIds || taggedIds.has(c.id)) && (!subjectFilter || c.subject_id === subjectFilter),
+  )
   // For the per-student views, order by student (then subject) so each student's
   // classes sit together for grouping; other viewers keep the service's name sort.
   const orderedClasses = groupByStudentView ? sortClassesByStudent(classes) : classes
@@ -167,6 +166,7 @@ export default async function ClassroomPage(props: {
   const classPageHref = (p: number) => {
     const sp = new URLSearchParams()
     if (tagFilter) sp.set('tag', tagFilter)
+    if (subjectFilter) sp.set('subject', subjectFilter)
     if (p > 1) sp.set('page', String(p))
     const qs = sp.toString()
     return qs ? `/classroom?${qs}` : '/classroom'
@@ -185,33 +185,43 @@ export default async function ClassroomPage(props: {
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Classes" description={subtitle} action={isAdmin ? <NewClass /> : undefined} />
+      <PageHeader title="Classes" description={subtitle} action={isAdmin ? <AddSubjectCta /> : undefined} />
 
       {searchParams?.error === '1' && (
-        <AlertBanner className="mb-4">
-          That class couldn&apos;t be created. Please pick a different name and try again.
-        </AlertBanner>
+        <AlertBanner className="mb-4">That change couldn&apos;t be applied. Please try again.</AlertBanner>
       )}
 
-      {allTags.length > 0 && (
-        <FilterBar className="mb-4" clearHref="/classroom" showClear={Boolean(tagFilter)}>
-          <SelectFilterField label="Tag" name="tag" defaultValue={tagFilter}>
-            <option value="">All tags</option>
-            {allTags.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </SelectFilterField>
+      {(allSubjects.length > 0 || allTags.length > 0) && (
+        <FilterBar className="mb-4" clearHref="/classroom" showClear={Boolean(tagFilter || subjectFilter)}>
+          {allSubjects.length > 0 && (
+            <SelectFilterField label="Subject" name="subject" defaultValue={subjectFilter}>
+              <option value="">All subjects</option>
+              {allSubjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </SelectFilterField>
+          )}
+          {allTags.length > 0 && (
+            <SelectFilterField label="Tag" name="tag" defaultValue={tagFilter}>
+              <option value="">All tags</option>
+              {allTags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </SelectFilterField>
+          )}
         </FilterBar>
       )}
 
       {classes.length === 0 ? (
         <EmptyState>
-          {tagFilter
-            ? 'No classes carry this tag.'
+          {tagFilter || subjectFilter
+            ? 'No classes match these filters.'
             : isAdmin
-              ? 'No classes yet - create one with + New class above.'
+              ? 'No classes yet - open a student and use "Add subject" to create one.'
               : isStudent
                 ? 'You are not enrolled in any classes yet. An admin will add you.'
                 : isTeacher

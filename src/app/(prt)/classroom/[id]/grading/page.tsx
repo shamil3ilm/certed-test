@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireClassAccess } from '../../access'
 import { getActorContext } from '@/lib/session/actor-context'
+import { canManageClass } from '@/lib/permission'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
 import { Avatar, Badge, EmptyState, FilterBar, ListRow, SearchFilterField, SectionLabel } from '@/lib/ui'
 import { LocalTime } from '../../../LocalTime'
@@ -20,8 +21,11 @@ export default async function ClassGradingPage(props: {
   // redirect - because a nested page's redirect renders inside the already-
   // committed layout rather than replacing it, and a grader-only surface is
   // better hidden (404) than announced. requireClassAccess above uses the same
-  // notFound() primitive, so this route group is consistent.
-  if (!actor.capabilities.allowed.has('viewGrading')) notFound()
+  // notFound() primitive, so this route group is consistent. The global viewGrading
+  // capability isn't enough on its own - a user may grade another class yet only
+  // attend this one as a student - so also require canManageClass for THIS class,
+  // the same boundary the grade actions enforce.
+  if (!actor.capabilities.allowed.has('viewGrading') || !(await canManageClass(me, course.id))) notFound()
 
   // The queue loader is class-agnostic; scoping it to this class turns the
   // former cross-class inbox into the per-class view this tab needs.

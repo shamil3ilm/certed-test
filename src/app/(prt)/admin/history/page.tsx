@@ -7,8 +7,8 @@ export default async function HistoryPage(props: {
   searchParams: Promise<{ page?: string; action?: string; actor?: string }>
 }) {
   const searchParams = await props.searchParams
-  await requireCapability('viewHistory')
-  const { filters, rows, total, totalPages } = await loadHistoryPageData(searchParams)
+  const me = await requireCapability('viewHistory')
+  const { filters, rows, total, totalPages } = await loadHistoryPageData(me, searchParams)
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">

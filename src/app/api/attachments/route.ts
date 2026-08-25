@@ -151,8 +151,15 @@ export async function POST(req: Request) {
     // committed, so a history/supersede failure must not fail the request (and since
     // resources are cap-exempt, a stray extra active row can never freeze the document).
     if (replacedResourceId) {
-      await recordResourceAttachmentReplacement(me, replacedResourceId).catch(() => {})
-      await supersedePriorResourceAttachments(replacedResourceId, row.id).catch(() => {})
+      // Best-effort, but NOT silent: a failure here leaves a superseded file with no
+      // version snapshot / resource.edit audit, so log it for follow-up (the upload
+      // itself is already committed, so we still return success).
+      await recordResourceAttachmentReplacement(me, replacedResourceId).catch((e) =>
+        console.error(`attachments: version snapshot/audit failed for resource ${replacedResourceId}`, e),
+      )
+      await supersedePriorResourceAttachments(replacedResourceId, row.id).catch((e) =>
+        console.error(`attachments: superseding prior file failed for resource ${replacedResourceId}`, e),
+      )
     }
     return created(toClientAttachment(row))
   } catch (error) {

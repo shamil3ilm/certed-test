@@ -32,7 +32,17 @@ async function accessToken(): Promise<string> {
       grant_type: 'refresh_token',
     }),
   })
-  if (!res.ok) throw new Error(`Drive token exchange failed: ${res.status}`)
+  if (!res.ok) {
+    // Google returns the actual diagnosis in the body (e.g. {"error":"invalid_grant"}),
+    // which the bare status code hides. invalid_grant means the refresh token is dead -
+    // most often a consent screen still in "Testing" (Google expires the token after 7
+    // days) or a revoked/rotated token - so surface it: it is the whole diagnosis.
+    const body = await res.text().catch(() => '')
+    const reason = /invalid_grant/.test(body)
+      ? 'invalid_grant (refresh token expired or revoked - re-capture it; set the OAuth consent screen to In production)'
+      : body.slice(0, 300)
+    throw new Error(`Drive token exchange failed: ${res.status}${reason ? ` - ${reason}` : ''}`)
+  }
   const json = (await res.json()) as { access_token: string; expires_in: number }
   cachedToken = { value: json.access_token, expiresAt: now + json.expires_in * 1000 }
   return json.access_token

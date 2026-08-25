@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { ServiceError } from '@/lib/errors'
 import {
-  createClassFromActionInput,
   archiveClassFromActionInput,
   restoreClassFromActionInput,
   renameClassFromActionInput,
@@ -31,18 +30,9 @@ const peopleErrorUrl = (formData: FormData) => classErrorUrl(formData, { sub: 'p
 // here, requireActorCapability in the service), so the two can't disagree. Day-to-day
 // enrolment (bottom) uses manageClassContent because its service is not class-admin-only.
 
-/** Create a class (manageClasses - class admins own the lifecycle; tutors run day-to-day). */
-export async function createClassAction(formData: FormData) {
-  const me = await requireCapability('manageClasses')
-  let course
-  try {
-    course = await createClassFromActionInput(me, { name: formData.get('name') })
-  } catch (error) {
-    if (error instanceof ServiceError) redirect('/classroom?error=1')
-    throw error
-  }
-  redirect(`/classroom/${course.id}`)
-}
+// A class is created only as a student's SUBJECT (services/class-subjects →
+// addSubjectToStudent), so there is no standalone create action here - classes always
+// carry a subject_id. Lifecycle below is rename / archive / restore / staffing.
 
 // Whole-class management (rename, archive/restore, co-tutor add/remove) requires
 // manageClasses - a single tutor shouldn't be able to rename/hide a shared class or

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { requireClassAccess } from '../access'
 import { getActorContext } from '@/lib/session/actor-context'
+import { canManageClass } from '@/lib/permission'
 import { BackLink, PageHeader } from '@/lib/ui'
 import { ClassTabs } from './ClassTabs'
 
@@ -9,9 +10,13 @@ export default async function ClassLayout(props: { params: Promise<{ id: string 
 
   const { children } = props
 
-  const { course } = await requireClassAccess(params.id)
+  const { course, me } = await requireClassAccess(params.id)
   const actor = await getActorContext()
-  const canGrade = actor.capabilities.allowed.has('viewGrading')
+  // Grading is a manager-only surface: gate the tab on the SAME per-class authority
+  // the grade actions enforce (canManageClass), not the global viewGrading capability -
+  // otherwise a user who grades class Y but only attends class X as a student would be
+  // shown a Grading tab on X.
+  const canGrade = actor.capabilities.allowed.has('viewGrading') && (await canManageClass(me, course.id))
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">

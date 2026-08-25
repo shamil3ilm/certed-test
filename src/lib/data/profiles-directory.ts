@@ -110,15 +110,17 @@ export async function selectProfilesLiteByIds(ids: string[]): Promise<ProfileLit
   return (data ?? []) as ProfileLiteRow[]
 }
 
-export async function selectProfileIdsBySearch(search: string): Promise<string[]> {
+export async function selectProfileIdsBySearch(search: string, roles?: readonly string[]): Promise<string[]> {
   const needle = search.trim()
   if (!needle) return []
   const admin = createAdminClient()
   const escaped = escapeOrIlike(needle)
-  const { data, error } = await admin
-    .from('profiles')
-    .select('id')
-    .or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
+  let query = admin.from('profiles').select('id').or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
+  // Optional role clamp: callers that must not disclose the admin tier (e.g. the
+  // history actor search reached by an override-granted, non-super viewer) restrict
+  // the match so a search can't oracle an admin account's existence.
+  if (roles) query = query.in('role', roles)
+  const { data, error } = await query
   if (error) throw new Error(`data.profiles.selectIdsBySearch: ${error.message}`)
   return ((data ?? []) as { id: string }[]).map((row) => row.id)
 }

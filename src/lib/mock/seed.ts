@@ -692,6 +692,7 @@ export function buildSeed(): MockDb {
     rate_limit_counters: [],
     consents: [],
     guardians: [],
+    mentee_notes: [],
     audit_log: [
       {
         id: 'a1000000-0000-4000-8000-000000000001',

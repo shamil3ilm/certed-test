@@ -29,7 +29,9 @@ function GradingClassCard({ id, name, status }: { id: string; name: string; stat
 }
 
 export default async function GradingPage() {
-  const me = await requireCapability('viewClasses')
+  // Gate on viewGrading (what the nav decides on), not viewClasses - otherwise a
+  // viewClasses-only holder could reach the grading landing the nav never showed them.
+  const me = await requireCapability('viewGrading')
   const flags = await loadPersonaFlags(me.id)
 
   if (flags.isStudent) {

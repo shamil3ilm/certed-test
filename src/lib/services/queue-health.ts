@@ -41,6 +41,14 @@ const RLS_REQUIRED_TABLES = [
   'org_settings',
   'receipts',
   'payslips',
+  // Newest PII / authority tables whose read boundary is RLS-only - include them so a
+  // disabled-RLS misconfiguration is caught here too (they were missing before).
+  'guardians',
+  'consents',
+  'capability_overrides',
+  'persona_assignments',
+  'class_tutors',
+  'audit_log',
 ]
 
 export type QueueHealth = {
