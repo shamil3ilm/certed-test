@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 
 const DISMISS_KEY = 'certed-cookie-notice-dismissed'
 
@@ -9,31 +9,55 @@ const DISMISS_KEY = 'certed-cookie-notice-dismissed'
  * Strictly-necessary cookie notice. We set only essential sign-in cookies and use no
  * tracking/advertising cookies, so this is an informational notice (a "got it" dismiss),
  * NOT a consent banner with accept/reject. Dismissal is remembered per browser.
+ *
+ * The dismissed flag lives in localStorage, which doesn't exist during SSR - reading it
+ * in render would hydration-mismatch, and reading it in an effect trips
+ * react-hooks/set-state-in-effect. useSyncExternalStore is React's answer for exactly
+ * this: the SERVER snapshot reports "dismissed" so nothing renders during SSR / before
+ * hydration (no flash for returning visitors), and the CLIENT snapshot reads storage.
  */
-export default function CookieNotice() {
-  // Start hidden so SSR and the pre-hydration client agree; reveal only after we've
-  // checked storage, so a returning visitor never sees a flash of the bar.
-  const [visible, setVisible] = useState(false)
+const dismissListeners = new Set<() => void>()
 
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(DISMISS_KEY) !== '1') setVisible(true)
-    } catch {
-      // Private mode / storage blocked — show it; dismiss just won't persist.
-      setVisible(true)
-    }
-  }, [])
-
-  if (!visible) return null
-
-  function dismiss() {
-    try {
-      localStorage.setItem(DISMISS_KEY, '1')
-    } catch {
-      /* non-persistent dismiss is fine */
-    }
-    setVisible(false)
+function subscribe(onStoreChange: () => void): () => void {
+  dismissListeners.add(onStoreChange)
+  // Another tab dismissing fires a `storage` event; reflect it here too.
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === DISMISS_KEY) onStoreChange()
   }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    dismissListeners.delete(onStoreChange)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+function getSnapshot(): boolean {
+  try {
+    return localStorage.getItem(DISMISS_KEY) === '1'
+  } catch {
+    // Private mode / storage blocked - show it; dismiss just won't persist.
+    return false
+  }
+}
+
+// Server / pre-hydration: assume dismissed so the bar renders nothing until the client
+// has read storage. Constant, so no hydration mismatch.
+const getServerSnapshot = (): boolean => true
+
+function dismiss(): void {
+  try {
+    localStorage.setItem(DISMISS_KEY, '1')
+  } catch {
+    /* non-persistent dismiss is fine */
+  }
+  // `storage` events don't fire in the same tab, so notify local subscribers directly.
+  dismissListeners.forEach((listener) => listener())
+}
+
+export default function CookieNotice() {
+  const dismissed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+
+  if (dismissed) return null
 
   return (
     <div

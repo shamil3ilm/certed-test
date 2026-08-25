@@ -1,4 +1,4 @@
 {
   "_comment": "Ceiling for gzipped SHARED first-load JS (build-manifest rootMainFiles), enforced by scripts/check-bundle-size.mjs in CI. This is what every page downloads on first paint; code-split/async chunks are correctly excluded. Ratchet DOWN when first-load shrinks; raising it should be deliberate and justified (e.g. an unconditional top-level SDK import must NOT be accommodated here - code-split it instead).",
-  "firstLoadSharedKb": 145
+  "firstLoadSharedKb": 133
 }

@@ -1,64 +1,70 @@
 # Cert-Ed Academia — Full Architecture & Codebase Audit
 
-- **Date:** 2026-08-19 · **Revision 13** (living document; supersedes revisions 1–12. Filename reflects the first pass.)
+- **Date:** 2026-08-25 · **Revision 14** (living document; supersedes revisions 1–13. Filename reflects the first pass.)
 - **Repository:** `c:\laragon\www\wed_cert` (package `cert-ed-academia`)
-- **Branch:** `feature/cert-ed-academia-app` @ `6adab47` · **working tree clean**
-- **Method:** read-only static analysis + live execution of `build` (clean `.next`), `typecheck`, `test:coverage`, `lint`, `format:check`, `check:bundle`, `check-snapshot-freshness`, `playwright test`, `npm audit`, `scripts/test-rls.sh` against real Postgres 18, and a direct run of `.githooks/pre-commit`
+- **Branch:** `feature/cert-ed-academia-app` @ `4ab16dd` · **working tree clean**
+- **Method:** read-only static analysis + live execution of `build` (clean `.next`), `typecheck`, `test:coverage`, `lint`, `format:check`, `check:bundle`, `check-snapshot-freshness`, `playwright test`, `npm audit`, and `scripts/test-rls.sh` against real Postgres 18
 - **Scope:** Phases 1–19 of the audit brief
 
 ---
 
-## 0. Revision 13 — three gates red, and a guarded failure mode recurred anyway
+## 0. Revision 14 — every finding from last pass closed; one lint error left
 
-Nineteen commits, a large feature window (subjects master, richer profiles, exam events,
-session timings, assignment PDFs, org-settings screen) and four migrations.
+Twenty-five commits, dominated by **security hardening and privacy work**, plus migrations
+`0065`–`0076`.
 
-Two of last pass's findings were fixed properly — including a **pre-commit hook** that
-implements exactly the escalation recommended. But **three gates are red**, and the worst of
-them is a repeat of a failure this project has already diagnosed, documented, and written a
-checklist rule to prevent.
+**All four findings from revision 13 are closed**, and three of them were closed with the
+mechanical fix rather than the instance fix — including the mock-parity unit test that
+converts a checklist item into a gate. Coverage did not just recover, it jumped from 70.75% to
+**77.1%** lines.
+
+One gate is red: a single lint error in the new cookie notice.
 
 ### Verification results
 
-| Command                 | R10   | R11   | R12      | R13                                    |
-| ----------------------- | ----- | ----- | -------- | -------------------------------------- |
-| `npm run typecheck`     | ✅    | ✅    | ✅       | ✅                                     |
-| `npm run lint`          | ✅    | ✅    | ✅       | ✅                                     |
-| `npm run format:check`  | ✅    | ✅    | ❌ 10    | ✅ **clean**                           |
-| `npm test`              | 875   | 876   | 924      | ✅ **953 passed (123 files)**          |
-| `npm run test:coverage` | ✅    | ✅    | ✅       | ❌ **3 thresholds breached**           |
-| `npm run build`         | ✅    | ✅    | ✅       | ✅ **0 warnings**                      |
-| `npm run check:bundle`  | ✅    | ✅    | ✅       | ✅ **127.4 / 145 KB**                  |
-| `npx playwright test`   | ❌ 1  | ❌ 1  | ✅ 65/65 | ❌ **49 failed · 1 flaky · 15 passed** |
-| Snapshot freshness      | ✅    | ✅    | ❌       | ❌ **0060 vs 0064 (6th)**              |
-| `scripts/test-rls.sh`   | ✅ 34 | ✅ 34 | ✅ 34    | ✅ **34 passed**                       |
-| `npm audit --omit=dev`  | ✅    | ✅    | ✅       | ✅ **0**                               |
+| Command                 | R11   | R12      | R13           | R14                                 |
+| ----------------------- | ----- | -------- | ------------- | ----------------------------------- |
+| `npm run typecheck`     | ✅    | ✅       | ✅            | ✅                                  |
+| `npm run lint`          | ✅    | ✅       | ✅            | ❌ **1 error**                      |
+| `npm run format:check`  | ✅    | ❌ 10    | ✅            | ✅                                  |
+| `npm test`              | 876   | 924      | 953           | ✅ **1,154 passed (150 files)**     |
+| `npm run test:coverage` | ✅    | ✅       | ❌ 3 breached | ✅ **77.1% lines · 64.2% branches** |
+| `npm run build`         | ✅    | ✅       | ✅            | ✅ **0 warnings**                   |
+| `npm run check:bundle`  | ✅    | ✅       | ✅            | ✅ **127.4 / 145 KB**               |
+| `npx playwright test`   | ❌ 1  | ✅ 65/65 | ❌ 49 failed  | ✅ **69 / 69**                      |
+| Snapshot freshness      | ✅    | ❌       | ❌ 6th        | ✅ **0076 current**                 |
+| `scripts/test-rls.sh`   | ✅ 34 | ✅ 34    | ✅ 34         | ✅ **34 passed**                    |
+| `npm audit --omit=dev`  | ✅    | ✅       | ✅            | ✅ **0**                            |
+
+> **A measurement note on this pass.** I initially recorded 28 RLS failures and 9 E2E
+> failures. Both were artifacts of my own concurrent execution — two `test-rls.sh` runs share
+> one hardcoded database name and dropped it out from under each other, and the E2E run was
+> competing with a migration replay for CPU (specs timing out at 15s that pass in 0.4s when
+> run alone). Re-run serially, both are clean. **The figures above are from isolated runs.**
 
 ### Findings closed this pass
 
-| ID                      | Finding                                                                    | Evidence                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NEW-26** 🟠           | Ten committed files unformatted                                            | ✅ `04bb6fd chore: format files left unformatted by the prior batch`. `format:check` clean.                                                                                                                                                                                                                                                       |
-| **Mock-parity rule** 🟡 | No standing rule for new tables read on rendered pages — recommended in R9 | ✅ `docs/migration-checklist.md` item 4: _"Does mock mode need matching support?"_ **The rule exists. It was not followed — see NEW-29.**                                                                                                                                                                                                         |
-| **Pre-commit guard**    | Formatting + snapshot enforced only at push/CI                             | ✅ `5908407 chore(hooks): pre-commit guard for formatting + snapshot freshness` — exactly the escalation recommended in R12, with the recurrence history cited in the comment: _"the two failures that keep reaching CI/push during large refactors."_ Verified: the logic is correct and would block a migration committed without its snapshot. |
+| ID            | Finding                                                      | Evidence                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **NEW-29** 🔴 | Mock harness missing `subjects` → 49 of 65 E2E specs failing | ✅ **Closed twice over.** `subjects` is seeded, and — more importantly — **`tests/unit/mock-schema-parity.test.ts`** now asserts migration tables have mock counterparts. That is recommendation #2 from revision 13: it converts `migration-checklist.md` item 4 from a habit into a gate that runs in the existing `verify` job. E2E back to **69/69**. |
+| **NEW-28** 🟡 | Both git hooks committed non-executable — carried two passes | ✅ `git ls-files -s .githooks/` → **`100755`** on both `pre-commit` and `pre-push`. The guards are now real on Unix, not just Windows.                                                                                                                                                                                                                    |
+| **NEW-30** 🟠 | Coverage ratchet breached — second occurrence                | ✅ **Closed with headroom, not a patch.** Lines **70.75 → 77.1**, branches **56.85 → 64.2**, tests **953 → 1,154** across 27 new files. This is the one-time push recommended in revision 13 rather than another 1-point repair.                                                                                                                          |
+| **NEW-31** 🟠 | Snapshot stale, sixth occurrence                             | ✅ Current at `0076`, through twelve new migrations. With the hooks now executable, the guard is finally operating as designed.                                                                                                                                                                                                                           |
 
-### New findings
+### New finding
 
-| ID         | Finding                                                                                                                                                                                                                                                                                                    | Severity    |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| **NEW-29** | **The mock harness has no `subjects` table** (migration `0064`). The portal layout throws, the login page's form is detached mid-render by the error boundary, and **49 of 65 E2E specs fail** (plus 1 flaky; only 15 pass) as a cascade. This is NEW-22 (the FX/`exchange_rates` gap) repeating verbatim. | 🔴 Critical |
-| **NEW-30** | Coverage ratchet breached on three of four metrics — second occurrence                                                                                                                                                                                                                                     | 🟠 High     |
-| **NEW-31** | Snapshot stale (`0060` vs chain `0064`) — **sixth occurrence**, the first with _both_ a pre-commit and a pre-push guard in place                                                                                                                                                                           | 🟠 High     |
-| **NEW-32** | `0064` adds a `subjects` table with a `subjects_read` RLS policy; `scripts/test-rls.sh` contains **zero** references to `subjects`                                                                                                                                                                         | 🟢 Low      |
+| ID         | Finding                                                                                                                                       | Severity |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **NEW-33** | `npm run lint` fails with one `react-hooks/set-state-in-effect` error in `src/app/components/CookieNotice.tsx` — CI red at step 2 of `verify` | 🟠 High  |
 
-### Carried, unfixed
+### Carried
 
-**NEW-28** — both `.githooks/pre-commit` and `.githooks/pre-push` are still committed as mode
-`100644`. Git silently skips a non-executable hook on Unix. This is now the most probable
-explanation for NEW-31, and it directly undermines the new pre-commit guard.
-
-Also still open: restore drill not performed (FIND-35), no dark mode (FIND-29, **thirteenth
-pass**), bundle ratchet 145 → 133 not taken (**eighth pass**).
+| ID          | Finding                                                                                                                                                                               | Severity  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **NEW-32**  | RLS harness holds at **34 assertions** while the schema now defines **76 policies**. `subjects` and `guardians` have **zero** assertions — and `guardians` holds student contact PII. | 🟡 Medium |
+| **FIND-35** | Restore drill documented but never performed                                                                                                                                          | 🟡 Medium |
+| **FIND-29** | No dark mode — `grep "dark:"` → **0**, **fourteenth pass**                                                                                                                            | 🟡 Medium |
+| **M5**      | Bundle ratchet 145 → 133 not taken — **ninth pass**                                                                                                                                   | 🟢 Low    |
 
 ---
 
@@ -68,30 +74,27 @@ Cert-Ed Academia is a Next.js 16 App Router monolith serving two hosts from one 
 public marketing site (`certedacademia.com`) and a private academy portal
 (`app.certedacademia.com`), on Supabase (Auth + Postgres with RLS) and Vercel.
 
-The application layer remains sound — 953 unit tests pass, the RLS harness is green, the build
-is clean, there are no dependency vulnerabilities, and the first-load bundle has not moved
-through another large feature window.
+This is the strongest remediation pass in the series. Every finding from revision 13 is closed,
+and the pattern I have been pushing for since revision 9 — **make the rule mechanical** — was
+applied to the one that kept recurring. The mock-parity unit test is the right shape: it costs
+seconds, runs in the existing job, and cannot be forgotten.
 
-The problem this pass is not the code, it is that **the guardrails built over five revisions
-did not fire**. A migration added a table the app reads; the mock harness was not updated;
-every E2E spec that needs a login now fails. That exact failure was diagnosed in revision 9
-(NEW-22, the FX table), and a migration-checklist rule was added in response — the rule now
-exists and was not followed. Meanwhile a pre-commit hook was added specifically to stop
-snapshot drift, and the snapshot drifted by four migrations in the same window.
+The window itself is heavily security- and privacy-oriented: a spoofable rate-limit IP fixed,
+a PostgREST `.or()` escaper, sub-admin read confinement, auth-cookie hardening, PII kept out of
+Sentry, atomic drain-queue claims to stop double-sends, an alarm on disabled RLS, and DPDP data
+minimisation (gender and address dropped from collection entirely). The team is now running
+**its own security audit** with 28 tracked findings and remediation status.
 
-The common thread is **NEW-28**: both hooks are committed non-executable, so git may be
-skipping them silently.
+| #   | Problem                                                                             | Severity  |
+| --- | ----------------------------------------------------------------------------------- | --------- |
+| 1   | One lint error blocks CI                                                            | 🟠 High   |
+| 2   | RLS assertions (34) not keeping pace with policies (76); `guardians` PII unasserted | 🟡 Medium |
+| 3   | Restore drill documented but never performed                                        | 🟡 Medium |
+| 4   | No dark mode, while the app advertises a dark `themeColor`                          | 🟡 Medium |
+| 5   | Bundle ratchet not taken                                                            | 🟢 Low    |
 
-| #   | Problem                                                                   | Severity    |
-| --- | ------------------------------------------------------------------------- | ----------- |
-| 1   | Mock harness missing `subjects` → login crashes → 49 of 65 E2E specs fail | 🔴 Critical |
-| 2   | Coverage ratchet breached (2nd occurrence)                                | 🟠 High     |
-| 3   | Snapshot stale (6th occurrence) despite two guards                        | 🟠 High     |
-| 4   | Both git hooks committed non-executable                                   | 🟡 Medium   |
-| 5   | Restore drill documented but never performed                              | 🟡 Medium   |
-
-**Overall project health: 8.8 / 10** (…9.4 → 9.5 → 9.4 → 8.8). The steepest drop in the
-series, and it is about process integrity rather than engineering quality.
+**Overall project health: 9.5 / 10** (…8.8 → 9.5). The largest single-pass recovery in the
+series.
 
 ---
 
@@ -99,33 +102,39 @@ series, and it is about process integrity rather than engineering quality.
 
 ### 2.1 Stack
 
-| Concern       | Technology                                                                                                  |
-| ------------- | ----------------------------------------------------------------------------------------------------------- |
-| Framework     | Next.js 16.3, App Router, Turbopack build                                                                   |
-| Language      | TypeScript 5, `strict: true`                                                                                |
-| UI            | React 19.2, Tailwind CSS v4, design-system tokens                                                           |
-| Edge          | `src/proxy.ts` — host split, session refresh, auth gate, per-request CSP nonce, cookie-preserving redirects |
-| Database      | Supabase Postgres, RLS on every table, chain `0001`–`0064`, `pg_cron` retention + email drain               |
-| Auth          | Supabase Auth (password + gated Google sign-in), allowlist-first                                            |
-| File storage  | Custodial — academy-owned Google Drive ([ADR-0006](docs/adr/0006-custodial-attachment-storage.md))          |
-| Validation    | Zod v4                                                                                                      |
-| Email         | Resend, drained from a queue via `pg_cron` or Vercel Pro cron                                               |
-| Observability | `logError` → stderr + Sentry, correlated by request id                                                      |
-| Testing       | Vitest 4 (123 files, 953 tests) + coverage ratchet + Playwright (**failing**) + RLS harness (34 assertions) |
-| CI            | `verify` + `e2e` + `rls` jobs; pre-commit and pre-push hooks                                                |
-| Hosting       | Vercel, region `bom1`                                                                                       |
+| Concern       | Technology                                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Framework     | Next.js 16.3, App Router, Turbopack build                                                                                   |
+| Language      | TypeScript 5, `strict: true`                                                                                                |
+| UI            | React 19.2, Tailwind CSS v4, design-system tokens                                                                           |
+| Edge          | `src/proxy.ts` — host split, session refresh, auth gate, per-request CSP nonce, cookie-preserving redirects                 |
+| Database      | Supabase Postgres, RLS on every table, chain `0001`–`0076`, **76 policies**, `pg_cron` retention + email drain              |
+| Auth          | Supabase Auth, allowlist-first, **hardened cookies; mock-auth fails closed off Vercel**                                     |
+| File storage  | Custodial — academy-owned Google Drive (ADR-0006)                                                                           |
+| Privacy       | Privacy & terms pages, cookie + contact notices, **DPDP data minimisation**                                                 |
+| Validation    | Zod v4                                                                                                                      |
+| Email         | Resend, drained from a queue with **atomic row claiming**                                                                   |
+| Observability | `logError` → stderr + Sentry, request-id correlated, **PII stripped**; queue-health monitoring                              |
+| Testing       | Vitest 4 (150 files, 1,154 tests) + coverage ratchet + Playwright (**69 specs, all passing**) + RLS harness (34 assertions) |
+| CI            | `verify` + `e2e` + `rls` jobs; **executable** pre-commit and pre-push hooks                                                 |
+| Hosting       | Vercel, region `bom1`                                                                                                       |
 
 ### 2.2 What shipped this window
 
-Subjects master with subject-per-class and a user-detail hub; richer profile capture with
-self-service completion; an `exam` calendar kind plus a dashboard exam widget; attendance
-session timings with mentor join/leave; assignments carrying a custodial PDF; an org-settings
-admin screen; and migrations `0061`–`0064` (exam kind, attachment assignment owner, dead-column
-drops, subjects + profile details).
+**Security** (`a42457c`, `22ff1ea`, `c8aa1bf`, `a0fcfb2`, `927bb6b`, `c6d6926`, `09bd124`,
+`f533cb4`, `2b4b4e8`): the `.or()` grammar escaper, non-spoofable client IP, contact-error
+masking, sub-admin read confinement to tutor/student, auth-cookie hardening, PII out of the
+error tracker, attachment schema-fault surfacing plus an alarm on disabled RLS, session tutor
+attribution validation, attachment writes gated on the owner's own rules, atomic drain-queue
+claims, and Organization settings restricted to the admin tier.
 
-Also two correctness fixes worth noting: `99a8096`/`40242d8` render the root 404 dynamically so
-its scripts receive the CSP nonce, and `0f458c7` renders mock PDFs with Playwright's Chromium
-so PDF routes stop 502-ing in CI.
+**Privacy/legal** (`57dc848`, `e3eec88`, `728cc50`, `e21e016`): privacy and terms pages served
+on the portal host, cookie and contact notices, and data minimisation — gender and address
+dropped from collection and from the schema (`0072`), student phone kept but marked optional.
+
+**Features**: multiple guardian contacts per student (`0076`), navigation grouped into
+sections, a narrow `manageAttendance` capability letting mentors edit attendance without
+widening their oversight role, plus assignments/calendar/attendance/multi-tutor/analytics work.
 
 ### 2.3 Bundle profile
 
@@ -134,23 +143,14 @@ First-load shared JS (gzipped): 127.4 KB across 4 chunks
 Budget (firstLoadSharedKb):     145 KB · headroom 17.6 KB
 ```
 
-Flat across seven passes, through two large feature windows. The ratchet suggestion has now
-printed eight times.
+Flat across nine passes. The ratchet suggestion has now printed nine times.
 
-### 2.4 Cron scheduling — a deliberate, well-documented constraint
+### 2.4 Authorization model
 
-`1094dbd` reverted `vercel.json` to keepalive-only. This is **not** an oversight:
-
-> The 5-minute drain-emails schedule is sub-daily and, with reconcile-attachments, put three
-> crons in vercel.json — which exceeds the Vercel Hobby limit… Commit only the daily keepalive
-> so the repo deploys on any plan; the drain + reconcile jobs are wired on the production (Pro)
-> project or via pg_cron (0058) at deploy time, per deployment.md.
-
-[docs/deployment.md](docs/deployment.md) §5 carries a table naming each job, its cadence, **and
-the consequence of not wiring it** (_"Queued `pending_emails` are never sent"_, _"Orphaned
-uploads / pending rows accumulate"_), plus two wiring options. That is the right way to handle
-a platform constraint — the risk is documented rather than hidden. It remains a manual
-deploy-time step, so it belongs on the production checklist.
+Unchanged in shape, with one well-judged addition. `manageAttendance` is a **narrow** new
+capability rather than a widening of the mentor persona — mentors gain exactly the ability to
+edit attendance and nothing else. That is the correct instinct: the alternative (granting
+`manageClassContent`) would have handed mentors write access to the whole class workspace.
 
 ---
 
@@ -158,361 +158,277 @@ deploy-time step, so it belongs on the production checklist.
 
 ---
 
-### NEW-29 · The mock harness has no `subjects` table — 49 of 65 E2E specs fail — 🔴 CRITICAL
+### NEW-33 · One lint error blocks CI — 🟠 High
 
 ```
-$ grep -c 'subjects' src/lib/mock/seed.ts src/lib/mock/store.ts
-src/lib/mock/seed.ts:0
-src/lib/mock/store.ts:0
+src/app/components/CookieNotice.tsx
+  20:54  error  Calling setState synchronously within an effect can trigger cascading renders
+                react-hooks/set-state-in-effect
 ```
 
-Migration `0064_subjects_and_profile_details.sql` creates `subjects`, gives it an RLS policy,
-and adds `classes.subject_id`. The app reads it. **The mock harness has no such table.**
-
-**The blast radius is most of the suite.** The completed run reports **49 failed, 1 flaky,
-15 passed (22.0m)**. Failures span `admin-permissions`, `attachments`, `dashboard-cards` (all
-six personas), `negative-access`, `responsive` and more. The 15 survivors are the specs that
-never sign in — the marketing pair and similar — which is itself the clearest confirmation
-that the failure is a login cascade rather than 49 independent defects.
-
-**The mechanism, from the artifacts:**
-
-```
-TimeoutError: page.fill: Timeout 15000ms exceeded.
-  - locator resolved to <input … id="dev-email" …/>
-  - attempting fill action
-  - element was detached from the DOM, retrying
+```tsx
+useEffect(() => {
+  try {
+    if (localStorage.getItem(DISMISS_KEY) !== '1') setVisible(true)
+  } catch {
+    setVisible(true)
+  }
+}, [])
 ```
 
-and in the same snapshot:
+`lint` is the second step of the `verify` job, so typecheck, coverage, build and bundle never
+run on this commit.
 
-```
-- heading "Something went wrong" [level=1]
-```
+**The rule is flagging a real pattern, and the fix is genuinely non-obvious here.** The value
+cannot be read during render — `localStorage` does not exist during SSR, and reading it in a
+`useState` initialiser would cause a hydration mismatch. The effect is the conventional
+workaround, which is why this pattern is so common.
 
-The login form **renders, then is torn out** as the error boundary replaces it — the signature
-of a streamed server segment throwing after the shell has flushed. `/login` lives inside the
-`(prt)` route group, so it renders the portal layout; a layout-level read of `subjects` throws,
-the boundary swaps in, and `loginAs` cannot fill a detached input. **Every spec that logs in
-fails as a cascade from one missing fixture.**
+**Recommendation — two clean options:**
 
-**Not verified:** the exact read that throws. The evidence chain (missing table → error
-boundary on a portal-group page → login unusable → suite-wide failure) is strong, but I have
-not traced the specific query.
+1. **`useSyncExternalStore`** with a server snapshot, which is what React added for exactly this case:
+   ```tsx
+   const dismissed = useSyncExternalStore(
+     subscribe,
+     () => localStorage.getItem(DISMISS_KEY) === '1', // client
+     () => true, // server: assume dismissed, render nothing
+   )
+   ```
+   Renders nothing on the server, no cascading render, no hydration mismatch, no suppression.
+2. **Keep the effect and suppress the rule on that line with a comment** explaining why one extra render is intended. Legitimate, but it spends a rule the project otherwise benefits from.
 
-**Why this one matters more than its severity alone:**
+Option 1 is preferable — the notice is a small component and the hook exists for this exact
+problem.
 
-This is **NEW-22 repeating verbatim.** In revision 9, migration `0056` added `exchange_rates`,
-the mock harness lacked it, the admin dashboard threw into its error boundary, and it was
-mis-diagnosed as a stale test selector for a full pass. The recommendation then was a standing
-rule. That rule now exists — `docs/migration-checklist.md` item 4, _"Does mock mode need
-matching support?"_ — and `0064` shipped without it.
+---
 
-A checklist item that is not enforced is a note, not a control. The project has already
-learned this lesson once, about snapshot drift, and responded correctly by making it
-mechanical (a hook). The same escalation is now due here.
+### NEW-32 · RLS assertions are not keeping pace with policies — 🟡 Medium _(carried, widening)_
+
+| Metric                 | R10 | R13 | R14    |
+| ---------------------- | --- | --- | ------ |
+| Policies in `public`   | —   | —   | **76** |
+| Harness assertions     | 34  | 34  | **34** |
+| `subjects` assertions  | —   | 0   | **0**  |
+| `guardians` assertions | —   | —   | **0**  |
+
+Twelve migrations have landed since the assertion count last moved. Two tables now carry
+policies that nothing exercises:
+
+- **`guardians` (`0076`)** — multiple guardian contacts per student. This is **student contact PII for minors**, guarded by a `guardians_read` policy with no assertion behind it. Given the DPDP work in this same window, it is the table where a policy error would matter most.
+- **`subjects` (`0064`)** — flagged in revision 13, still unasserted.
+
+The harness is excellent and runs on every push; the gap is that it is not being extended
+alongside the policies it exists to verify. This is the same shape as the mock-parity problem
+that was just solved well — and it suggests the same remedy.
 
 **Recommendation:**
 
-1. Add `subjects` to `src/lib/mock/seed.ts` and `store.ts`, seed two or three rows, and set `classes.subject_id` on the seeded classes. Re-run the suite.
-2. **Make the rule mechanical.** A test that asserts every table in the migration chain has a mock counterpart is a ~20-line unit test — it runs in the existing `verify` job and cannot be forgotten:
-   ```
-   for each `create table X` in supabase/migrations/*.sql
-     expect(mockStoreTables).toContain(X)
-   ```
-   That converts item 4 from a habit into a gate, exactly as the pre-commit hook did for snapshot drift.
-3. Consider whether a portal-layout read should be resilient: a missing reference table taking down the _login page_ is a wide failure mode for a narrow cause.
-
----
-
-### NEW-30 · Coverage ratchet breached — second occurrence — 🟠 High
-
-```
-ERROR: Coverage for lines (70.75%) does not meet global threshold (72%)
-ERROR: Coverage for statements (66.16%) does not meet global threshold (67%)
-ERROR: Coverage for branches (56.85%) does not meet global threshold (57%)
-```
-
-953 tests pass — 29 more than last pass — but the feature window added materially more
-untested code. Lines fell **73.14 → 70.75**, undoing the margin deliberately widened in
-revision 12 (`70a438e test(unit): widen the branch-coverage margin`).
-
-The pattern is now visible across the series: coverage is restored when it breaks (R9, R12)
-and erodes during every large feature window (R8, R13). The ratchet is catching real drift —
-but it is being treated as something to repair afterwards rather than to hold during.
-
-**Recommendation:** add tests for this window's largest uncovered additions — the subjects
-service, profile-completion, exam-event handling and org-settings are the candidates
-(`npx vitest run --coverage` prints per-file numbers). **Do not lower the thresholds.** If the
-team wants headroom that survives a feature window, raise coverage toward ~78% once rather
-than repairing a 1-point margin every other pass.
-
----
-
-### NEW-31 · Snapshot stale — sixth occurrence, with two guards in place — 🟠 High
-
-```
-::error::rebuild snapshot is stale (snapshot=0060, migrations head=0064)
-```
-
-Four migrations landed without a regenerated snapshot, in `6adab47 feat(db): migrations
-0061-0064`.
-
-**What makes this occurrence significant:** the pre-commit hook added in this same window
-(`5908407`, which precedes `6adab47` in history) is designed to block exactly this. I ran its
-logic directly and confirmed it is correct — it checks freshness whenever a migration is
-staged, and `scripts/check-snapshot-freshness.sh` currently exits 1. The guard would have
-caught it.
-
-So either `--no-verify` was used, or **the hook did not run** — see NEW-28.
-
-CI is the backstop and is red, so this cannot reach `main`.
-
-**Recommendation:** regenerate (`supabase db reset && npm run db:rebuild-snapshot`), and fix
-NEW-28 in the same change. Fixing only the snapshot makes the sixth occurrence a seventh.
-
----
-
-### NEW-28 · Both hooks are committed non-executable — 🟡 Medium _(carried, now consequential)_
-
-```
-$ git ls-files -s .githooks/
-100644 49f6196… 0   .githooks/pre-commit
-100644 9069edc… 0   .githooks/pre-push
-$ git config core.fileMode
-false
-```
-
-Raised in revision 12 and unfixed. On Windows, `core.fileMode=false` means git ignores the
-mode and hooks still run — which is why this is invisible locally. **On Linux and macOS git
-silently skips a hook that is not executable**: no error, no warning, no output.
-
-Revision 12 noted that commit `adb1350 chore: mark the pre-push hook and freshness script
-executable` had fixed this once, and that the revision-10 squash dropped it. The new
-pre-commit hook has now inherited the same defect from birth.
-
-This is the most probable explanation for NEW-31, and it means the escalation the team
-correctly identified — moving from a documented rule to a mechanical guard — may not have
-taken effect at all.
-
-**Recommendation:**
-
-```bash
-git update-index --chmod=+x .githooks/pre-commit .githooks/pre-push scripts/*.sh
-```
-
-and add a CI assertion so a future squash cannot drop it silently:
-
-```yaml
-- name: Hooks must be executable
-  run: |
-    for h in .githooks/pre-commit .githooks/pre-push; do
-      mode=$(git ls-files -s "$h" | cut -d' ' -f1)
-      [ "$mode" = "100755" ] || { echo "::error::$h is $mode, not executable — git will skip it on Unix"; exit 1; }
-    done
-```
-
----
-
-### NEW-32 · The new `subjects` RLS policy has no harness assertion — 🟢 Low
-
-`0064` adds `create policy subjects_read on subjects for select using (current_status() =
-'active')`. `grep -ci 'subjects' scripts/test-rls.sh` → **0**.
-
-The harness covers `attachments` well (13 references) and its assertion count has held at 34
-across four migrations. `0062` also rewrote the `attachments_read` policy, so an existing
-assertion may or may not still exercise the changed branch.
-
-**Recommendation:** add two assertions for `subjects` (an active user sees rows; a disabled
-user sees none) and confirm the `attachments_read` rewrite is still covered. The harness is in
-CI and green — extending it is cheap and keeps its 34-assertion figure meaningful.
+1. Add assertions for `guardians` first (a guardian row is visible to staff who may see the student, and to nobody else) and `subjects` second.
+2. **Consider the mechanical version**, mirroring `mock-schema-parity.test.ts`: a test that every table with `enable row level security` in the migration chain is named at least once in `scripts/test-rls.sh`. It would not prove the assertions are _good_, but it would stop a policy shipping with no coverage at all — which is the failure mode here.
 
 ---
 
 ### Remaining carried findings
 
-| ID                   | Finding                                                                                                        | Severity  | Note                                                                                          |
-| -------------------- | -------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------- |
-| **FIND-35**          | Restore drill still not performed.                                                                             | 🟡 Medium | [docs/operations.md](docs/operations.md) scripts it and says what to record.                  |
-| **FIND-29**          | No dark mode — `grep "dark:"` → **0** across thirteen passes, while `layout.tsx` declares a dark `themeColor`. | 🟡 Medium | The token layer from R12 is the foundation; or delete the dark `themeColor` in one line.      |
-| **Cron wiring**      | Email drain and attachment reconcile are manual deploy-time steps.                                             | 🟡 Medium | Well documented in `deployment.md` §5 with consequences; belongs on the production checklist. |
-| **M5**               | Ratchet `firstLoadSharedKb` 145 → 133.                                                                         | 🟢 Low    | Eight passes.                                                                                 |
-| **FIND-09/10**       | `src/features` never built; mock harness in the production module graph.                                       | 🟢 Low    |                                                                                               |
-| **NEW-06**           | Matrix-persona reads sequential (bounded at 5).                                                                | 🟢 Low    |                                                                                               |
-| **FIND-32**          | No automated a11y check.                                                                                       | 🟢 Low    |                                                                                               |
-| **FIND-31/44/45/46** | Blog JSX; no global search; footer mojibake; no in-app help.                                                   | 🟢 Low    |                                                                                               |
+| ID                   | Finding                                                                                                        | Severity  | Note                                                                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FIND-35**          | Restore drill still not performed.                                                                             | 🟡 Medium | [docs/operations.md](docs/operations.md) scripts it and says what to record. Now more consequential: custodial attachments and guardian PII both need to come back consistently. |
+| **FIND-29**          | No dark mode — `grep "dark:"` → **0** across fourteen passes, while `layout.tsx` declares a dark `themeColor`. | 🟡 Medium | The design-token layer from R12 is the foundation; or delete the dark `themeColor` in one line.                                                                                  |
+| **Cron wiring**      | Email drain and attachment reconcile are manual deploy-time steps.                                             | 🟡 Medium | Documented in `deployment.md` §5 with consequences; queue-health monitoring (`ecb550a`) now alarms if they stall, which materially reduces the risk.                             |
+| **M5**               | Ratchet `firstLoadSharedKb` 145 → 133.                                                                         | 🟢 Low    | Ninth pass.                                                                                                                                                                      |
+| **FIND-09/10**       | `src/features` never built; mock harness in the production module graph.                                       | 🟢 Low    |                                                                                                                                                                                  |
+| **NEW-06**           | Matrix-persona reads sequential (bounded at 5).                                                                | 🟢 Low    |                                                                                                                                                                                  |
+| **FIND-32**          | No automated a11y check.                                                                                       | 🟢 Low    | Suite is green and gated with artifacts — `@axe-core/playwright` drops straight in.                                                                                              |
+| **FIND-31/44/45/46** | Blog JSX; no global search; footer mojibake; no in-app help.                                                   | 🟢 Low    |                                                                                                                                                                                  |
 
 ---
 
 ## 4. Security Audit (Phase 3)
 
-| Control                          | State                                                                                                                                                                                                                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Dependency vulnerabilities**   | ✅ **0**.                                                                                                                                                                                                                                                                |
-| **CSP**                          | ✅ Nonce-based; `99a8096` fixed the root 404 to render dynamically so its scripts receive the nonce.                                                                                                                                                                     |
-| **Database-layer authorization** | ✅ 34 assertions passing with `0064` applied — but see NEW-32.                                                                                                                                                                                                           |
-| **App-layer authorization**      | ⚠️ **Cannot be verified this pass.** The E2E suite — which carries the negative sweeps, positive controls and API scoping — is failing on a fixture gap, so the access-control assertions did not execute. No evidence of a defect; equally, no evidence of correctness. |
-| **Secrets**                      | None in git; inventory, rotation and environment reference documented.                                                                                                                                                                                                   |
-| **Guard integrity**              | ⚠️ **NEW-28** — both hooks may be inert on Unix.                                                                                                                                                                                                                         |
+**The strongest security window in the series.** Nine hardening commits, and the team is now
+running its own audit — [docs/qa/2026-08-20-security-audit.md](docs/qa/2026-08-20-security-audit.md)
+tracks **28 findings** (A-01…A-15, B-01…B-13) with remediation status.
 
-**On A01 (Broken Access Control):** the RLS half is verified; the app half is currently
-unverified because the harness that checks it cannot boot. That is the practical cost of
-NEW-29 beyond the red gate — an entire class of security assertion is silently not running.
+| Control                           | State                                                                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dependency vulnerabilities**    | ✅ **0**.                                                                                                                                                                   |
+| **Client IP no longer spoofable** | ✅ `clientIp()` prefers `x-vercel-forwarded-for`, else the **rightmost** XFF entry (appended by the trusted proxy) rather than the client-controlled leftmost. Correct fix. |
+| **PostgREST `.or()` injection**   | ✅ `escapeOrIlike` — grammar characters no longer survive into the filter.                                                                                                  |
+| **Sub-admin read scope**          | ✅ Confined to tutor/student on user reads.                                                                                                                                 |
+| **Auth cookies**                  | ✅ Hardened; mock-auth **fails closed** off Vercel.                                                                                                                         |
+| **PII in telemetry**              | ✅ Emails and IPs kept out of the error tracker — the right call given DPDP.                                                                                                |
+| **Attachment writes**             | ✅ Gated on the owner's own write rules.                                                                                                                                    |
+| **Disabled-RLS alarm**            | ✅ `927bb6b` alarms if RLS is off on a table — a control that watches the controls.                                                                                         |
+| **Email double-send**             | ✅ Drain-queue rows claimed atomically.                                                                                                                                     |
+| **Error masking**                 | ✅ `/api/contact` no longer reflects the upstream Apps Script error.                                                                                                        |
+| **Database-layer authorization**  | ✅ 34 assertions passing — but only 34 against 76 policies (NEW-32).                                                                                                        |
+| **App-layer authorization**       | ✅ **69/69 E2E**, including negative sweeps, positive controls and API scoping.                                                                                             |
+
+**Privacy:** data minimisation is real, not cosmetic — gender and address were removed from
+validation, forms, display _and_ the schema (`0072`). Collecting less is the strongest privacy
+control available, and it was chosen over access controls on data that need not exist.
+
+**No OWASP category carries a confirmed open defect.**
 
 ---
 
 ## 5. Performance Audit (Phase 4)
 
-Unchanged and strong. First-load flat at 127.4 KB through another large feature window. Email
-still queued off the request path, org settings cached, dashboards batched, 304 on unchanged
-finance PDFs.
+Unchanged and strong: first-load flat at 127.4 KB through another large window, email queued
+off the request path with atomic claiming, org settings cached, dashboards batched, 304 on
+unchanged finance PDFs.
+
+Queue-health monitoring (`ecb550a`) is new and closes a real gap — the queues could previously
+stall silently if their cron was not wired.
 
 ---
 
 ## 6. Maintainability (Phase 5)
 
-| Principle                     | Assessment                                                                                                                                                                                                             |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SRP / OCP / DRY / KISS**    | **Strong**, unchanged.                                                                                                                                                                                                 |
-| **Escalation instinct**       | **Correct.** The pre-commit hook is exactly the right response to a recurring failure, and its comment cites the specific recurrences. The instinct to convert habits into gates is one of this project's best traits. |
-| **Escalation follow-through** | ⚠️ **The gap.** The hook was added but not made executable; the mock-parity rule was written but not enforced. Both are one small step short of working.                                                               |
-| **Migration hygiene**         | `0063_drop_dead_columns.sql` drops columns — a destructive migration, appropriately scoped to _"confirmed-dead"_ columns and paired with the code change that stopped reading them.                                    |
+| Principle                                         | Assessment                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Escalation follow-through**                     | ✅ **Fixed, and this is the headline.** Revisions 9–13 kept finding rules that existed but were not enforced. This pass took the recommended step: `mock-schema-parity.test.ts` makes checklist item 4 mechanical, and the hooks were made executable so the other guards actually run. |
+| **Quality response proportionate to the problem** | Coverage was not patched back to a 1-point margin — it was raised from 70.75% to 77.1% with 201 new tests. That ends a two-pass cycle of repair-and-erode.                                                                                                                              |
+| **Least privilege**                               | `manageAttendance` as a narrow capability rather than widening the mentor persona.                                                                                                                                                                                                      |
+| **Data minimisation over access control**         | Dropping gender and address entirely, rather than gating them.                                                                                                                                                                                                                          |
+| **SRP / OCP / DRY / KISS**                        | **Strong**, unchanged.                                                                                                                                                                                                                                                                  |
 
 ### Module scorecard
 
-| Module                                                                  | R11 | R12 |  R13   | Note                                                           |
-| ----------------------------------------------------------------------- | :-: | :-: | :----: | -------------------------------------------------------------- |
-| `src/lib/capabilities` / `permission`                                   | 10  | 10  | **10** |                                                                |
-| `src/lib/observability` / `security`                                    | 10  | 10  | **10** |                                                                |
-| `src/proxy.ts`                                                          | 10  | 10  | **10** |                                                                |
-| `src/lib/attachments`                                                   |  9  | 10  | **10** |                                                                |
-| `src/lib/ui`                                                            |  9  |  9  | **9**  |                                                                |
-| `src/app/(prt)`                                                         |  9  |  8  | **9**  | +1: formatting restored                                        |
-| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |  9  |  9  | **9**  |                                                                |
-| `supabase/migrations`                                                   | 10  | 10  | **9**  | −1: `subjects` shipped without mock parity or an RLS assertion |
-| `supabase/rebuild`                                                      | 10  |  7  | **6**  | −1: sixth staleness, now four migrations behind                |
-| `scripts/` + `.githooks/`                                               | 10  |  7  | **7**  | Pre-commit hook is well designed; still non-executable         |
-| `src/lib/mock`                                                          |  8  |  8  | **4**  | −4: a missing table takes down the entire E2E suite            |
-| `tests/unit`                                                            |  9  | 10  | **8**  | 953 tests; −2 for the breached ratchet                         |
-| `tests/e2e`                                                             |  9  | 10  | **6**  | Suite cannot run; the specs themselves are not at fault        |
-| `.github/`                                                              | 10  | 10  | **10** | Three jobs; correctly red                                      |
-| `docs/`                                                                 | 10  | 10  | **10** | Checklist rule added; deployment cron table is exemplary       |
+| Module                                                                  | R12 | R13 |  R14   | Note                                        |
+| ----------------------------------------------------------------------- | :-: | :-: | :----: | ------------------------------------------- |
+| `src/lib/capabilities` / `permission`                                   | 10  | 10  | **10** | `manageAttendance` well scoped              |
+| `src/lib/observability`                                                 | 10  | 10  | **10** | PII stripped; queue health                  |
+| `src/lib/security`                                                      | 10  | 10  | **10** | IP, `.or()`, cookies, error masking         |
+| `src/proxy.ts`                                                          | 10  | 10  | **10** |                                             |
+| `src/lib/attachments`                                                   | 10  | 10  | **10** | Writes gated on owner rules                 |
+| `src/lib/ui`                                                            |  9  |  9  | **9**  |                                             |
+| `src/app/(prt)`                                                         |  9  |  9  | **9**  |                                             |
+| `src/app/components`                                                    |  —  |  —  | **8**  | −2: the lint error (NEW-33)                 |
+| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |  9  |  9  | **10** | Sub-admin confinement, session attribution  |
+| `supabase/migrations`                                                   |  9  |  9  | **10** | Twelve migrations, snapshot current         |
+| `supabase/rebuild`                                                      |  6  |  6  | **10** | Current at `0076`                           |
+| `scripts/` + `.githooks/`                                               |  7  |  7  | **10** | Hooks executable; guards real               |
+| `src/lib/mock`                                                          |  8  |  4  | **10** | Parity now enforced by a unit test          |
+| `tests/unit`                                                            | 10  |  8  | **10** | 1,154 tests, 77.1% lines                    |
+| `tests/e2e`                                                             | 10  |  6  | **10** | 69/69                                       |
+| `scripts/test-rls.sh`                                                   |  —  |  —  | **7**  | −3: 34 assertions against 76 policies       |
+| `.github/`                                                              | 10  | 10  | **10** |                                             |
+| `docs/`                                                                 | 10  | 10  | **10** | Own security audit with tracked remediation |
 
 ---
 
 ## 7. Documentation (Phase 6)
 
-Strong and improving. This window added a production-readiness audit and a handover pass
-(`8c2343d docs: production-ready handover pass — accuracy, structure, standardization`), and
-`deployment.md` §5's cron table — job, cadence, consequence-if-missing, two wiring options — is
-the clearest operational writing in the repository.
+Strong and now **self-directed**: the team runs its own security audit
+([2026-08-20-security-audit.md](docs/qa/2026-08-20-security-audit.md), 28 tracked findings)
+and refreshes remediation status in the commits that fix them. `90542a9` also corrected a
+class-write RLS note — documentation being fixed for accuracy rather than only extended.
 
-The migration checklist gained the mock-parity item recommended in revision 9. **The
-documentation is not the problem this pass; the enforcement is.**
+`e21e016 docs(legal): minimise public policy to category-level disclosure, truth pass` is
+notable: a policy document edited so its claims match what the system actually does. That is
+the right instinct for a legal artefact.
 
 ---
 
 ## 8. Debugging Experience (Phase 7)
 
-The observability chain is complete and was used again: the E2E artifacts alone were enough to
-identify NEW-29's mechanism (form detached from the DOM + error-boundary heading) without
-touching the application.
+Complete. Structured logs → Sentry with request-id correlation and PII stripped, CI report
+artifacts, and now queue-health monitoring so a stalled drain surfaces rather than accumulating
+silently.
 
 ---
 
 ## 9. Database Review (Phase 8)
 
-**Schema:** 36+ tables, RLS on all, chain `0001`–`0064`, `pg_cron` retention and email drain, 34
-RLS assertions passing.
+**Schema:** chain `0001`–`0076`, **76 RLS policies**, snapshot current, `pg_cron` retention and
+email drain, 34 harness assertions passing.
 
-Four new migrations, all with intent-stating headers. `0062` tightens the attachment
-one-owner constraint and rewrites `attachments_read` to cover the assignment owner; `0063`
-drops confirmed-dead columns; `0064` introduces the subjects master.
+Twelve new migrations. `0072` drops the minimised columns; `0076` adds `guardians`; `0075`
+migrates legacy exam events; `0074` adds an assignment `ends_at` check constraint.
 
-| ID         | Finding                                   | Severity | Status |
-| ---------- | ----------------------------------------- | -------- | ------ |
-| **NEW-31** | Snapshot `0060` vs chain `0064`           | 🟠 High  | New    |
-| **NEW-32** | `subjects_read` unasserted in the harness | 🟢 Low   | New    |
+| ID         | Finding                                                                  | Severity  | Status            |
+| ---------- | ------------------------------------------------------------------------ | --------- | ----------------- |
+| **NEW-32** | 34 assertions against 76 policies; `guardians` and `subjects` unasserted | 🟡 Medium | Carried, widening |
 
 ---
 
 ## 10. Frontend Review (Phase 9)
 
-A substantial window: subject-per-class and a user-detail hub, richer profile capture with
-self-service completion, an exam calendar kind with a dashboard widget, attendance session
-timings, assignment PDFs, and an org-settings admin screen.
+Navigation grouped into sections (teaching/mentoring/money/admin) — a real information-
+architecture improvement as the surface count grows. Privacy and terms pages, cookie notice,
+guardian-contacts UI.
 
-None of it could be exercised end to end this pass (NEW-29).
-
-| ID          | Finding                                             | Severity    |
-| ----------- | --------------------------------------------------- | ----------- |
-| **NEW-29**  | Mock fixture gap takes down login and the E2E suite | 🔴 Critical |
-| **FIND-29** | No dark mode (thirteenth pass)                      | 🟡 Medium   |
+| ID          | Finding                          | Severity  |
+| ----------- | -------------------------------- | --------- |
+| **NEW-33**  | Lint error in `CookieNotice.tsx` | 🟠 High   |
+| **FIND-29** | No dark mode (fourteenth pass)   | 🟡 Medium |
+| **FIND-32** | No automated a11y check          | 🟢 Low    |
 
 ---
 
 ## 11. Backend Review (Phase 10)
 
-Unchanged in shape and healthy: thin factory-driven route handlers, domain-split services, one
-module per table group, Zod at every boundary, capability + persona + per-resource checks,
-queued email, access-checked custodial attachments, `pg_cron` retention, request-id-correlated
-observability.
+Unchanged in shape and materially hardened this window: sub-admin read confinement, session
+tutor attribution validation, attachment writes gated on owner rules, atomic queue claiming,
+admin-tier restriction on Organization settings.
 
 ---
 
 ## 12. DevOps Review (Phase 11)
 
-Three CI jobs with report artifacts, plus pre-commit and pre-push hooks. CI is correctly red on
-three gates.
+Three CI jobs, executable pre-commit and pre-push hooks, queue-health monitoring. CI is red on
+one lint error only.
 
-**The theme is guards that exist but may not execute.** Two of the three red gates
-(NEW-30 coverage aside) are things a hook was built to prevent. Fixing the mode bit and adding
-the CI assertion in NEW-28 is a ten-minute change that restores the intended behaviour of work
-already done.
+**The guard story has resolved.** Revisions 9–13 tracked a recurring pattern of controls that
+existed but did not execute. Both hooks are now `100755`, the mock-parity check is a unit test,
+and the snapshot has stayed current through twelve migrations. The remaining suggestion from
+revision 13 — a CI assertion on hook mode so a future squash cannot silently drop it — is still
+worth adding as insurance.
 
 ---
 
 ## 13. Testing Review (Phase 12)
 
-| Type               | R11      | R12      | R13                                    |
-| ------------------ | -------- | -------- | -------------------------------------- |
-| Unit / integration | 114, 876 | 119, 924 | ✅ **123 files, 953 — passing**        |
-| Coverage           | 72.32%   | 73.14%   | ❌ **70.75% — 3 breached**             |
-| E2E                | ❌ 1     | ✅ 65/65 | ❌ **49 failed · 1 flaky · 15 passed** |
-| RLS                | ✅ 34    | ✅ 34    | ✅ **34**                              |
+| Type               | R12      | R13          | R14                                 |
+| ------------------ | -------- | ------------ | ----------------------------------- |
+| Unit / integration | 119, 924 | 123, 953     | ✅ **150 files, 1,154**             |
+| Coverage           | 73.14%   | ❌ 70.75%    | ✅ **77.1% lines · 64.2% branches** |
+| E2E                | ✅ 65/65 | ❌ 49 failed | ✅ **69 / 69**                      |
+| RLS                | ✅ 34    | ✅ 34        | ✅ **34 (of 76 policies)**          |
 
-The unit suite continues to grow with features (29 new tests). The E2E collapse is a fixture
-problem, not a spec problem — the specs are fine and will pass once `subjects` exists in the
-mock store.
+201 new tests across 27 new files. The coverage jump is the right kind of fix — a floor raise
+rather than a margin repair, ending the erode-and-restore cycle visible in R8/R9 and R12/R13.
 
-**The structural lesson:** the E2E suite has a single point of failure at login. One missing
-reference table in the mock harness silently converts a 65-spec safety net into zero coverage.
-A mock-parity assertion in the unit suite (NEW-29 recommendation 2) would catch that in
-seconds rather than after a full Playwright run.
+**One structural note for the harness:** `scripts/test-rls.sh` hardcodes a single database name
+(`certed_rls_test`) and drops it on start, so two concurrent runs destroy each other. That is
+fine for its intended single-run use — it cost me a contaminated measurement this pass, not the
+project anything — but if the RLS job is ever parallelised in CI it will need a unique name per
+run.
 
 ---
 
 ## 14. UX Review (Phase 13)
 
-Subjects, richer profiles with self-service completion, exam events, attendance timings,
-assignment PDFs and an org-settings screen are all real capability additions.
+Sectioned navigation, guardian contacts, privacy/terms pages with a cookie notice, and mentors
+able to edit attendance without a wider grant.
 
 | ID                | Finding                                           | Severity  |
 | ----------------- | ------------------------------------------------- | --------- |
-| **FIND-29**       | No dark mode (thirteenth pass)                    | 🟡 Medium |
+| **FIND-29**       | No dark mode (fourteenth pass)                    | 🟡 Medium |
 | **FIND-44/45/46** | No global search; footer mojibake; no in-app help | 🟢 Low    |
 
 ---
 
 ## 15. Scalability Review (Phase 14)
 
-| Dimension                            | Assessment                                                                                                        |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| **Concurrency / horizontal scaling** | **Good.**                                                                                                         |
-| **Request path**                     | **Good** — email queued, settings cached, dashboards batched.                                                     |
-| **Large database**                   | Growth tables bounded by retention; `attachments`, `entity_tags` and now `subjects` index inventories unexamined. |
-| **Client payload**                   | ✅ Flat at 127.4 KB.                                                                                              |
-| **Scheduled work**                   | ⚠️ Drain and reconcile are manual deploy-time wiring (documented).                                                |
+| Dimension          | Assessment                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **Concurrency**    | **Good** — and better: drain-queue rows are now claimed atomically, closing a double-send race.                         |
+| **Request path**   | **Good.**                                                                                                               |
+| **Large database** | Growth tables bounded by retention; `guardians`, `subjects`, `attachments`, `entity_tags` index inventories unexamined. |
+| **Client payload** | ✅ Flat at 127.4 KB.                                                                                                    |
+| **Queue health**   | ✅ Monitored — a stalled drain now alarms.                                                                              |
 
 ---
 
@@ -520,57 +436,44 @@ assignment PDFs and an org-settings screen are all real capability additions.
 
 **Over-engineering:** none.
 
-**Under-engineering — the recurring theme:**
+**Under-engineering — the table that has driven this audit for six revisions:**
 
-| Control            | State                                                      |
-| ------------------ | ---------------------------------------------------------- |
-| Snapshot freshness | Guard exists (×2) — ❌ may not execute (NEW-28)            |
-| Formatting         | Guard exists — ✅ working                                  |
-| Mock parity        | **Rule exists, no guard** — ❌ failed immediately (NEW-29) |
-| Coverage           | Guard exists — ✅ working, correctly red                   |
-| Restore drill      | Documented, never executed                                 |
+| Control            | R13                            | R14                                          |
+| ------------------ | ------------------------------ | -------------------------------------------- |
+| Snapshot freshness | Guard existed, may not execute | ✅ Executable, current through 12 migrations |
+| Formatting         | ✅ Working                     | ✅ Working                                   |
+| Mock parity        | Rule only, failed immediately  | ✅ **Unit test — mechanical**                |
+| Coverage           | Guard working, margin fragile  | ✅ Floor raised to 77.1%                     |
+| RLS assertions     | Not tracked                    | ❌ **34 of 76 policies**                     |
+| Restore drill      | Never executed                 | ❌ Still never executed                      |
 
-Three of five are one small step from working. That is a better position than it looks — but
-the step has to be taken.
+Five of six now hold. The remaining two are the same shape — a control that exists but is not
+kept in step with what it guards.
 
 ---
 
 ## 17. Prioritised Action Plan (Phase 18)
 
-### 🔴 Critical
-
-**C1 · Add `subjects` to the mock harness** — NEW-29 · ~1 h · seed the table and
-`classes.subject_id`, re-run Playwright. Then **add a mock-parity unit test** that asserts every
-`create table` in the migration chain has a mock counterpart — that converts checklist item 4
-into a gate and prevents the third occurrence.
-
 ### 🟠 High
 
-**H1 · Make the hooks executable and assert it in CI** — NEW-28 · ~10 min ·
-`git update-index --chmod=+x .githooks/* scripts/*.sh` plus the mode assertion. **Do this
-first** — it is what makes H2 stick.
-
-**H2 · Regenerate the snapshot** — NEW-31 · ~20 min.
-
-**H3 · Restore coverage above the ratchet** — NEW-30 · ~3–4 h · add tests for subjects,
-profile completion, exam events and org settings. Consider a one-time push to ~78% so the
-margin survives a feature window.
+**H1 · Fix the `CookieNotice` lint error** — NEW-33 · ~20 min · prefer `useSyncExternalStore`
+with a server snapshot over suppressing the rule.
 
 ### 🟡 Medium
 
-| ID  | Action                                                                                          | Finding |
-| --- | ----------------------------------------------------------------------------------------------- | ------- |
-| M1  | Add `subjects` assertions to the RLS harness; confirm the `attachments_read` rewrite is covered | NEW-32  |
-| M2  | Perform the restore drill and record the RTO                                                    | FIND-35 |
-| M3  | Put drain/reconcile cron wiring on the production checklist                                     | §2.4    |
-| M4  | Dark mode on the token layer — or delete the dark `themeColor`                                  | FIND-29 |
-| M5  | Index review for `subjects`, `attachments`, `entity_tags`                                       | §15     |
+| ID  | Action                                                                                                                                    | Finding |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| M1  | Add RLS assertions for `guardians` (PII) and `subjects`; consider a mechanical check that every RLS-enabled table is named in the harness | NEW-32  |
+| M2  | Perform the restore drill — now covering attachments and guardian PII                                                                     | FIND-35 |
+| M3  | Dark mode on the token layer — or delete the dark `themeColor` (fourteenth pass)                                                          | FIND-29 |
+| M4  | Index review for `guardians`, `subjects`, `attachments`, `entity_tags`                                                                    | §15     |
+| M5  | Add the hook-mode CI assertion as insurance against a future squash                                                                       | §12     |
 
 ### 🟢 Low
 
 | ID  | Action                                                          | Finding          |
 | --- | --------------------------------------------------------------- | ---------------- |
-| L1  | Ratchet `firstLoadSharedKb` 145 → 133                           | M5 (8 passes)    |
+| L1  | Ratchet `firstLoadSharedKb` 145 → 133                           | M5 (9 passes)    |
 | L2  | `@axe-core/playwright` assertions                               | FIND-32          |
 | L3  | Batch the matrix-persona reads                                  | NEW-06           |
 | L4  | Mark `src/features` PLANNED or remove it                        | FIND-09          |
@@ -580,62 +483,61 @@ margin survives a feature window.
 
 ## 18. Quick Wins
 
-1. **`git update-index --chmod=+x .githooks/* scripts/*.sh`** — 1 min; makes two existing guards real. _(H1)_
-2. **Add the hook-mode assertion to CI** — 5 min; stops a future squash dropping it a third time. _(H1)_
-3. **Seed `subjects` in the mock store** — ~30 min; turns 49 failing E2E specs back to green. _(C1)_
-4. **Regenerate the snapshot** — 20 min. _(H2)_
-5. **Mock-parity unit test** — ~30 min; the highest-leverage item here, because it prevents the recurrence rather than the instance. _(C1)_
-6. **Ratchet `firstLoadSharedKb` to 133** — 1 min; eight passes. _(L1)_
-
-Items 1–4 take CI from three red gates to one in about an hour.
+1. **Fix `CookieNotice`** — 20 min; the only thing between this and a fully green pipeline. _(H1)_
+2. **Two `guardians` RLS assertions** — 30 min; the highest-value test gap, because it is PII. _(M1)_
+3. **Hook-mode CI assertion** — 5 min; insurance for a guard that was silently dropped once. _(M5)_
+4. **Ratchet `firstLoadSharedKb` to 133** — 1 min; nine passes. _(L1)_
+5. **Delete the dark `themeColor`** if dark mode isn't planned — 5 min; fourteen passes. _(M3)_
 
 ---
 
 ## 19. Long-Term Improvements
 
-1. **Enforce parity, don't document it.** Every rule this project has made mechanical has held; every rule left as a checklist item has been skipped. Mock parity is the current example; hook-mode assertion is the next.
-2. **Coverage headroom that survives a window.** Repairing a 1-point margin every other pass is more expensive than one push to ~78%.
-3. **Restore drill.** Still the one control whose failure mode is total.
-4. **Multi-tenancy readiness.** Subjects, multi-currency, custodial storage and per-slot timezones all point at a product that will need tenant scoping.
+1. **Keep the RLS harness in step with the policy count.** 34 against 76 is the one control now drifting; the mock-parity test is the template for fixing it.
+2. **Restore drill.** Still the one control whose failure mode is total, and its scope keeps growing — custodial files, then guardian PII.
+3. **Multi-tenancy readiness.** Subjects, guardians, multi-currency, custodial storage and per-slot timezones all point at a product that will need tenant scoping.
 
 ---
 
 ## 20. Overall Scorecard (Phase 16)
 
-| Dimension                  |   R10   |   R11   |   R12   |   R13   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------- | :-----: | :-----: | :-----: | :-----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Architecture**           |    9    |    9    |    9    |  **9**  | Subjects master and profile enrichment fit the existing layering cleanly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **Security**               |   10    |   10    |   10    |  **8**  | −2: no defect found, but the E2E suite carrying the access-control assertions could not run, so the app half of authorization is unverified this pass.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Maintainability**        |   10    |   10    |    9    |  **9**  | The escalation instinct is right; the follow-through fell one step short twice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **Performance**            |   10    |   10    |   10    | **10**  | Bundle flat through another large window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **Scalability**            |    9    |    9    |    9    |  **9**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **Documentation**          |    9    |   10    |   10    | **10**  | The deployment cron table is the best operational writing in the repo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Testing**                |    9    |    9    |   10    |  **6**  | −4: the E2E suite is down entirely and the coverage ratchet is breached. The specs are not at fault, but the safety net is not there.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Developer Experience**   |   10    |   10    |    8    |  **7**  | −1 more: three red gates, and two guards that may not be executing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **User Experience**        |    9    |    9    |   10    |  **9**  | Real capability added; −1 for no dark mode.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Code Quality**           |    9    |    9    |    9    |  **9**  | Eight of eleven gates green, 0 warnings, 0 vulnerabilities.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **Overall Project Health** | **9.4** | **9.5** | **9.4** | **8.8** | The application is in good shape; the guardrails are not. A missing mock fixture took the entire E2E suite down — the same failure diagnosed in revision 9, for which a checklist rule was written and then not followed. A pre-commit hook was added to stop snapshot drift and the snapshot drifted four migrations in the same window, most likely because the hook is committed non-executable. Every one of these is a small fix, and the project's own history shows the pattern that works: make it mechanical. About an hour of work clears three red gates and closes two recurrence paths. |
+| Dimension                  |   R11   |   R12   |   R13   |   R14   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------- | :-----: | :-----: | :-----: | :-----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architecture**           |    9    |    9    |    9    |  **9**  | Guardians and the narrow `manageAttendance` capability fit the existing model cleanly. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Security**               |   10    |   10    |    8    | **10**  | Nine hardening commits, a self-run audit with 28 tracked findings, non-spoofable IP, `.or()` escaping, PII out of telemetry, an alarm on disabled RLS, and DPDP minimisation that removes data rather than gating it.                                                                                                                                                                                                                                                                                             |
+| **Maintainability**        |   10    |    9    |    9    | **10**  | The escalation follow-through gap — open since revision 9 — is closed.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Performance**            |   10    |   10    |   10    | **10**  | Flat bundle; atomic queue claiming; queue-health monitoring.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Scalability**            |    9    |    9    |    9    |  **9**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Documentation**          |   10    |   10    |   10    | **10**  | Self-directed security auditing; a legal truth pass.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Testing**                |    9    |   10    |    6    |  **9**  | 1,154 tests, 77.1% lines, 69/69 E2E. −1: 34 RLS assertions against 76 policies, with PII unasserted.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Developer Experience**   |   10    |    8    |    7    |  **9**  | Hooks real, parity mechanical, snapshot current. −1 for the red lint gate.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **User Experience**        |    9    |   10    |    9    | **10**  | Sectioned nav, guardian contacts, privacy pages, mentors editing attendance without over-grant.                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Code Quality**           |    9    |    9    |    9    |  **9**  | Ten of eleven gates green, 0 warnings, 0 vulnerabilities. −1 for the lint error.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Overall Project Health** | **9.5** | **9.4** | **8.8** | **9.5** | The largest single-pass recovery in the series, and it was earned the right way. Every revision-13 finding is closed, three of them mechanically rather than by hand: the mock-parity unit test, executable hooks, and a coverage floor raised to 77.1% instead of another 1-point patch. The security and privacy work is substantial and self-directed. One lint error stands between this and a fully green pipeline; the one control still drifting is the RLS harness, at 34 assertions against 76 policies. |
 
 ---
 
 ## 21. Strengths
 
-1. **The pre-commit hook is the right instinct, well executed** — it cites the specific recurrences it exists to prevent, reuses the exact scripts CI runs _"so local and CI verdicts can't diverge"_, and checks snapshot freshness only when a migration is staged. I verified the logic; it would catch NEW-31.
-2. **`deployment.md` §5 on cron wiring** — job, cadence, consequence-if-missing, two options, and an explicit note on why the repo's `vercel.json` is deliberately minimal. Exemplary operational writing.
-3. **A platform constraint handled honestly** — the Hobby cron limit is documented with its workaround rather than silently accepted or silently broken.
-4. **Destructive migrations done carefully** — `0063` drops only _"confirmed-dead"_ columns, paired with the code change that stopped reading them.
-5. **CSP correctness maintained under change** — the root 404 was made dynamic so its scripts receive the nonce.
-6. **Unit tests keep pace with features** — 29 new tests alongside six feature areas.
-7. **34 RLS assertions still green** with four new migrations applied.
-8. **The capability model** — hard capabilities, reason-required overrides, documented precedence, ADRs.
-9. **Bundle discipline** — 127.4 KB unchanged across seven passes and multiple large windows.
-10. **Documentation that keeps improving** — a production-readiness audit and a handover pass landed in the same window as the features.
+1. **The escalation finally landed.** `tests/unit/mock-schema-parity.test.ts` converts a checklist item into a gate — the exact recommendation from revision 13, and the pattern this project has now applied successfully to formatting, snapshot drift and mock parity.
+2. **Coverage raised, not patched** — 70.75% → 77.1% lines with 201 new tests, ending a two-pass erode-and-restore cycle.
+3. **Self-directed security auditing** — 28 tracked findings with remediation status, fixed across nine commits and referenced in the commit messages.
+4. **The spoofable-IP fix is correct**, not cosmetic: platform header first, then the rightmost XFF entry rather than the client-controlled leftmost.
+5. **Data minimisation over access control** — gender and address removed from collection, forms, display and schema. The strongest privacy control is not holding the data.
+6. **A control that watches the controls** — an alarm on disabled RLS.
+7. **Least privilege in a new capability** — `manageAttendance` rather than widening the mentor persona.
+8. **Atomic queue claiming** to stop double-sends, plus queue-health monitoring so a stalled drain surfaces.
+9. **A legal truth pass** — public policy edited so its claims match system behaviour.
+10. **69/69 E2E and 34/34 RLS**, both green, both gated in CI.
 
 ---
 
-_Revision 13 performed 2026-08-19 against `feature/cert-ed-academia-app` @ `6adab47` with a
-clean working tree, a clean `rm -rf .next` rebuild, and `scripts/test-rls.sh` against real
-Postgres 18, and a completed Playwright run (**49 failed, 1 flaky, 15 passed, 22.0m**)._
-_Not verified: the exact read that throws on the missing `subjects` table, whether the hooks
-are skipped on a Unix clone, and whether Sentry DSNs are configured in Vercel._
+_Revision 14 performed 2026-08-25 against `feature/cert-ed-academia-app` @ `4ab16dd` with a
+a working tree clean at the start of the pass, a clean `rm -rf .next` rebuild, and isolated runs of the Playwright suite
+(69/69, 2.4m) and `scripts/test-rls.sh` (34/34) against real Postgres 18. Earlier contaminated
+figures from concurrent execution were discarded and re-measured. Not verified: whether the
+Sentry DSNs are configured in Vercel, and whether the drain/reconcile crons are wired on the
+production project. Portal classroom files and a new `docs/qa/2026-08-25-security-reaudit.md`
+were modified in the working tree part-way through this pass; those changes are **not covered**
+by these results._

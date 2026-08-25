@@ -6,22 +6,29 @@ import { SEED, loginAs, submitAndReload } from './support'
 // announcement, issue receipt, add user, create assignment, comment, submit).
 // Runs against the production build in MOCK mode (seed reset before the run).
 
-test('ADMIN -- create class -> enrol -> announce -> issue receipt -> add user', async ({ page }) => {
+test('ADMIN -- create class (as a student subject) -> announce -> issue receipt -> add user', async ({ page }) => {
   await loginAs(page, 'admin@mock.test')
 
-  // Create a class via the New-class form
+  // A class is created only as a student's SUBJECT: adding "Physics" to Sara creates
+  // the class AND enrols her AND assigns the tutor in one step (the subject-as-class model).
+  await page.goto(`/admin/users/${SEED.sara}`)
+  await page.locator('input[name=subject]').fill('Physics')
+  await page.locator('form:has(button:has-text("Add subject")) select[name=tutor_id]').selectOption({
+    label: 'Tarun Tutor',
+  })
+  await submitAndReload(page, () => page.getByRole('button', { name: 'Add subject' }).click())
+
+  // Open the new class from the list (named "Sara Student - Physics").
   await page.goto('/classroom')
-  await page.click('summary:has-text("New class")')
-  await page.fill('input[name=name]', 'E2E Physics G11')
-  await page.getByRole('button', { name: 'Create class' }).click()
+  await page
+    .getByRole('link', { name: /Physics/ })
+    .first()
+    .click()
   await page.waitForURL(/\/classroom\/[0-9a-f-]{36}/)
   const classId = page.url().split('/classroom/')[1].split(/[/?#]/)[0]
-  await expect(page.getByRole('heading', { name: 'E2E Physics G11' })).toBeVisible()
 
-  // Enrol a student on the People tab
+  // Sara is already a member (the subject flow enrolled her).
   await page.goto(`/classroom/${classId}/people`)
-  await page.locator('form:has-text("Enrol a student") select').selectOption({ label: 'Sara Student' })
-  await page.getByRole('button', { name: 'Enrol' }).click()
   await expect(page.getByText('Sara Student').first()).toBeVisible()
 
   // Post an announcement to the class Stream
