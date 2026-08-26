@@ -6,6 +6,7 @@ import { LocalTime } from '../../LocalTime'
 import { Avatar, Badge, BackLink, Card, EmptyState, ExternalActionLink, PageHeader, statusLabel } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 import { ResultGradeForm } from '../ResultGradeForm'
+import { safeExternalHref } from '@/lib/validation/url'
 
 export default async function AssignmentDetail(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -112,9 +113,9 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                       <span className="text-slate-400">
                         Submitted <LocalTime iso={prior.submitted_at} /> - {statusLabel(prior.status)}
                       </span>
-                      {prior.drive_link && prior.drive_link !== '#' && (
+                      {safeExternalHref(prior.drive_link) && (
                         <a
-                          href={prior.drive_link}
+                          href={safeExternalHref(prior.drive_link)!}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="max-w-[12rem] truncate font-medium text-primary hover:underline"

@@ -10,6 +10,7 @@ import { WithdrawButton } from '../../../assignments/WithdrawButton'
 import { archiveAssignmentAction } from '../../../assignments/manage-actions'
 import { CommentThread } from '../../../CommentThread'
 import { LocalTime } from '../../../LocalTime'
+import { safeExternalHref } from '@/lib/validation/url'
 import { listAttachmentsForOwner } from '@/lib/services/attachments/read'
 import { AssignmentAttachments } from './AssignmentAttachments'
 
@@ -73,9 +74,9 @@ export async function AssignmentCard({
               Date.parse(assignment.due_date) >= data.now &&
               Date.parse(assignment.due_date) - data.now < 172800000 && <Badge tone="warning">Due soon</Badge>}
           </p>
-          {assignment.attachment_drive_link && assignment.attachment_drive_link !== '#' && (
+          {safeExternalHref(assignment.attachment_drive_link) && (
             <a
-              href={assignment.attachment_drive_link}
+              href={safeExternalHref(assignment.attachment_drive_link)!}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
@@ -145,9 +146,9 @@ export async function AssignmentCard({
                   )}
                 </p>
               )}
-              {submission.drive_link && submission.drive_link !== '#' && (
+              {safeExternalHref(submission.drive_link) && (
                 <a
-                  href={submission.drive_link}
+                  href={safeExternalHref(submission.drive_link)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-1 inline-flex max-w-full items-center gap-1 text-xs font-medium text-primary hover:underline"
@@ -172,9 +173,9 @@ export async function AssignmentCard({
                     <span className="text-slate-400">
                       <LocalTime iso={prior.submitted_at} /> - {statusLabel(prior.status)}
                     </span>
-                    {prior.drive_link && prior.drive_link !== '#' && (
+                    {safeExternalHref(prior.drive_link) && (
                       <a
-                        href={prior.drive_link}
+                        href={safeExternalHref(prior.drive_link)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="max-w-[12rem] truncate font-medium text-primary hover:underline"
