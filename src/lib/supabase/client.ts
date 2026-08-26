@@ -1,5 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { MAX_SESSION_SECONDS } from './cookie-options'
+import { parseCookieHeader, serializeHardenedCookie } from './browser-cookie-adapter'
 
 type PublicSupabaseEnvName = 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
 
@@ -30,14 +30,30 @@ export function getPublicSupabaseEnvError(): string | null {
 }
 
 export function createClient() {
-  // Sign-in runs client-side, so the BROWSER writes the session cookie first. Without
-  // these options @supabase/ssr uses its defaults (no `secure`, 400-day maxAge), which
-  // bypasses the server-side hardening. Mirror hardenCookieOptions here from the shared
-  // constant so the browser-written cookie matches the server-refreshed one and the two
-  // paths can't drift: Secure in production, capped to the 30-day inactivity ceiling.
+  // Sign-in runs client-side, so the BROWSER writes the session cookie first. Passing
+  // `cookieOptions: { maxAge }` does NOT work: @supabase/ssr rebuilds the options as
+  // `{ ...DEFAULT_COOKIE_OPTIONS, ...cookieOptions, maxAge: DEFAULT_COOKIE_OPTIONS.maxAge }`,
+  // hard-overriding maxAge back to its 400-day default AFTER the spread (secure survives,
+  // maxAge is silently dropped). So we own the write via getAll/setAll and re-apply the
+  // SAME hardening the server paths use (hardenCookieOptions): Secure in production and a
+  // 30-day inactivity ceiling. This mirrors the library's own document.cookie adapter,
+  // minus the discarded maxAge, so encoding stays identical to the server-written cookie.
   return createBrowserClient(
     requiredPublicEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL),
     requiredPublicEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
-    { cookieOptions: { secure: process.env.NODE_ENV === 'production', maxAge: MAX_SESSION_SECONDS } },
+    {
+      cookies: {
+        getAll() {
+          if (typeof document === 'undefined') return []
+          return parseCookieHeader(document.cookie)
+        },
+        setAll(cookiesToSet) {
+          if (typeof document === 'undefined') return
+          for (const { name, value, options } of cookiesToSet) {
+            document.cookie = serializeHardenedCookie(name, value, options ?? {})
+          }
+        },
+      },
+    },
   )
 }
