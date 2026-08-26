@@ -135,7 +135,7 @@ export async function loadClassAttendancePageData(
   const [{ students }, marks, session, historyRows] = await Promise.all([
     getClassMembers(courseId),
     listAttendanceForClassDate(courseId, date),
-    getManagerSession(courseId, date),
+    getManagerSession(me, courseId, date),
     listAttendanceHistoryForClass(courseId, {
       status: historyFilters.status || undefined,
       from: historyFilters.from || undefined,

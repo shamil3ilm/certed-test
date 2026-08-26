@@ -103,13 +103,17 @@ export async function loadHistoryPageData(
   const actors = await getProfilesByIds(items.map((r) => r.actor_id).filter((id): id is string => !!id))
   const rows = items.map((r) => {
     const actor = r.actor_id ? actors.get(r.actor_id) : null
-    // Redact an admin-tier actor's identity from a non-super viewer: show the tier,
-    // never the name/email (the action still appears, just without the PII).
-    const actorLabel = actor
-      ? !isSuper && ADMIN_TIER_ROLES.has(actor.role)
-        ? 'Administrator'
-        : (actor.full_name ?? actor.email)
-      : null
+    // Actor identity, tiered by viewer. A non-super viewer (viewHistory can be
+    // override-granted to a sub_admin/tutor/mentor) never sees an admin-tier actor's
+    // identity (show the tier) and never sees ANYONE's raw email (R-03): the name if
+    // set, else a short id - never PII. A super viewer (full admin) sees the full
+    // identity, email fallback included.
+    let actorLabel: string | null = null
+    if (actor) {
+      if (!isSuper && ADMIN_TIER_ROLES.has(actor.role)) actorLabel = 'Administrator'
+      else if (isSuper) actorLabel = actor.full_name ?? actor.email
+      else actorLabel = actor.full_name ?? `User ${(r.actor_id ?? '').slice(0, 8)}`
+    }
     const { scope, verb } = actionParts(r.action)
     return {
       id: r.id,

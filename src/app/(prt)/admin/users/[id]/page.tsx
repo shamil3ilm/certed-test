@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Profile } from '@/lib/auth/profile'
 import { requireCapability } from '@/lib/auth/require-role'
-import { selectProfileDetailsById, selectActiveProfilesByRoles } from '@/lib/data/profiles-directory'
+import { selectProfileDetailsById, selectActiveProfilesByRoles, selectProfileRole } from '@/lib/data/profiles-directory'
 import { loadStudentSubjects, loadTutorRoster } from '@/lib/services/page-data/user-detail'
 import { canManageTarget } from '@/lib/services/users/admin-lifecycle'
 import { listSubjects } from '@/lib/services/subjects'
@@ -18,13 +18,16 @@ export default async function UserDetailPage(props: {
   const [{ id }, { error }] = await Promise.all([props.params, props.searchParams])
   const me = await requireCapability('manageUsers')
 
+  // Authorize on the target's ROLE before loading any of its personal data (A-08).
+  // manageUsers opens the page, but the tier rule decides WHOSE record you may see: a
+  // sub_admin may read tutor/mentor/student profiles (the tier they manage), never the
+  // ADMIN tier (the same boundary revoke/edit enforce). Fetch the role alone first, so a
+  // disallowed target's PII row is never read - treat it as absent.
+  const role = await selectProfileRole(id)
+  if (!role || !(await canManageTarget(me, role))) notFound()
+
   const profile = await selectProfileDetailsById(id)
   if (!profile) notFound()
-  // manageUsers opens the page, but the tier rule decides WHOSE record you may see:
-  // a sub_admin may read tutor/mentor/student profiles (the same tier they manage),
-  // never the ADMIN tier (the same boundary revoke/edit enforce). Treat a disallowed
-  // target as absent rather than disclosing its personal detail.
-  if (!(await canManageTarget(me, profile.role))) notFound()
 
   const isStudent = profile.role === 'student'
   const isTeacher = profile.role === 'tutor' || profile.role === 'mentor'

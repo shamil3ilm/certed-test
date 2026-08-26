@@ -169,11 +169,14 @@ export async function getSession(classId: string, date: string): Promise<ClassSe
   return selectSession(classId, date)
 }
 
-/** The session INCLUDING the staff-private note, for a manager's own view/form. The
- *  caller must already have proved manage rights on the class (the attendance
- *  page-data does, in its canManageClass branch). Service-role, because staff_note is
- *  withheld from the authenticated SELECT grant (0070). */
-export async function getManagerSession(classId: string, date: string): Promise<ClassSession | null> {
+/** The session INCLUDING the staff-private note, for a manager's own view/form.
+ *  Self-gates the service-role read on canManageClass (staff_note is withheld from
+ *  the authenticated SELECT grant, 0070, so this reads it via the service role) -
+ *  mirroring listGuardians, so safety no longer rests on the caller proving remit. */
+export async function getManagerSession(actor: Profile, classId: string, date: string): Promise<ClassSession | null> {
+  if (!(await canManageClass(actor, classId))) {
+    throw new PermissionError('Not allowed to view this session.')
+  }
   return selectSessionAsService(classId, date)
 }
 
