@@ -9,6 +9,9 @@ vi.mock('@/lib/data/personas', () => ({
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfilesByIds: vi.fn() }))
+// The resolver re-filters every candidate against live profile status (A-15). Mock it
+// as a passthrough by default (all candidates active); the revocation test overrides it.
+vi.mock('@/lib/data/profiles', () => ({ selectActiveIdsAmong: vi.fn() }))
 vi.mock('@/lib/services/finance/org-settings', () => ({
   getOrgSettings: vi.fn(async () => ({ messaging_matrix: null })),
 }))
@@ -18,6 +21,7 @@ import { selectActivePersonaAssignmentsByProfileIds, selectActiveProfileIdsByPer
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfilesByIds } from '@/lib/services/users'
+import { selectActiveIdsAmong } from '@/lib/data/profiles'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { assertGroupRecipientsRelated, canMessage, listMessageableContacts } from '@/lib/messaging/recipient-policy'
 
@@ -48,6 +52,7 @@ beforeEach(() => {
   vi.mocked(selectActivePersonaAssignmentsByProfileIds).mockResolvedValue([])
   vi.mocked(getProfilesByIds).mockResolvedValue(new Map())
   vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: null } as any)
+  vi.mocked(selectActiveIdsAmong).mockImplementation(async (ids: string[]) => ids)
 })
 
 describe('recipientPolicy', () => {
@@ -75,6 +80,24 @@ describe('recipientPolicy', () => {
     expect(await canMessage(actor, 'random-stranger')).toBe(false)
     // A pure tutor (not also a mentor) does NOT reach mentees they don't teach.
     expect(await canMessage(actor, 'some-mentee')).toBe(false)
+  })
+
+  it('excludes a candidate whose profile is no longer active, even with a live edge (A-15)', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isTutor: true }))
+    vi.mocked(createAdminClient).mockReturnValue(
+      tableClient({
+        class_tutors: [{ class_id: 'c-1' }],
+        enrollments: [{ student_id: 'active-stu' }, { student_id: 'revoked-stu' }], // both still enrolled
+      }) as any,
+    )
+    // The enrolment edge is live for both, but the target profile status re-check drops
+    // the revoked one - the guarantee a per-branch edge query cannot make on its own.
+    vi.mocked(selectActiveIdsAmong).mockImplementation(async (ids: string[]) =>
+      ids.filter((id) => id !== 'revoked-stu'),
+    )
+    const actor = { id: 'tut-1' } as any
+    expect(await canMessage(actor, 'active-stu')).toBe(true)
+    expect(await canMessage(actor, 'revoked-stu')).toBe(false)
   })
 
   it('mentor may message their mentees and the tutors of their mentees’ classes', async () => {

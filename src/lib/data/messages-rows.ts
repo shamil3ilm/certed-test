@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { escapeIlike } from '@/lib/text/ilike'
 
 export type MessageRow = {
   id: string
@@ -43,7 +44,7 @@ export async function searchMessages(conversationId: string, query: string, limi
     .from('messages')
     .select('*')
     .eq('conversation_id', conversationId)
-    .ilike('body', `%${query}%`)
+    .ilike('body', `%${escapeIlike(query)}%`)
     .order('created_at', { ascending: false })
     .limit(limit)
   if (error) throw new Error(`data.messages.search: ${error.message}`)

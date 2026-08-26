@@ -167,6 +167,20 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
   }
 
   recipients.delete(actor.id)
+
+  // Every recipient must be a currently-active account. The branches above use
+  // `selectActive*` membership queries, but those filter the EDGE (enrolment,
+  // teaching link, persona), not the target profile's status - so a revoked
+  // tutor/mentee/tutor-of-mentee still surfaced through four of the six branches
+  // (A-15). Re-filter the whole set against live profile status once, so a single
+  // guarantee covers every branch instead of each having to remember to.
+  if (recipients.size) {
+    const activeIds = new Set(await selectActiveIdsAmong([...recipients.keys()]))
+    for (const id of [...recipients.keys()]) {
+      if (!activeIds.has(id)) recipients.delete(id)
+    }
+  }
+
   return { actorFlags, recipients }
 }
 
