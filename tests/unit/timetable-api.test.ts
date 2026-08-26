@@ -19,6 +19,9 @@ const OTHER = '33333333-3333-4333-8333-333333333333'
 const teaches = vi.fn(async (..._a: any[]) => true)
 vi.mock('@/lib/auth/class-scope', () => ({
   teachesClass: (profile: unknown, classId: string) => teaches(profile, classId),
+  // canWriteClass mirrors the tutor-only WRITE scope now (0079); this test's `teaches`
+  // stands in for "does the tutor teach the class", so map both to it.
+  teachesClassWrite: (classId: string) => teaches(classId),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))

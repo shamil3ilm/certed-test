@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
  *
  * RLS client throughout; policy scopes rows to an enrolled student, a tutor of
  * the course, or an admin. The domain (src/lib/services/timetable-slots) adds
- * the app-side canWriteClass checks on top.
+ * the app-side canWriteCalendar checks on top.
  */
 
 export type TimetableSlotRow = {

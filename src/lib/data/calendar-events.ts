@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
  * Table access for `calendar_events`. RLS client throughout, and it carries real
  * weight here: policy scopes rows to global events plus the courses the caller
  * is enrolled in or teaches, with an admin seeing all. The domain
- * (src/lib/services/calendar-events) adds the app-side canWriteClass checks on
+ * (src/lib/services/calendar-events) adds the app-side canWriteCalendar checks on
  * top of that.
  */
 

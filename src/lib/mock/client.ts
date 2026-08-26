@@ -14,11 +14,14 @@ function profileByUid(uid: string | null): Record<string, unknown> | null {
 }
 
 async function rpc(uid: string | null, fn: string, args: Args) {
-  if (fn === 'teaches_class' || fn === 'is_enrolled') {
+  // teaches_class_write (0079) is the tutor-only WRITE scope; the mock's teaches_class
+  // is already a plain class_tutors lookup (no mentor branch), so both resolve the same
+  // tutor-of-class way here.
+  if (fn === 'teaches_class' || fn === 'teaches_class_write' || fn === 'is_enrolled') {
     const me = profileByUid(uid)
     if (!me) return { data: false, error: null }
-    const tbl = fn === 'teaches_class' ? table('class_tutors') : table('enrollments')
-    const idCol = fn === 'teaches_class' ? 'tutor_id' : 'student_id'
+    const tbl = fn === 'is_enrolled' ? table('enrollments') : table('class_tutors')
+    const idCol = fn === 'is_enrolled' ? 'student_id' : 'tutor_id'
     const found = tbl.some((r) => r[idCol] === me.id && r.class_id === args.p_class_id)
     return { data: found, error: null }
   }

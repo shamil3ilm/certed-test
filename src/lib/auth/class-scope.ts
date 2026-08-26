@@ -1,4 +1,4 @@
-import { callTeachesClass } from '@/lib/data/class-scope'
+import { callTeachesClass, callTeachesClassWrite } from '@/lib/data/class-scope'
 
 /**
  * App-layer mirror of the Postgres scope helpers used by RLS (`teaches_class` /
@@ -9,4 +9,13 @@ import { callTeachesClass } from '@/lib/data/class-scope'
  */
 export async function teachesClass(classId: string): Promise<boolean> {
   return callTeachesClass(classId)
+}
+
+/**
+ * The tutor-only WRITE scope (`teaches_class_write`) - excludes the mentor oversight
+ * branch that `teachesClass` keeps. This is the function the class-scoped write policies
+ * gate on since 0079, so canWriteClass mirrors THIS, not the read scope.
+ */
+export async function teachesClassWrite(classId: string): Promise<boolean> {
+  return callTeachesClassWrite(classId)
 }

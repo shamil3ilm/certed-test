@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn(), assertClassActive: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canWriteCalendar: vi.fn(), assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ isActiveClassTutor: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
-import { canWriteClass } from '@/lib/permission'
+import { canWriteCalendar } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { getProfileById } from '@/lib/services/users'
@@ -52,13 +52,13 @@ describe('timetable-write rate limiting', () => {
   it('throttles writes with RateLimitError before validating or authorizing', async () => {
     vi.mocked(rateLimit).mockReturnValueOnce({ ok: false, remaining: 0, retryAfterSec: 5 })
     await expect(createSlotFromApiInput(tutor, {})).rejects.toBeInstanceOf(RateLimitError)
-    expect(canWriteClass).not.toHaveBeenCalled()
+    expect(canWriteCalendar).not.toHaveBeenCalled()
   })
 })
 
 describe('createSlot', () => {
   it('rejects a caller who cannot write to the class, without a DB write or audit', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(false)
     await expect(
       createSlot(tutor, {
         class_id: 'class-1',
@@ -73,7 +73,7 @@ describe('createSlot', () => {
   })
 
   it('rejects a tutor_id that is not an active tutor', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(null)
     await expect(
       createSlot(tutor, {
@@ -91,7 +91,7 @@ describe('createSlot', () => {
   it('rejects a tutor_id who is an active tutor but does not teach this class', async () => {
     // The colleague is a real, active tutor - but not assigned to class-1, so
     // labeling this class's slot with them would be a cross-class mislabel.
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutorProfile)
     vi.mocked(isActiveClassTutor).mockResolvedValueOnce(false)
     await expect(
@@ -108,7 +108,7 @@ describe('createSlot', () => {
   })
 
   it('creates and audits timetable.create', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     const created = await createSlot(tutor, {
       class_id: 'class-1',
@@ -131,19 +131,19 @@ describe('updateSlot', () => {
   it('throws NotFoundError for a missing id, without a permission check', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await expect(updateSlot(tutor, 'missing', {} as any)).rejects.toBeInstanceOf(NotFoundError)
-    expect(canWriteClass).not.toHaveBeenCalled()
+    expect(canWriteCalendar).not.toHaveBeenCalled()
   })
 
   it("rejects a non-manager of the slot's class, without writing/auditing", async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(false)
     await expect(updateSlot(tutor, 'slot-1', { subject: 'New' } as any)).rejects.toBeInstanceOf(PermissionError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('audits timetable.reassign when tutor_id is set, timetable.update otherwise', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutorProfile)
     vi.mocked(isActiveClassTutor).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
@@ -158,7 +158,7 @@ describe('updateSlot', () => {
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     await updateSlot(tutor, 'slot-1', { subject: 'New subject' } as any)
     expect(writeAudit).toHaveBeenCalledWith({
@@ -178,7 +178,7 @@ describe('deactivateSlot', () => {
 
   it('deactivates and audits ONLY timetable.deactivate (not also timetable.update)', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...slotRow, active: false }, error: null }) as any,
     )
@@ -244,7 +244,7 @@ describe('timetable slot API-input helpers', () => {
   })
 
   it('delegates create/update/deactivate API input through the service boundary', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     const created = await createSlotFromApiInput(tutor, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
@@ -258,7 +258,7 @@ describe('timetable slot API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...slotRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     await updateSlotFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000', { subject: 'New subject' })
     expect(writeAudit).toHaveBeenLastCalledWith({
@@ -271,7 +271,7 @@ describe('timetable slot API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...slotRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...slotRow, active: false }, error: null }) as any,
     )

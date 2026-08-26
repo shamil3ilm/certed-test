@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn(), assertClassActive: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canWriteCalendar: vi.fn(), assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
-import { canWriteClass, assertClassActive } from '@/lib/permission'
+import { canWriteCalendar, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -47,13 +47,13 @@ describe('calendar-write rate limiting', () => {
   it('throttles writes with RateLimitError before validating or authorizing', async () => {
     vi.mocked(rateLimit).mockReturnValueOnce({ ok: false, remaining: 0, retryAfterSec: 5 })
     await expect(createEventFromApiInput(tutor, {})).rejects.toBeInstanceOf(RateLimitError)
-    expect(canWriteClass).not.toHaveBeenCalled()
+    expect(canWriteCalendar).not.toHaveBeenCalled()
   })
 })
 
 describe('createEvent', () => {
   it('rejects a caller who cannot write to the class, without a DB write or audit', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(false)
     await expect(
       createEvent(tutor, { title: 'x', event_date: '2026-07-20', class_id: 'class-1', kind: 'event' } as any),
     ).rejects.toBeInstanceOf(PermissionError)
@@ -62,7 +62,7 @@ describe('createEvent', () => {
   })
 
   it('creates and audits event.create', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     const created = await createEvent(tutor, {
       title: 'Class',
@@ -80,7 +80,7 @@ describe('createEvent', () => {
   })
 
   it('rejects a slot_id that belongs to a different class (no cross-class suppression)', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     // selectSlotById (RLS read) resolves a slot in ANOTHER class.
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { id: 'slot-9', class_id: 'other-class' }, error: null }) as any,
@@ -98,7 +98,7 @@ describe('createEvent', () => {
   })
 
   it("accepts a slot_id that belongs to the event's own class", async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient)
       .mockResolvedValueOnce(makeClient({ data: { id: 'slot-1', class_id: 'class-1' }, error: null }) as any) // selectSlotById
       .mockResolvedValueOnce(
@@ -119,31 +119,31 @@ describe('updateEvent', () => {
   it('throws NotFoundError for a missing id, without a permission check', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await expect(updateEvent(tutor, 'missing', {} as any)).rejects.toBeInstanceOf(NotFoundError)
-    expect(canWriteClass).not.toHaveBeenCalled()
+    expect(canWriteCalendar).not.toHaveBeenCalled()
   })
 
   it("rejects a non-manager of the event's own class, without writing/auditing", async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(false)
     await expect(updateEvent(tutor, 'evt-1', { title: 'New' } as any)).rejects.toBeInstanceOf(PermissionError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('re-authorizes the DESTINATION class on a move, not just the source', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    vi.mocked(canWriteClass)
+    vi.mocked(canWriteCalendar)
       .mockResolvedValueOnce(true) // source class: ok
       .mockResolvedValueOnce(false) // destination class: not ok
     await expect(updateEvent(tutor, 'evt-1', { class_id: 'other-class' } as any)).rejects.toBeInstanceOf(
       PermissionError,
     )
-    expect(canWriteClass).toHaveBeenNthCalledWith(2, tutor, 'other-class')
+    expect(canWriteCalendar).toHaveBeenNthCalledWith(2, tutor, 'other-class')
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('rejects setting slot_id to a slot in another class', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any) // getEvent
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { id: 'slot-9', class_id: 'other-class' }, error: null }) as any,
     ) // selectSlotById
@@ -153,7 +153,7 @@ describe('updateEvent', () => {
 
   it('rejects moving an event into an archived class, without writing or auditing', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any) // getEvent
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true).mockResolvedValueOnce(true) // source + destination
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true).mockResolvedValueOnce(true) // source + destination
     vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
     await expect(updateEvent(tutor, 'evt-1', { class_id: 'other-class' } as any)).rejects.toBeInstanceOf(
       ValidationError,
@@ -168,14 +168,14 @@ describe('updateEvent', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...eventRow, start_time: '10:00', end_time: '11:00' }, error: null }) as any,
     ) // getEvent
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     await expect(updateEvent(tutor, 'evt-1', { end_time: '08:00' } as any)).rejects.toBeInstanceOf(ValidationError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('audits event.move when class_id changes, event.update otherwise', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...eventRow, class_id: 'other-class' }, error: null }) as any,
     )
@@ -188,7 +188,7 @@ describe('updateEvent', () => {
     })
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     await updateEvent(tutor, 'evt-1', { title: 'New title' } as any)
     expect(writeAudit).toHaveBeenCalledWith({
@@ -208,7 +208,7 @@ describe('deleteEvent', () => {
 
   it('deletes and audits event.delete', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteEvent(tutor, 'evt-1')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -245,7 +245,7 @@ describe('calendar event API-input helpers', () => {
   })
 
   it('delegates create/update/delete API input through the service boundary', async () => {
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     const created = await createEventFromApiInput(tutor, {
       title: 'Class',
@@ -258,7 +258,7 @@ describe('calendar event API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...eventRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     await updateEventFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000', { title: 'Updated' })
     expect(writeAudit).toHaveBeenLastCalledWith({
@@ -271,7 +271,7 @@ describe('calendar event API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...eventRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
-    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteEventFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000')
     expect(writeAudit).toHaveBeenLastCalledWith({

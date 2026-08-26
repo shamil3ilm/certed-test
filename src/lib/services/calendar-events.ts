@@ -16,7 +16,7 @@ import {
 } from '@/lib/validation/calendar-event'
 import { parseOrThrow } from '@/lib/validation/parse'
 import { assertTimeOrder } from '@/lib/validation/time-order'
-import { canWriteClass, assertClassActive } from '@/lib/permission'
+import { canWriteCalendar, assertClassActive } from '@/lib/permission'
 import { selectSlotById } from '@/lib/data/timetable-slots'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
@@ -71,11 +71,12 @@ async function assertSlotInClass(slotId: string, classId: string | null): Promis
 }
 
 /**
- * Global events (class_id null) are admin-only; tutors may only create
- * course events they teach - canWriteClass covers exactly this rule.
+ * Global events (class_id null) are admin-only; a tutor may create events for a class
+ * they teach, and a mentor for a class their mentee is enrolled in - canWriteCalendar
+ * covers exactly this rule (and agrees with the calendar_events_write RLS scope).
  */
 export async function createEvent(actor: Profile, input: CreateEventInput): Promise<CalendarEvent> {
-  if (!(await canWriteClass(actor, input.class_id ?? null))) {
+  if (!(await canWriteCalendar(actor, input.class_id ?? null))) {
     throw new PermissionError('Not authorized to create this event.')
   }
   if (input.slot_id) await assertSlotInClass(input.slot_id, input.class_id ?? null)
@@ -120,11 +121,11 @@ export async function createEventFromApiInput(actor: Profile, input: unknown): P
 export async function updateEvent(actor: Profile, id: string, patch: UpdateEventInput): Promise<CalendarEvent> {
   const existing = await getEvent(id)
   if (!existing) throw new NotFoundError('Event not found')
-  if (!(await canWriteClass(actor, existing.class_id))) {
+  if (!(await canWriteCalendar(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this event.')
   }
   const moved = patch.class_id !== undefined && patch.class_id !== existing.class_id
-  if (patch.class_id !== undefined && moved && !(await canWriteClass(actor, patch.class_id))) {
+  if (patch.class_id !== undefined && moved && !(await canWriteCalendar(actor, patch.class_id))) {
     throw new PermissionError('Not authorized to move this event to that class.')
   }
   // Moving an event INTO a class must respect the archived-class rule, exactly like
@@ -162,7 +163,7 @@ export async function updateEventFromApiInput(actor: Profile, id: unknown, input
 export async function deleteEvent(actor: Profile, id: string): Promise<void> {
   const existing = await getEvent(id)
   if (!existing) throw new NotFoundError('Event not found')
-  if (!(await canWriteClass(actor, existing.class_id))) {
+  if (!(await canWriteCalendar(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this event.')
   }
   await deleteEventRow(id)

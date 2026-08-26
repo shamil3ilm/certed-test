@@ -15,7 +15,7 @@ import {
 } from '@/lib/validation/timetable-slot'
 import { parseOrThrow } from '@/lib/validation/parse'
 import { assertTimeOrder } from '@/lib/validation/time-order'
-import { canWriteClass, assertClassActive } from '@/lib/permission'
+import { canWriteCalendar, assertClassActive } from '@/lib/permission'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError } from '@/lib/errors'
@@ -48,7 +48,7 @@ export async function getSlot(id: string): Promise<TimetableSlot | null> {
 }
 
 export async function createSlot(actor: Profile, input: CreateSlotInput): Promise<TimetableSlot> {
-  if (!(await canWriteClass(actor, input.class_id))) {
+  if (!(await canWriteCalendar(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
   if (input.tutor_id) await assertClassTutor(input.tutor_id, input.class_id)
@@ -78,7 +78,7 @@ export async function createSlotFromApiInput(actor: Profile, input: unknown): Pr
 export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotInput): Promise<TimetableSlot> {
   const existing = await getSlot(id)
   if (!existing) throw new NotFoundError('Timetable slot not found')
-  if (!(await canWriteClass(actor, existing.class_id))) {
+  if (!(await canWriteCalendar(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
   if (patch.tutor_id) await assertClassTutor(patch.tutor_id, existing.class_id)
@@ -104,7 +104,7 @@ export async function updateSlotFromApiInput(actor: Profile, id: unknown, input:
 export async function deactivateSlot(actor: Profile, id: string): Promise<TimetableSlot> {
   const existing = await getSlot(id)
   if (!existing) throw new NotFoundError('Timetable slot not found')
-  if (!(await canWriteClass(actor, existing.class_id))) {
+  if (!(await canWriteCalendar(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
   const updated = await updateSlotRowInDb(id, { active: false })

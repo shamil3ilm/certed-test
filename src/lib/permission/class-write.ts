@@ -1,31 +1,44 @@
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { mentorAuthorityClassIds } from '@/lib/permission/class'
-import { teachesClass } from '@/lib/auth/class-scope'
+import { teachesClass, teachesClassWrite } from '@/lib/auth/class-scope'
 
 /**
- * App-layer mirror of the Postgres `teaches_class` RLS scope function (see
- * classScope.ts) -- a distinct mechanism from canManageClass's admin-client
- * membership lookup. Used by calendar events / timetable slots, which write
- * via the RLS-scoped client: calling the same SECURITY DEFINER function via
- * RPC keeps the explicit app-side guard and the row-level policy in
- * agreement by construction. Admin may write anything; a tutor only a
- * class they teach; a mentor only a class one of their mentees is in; a
- * global (null class_id) write is admin-only.
+ * App-layer mirror of the Postgres `teaches_class_write` RLS scope function -- the WRITE
+ * scope that the class-scoped write policies (calendar events, timetable slots, resources,
+ * assignments, announcements, meet links) gate on since 0079 split the old `teaches_class`
+ * into a read scope and this narrower write scope. Calling the SAME SECURITY DEFINER
+ * function via RPC is the whole point: a write that passes this guard is never rejected by
+ * RLS (a mismatch surfaces as a raw 500). Admin may write anything; a tutor only a class
+ * they teach; a global (null class_id) write is admin-only.
  *
- * RLS NOTE: the row-level policies across class-scoped tables gate on the same
- * teaches_class function this guard mirrors, so the app-side check and the
- * row-level policy agree by construction. That scope (from 0043_mentor_class_authority)
- * is tutor-of-the-class OR mentor-of-an-actively-enrolled-student; the rebuild
- * snapshot is regenerated from the full migration chain, so a snapshot-provisioned
- * DB carries the identical definition. (Mock mode has no RLS, so this guard is the
- * only gate there.)
+ * A mentor is deliberately NOT granted write here: 0079's teaches_class_write drops the
+ * mentor branch (oversight is read-only; a mentor's only write authority is attendance,
+ * via its own manageAttendance-gated service path, not this RLS-scoped path). So a mentor
+ * -- even one an admin grants a manageCalendar override to -- is denied here CLEANLY,
+ * rather than passing a looser app guard and then hitting an RLS denial as a 500.
+ * Widening a mentor's calendar-write authority would mean widening teaches_class_write in
+ * the DB, not loosening this mirror. (Mock mode has no RLS, so this guard is the only gate
+ * there; the mock's teaches_class_write is the same tutor-of-class lookup.)
  */
 export async function canWriteClass(profile: Profile, classId: string | null): Promise<boolean> {
-  const { isAdmin, isTutor, hasMentorAuthority } = await loadPersonaFlags(profile.id)
+  const { isAdmin } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
   if (classId == null) return false
-  if (isTutor && (await teachesClass(classId))) return true
-  if (hasMentorAuthority && (await mentorAuthorityClassIds(profile.id)).has(classId)) return true
-  return false
+  return teachesClassWrite(classId)
+}
+
+/**
+ * Calendar/timetable WRITE scope: admin, a tutor of the class, OR a mentor of a student
+ * enrolled in it. Mirrors the Postgres `teaches_class` scope that calendar_events_write /
+ * timetable_slots_write gate on (0082) - deliberately BROADER than canWriteClass (which
+ * mirrors the tutor-only teaches_class_write that content policies use). A mentor may
+ * manage their mentee's class calendar (one-off events + timetable slots) to coordinate
+ * mentoring; announcements/resources/assignments stay tutor-only. A global (null class)
+ * write is admin-only. App guard and RLS agree by calling the same SECURITY DEFINER RPC.
+ */
+export async function canWriteCalendar(profile: Profile, classId: string | null): Promise<boolean> {
+  const { isAdmin } = await loadPersonaFlags(profile.id)
+  if (isAdmin) return true
+  if (classId == null) return false
+  return teachesClass(classId)
 }

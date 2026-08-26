@@ -81,15 +81,16 @@ test('api -- a student cannot create a calendar event', async ({ page }) => {
   expect(r.status).toBe(403)
 })
 
-test('api -- a mentor CANNOT create an event for a mentee class (oversight is read-only)', async ({ page }) => {
+test('api -- a mentor CAN create an event for a mentee class, but not a global one', async ({ page }) => {
   await loginAs(page, 'mentor@mock.test')
-  // b9293ed recast the dedicated mentor persona as read-only oversight: it lost
-  // manageCalendar, so the class-write path is refused at the capability gate (403)
-  // even for a class its mentee is enrolled in. The positive counterpart is the
-  // tutor test below - a manageCalendar holder gets 201 for its own class - so the
-  // two together pin the narrowing from both sides.
-  const r = await apiCall(page, 'POST', '/api/events', evt(SEED.math))
-  expect(r.status, 'read-only mentor is forbidden from class writes').toBe(403)
+  // 0082 + manageCalendar: a mentor may coordinate mentoring by creating calendar events
+  // for a class their mentee is enrolled in (canWriteCalendar mirrors the teaches_class
+  // RLS scope). A global (null-class) event stays admin-only, and CONTENT (announcements/
+  // resources/assignments) stays tutor-only - the mentor is not a teaching persona.
+  const mentee = await apiCall(page, 'POST', '/api/events', evt(SEED.math))
+  expect(mentee.status, 'event for the mentee class').toBe(201)
+  const global = await apiCall(page, 'POST', '/api/events', evt(null))
+  expect(global.status, 'global event is admin-only').toBe(403)
 })
 
 // ---------- API class-scope gate ----------

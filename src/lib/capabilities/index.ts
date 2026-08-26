@@ -110,18 +110,19 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     // (student-scoped) mentor persona, auto-assigned when they're given a
     // mentorship - so a tutor sees /students only when they're also a mentor.
   ]),
-  // A dedicated mentor is an oversight persona, not a teaching one by default.
-  // They can SEE mentee-related classes, calendar entries and grading context, and
-  // may EDIT attendance (marks + session times) for a mentee's class to correct
-  // recording issues - but the other write-side class powers (announcements,
-  // resources, assignments, timetable) belong to the tutor persona. If a mentor also
-  // teaches, that account must also hold the tutor persona (or an explicit override)
-  // for manageCalendar/manageClassContent.
+  // A dedicated mentor is an oversight persona, not a teaching one by default. For a
+  // MENTEE's class they may EDIT attendance (marks + session times) and MANAGE the
+  // calendar (one-off events + timetable slots) - to coordinate mentoring sessions -
+  // scoped to their mentees' classes via canWriteCalendar / the teaches_class RLS scope.
+  // The content write powers (announcements, resources, assignments) stay tutor-only. If
+  // a mentor also teaches, that account must also hold the tutor persona (or an explicit
+  // override) for manageClassContent.
   mentor: new Set<Capability>([
     'viewDashboard',
     'viewMessages',
     'viewClasses',
     'viewCalendar',
+    'manageCalendar',
     'viewGrading',
     'viewMentees',
     'manageAttendance',
