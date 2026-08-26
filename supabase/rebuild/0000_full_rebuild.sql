@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0079) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0082) via
 -- pg_dump of the fully-migrated schema. The numbered migrations are the single
 -- source of truth; this file provisions a fresh database in one shot and is kept
 -- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 1sAxRv6fRpHufxr7c9RASzfyK8uAKYTg3T9ApMNuISSkmt6HlmJ6ErApzv4OKDs
+\restrict Rnhk8q7V5I8NyLN00FjoyS7IolOGjqMgixlFpynuCuprggK5o5ARXTaq9mNNgu6
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -327,6 +327,28 @@ CREATE FUNCTION public.finance_totals_base(p_kind text) RETURNS TABLE(base_curre
   from payslips p
   where p.voided = false
   having p_kind = 'payslip';
+$$;
+
+
+--
+-- Name: guard_profile_privileged_columns(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_profile_privileged_columns() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null or public.is_active_admin() then
+    return new;
+  end if;
+  if new.role is distinct from old.role
+     or new.status is distinct from old.status
+     or new.auth_user_id is distinct from old.auth_user_id then
+    raise exception 'not allowed to change role, status, or auth_user_id';
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -727,6 +749,7 @@ CREATE TABLE public.submissions (
     feedback text,
     graded_at timestamp with time zone,
     graded_by uuid,
+    CONSTRAINT submissions_drive_link_scheme CHECK (((drive_link IS NULL) OR (drive_link = '#'::text) OR (drive_link ~* '^https?://'::text))),
     CONSTRAINT submissions_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'late'::text])))
 );
 
@@ -2611,6 +2634,13 @@ CREATE TRIGGER trg_capability_overrides_updated_at BEFORE UPDATE ON public.capab
 
 
 --
+-- Name: profiles trg_guard_profile_privileged_columns; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_guard_profile_privileged_columns BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.guard_profile_privileged_columns();
+
+
+--
 -- Name: assignments trg_reclassify_on_due_change; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3374,7 +3404,7 @@ CREATE POLICY calendar_events_read ON public.calendar_events FOR SELECT USING ((
 -- Name: calendar_events calendar_events_write; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id))));
+CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
 
 
 --
@@ -3821,7 +3851,7 @@ CREATE POLICY profiles_self_read ON public.profiles FOR SELECT USING (((auth_use
 -- Name: profiles profiles_self_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (((auth_user_id = auth.uid()) OR public.is_active_admin()));
+CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (((auth_user_id = auth.uid()) OR public.is_active_admin())) WITH CHECK (((auth_user_id = auth.uid()) OR public.is_active_admin()));
 
 
 --
@@ -3971,7 +4001,9 @@ CREATE POLICY submissions_read ON public.submissions FOR SELECT USING ((public.i
 -- Name: submissions submissions_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR (public.is_self_active(student_id) AND (is_active = true) AND (score IS NULL) AND (graded_at IS NULL)))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
+CREATE POLICY submissions_update ON public.submissions FOR UPDATE USING ((public.is_active_admin() OR (public.is_self_active(student_id) AND (is_active = true) AND (score IS NULL) AND (graded_at IS NULL) AND (NOT (EXISTS ( SELECT 1
+   FROM public.assignments a
+  WHERE ((a.id = submissions.assignment_id) AND a.enforce_deadline AND (now() > a.due_date)))))))) WITH CHECK ((public.is_active_admin() OR public.is_self_active(student_id)));
 
 
 --
@@ -4004,7 +4036,7 @@ CREATE POLICY timetable_slots_read ON public.timetable_slots FOR SELECT USING ((
 -- Name: timetable_slots timetable_slots_write; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_active_admin() OR public.teaches_class_write(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class_write(class_id)));
+CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
 
 
 --
@@ -4060,6 +4092,13 @@ GRANT ALL ON FUNCTION public.finance_totals(p_kind text) TO authenticated;
 --
 
 REVOKE ALL ON FUNCTION public.finance_totals_base(p_kind text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION guard_profile_privileged_columns(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.guard_profile_privileged_columns() FROM PUBLIC;
 
 
 --
@@ -4206,6 +4245,7 @@ GRANT ALL ON FUNCTION public.teaches_class(p_class_id uuid) TO authenticated;
 -- Name: FUNCTION teaches_class_write(p_class_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
+REVOKE ALL ON FUNCTION public.teaches_class_write(p_class_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.teaches_class_write(p_class_id uuid) TO authenticated;
 
 
@@ -4380,5 +4420,15 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 1sAxRv6fRpHufxr7c9RASzfyK8uAKYTg3T9ApMNuISSkmt6HlmJ6ErApzv4OKDs
+\unrestrict Rnhk8q7V5I8NyLN00FjoyS7IolOGjqMgixlFpynuCuprggK5o5ARXTaq9mNNgu6
 
+
+-- ============================================================================
+-- Table privilege epilogue (R-01): re-apply the migrations' table-level REVOKEs of
+-- Supabase default grants, which a schema-only pg_dump drops. Extracted from the chain.
+-- ============================================================================
+revoke insert on table submissions from authenticated;
+revoke insert, update on table submissions from authenticated;
+revoke select on table class_sessions from authenticated;
+revoke update on table notifications from anon, authenticated;
+revoke update on table profiles from authenticated;

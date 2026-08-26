@@ -178,6 +178,7 @@ T1=a0000000-0000-4000-8000-000000000010; T2=a0000000-0000-4000-8000-000000000011
 M=a0000000-0000-4000-8000-000000000020
 S1=a0000000-0000-4000-8000-000000000030; S2=a0000000-0000-4000-8000-000000000031; S3=a0000000-0000-4000-8000-000000000032
 C1=c0000000-0000-4000-8000-000000000001   # class C1: tutor T1, enrolled S1, mentored by M
+C2=c0000000-0000-4000-8000-000000000002   # class C2: tutor T2, enrolled S3 - M mentors nobody here
 
 echo "== running RLS assertions =="
 # reminders: self only
@@ -258,11 +259,12 @@ check "org_settings: non-admin sees 0"         $S1 "select count(*) from org_set
 # profiles: self visible
 check "profiles: S1 sees own row"              $S1 "select count(*) from profiles where id='$S1'" 1
 
-# ── A-07: mentor write authority is attendance-only (0077) ───────────────────
-# M holds only a student-scoped mentor persona over S1 (enrolled in C1). A mentor
-# READS the mentee's class but must NOT author its content - before 0077 these
-# INSERTs succeeded through teaches_class(). The tutor of C1 must still be able to;
-# attendance stays mentor-writable (the manageAttendance exception).
+# ── Mentor write scope: attendance + own-mentee CALENDAR; content stays tutor-only ─
+# M holds only a student-scoped mentor persona over S1 (enrolled in C1). A mentor READS
+# the mentee's class but must NOT author its CONTENT - before 0079 these INSERTs succeeded
+# through teaches_class(). The tutor of C1 must still be able to. A mentor CAN write
+# attendance (manageAttendance) and, since 0082, the CALENDAR for a mentee's class - but
+# not for a class they don't mentor (C2) nor a global event.
 check_write "A-07: mentor CANNOT insert assignment in mentee class" $M \
   "insert into assignments(class_id,title,due_date,status) values ('$C1','hack',now(),'active')" block
 check_write "A-07: mentor CANNOT insert resource in mentee class" $M \
@@ -273,6 +275,12 @@ check_write "A-07: tutor CAN still insert assignment in own class" $T1 \
   "insert into assignments(class_id,title,due_date,status) values ('$C1','real',now(),'active')" allow
 check_write "A-07: mentor CAN still write attendance (manageAttendance)" $M \
   "insert into attendance(class_id,student_id,session_date,status,marked_by) values ('$C1','$S1','2999-01-01','present','$M')" allow
+check_write "0082: mentor CAN create a calendar event for a mentee class" $M \
+  "insert into calendar_events(title,event_date,class_id,created_by) values ('mentoring','2999-01-01','$C1','$M')" allow
+check_write "0082: mentor CANNOT create an event for a non-mentee class" $M \
+  "insert into calendar_events(title,event_date,class_id,created_by) values ('x','2999-01-01','$C2','$M')" block
+check_write "0082: mentor CANNOT create a GLOBAL calendar event" $M \
+  "insert into calendar_events(title,event_date,class_id,created_by) values ('g','2999-01-01',null,'$M')" block
 # mentee_notes has no write policy: even the student's mentor cannot INSERT via the API
 # (notes are written service-role only, gated in-app by canMentor).
 check_write "mentee_notes: mentor CANNOT insert via API (service-role only)" $M \

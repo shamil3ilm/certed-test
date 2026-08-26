@@ -21,9 +21,7 @@ const HARNESS = 'scripts/test-rls.sh'
 // without a written reason - a new RLS-enabled table should be asserted, not exempted.
 const RLS_EXEMPT = new Set<string>([
   'audit_log',
-  'calendar_events',
   'class_sessions',
-  'class_teachers',
   'comments',
   'consents',
   'document_counters',
@@ -38,7 +36,9 @@ const RLS_EXEMPT = new Set<string>([
 ])
 
 function rlsEnabledTables(): string[] {
-  const files = readdirSync(MIGRATIONS_DIR).filter((f) => /^\d{4}_.*\.sql$/.test(f))
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => /^\d{4}_.*\.sql$/.test(f))
+    .sort()
   const tables = new Set<string>()
   for (const file of files) {
     const sql = readFileSync(`${MIGRATIONS_DIR}/${file}`, 'utf8')
@@ -46,6 +46,18 @@ function rlsEnabledTables(): string[] {
       /alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s+enable\s+row\s+level\s+security/gi,
     )) {
       tables.add(m[1].toLowerCase())
+    }
+    // Follow renames so a table's CURRENT name is what we check - a table renamed
+    // after enabling RLS keeps RLS under its new name (e.g. 0019 class_teachers ->
+    // class_tutors). A dropped table leaves the set.
+    for (const m of sql.matchAll(
+      /alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s+rename\s+to\s+"?([a-z_][a-z0-9_]*)"?/gi,
+    )) {
+      const [from, to] = [m[1].toLowerCase(), m[2].toLowerCase()]
+      if (tables.delete(from)) tables.add(to)
+    }
+    for (const m of sql.matchAll(/drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+      tables.delete(m[1].toLowerCase())
     }
   }
   return [...tables].sort()
