@@ -23,6 +23,32 @@ if ((process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0') !== '1')
   }
 }
 
+// Build-time guard: never ship the mock auth/DB bypass to production. The mock stack
+// writes a plaintext JSON "DB", stores demo passwords, and authenticates off an
+// unsigned cookie - a mock var present in a production build means dev config leaked
+// into prod. isMock() also fails closed at runtime, but failing the BUILD surfaces the
+// misconfiguration in the deploy log. Scoped to Vercel's `production` environment so
+// the local E2E mock build (MOCK_MODE + ALLOW_MOCK_AUTH, no VERCEL_ENV) and Vercel
+// *preview* are unaffected. Keep this list in sync with MOCK_ONLY_ENV_VARS in
+// src/lib/mock/env.ts (assertNoMockConfigInProduction, the runtime backstop).
+if (process.env.VERCEL_ENV === 'production') {
+  const isEnabling = (v) => v != null && v !== '' && v !== '0' && String(v).toLowerCase() !== 'false'
+  const mockVarsPresent = [
+    'MOCK_MODE',
+    'NEXT_PUBLIC_MOCK_MODE',
+    'ALLOW_MOCK_AUTH',
+    'MOCK_PASSWORD',
+    'MOCK_CHROME_PATH',
+  ].filter((name) => isEnabling(process.env[name]))
+  if (mockVarsPresent.length > 0) {
+    throw new Error(
+      `[build] Mock-only env var(s) set in a production deployment: ${mockVarsPresent.join(', ')}. ` +
+        'These drive the in-memory mock auth/DB bypass and must never be present in production. ' +
+        'Remove them from the Production environment and redeploy.',
+    )
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,

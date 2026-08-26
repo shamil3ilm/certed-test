@@ -18,9 +18,11 @@ How to stand up a production deployment from scratch. For day-2 operations (back
 
 Supabase's built-in SMTP is rate-limited to a handful of mails/hour and is documented as non-production; at 100 users password resets will silently fail. In Supabase Auth → SMTP settings, point custom SMTP at **Resend** (already a dependency, with a verified sender). Free, ~30 minutes, and fixes deliverability too.
 
+**Also disable public sign-ups** (Authentication → Providers → Email → _Allow new users to sign up_ → OFF). The app never self-signs-up: registration binds to an admin-created allowlist profile plus a setup code, so the service role is the only thing that should mint auth users. Leaving signup on lets someone forge orphan auth users straight against the Auth API (harmless in-app, since they have no profile, but there's no reason to allow it).
+
 ## 3. Configure Vercel
 
-1. Set all environment variables per [environment.md](environment.md), in the **Production** environment. Keep `NEXT_PUBLIC_*` vars **not** marked Sensitive.
+1. Set all environment variables per [environment.md](environment.md), in the **Production** environment. Keep `NEXT_PUBLIC_*` vars **not** marked Sensitive. **Set no mock-only vars** (`MOCK_MODE`, `NEXT_PUBLIC_MOCK_MODE`, `ALLOW_MOCK_AUTH`, `MOCK_PASSWORD`, `MOCK_CHROME_PATH`) — the production build fails and the app refuses to boot if any is present (`assertNoMockConfigInProduction`).
 2. Use a **separate Supabase project and Drive folder** for the Preview environment so preview builds never touch production data.
 3. Raise function memory on the four PDF routes (`/api/**/pdf`) — they launch headless Chromium (~512 MB+ resident). Load-test one report-card render.
 4. First deploy: build must be a **fresh (no-cache)** build so `NEXT_PUBLIC_*` values inline correctly.
@@ -57,8 +59,9 @@ Wire them one of two ways (both hit the same `CRON_SECRET`-guarded routes; Verce
 If you want files held by the academy rather than pasted as links, set the four `GOOGLE_DRIVE_*` vars ([environment.md](environment.md)). One-time setup:
 
 1. In Google Cloud, create an OAuth 2.0 client (client id + secret) for a **dedicated** Drive account (e.g. `files@`), Drive API enabled.
-2. Run the consent flow **once by hand** for that account and capture the **refresh token**. Store it as `GOOGLE_DRIVE_REFRESH_TOKEN` (a rotating server secret).
-3. Create the root Drive folder; put its id in `GOOGLE_DRIVE_ROOT_FOLDER_ID`. New uploads are filed under it, date-partitioned; the app streams bytes back through `/api/attachments/[id]/download` and never shares a public link.
+2. **Set the OAuth consent screen to `In production` (Publishing status) BEFORE capturing the token.** While it is in _Testing_, Google issues refresh tokens that **expire after 7 days** — the Drive integration then dies a week after launch with an `invalid_grant` ("refresh token expired or revoked"). Publishing first makes the refresh token long-lived. For a dedicated internal `files@` account you can also set the user type to **Internal** (Workspace only), which sidesteps the Testing-mode expiry.
+3. Run the consent flow **once by hand** for that account and capture the **refresh token**. Store it as `GOOGLE_DRIVE_REFRESH_TOKEN` (a rotating server secret). If it ever returns `invalid_grant`, re-capture it — and confirm the consent screen is still `In production`.
+4. Create the root Drive folder; put its id in `GOOGLE_DRIVE_ROOT_FOLDER_ID`. New uploads are filed under it, date-partitioned; the app streams bytes back through `/api/attachments/[id]/download` and never shares a public link.
 
 See [adr/0006-custodial-attachment-storage.md](adr/0006-custodial-attachment-storage.md) for the design.
 

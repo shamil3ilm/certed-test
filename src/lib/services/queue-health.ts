@@ -49,6 +49,9 @@ const RLS_REQUIRED_TABLES = [
   'persona_assignments',
   'class_tutors',
   'audit_log',
+  // Pastoral notes about a student (0078) - read boundary is RLS-only, so a disabled
+  // policy would expose them to the whole authenticated role.
+  'mentee_notes',
 ]
 
 export type QueueHealth = {

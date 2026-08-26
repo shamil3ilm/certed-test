@@ -25,6 +25,7 @@ Work top to bottom before opening the portal to real users. Each item links to t
 - [ ] All required vars set in Vercel **Production** — [environment.md](environment.md)
 - [ ] `NEXT_PUBLIC_*` vars are **not** marked Sensitive
 - [ ] Server secrets (`SUPABASE_SECRET_KEY`, `CRON_SECRET`, `RESEND_API_KEY`, `GOOGLE_DRIVE_*`, `SENTRY_DSN`) marked Sensitive
+- [ ] **No mock-only vars in Production** — `MOCK_MODE`, `NEXT_PUBLIC_MOCK_MODE`, `ALLOW_MOCK_AUTH`, `MOCK_PASSWORD`, `MOCK_CHROME_PATH` must be **absent**. They drive the in-memory mock auth/DB bypass (plaintext passwords, unsigned cookie). Enforced: the build fails and the app refuses to boot if any is set with `VERCEL_ENV=production` (`assertNoMockConfigInProduction`).
 - [ ] Separate Supabase project + Drive folder for Preview vs Production
 - [ ] No secrets in git; rotation runbook current — [security-operations.md](security-operations.md)
 
@@ -36,6 +37,7 @@ Work top to bottom before opening the portal to real users. Each item links to t
 
 ## Integrations
 
+- [ ] **Public sign-ups disabled** in Supabase Auth (Authentication → Providers → Email → _Allow new users to sign up_ OFF). The app never self-signs-up — registration binds to an admin-created allowlist profile + setup code — so leaving Supabase signup on only lets someone forge orphan auth users directly against the API. Turn it off; the service role still creates users for the invite flow.
 - [ ] Auth email switched to **custom SMTP → Resend** (not built-in SMTP) — [deployment.md](deployment.md#2-auth-email--custom-smtp-do-this-before-inviting-anyone)
 - [ ] Email **drain** cron wired (`/api/cron/drain-emails`), else queued mail never sends
 - [ ] Attachment **reconcile** cron wired (`/api/cron/reconcile-attachments`) if Drive storage is on

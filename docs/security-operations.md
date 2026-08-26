@@ -45,3 +45,19 @@ For the general playbook — roll back first, read the right log — see [operat
 2. Review `audit_log` and observability logs for the affected window.
 3. If RLS or a guard is implicated, disable the affected capability via admin override while a fix ships.
 4. Record the incident and follow-up actions.
+
+## Supabase auth dashboard hardening (B-02)
+
+These live in the Supabase **dashboard**, not in code or migrations, so no test or review can assert them — they are the last line of defence behind several code-side findings (A-06 cookie lifetime, B-01 password rules, B-09/B-10 sign-up binding). Confirm each on the production project and **record the date checked** here; re-confirm on any project move or plan change.
+
+| #   | Setting (Authentication → …)                      | Required state                                                              | Guards                      |
+| --- | ------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------- |
+| 1   | **Leaked-password protection** (Policies)         | **On** (HaveIBeenPwned)                                                     | credential stuffing         |
+| 2   | **Minimum password length / strength** (Policies) | ≥ the app's client rule, so the server enforces it too                      | B-01                        |
+| 3   | **MFA / TOTP** (Providers → MFA)                  | Enabled and enrolled for **every admin-tier** account                       | admin takeover              |
+| 4   | **Access-token (JWT) expiry** (Sessions)          | Short (≈ 1 h); **refresh-token rotation + reuse detection On**              | stolen token blast radius   |
+| 5   | **Session inactivity / max lifetime** (Sessions)  | Bounded (the app caps at 30 days server-side; the dashboard is the ceiling) | A-06 / R-02                 |
+| 6   | **Redirect URL allowlist** (URL Configuration)    | Only the portal + marketing hosts; **no wildcards**                         | open-redirect / token theft |
+| 7   | **Email confirmations** (Providers → Email)       | **Required** for sign-up                                                    | B-09 / B-10                 |
+
+> **Not verified in this repo** — this is the documentation of what to check; the confirmation itself must be done in the dashboard by someone with access, and recorded above. Reconcile the exact list with the security re-audit's B-02 before sign-off.

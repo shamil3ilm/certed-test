@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import { authFail, ok, serverError } from '@/lib/api/response'
 import { pingDatabase } from '@/lib/data/org-settings'
+import { assessQueueHealth } from '@/lib/services/queue-health'
+import { logError } from '@/lib/observability/log'
 
 /** Length-checked constant-time compare. timingSafeEqual throws on unequal
  *  buffer lengths, so the length is checked first; only the length itself leaks,
@@ -22,5 +24,14 @@ export async function GET(req: Request) {
     return authFail(new Error('unauthorized'))
   }
   if (!(await pingDatabase())) return serverError()
+  // Piggy-back the queue-health alarm on the one cron Hobby allows: it logs a
+  // structured breach if the email/attachment queues back up or RLS is disabled on a
+  // sensitive table. Best-effort - a health-check failure must never fail keepalive,
+  // and assessQueueHealth already logs any breach itself.
+  try {
+    await assessQueueHealth(Date.now())
+  } catch (error) {
+    logError('cron.keepalive.queueHealth', error)
+  }
   return ok({ alive: true })
 }

@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { scrubPiiFromEvent } from '@/lib/observability/scrub-pii'
+import { assertNoMockConfigInProduction } from '@/lib/mock/env'
 
 /**
  * Server/edge error tracking (observability). Sentry initialises only when
@@ -8,6 +9,10 @@ import { scrubPiiFromEvent } from '@/lib/observability/scrub-pii'
  * source-map upload) is deliberately not wired here to keep next.config clean.
  */
 export function register() {
+  // Boot-time backstop to the build-time guard in next.config: never let a production
+  // deployment come up carrying the mock auth/DB bypass config.
+  assertNoMockConfigInProduction()
+
   const dsn = process.env.SENTRY_DSN
   if (!dsn) return
   if (process.env.NEXT_RUNTIME === 'nodejs' || process.env.NEXT_RUNTIME === 'edge') {

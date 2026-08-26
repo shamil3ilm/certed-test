@@ -33,7 +33,7 @@ async function seed() {
 
   const profiles = [
     { email: adminEmail, full_name: 'Academy Admin', role: 'admin', status: 'active' },
-    { email: teacherEmail, full_name: 'Tutor / Teacher', role: 'teacher', status: 'active' },
+    { email: teacherEmail, full_name: 'Tutor', role: 'tutor', status: 'active' },
     { email: studentEmail, full_name: 'Student', role: 'student', status: 'active', class_level: 'Grade 10' },
   ]
 
