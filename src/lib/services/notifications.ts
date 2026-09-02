@@ -68,9 +68,9 @@ async function deliverEmailNotifications(profileIds: string[], input: NotifyInpu
     `<p>${escapeHtml(input.body ?? input.title)}</p>` +
     (link ? `<p><a href="${escapeHtml(link)}">Open in Cert-Ed</a></p>` : '')
   const emails = [...profiles.values()].map((p) => p.email).filter((e): e is string => !!e)
-  // Queue one rendered row per recipient instead of awaiting N Resend calls on
-  // the request path (a 30-recipient announcement was 30 inline sends). The drain
-  // route sends them in the background.
+  // Queue one rendered row per recipient instead of awaiting N Resend calls on the
+  // request path, so a many-recipient announcement never blocks it. The drain route
+  // sends them in the background.
   await enqueuePendingEmails(emails.map((to_email) => ({ to_email, subject: input.title, html })))
 }
 

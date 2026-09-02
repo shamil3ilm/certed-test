@@ -54,8 +54,8 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
   if (actorFlags.isTutor) {
     const taughtClassIds = [...new Set(await selectActiveClassIdsForTutor(actor.id))]
     // One query for every (student, class) edge in the tutor's classes, grouped in
-    // memory - was one query per student. Each pair's class is already a taught
-    // class (the query is scoped to taughtClassIds), so no further filtering.
+    // memory. Each pair's class is already a taught class (the query is scoped to
+    // taughtClassIds), so no further filtering.
     const enrollmentPairs = taughtClassIds.length ? await selectActiveEnrollmentPairsByClassIds(taughtClassIds) : []
     const sharedClassIdsByStudent = new Map<string, string[]>()
     for (const { student_id, class_id } of enrollmentPairs) {
@@ -93,8 +93,8 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
 
   if (actorFlags.hasMentorAuthority) {
     const menteeIds = await studentIdsOfMentor(actor.id)
-    // One query for all mentees' enrolments, grouped per mentee - was one query
-    // per mentee. Mentees with no enrolment still get added as recipients below.
+    // One query for all mentees' enrolments, grouped per mentee. Mentees with no
+    // enrolment still get added as recipients below.
     const menteeEnrollmentPairs = menteeIds.length ? await selectActiveEnrollmentPairsByStudentIds(menteeIds) : []
     const studentClassIds = new Map<string, string[]>()
     for (const { student_id, class_id } of menteeEnrollmentPairs) {
@@ -116,9 +116,9 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
       // Distinct classes the mentees are in (union of the per-mentee lists above).
       const classIds = [...new Set(menteeEnrollmentPairs.map((pair) => pair.class_id))]
       // One query for every (tutor, class) edge across those classes, grouped per
-      // tutor - was one query per tutor. Each tutor's set is that tutor's taught
-      // classes already intersected with the mentees' classes, which is exactly
-      // what the inner loop needs (a mentee's classes are a subset of these).
+      // tutor. Each tutor's set is that tutor's taught classes already intersected
+      // with the mentees' classes, which is exactly what the inner loop needs (a
+      // mentee's classes are a subset of these).
       const tutorPairs = classIds.length ? await selectActiveTutorPairsByClassIds(classIds) : []
       const menteeClassesByTutor = new Map<string, Set<string>>()
       for (const { tutor_id, class_id } of tutorPairs) {
@@ -171,8 +171,8 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
   // Every recipient must be a currently-active account. The branches above use
   // `selectActive*` membership queries, but those filter the EDGE (enrolment,
   // teaching link, persona), not the target profile's status - so a revoked
-  // tutor/mentee/tutor-of-mentee still surfaced through four of the six branches
-  // (A-15). Re-filter the whole set against live profile status once, so a single
+  // tutor/mentee/tutor-of-mentee would otherwise surface through four of the six
+  // branches. Re-filter the whole set against live profile status once, so a single
   // guarantee covers every branch instead of each having to remember to.
   if (recipients.size) {
     const activeIds = new Set(await selectActiveIdsAmong([...recipients.keys()]))

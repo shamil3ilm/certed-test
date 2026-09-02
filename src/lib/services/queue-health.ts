@@ -22,8 +22,11 @@ const ATTACH_FAILED_ALARM = 20 // failed custodial uploads piling up
 
 // The data/PII tables whose per-row access relies on RLS; if any has RLS disabled
 // (a hand-misconfigured DB) reads could fail open. This turns the "are the security
-// migrations applied?" unknown into an observable, alarmed signal.
-const RLS_REQUIRED_TABLES = [
+// migrations applied?" unknown into an observable, alarmed signal. Exported so
+// tests/unit/rls-required-parity.test.ts can bind it to the live schema - every
+// RLS-enabled table must be either monitored here or explicitly exempted, so the list
+// can't silently drift out of date as new tables are added (V-07).
+export const RLS_REQUIRED_TABLES = [
   'attachments',
   'class_sessions',
   'attendance',
@@ -41,8 +44,12 @@ const RLS_REQUIRED_TABLES = [
   'org_settings',
   'receipts',
   'payslips',
-  // Newest PII / authority tables whose read boundary is RLS-only - include them so a
-  // disabled-RLS misconfiguration is caught here too (they were missing before).
+  // The financial LINE ITEMS carry the actual amounts, so they need watching as much
+  // as the parent receipts/payslips.
+  'receipt_lines',
+  'payslip_lines',
+  // PII / authority tables whose read boundary is RLS-only, so a disabled-RLS
+  // misconfiguration on any of them must alarm.
   'guardians',
   'consents',
   'capability_overrides',

@@ -124,8 +124,8 @@ export async function getMentorDashboard(me: Profile): Promise<MentorDashboardCa
     return profile ? displayName(profile) : id
   }
 
-  // Wave 1: one query per concern for the WHOLE mentee set (this used to be
-  // ~7 queries PER mentee - see git history). Grouped in memory below.
+  // Wave 1: one query per concern for the WHOLE mentee set, grouped in memory below
+  // (rather than a per-mentee query for each concern).
   const [enrollments, activeSubs, gradedSubs, attendanceRows] = await Promise.all([
     selectActiveEnrollmentsForStudents(ids),
     selectActiveSubmissionsForStudentsAsService(ids),

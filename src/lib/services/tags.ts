@@ -82,7 +82,7 @@ export function entityIdsForTag(type: TaggableType, tagId: string): Promise<stri
   // tagId reaches the query as a uuid column comparison. A caller can pass an
   // attacker-controlled value straight from a `?tag=` query param, and a non-uuid
   // string makes Postgres raise 22P02 (invalid_text_representation) -> an
-  // unhandled 500 (A-13). An invalid tag simply matches nothing, so fail closed
+  // unhandled 500. An invalid tag simply matches nothing, so fail closed
   // to an empty result instead of erroring.
   if (!z.string().uuid().safeParse(tagId).success) return Promise.resolve([])
   return selectEntityIdsForTag(type, tagId)

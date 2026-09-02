@@ -105,7 +105,7 @@ export async function loadHistoryPageData(
     const actor = r.actor_id ? actors.get(r.actor_id) : null
     // Actor identity, tiered by viewer. A non-super viewer (viewHistory can be
     // override-granted to a sub_admin/tutor/mentor) never sees an admin-tier actor's
-    // identity (show the tier) and never sees ANYONE's raw email (R-03): the name if
+    // identity (show the tier) and never sees ANYONE's raw email: the name if
     // set, else a short id - never PII. A super viewer (full admin) sees the full
     // identity, email fallback included.
     let actorLabel: string | null = null
