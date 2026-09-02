@@ -48,7 +48,10 @@ if (!mockSanctioned) {
     throw new Error(
       `[build] Mock-only env var(s) set in a production deployment: ${mockVarsPresent.join(', ')}. ` +
         'These drive the in-memory mock auth/DB bypass and must never be present in production. ' +
-        'Remove them from the Production environment and redeploy.',
+        'Remove them from the Production environment and redeploy. ' +
+        'If you are building LOCALLY with mock mode on (the .env.local from .env.example), this is ' +
+        'the production build refusing those vars: run `E2E_BUILD=1 npm run build`, or unset ' +
+        'MOCK_MODE / NEXT_PUBLIC_MOCK_MODE for a real production build.',
     )
   }
 }
