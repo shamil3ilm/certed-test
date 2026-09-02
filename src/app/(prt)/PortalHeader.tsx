@@ -34,7 +34,7 @@ export async function PortalHeader() {
                 alt="Cert-Ed Academia"
                 width={320}
                 height={80}
-                className="w-auto object-contain"
+                className="w-auto max-w-full object-contain"
                 style={{ height: 'clamp(2.25rem, 4.5vw, 3.75rem)' }}
                 priority
               />
