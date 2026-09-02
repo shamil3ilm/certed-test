@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/permission/documents', () => ({ assertCanDocument: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/resources', () => ({ getResource: vi.fn() }))
@@ -15,7 +15,7 @@ vi.mock('@/lib/data/tags', () => ({
   selectTagsForEntity: vi.fn(),
 }))
 
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission'
 import { assertCanDocument } from '@/lib/permission/documents'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getResource } from '@/lib/services/resources'
@@ -57,14 +57,14 @@ describe('createTag', () => {
 })
 
 describe('tagEntity', () => {
-  it('rejects tagging a class the actor cannot manage', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+  it('rejects tagging a class the actor cannot write (tutor-only)', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(tagEntity(staff, 'class', 'class-1', 't1')).rejects.toBeInstanceOf(PermissionError)
     expect(insertEntityTag).not.toHaveBeenCalled()
   })
 
   it('attaches + audits for a class the actor manages', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     await tagEntity(staff, 'class', 'class-1', 't1')
     expect(insertEntityTag).toHaveBeenCalledWith({
       tag_id: 't1',
@@ -84,7 +84,7 @@ describe('tagEntity', () => {
 
 describe('applyTagByName + untagEntity', () => {
   it('create-or-get then attach, gated on the entity', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true) // assertCanTagEntity
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true) // assertCanTagEntity
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isTutor: true } as any) // createTag staff check
     vi.mocked(selectAllTags).mockResolvedValueOnce([{ id: 't1', name: 'Priority', color: null }])
     await applyTagByName(staff, 'class', 'class-1', 'Priority')
@@ -92,7 +92,7 @@ describe('applyTagByName + untagEntity', () => {
   })
 
   it('untag detaches + audits', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     await untagEntity(staff, 'class', 'class-1', 't1')
     expect(deleteEntityTag).toHaveBeenCalledWith('t1', 'class', 'class-1')
     expect(auditPrivilegedAction).toHaveBeenCalledWith(staff, 'tag.detach', 'class', 'class-1')

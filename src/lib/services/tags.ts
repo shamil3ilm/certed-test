@@ -11,7 +11,7 @@ import {
   type TagRow,
 } from '@/lib/data/tags'
 import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission'
 import { assertCanDocument } from '@/lib/permission/documents'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getResource } from '@/lib/services/resources'
@@ -49,11 +49,14 @@ async function assertIsStaff(actor: Profile): Promise<void> {
   }
 }
 
-/** Permission to attach/detach a tag on a specific entity, by type. This is the
- *  single place that knows how each taggable type is authorized. */
+/** Permission to attach/detach a tag on a specific entity, by type. This is the single
+ *  place that knows how each taggable type is authorized. Tagging is CONTENT authoring, which
+ *  is tutor-only (a mentor holds no manageClassContent), so it must NOT admit a mentor:
+ *  a class via canWriteClass (tutor of it, or admin), a document via the document matrix
+ *  (canDocument 'edit'), which is likewise tutor-only now that the mentor row is read-only. */
 async function assertCanTagEntity(actor: Profile, type: TaggableType, entityId: string): Promise<void> {
   if (type === 'class') {
-    if (!(await canManageClass(actor, entityId))) throw new PermissionError('Not authorized to tag this class.')
+    if (!(await canWriteClass(actor, entityId))) throw new PermissionError('Not authorized to tag this class.')
     return
   }
   if (type === 'resource') {

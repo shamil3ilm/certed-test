@@ -19,7 +19,7 @@ beforeEach(() => {
   vi.mocked(canAccessClass).mockResolvedValue(true)
 })
 
-describe('documentRoleFor - role resolution (mentoring never upgrades a tutor, A-10)', () => {
+describe('documentRoleFor - role resolution (mentoring never upgrades a tutor)', () => {
   it('resolves admin > tutor > mentor > student, keying the mentor row on the dedicated identity', () => {
     expect(documentRoleFor(FLAGS({ isAdmin: true, isTutor: true }))).toBe('admin')
     // A tutor who ALSO mentors a student (hasMentorAuthority) stays a tutor (edit:'own');
@@ -76,13 +76,23 @@ describe('canDocument - tutor (own-only edit/delete)', () => {
   })
 })
 
-describe('canDocument - mentor manages any tutor resource in scope', () => {
+describe('canDocument - mentor: read-only pastoral oversight', () => {
   beforeEach(() => vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true, hasMentorAuthority: true })))
 
-  it('may edit/delete a document another user uploaded', async () => {
+  it('may view/download a mentee class document', async () => {
     const other = { ...doc, uploaded_by: 'a-tutor' }
-    expect(await canDocument(actor, 'edit', other)).toBe(true)
-    expect(await canDocument(actor, 'delete', other)).toBe(true)
+    expect(await canDocument(actor, 'view', other)).toBe(true)
+    expect(await canDocument(actor, 'download', other)).toBe(true)
+  })
+
+  it('may NOT author content - upload/edit/delete/share are refused', async () => {
+    const other = { ...doc, uploaded_by: 'a-tutor' }
+    for (const action of ['upload', 'edit', 'delete', 'share'] as const) {
+      expect(await canDocument(actor, action, other)).toBe(false)
+    }
+    // A denied matrix entry short-circuits before any class-scope query - a mentor
+    // holds no manageClassContent, so authoring never reaches the scope check.
+    expect(canManageClass).not.toHaveBeenCalled()
   })
 })
 

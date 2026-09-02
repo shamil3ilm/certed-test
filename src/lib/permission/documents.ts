@@ -29,8 +29,11 @@ type MatrixEntry = 'yes' | 'own' | 'no'
 export const DOCUMENT_PERMISSION_MATRIX: Record<DocumentRole, Record<DocumentAction, MatrixEntry>> = {
   // Full control.
   admin: { view: 'yes', upload: 'yes', edit: 'yes', delete: 'yes', download: 'yes', share: 'yes' },
-  // Manages tutor resources for their mentees' classes (canManageClass scopes it).
-  mentor: { view: 'yes', upload: 'yes', edit: 'yes', delete: 'yes', download: 'yes', share: 'yes' },
+  // Pastoral OVERSIGHT only: a mentor may VIEW/DOWNLOAD their mentees' class documents, but
+  // NOT author them. Content authoring (upload/edit/delete/share) is tutor-only - a mentor
+  // holds no manageClassContent capability, so the matrix must match. A mentor who
+  // also teaches gets write access through their separate tutor persona.
+  mentor: { view: 'yes', upload: 'no', edit: 'no', delete: 'no', download: 'yes', share: 'no' },
   // Uploads to classes they teach; may edit/delete only what they uploaded.
   tutor: { view: 'yes', upload: 'yes', edit: 'own', delete: 'own', download: 'yes', share: 'yes' },
   // Consumes only: view allowed documents, download if permitted; no write/share.
@@ -45,7 +48,7 @@ type PersonaFlags = Awaited<ReturnType<typeof loadPersonaFlags>>
  *  scope (below) still confines mentor/tutor powers to the relevant classes.
  *
  *  A tutor is matched BEFORE the mentor branch, and the mentor branch keys on the
- *  DEDICATED mentor identity (isMentor), not hasMentorAuthority (A-10). Otherwise a
+ *  DEDICATED mentor identity (isMentor), not hasMentorAuthority. Otherwise a
  *  tutor who also mentors one student - which sets hasMentorAuthority - would resolve
  *  to the mentor row and silently upgrade their edit/delete scope from 'own' (only
  *  documents they uploaded) to 'yes' (any document in a class they teach). Mentoring a
