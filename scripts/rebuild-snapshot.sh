@@ -63,6 +63,7 @@ REVOKE INSERT, UPDATE ON TABLE public.submissions FROM authenticated;
 REVOKE SELECT ON TABLE public.class_sessions FROM authenticated;
 REVOKE UPDATE ON TABLE public.notifications FROM anon, authenticated;
 REVOKE UPDATE ON TABLE public.profiles FROM authenticated;
+REVOKE ALL ON TABLE public.reminders FROM authenticated;
 
 EPILOGUE
 
