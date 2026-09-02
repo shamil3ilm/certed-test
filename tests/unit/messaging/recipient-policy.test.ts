@@ -3,13 +3,13 @@ import { queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/personas', () => ({
-  selectActiveProfileIdsByPersona: vi.fn(),
+  selectActiveProfileIdsByPersonas: vi.fn(),
   selectActivePersonaAssignmentsByProfileIds: vi.fn(),
 }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/mentorships', () => ({ studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfilesByIds: vi.fn() }))
-// The resolver re-filters every candidate against live profile status (A-15). Mock it
+// The resolver re-filters every candidate against live profile status. Mock it
 // as a passthrough by default (all candidates active); the revocation test overrides it.
 vi.mock('@/lib/data/profiles', () => ({ selectActiveIdsAmong: vi.fn() }))
 vi.mock('@/lib/services/finance/org-settings', () => ({
@@ -17,7 +17,7 @@ vi.mock('@/lib/services/finance/org-settings', () => ({
 }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { selectActivePersonaAssignmentsByProfileIds, selectActiveProfileIdsByPersona } from '@/lib/data/personas'
+import { selectActivePersonaAssignmentsByProfileIds, selectActiveProfileIdsByPersonas } from '@/lib/data/personas'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { studentIdsOfMentor } from '@/lib/services/mentorships'
 import { getProfilesByIds } from '@/lib/services/users'
@@ -48,7 +48,7 @@ function tableClient(byTable: Record<string, unknown[]>) {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(studentIdsOfMentor).mockResolvedValue([])
-  vi.mocked(selectActiveProfileIdsByPersona).mockResolvedValue([])
+  vi.mocked(selectActiveProfileIdsByPersonas).mockResolvedValue([])
   vi.mocked(selectActivePersonaAssignmentsByProfileIds).mockResolvedValue([])
   vi.mocked(getProfilesByIds).mockResolvedValue(new Map())
   vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: null } as any)
@@ -82,7 +82,7 @@ describe('recipientPolicy', () => {
     expect(await canMessage(actor, 'some-mentee')).toBe(false)
   })
 
-  it('excludes a candidate whose profile is no longer active, even with a live edge (A-15)', async () => {
+  it('excludes a candidate whose profile is no longer active, even with a live edge', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isTutor: true }))
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
@@ -139,8 +139,8 @@ describe('recipientPolicy', () => {
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({ enrollments: [], class_tutors: [], mentorships: [] }) as any,
     )
-    vi.mocked(selectActiveProfileIdsByPersona).mockImplementation(async (persona) =>
-      persona === 'admin' ? ['the-admin'] : [],
+    vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) =>
+      personas.includes('admin') ? ['the-admin'] : [],
     )
     const actor = { id: 'stu-1' } as any
     expect(await canMessage(actor, 'the-admin')).toBe(true)
@@ -344,8 +344,8 @@ describe('recipientPolicy', () => {
         mentorships: [],
       }) as any,
     )
-    vi.mocked(selectActiveProfileIdsByPersona).mockImplementation(async (persona) =>
-      persona === 'admin' ? ['the-admin'] : [],
+    vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) =>
+      personas.includes('admin') ? ['the-admin'] : [],
     )
 
     await expect(assertGroupRecipientsRelated({ id: 'student-1' } as any, ['my-tutor', 'the-admin'])).rejects.toThrow(

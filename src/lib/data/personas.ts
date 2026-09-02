@@ -139,7 +139,7 @@ export async function selectScopedMenteeIds(mentorId: string): Promise<string[]>
 
 /** When this mentor's ACTIVE mentorship of this student began: the assigned_at of their
  *  student-scoped mentor persona. Null if they hold no such active persona. Used to scope a
- *  mentor's pastoral-note view to their own tenure (N-03) - assigned_at is stable across a
+ *  mentor's pastoral-note view to their own tenure - assigned_at is stable across a
  *  re-activation (0037 upserts status only), so a re-added mentor keeps their original start. */
 export async function selectMentorAssignedAt(mentorId: string, studentId: string): Promise<string | null> {
   const admin = createAdminClient()
@@ -186,13 +186,21 @@ type PersonaAssignmentRow = {
  *  messaging-matrix widening, which must follow the same live persona model as
  *  route access rather than the stored profiles.role identity. */
 export async function selectActiveProfileIdsByPersona(personaName: string): Promise<string[]> {
+  return selectActiveProfileIdsByPersonas([personaName])
+}
+
+/** Active profile ids holding ANY of the given personas at any scope (their union),
+ *  in ONE query - so widening across several target personas is a single round-trip
+ *  rather than one per persona. */
+export async function selectActiveProfileIdsByPersonas(personaNames: string[]): Promise<string[]> {
+  if (personaNames.length === 0) return []
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('persona_assignments')
     .select('profile_id')
-    .eq('persona_name', personaName)
+    .in('persona_name', personaNames)
     .eq('status', 'active')
-  if (error) throw new Error(`data.personas.activeIdsByPersona: ${error.message}`)
+  if (error) throw new Error(`data.personas.activeIdsByPersonas: ${error.message}`)
   const profileIds = [...new Set(((data ?? []) as { profile_id: string }[]).map((row) => row.profile_id))]
   return selectActiveIdsAmong(profileIds)
 }

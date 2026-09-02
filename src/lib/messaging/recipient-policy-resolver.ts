@@ -9,7 +9,7 @@ import {
   selectActiveEnrollmentPairsByStudentIds,
   selectActiveTutorPairsByClassIds,
 } from '@/lib/data/class-membership'
-import { selectActivePersonaAssignmentsByProfileIds, selectActiveProfileIdsByPersona } from '@/lib/data/personas'
+import { selectActivePersonaAssignmentsByProfileIds, selectActiveProfileIdsByPersonas } from '@/lib/data/personas'
 import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { MESSAGING_PERSONAS, matrixAllows, parseMessagingMatrix, personasFromFlags } from '@/lib/messaging/matrix'
@@ -158,11 +158,11 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
         if (matrixAllows(matrix, persona, targetPersona)) targets.add(targetPersona)
       }
     }
-    // Resolve every allowed target persona's members in parallel (bounded by the
-    // number of personas, <=5) rather than one sequential query per persona.
-    const personaIdLists = await Promise.all([...targets].map((persona) => selectActiveProfileIdsByPersona(persona)))
-    for (const ids of personaIdLists) {
-      for (const id of ids) addMatrixRecipient(recipients, id)
+    // Resolve every allowed target persona's members in ONE query (their union) rather
+    // than a query per persona - the widening only needs the set of members, not a
+    // per-persona grouping.
+    for (const id of await selectActiveProfileIdsByPersonas([...targets])) {
+      addMatrixRecipient(recipients, id)
     }
   }
 
