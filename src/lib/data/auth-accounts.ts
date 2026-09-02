@@ -1,6 +1,8 @@
 import 'server-only'
+import { createClient as createSupabaseJsClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { isMock } from '@/lib/mock/env'
 
 /**
  * Adapter for Supabase AUTH accounts (as distinct from the `profiles` table).
@@ -32,6 +34,34 @@ export async function deleteAuthUser(authUserId: string): Promise<void> {
   if (error) throw new Error(`data.authAccounts.deleteAuthUser: ${error.message}`)
 }
 
+/**
+ * Verify a user's CURRENT password WITHOUT disturbing their live session - a
+ * re-authentication step for a sensitive self-service change (email).
+ *
+ * Real mode: a throwaway sign-in on a fresh client that never persists a session, so
+ * the caller's cookie session is untouched; a wrong password returns an auth error.
+ * Mock mode has no real auth (it signs in off an unsigned cookie), so compare against
+ * the profile's stored demo password, falling back to the shared MOCK_PASSWORD.
+ */
+export async function verifyOwnPassword(email: string, password: string): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!password || !normalizedEmail) return false
+  if (isMock()) {
+    const supabase = await createClient()
+    const { data } = await supabase.from('profiles').select('password').eq('email', normalizedEmail).maybeSingle()
+    const stored = (data as { password?: string | null } | null)?.password
+    return password === (stored ?? process.env.MOCK_PASSWORD ?? 'cert-ed')
+  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  if (!url || !anonKey) return false
+  const throwaway = createSupabaseJsClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  const { error } = await throwaway.auth.signInWithPassword({ email: normalizedEmail, password })
+  return !error
+}
+
 /** Change the SIGNED-IN user's password via their own session. */
 export async function updateOwnAuthPassword(password: string): Promise<void> {
   const supabase = await createClient()
@@ -42,7 +72,7 @@ export async function updateOwnAuthPassword(password: string): Promise<void> {
 /** Revoke the signed-in user's OTHER sessions (every device/token except this one),
  *  through their own session. Called after a self-service credential change so a
  *  previously-captured session elsewhere cannot outlive the password it no longer knows
- *  (A-04). scope:'others' preserves the CURRENT session, so the user stays signed in on
+ * . scope:'others' preserves the CURRENT session, so the user stays signed in on
  *  the device where they just made the change. */
 export async function signOutOwnOtherSessions(): Promise<void> {
   const supabase = await createClient()
@@ -54,7 +84,7 @@ export async function signOutOwnOtherSessions(): Promise<void> {
  *  sign-in by GoTrue, so revoking an account cuts its LIVE session too - not only its
  *  data access, which RLS already blocks on status. Complements the profile/persona
  *  flip: without it a revoked user's existing token stays valid until it expires and
- *  any status-blind endpoint would still accept it (A-04). '876000h' (~100y) is an
+ *  any status-blind endpoint would still accept it. '876000h' (~100y) is an
  *  effectively-permanent ban; 'none' lifts it on restore. */
 export async function setAuthUserBanned(authUserId: string, banned: boolean): Promise<void> {
   const admin = createAdminClient()

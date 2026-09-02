@@ -131,6 +131,8 @@ export type SelfProfileDetailsInput = z.infer<typeof selfProfileDetailsSchema>
 /** Self-service email change - the new sign-in email. */
 export const changeEmailSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
+  // Re-authentication: the current password must be supplied to change the login email.
+  current_password: z.string().min(1, 'Enter your current password.'),
 })
 
 /** Self-service password change - same length floor as registerSchema's password. */

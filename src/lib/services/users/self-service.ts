@@ -6,7 +6,12 @@ import { RateLimitError, ValidationError } from '@/lib/errors'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { updateOwnProfile as updateOwnProfileRow, updateProfile } from '@/lib/data/profiles'
-import { updateOwnAuthPassword, signOutOwnOtherSessions, updateAuthUserEmail } from '@/lib/data/auth-accounts'
+import {
+  updateOwnAuthPassword,
+  signOutOwnOtherSessions,
+  updateAuthUserEmail,
+  verifyOwnPassword,
+} from '@/lib/data/auth-accounts'
 import { logError } from '@/lib/observability/log'
 import { getProfileByEmail } from './directory'
 
@@ -58,7 +63,7 @@ export async function changeOwnPassword(actor: Pick<Profile, 'id'>, password: st
     await updateProfile(actor.id, { password })
   } else {
     await updateOwnAuthPassword(password)
-    // A-04: a password change must re-secure the account everywhere, not just here. Revoke
+    // A password change must re-secure the account everywhere, not just here. Revoke
     // every OTHER session (keeping this one) so a previously-captured session on another
     // device can't outlive the password it no longer knows. Best-effort: the password IS
     // already changed, so a GoTrue hiccup here must not fail the whole change - log it.
@@ -71,16 +76,25 @@ export async function changeOwnPassword(actor: Pick<Profile, 'id'>, password: st
   await auditPrivilegedAction(actor, 'profile.password', 'profile', actor.id)
 }
 
-/** Self-service email change. Like changeOwnPassword, an authenticated session is
- *  enough (no re-verification). Mock mirrors the new email onto the profile row the
- *  local auth shim signs in against; real mode updates the Supabase auth account
- *  AND the profile so sign-in (auth) and display/lookups (profiles) stay in sync. */
+/** Self-service email change. Requires re-authentication with the CURRENT password:
+ *  changing the login email is an account-takeover primitive (it moves where password
+ *  resets and the login itself go), so a merely-open session - e.g. an attacker on a
+ *  borrowed/forgotten device - must not be enough. Verifying the password proves the
+ *  actor knows the credential, and does so WITHOUT signing them out (revoking sessions
+ *  here would help such an attacker: it kills the owner's other devices, not theirs).
+ *  Mock mirrors the new email onto the profile row the local auth shim signs in against;
+ *  real mode updates the Supabase auth account AND the profile so sign-in (auth) and
+ *  display/lookups (profiles) stay in sync. */
 export async function changeOwnEmail(
   actor: Pick<Profile, 'id' | 'auth_user_id' | 'email'>,
   newEmail: string,
+  currentPassword: string,
 ): Promise<void> {
   if (!rateLimit(`email-change:${actor.id}`, { limit: 5, windowMs: 10 * 60 * 1000 }).ok) {
     throw new RateLimitError('Too many email changes. Please wait a few minutes and try again.')
+  }
+  if (!(await verifyOwnPassword(actor.email ?? '', currentPassword))) {
+    throw new ValidationError('Current password is incorrect.')
   }
   const email = newEmail.trim().toLowerCase()
   // No-op if unchanged, so a resubmit doesn't trip the "already in use" check.

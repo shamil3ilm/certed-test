@@ -73,6 +73,9 @@ export async function loadSettingsPageData(
   if (searchParams.error === 'email_taken') {
     alerts.push({ tone: 'error', message: 'That email is already in use.' })
   }
+  if (searchParams.error === 'email_password') {
+    alerts.push({ tone: 'error', message: 'That current password is incorrect - your email was not changed.' })
+  }
   if (searchParams.error === 'email_limit') {
     alerts.push({ tone: 'error', message: 'Too many email changes. Please wait a few minutes and try again.' })
   }

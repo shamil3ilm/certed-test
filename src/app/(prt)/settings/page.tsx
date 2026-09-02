@@ -68,11 +68,22 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
             <Field label="Change email" className="sm:col-span-2">
               <Input name="new_email" type="email" required autoComplete="email" placeholder="you@example.com" />
             </Field>
+            <Field label="Current password" className="sm:col-span-2">
+              <Input
+                name="current_password"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="Confirm it's you"
+              />
+            </Field>
             <div className="sm:col-span-2">
               <button type="submit" className="btn btn-primary">
                 Change email
               </button>
-              <p className="mt-2 text-xs text-slate-400">This becomes your sign-in email, effective immediately.</p>
+              <p className="mt-2 text-xs text-slate-400">
+                Confirm your current password to change your sign-in email. It takes effect immediately.
+              </p>
             </div>
           </form>
         </Panel>

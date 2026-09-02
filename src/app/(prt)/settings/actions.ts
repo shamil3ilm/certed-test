@@ -60,15 +60,22 @@ export async function changePasswordAction(formData: FormData) {
 
 export async function changeEmailAction(formData: FormData) {
   const me = await requireActiveProfile()
-  const parsed = changeEmailSchema.safeParse({ email: formData.get('new_email') })
+  const parsed = changeEmailSchema.safeParse({
+    email: formData.get('new_email'),
+    current_password: formData.get('current_password'),
+  })
   if (!parsed.success) redirect('/settings?error=email')
 
   try {
-    await changeOwnEmail(me, parsed.data.email)
+    await changeOwnEmail(me, parsed.data.email, parsed.data.current_password)
   } catch (error) {
     // redirect() throws NEXT_REDIRECT, so it must stay outside this catch.
     if (error instanceof RateLimitError) redirect('/settings?error=email_limit')
-    if (error instanceof ValidationError) redirect('/settings?error=email_taken')
+    // A wrong current password and a taken email are both ValidationError; distinguish
+    // them so the form can tell the user which one to fix.
+    if (error instanceof ValidationError) {
+      redirect(error.message.includes('password') ? '/settings?error=email_password' : '/settings?error=email_taken')
+    }
     throw error
   }
   revalidatePath('/settings')
@@ -77,7 +84,7 @@ export async function changeEmailAction(formData: FormData) {
 
 /** Record a fresh acceptance of the CURRENT Terms + Privacy Policy - the self-service
  *  re-acceptance the settings page offers when the policies have changed since the
- *  person last accepted (N-07). Append-only: it never edits or erases prior records. */
+ *  person last accepted. Append-only: it never edits or erases prior records. */
 export async function reaffirmConsentAction() {
   const me = await requireActiveProfile()
   await reaffirmCurrentConsent(me.id)
