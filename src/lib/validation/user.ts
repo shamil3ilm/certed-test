@@ -100,6 +100,9 @@ export const registerSchema = z
     email: z.string().email(),
     code: z.string().trim().min(1).max(40),
     password: passwordField,
+    /** Attestation that a parent/guardian consents - required server-side only when the
+     *  registering profile is a minor (a student with a guardian on record / under 18). */
+    guardian_consent: z.boolean().default(false),
   })
   .refine((v) => passwordAvoidsEmail(v.password, v.email), {
     message: 'Password must not contain your email name',

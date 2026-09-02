@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
-import { revokeUserAction, restoreUserAction, editUserAction } from './actions'
+import { revokeUserAction, restoreUserAction, eraseUserAction, editUserAction } from './actions'
 import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Badge, Card, Avatar, staffRoleLabel, statusLabel } from '@/lib/ui'
 import { Input, SubmitButton } from '../../form'
@@ -25,6 +25,7 @@ export function UserRow({
   self = false,
   manageable,
   canEditPermissions = false,
+  canErase = false,
   mentorSubtitle,
   teaches = false,
   mentors = false,
@@ -33,6 +34,7 @@ export function UserRow({
   self?: boolean
   manageable: boolean
   canEditPermissions?: boolean
+  canErase?: boolean
   mentorSubtitle?: string
   teaches?: boolean
   mentors?: boolean
@@ -107,12 +109,27 @@ export function UserRow({
               {self ? (
                 <span className="text-xs italic text-slate-400">Your own account</span>
               ) : p.status === 'disabled' ? (
-                <form action={restoreUserAction}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
-                    Restore
-                  </SubmitButton>
-                </form>
+                <>
+                  <form action={restoreUserAction}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
+                      Restore
+                    </SubmitButton>
+                  </form>
+                  {canErase && (
+                    <form action={eraseUserAction}>
+                      <input type="hidden" name="id" value={p.id} />
+                      <ConfirmSubmit
+                        className="btn btn-sm btn-danger"
+                        title="Erase this account permanently?"
+                        message="Their personal data and login are permanently deleted and CANNOT be restored. Audit and finance records are kept."
+                        confirmLabel="Erase permanently"
+                      >
+                        Erase
+                      </ConfirmSubmit>
+                    </form>
+                  )}
+                </>
               ) : (
                 <form action={revokeUserAction}>
                   <input type="hidden" name="id" value={p.id} />

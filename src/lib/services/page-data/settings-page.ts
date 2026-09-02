@@ -1,5 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
+import { getConsentStatus, type ConsentStatus } from '@/lib/services/consents'
 
 export type SettingsSearchParams = {
   saved?: string
@@ -17,6 +18,7 @@ type SettingsPageData = {
   studentClassLabel: string
   passwordHelpText: string
   roleLabel: string
+  consent: ConsentStatus
 }
 
 /** Highest-privilege label from persona flags - persona-native, not profiles.role.
@@ -74,8 +76,11 @@ export async function loadSettingsPageData(
   if (searchParams.error === 'email_limit') {
     alerts.push({ tone: 'error', message: 'Too many email changes. Please wait a few minutes and try again.' })
   }
+  if (searchParams.saved === 'consent') {
+    alerts.push({ tone: 'success', message: 'Thanks - your acceptance of the current policies is recorded.' })
+  }
 
-  const flags = await loadPersonaFlags(actor.id)
+  const [flags, consent] = await Promise.all([loadPersonaFlags(actor.id), getConsentStatus(actor.id)])
   const showStudentClass =
     flags.isStudent && !flags.isAdmin && !flags.isSubAdmin && !flags.isTutor && !flags.hasMentorAuthority
 
@@ -87,5 +92,6 @@ export async function loadSettingsPageData(
       ? 'This becomes your sign-in password. (Demo mode stores it locally.)'
       : 'This becomes your sign-in password.',
     roleLabel: labelFromFlags(flags),
+    consent,
   }
 }

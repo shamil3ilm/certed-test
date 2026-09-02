@@ -5,7 +5,13 @@ import { selectProfileDetailsById } from '@/lib/data/profiles'
 import { AlertBanner, PageHeader, Panel } from '@/lib/ui'
 import { ChangePasswordForm } from './ChangePasswordForm'
 import { Field, Input } from '../form'
-import { changeEmailAction, changePasswordAction, updateProfileAction, updateProfileDetailsAction } from './actions'
+import {
+  changeEmailAction,
+  changePasswordAction,
+  reaffirmConsentAction,
+  updateProfileAction,
+  updateProfileDetailsAction,
+} from './actions'
 
 export default async function SettingsPage(props: { searchParams: Promise<SettingsSearchParams> }) {
   const searchParams = await props.searchParams
@@ -107,6 +113,41 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
 
         <Panel title="Password">
           <ChangePasswordForm action={changePasswordAction} helpText={data.passwordHelpText} />
+        </Panel>
+
+        <Panel title="Legal">
+          {data.consent.acceptedAt ? (
+            <p className="text-sm text-slate-600">
+              You accepted our{' '}
+              <a href="/terms" className="text-primary hover:underline">
+                Terms of Use
+              </a>{' '}
+              and{' '}
+              <a href="/privacy" className="text-primary hover:underline">
+                Privacy Policy
+              </a>{' '}
+              (version {data.consent.acceptedTermsVersion}) on{' '}
+              {new Date(data.consent.acceptedAt).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+              .
+            </p>
+          ) : (
+            <p className="text-sm text-slate-600">We have no record of your policy acceptance yet.</p>
+          )}
+          {!data.consent.upToDate && (
+            <form action={reaffirmConsentAction} className="mt-3 border-t border-slate-100 pt-4">
+              <p className="text-sm text-slate-600">
+                Our policies have been updated since you last accepted them (current version{' '}
+                {data.consent.currentTermsVersion}). Please review and accept the current versions.
+              </p>
+              <button type="submit" className="btn btn-sm btn-soft mt-3">
+                I accept the current Terms &amp; Privacy Policy
+              </button>
+            </form>
+          )}
         </Panel>
       </div>
     </main>

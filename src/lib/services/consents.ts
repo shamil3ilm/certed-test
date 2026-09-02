@@ -1,5 +1,5 @@
 import 'server-only'
-import { insertConsent } from '@/lib/data/consents'
+import { insertConsent, selectLatestConsent } from '@/lib/data/consents'
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/policy/versions'
 
 /**
@@ -33,4 +33,47 @@ export async function recordConsentAcceptance(
     cross_border_consent: opts.crossBorderConsent ?? false,
     jurisdiction: opts.jurisdiction ?? null,
   })
+}
+
+export type ConsentStatus = {
+  /** The versions the person last accepted, null if they have no consent on record. */
+  acceptedTermsVersion: string | null
+  acceptedPrivacyVersion: string | null
+  acceptedAt: string | null
+  currentTermsVersion: string
+  currentPrivacyVersion: string
+  /** True only when a consent exists AND both accepted versions match the current ones. */
+  upToDate: boolean
+}
+
+/**
+ * A person's consent standing: which Terms + Privacy versions they last accepted, when, and
+ * whether that matches the CURRENTLY published versions. Reads the append-only log (which
+ * previously nothing read - N-06), so the UI can show what was accepted and prompt
+ * re-acceptance when the policy has since changed (N-07).
+ */
+export async function getConsentStatus(profileId: string): Promise<ConsentStatus> {
+  const latest = await selectLatestConsent(profileId)
+  const upToDate =
+    latest != null && latest.terms_version === TERMS_VERSION && latest.privacy_version === PRIVACY_VERSION
+  return {
+    acceptedTermsVersion: latest?.terms_version ?? null,
+    acceptedPrivacyVersion: latest?.privacy_version ?? null,
+    acceptedAt: latest?.accepted_at ?? null,
+    currentTermsVersion: TERMS_VERSION,
+    currentPrivacyVersion: PRIVACY_VERSION,
+    upToDate,
+  }
+}
+
+/** True when the person needs to (re-)accept: no consent on record, or the policy has been
+ *  published in a newer version than they last accepted. */
+export async function needsPolicyReacceptance(profileId: string): Promise<boolean> {
+  return !(await getConsentStatus(profileId)).upToDate
+}
+
+/** Record a fresh acceptance of the CURRENT policy versions (N-07). The log is append-only,
+ *  so re-affirming simply adds the current-version row - the prior acceptances stay on record. */
+export async function reaffirmCurrentConsent(profileId: string): Promise<void> {
+  await recordConsentAcceptance(profileId)
 }

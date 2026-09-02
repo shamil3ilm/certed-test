@@ -4,8 +4,19 @@ import { loadSettingsPageData } from '@/lib/services/page-data/settings-page'
 vi.mock('@/lib/permission/personas', () => ({
   loadPersonaFlags: vi.fn(),
 }))
+vi.mock('@/lib/services/consents', () => ({ getConsentStatus: vi.fn() }))
 
 import { loadPersonaFlags } from '@/lib/permission/personas'
+import { getConsentStatus } from '@/lib/services/consents'
+
+const CONSENT = {
+  acceptedTermsVersion: '2026-08-25',
+  acceptedPrivacyVersion: '2026-08-25',
+  acceptedAt: '2026-08-25T00:00:00.000Z',
+  currentTermsVersion: '2026-08-25',
+  currentPrivacyVersion: '2026-08-25',
+  upToDate: true,
+}
 
 const tutor = {
   id: 'teach-1',
@@ -38,6 +49,7 @@ describe('loadSettingsPageData', () => {
       isStudent: false,
       isMentor: false,
     } as any)
+    vi.mocked(getConsentStatus).mockResolvedValueOnce(CONSENT)
     expect(await loadSettingsPageData(tutor, { saved: 'profile', error: 'password' }, false)).toEqual({
       alerts: [
         { tone: 'success', message: 'Profile updated.' },
@@ -47,6 +59,7 @@ describe('loadSettingsPageData', () => {
       studentClassLabel: '-',
       passwordHelpText: 'This becomes your sign-in password.',
       roleLabel: 'Tutor',
+      consent: CONSENT,
     })
   })
 
@@ -60,12 +73,14 @@ describe('loadSettingsPageData', () => {
       isStudent: true,
       isMentor: false,
     } as any)
+    vi.mocked(getConsentStatus).mockResolvedValueOnce(CONSENT)
     expect(await loadSettingsPageData(student, { saved: 'password' }, true)).toEqual({
       alerts: [{ tone: 'success', message: 'Password changed.' }],
       showStudentClass: true,
       studentClassLabel: 'Grade 8',
       passwordHelpText: 'This becomes your sign-in password. (Demo mode stores it locally.)',
       roleLabel: 'Student',
+      consent: CONSENT,
     })
   })
 })

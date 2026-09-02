@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { RateLimitError, ValidationError } from '@/lib/errors'
 import { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwnEmail } from '@/lib/services/users'
+import { reaffirmCurrentConsent } from '@/lib/services/consents'
 import {
   updateProfileSchema,
   selfProfileDetailsSchema,
@@ -72,4 +73,14 @@ export async function changeEmailAction(formData: FormData) {
   }
   revalidatePath('/settings')
   redirect('/settings?saved=email')
+}
+
+/** Record a fresh acceptance of the CURRENT Terms + Privacy Policy - the self-service
+ *  re-acceptance the settings page offers when the policies have changed since the
+ *  person last accepted (N-07). Append-only: it never edits or erases prior records. */
+export async function reaffirmConsentAction() {
+  const me = await requireActiveProfile()
+  await reaffirmCurrentConsent(me.id)
+  revalidatePath('/settings')
+  redirect('/settings?saved=consent')
 }

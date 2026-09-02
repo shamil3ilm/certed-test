@@ -5,6 +5,10 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/mock/env', () => ({ isMock: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/auth-accounts', async (importActual) => ({
+  ...(await importActual()),
+  setAuthUserBanned: vi.fn(),
+}))
 vi.mock('@/lib/permission/personas', () => ({
   loadActivePersonas: vi.fn(),
   hasPersona: vi.fn(),
@@ -23,6 +27,7 @@ import { ERROR_CODES } from '@/lib/api/error-codes'
 import { setupCodeValid } from '@/lib/auth/setup-code'
 import { isMock } from '@/lib/mock/env'
 import { writeAudit } from '@/lib/data/audit'
+import { setAuthUserBanned } from '@/lib/data/auth-accounts'
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import {
   addUser,
@@ -233,6 +238,9 @@ describe('user action-input helpers', () => {
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // requireManageableTarget
       .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
+      .mockReturnValueOnce(
+        makeClient({ data: { ...targetTutor, id: targetTutorId, auth_user_id: null }, error: null }) as any,
+      ) // getProfileById (A-04 ban check; null auth id -> skip)
     await revokeUserFromActionInput(superAdmin, { id: targetTutorId })
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'admin-1',
@@ -243,11 +251,15 @@ describe('user action-input helpers', () => {
 
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // requireManageableTarget
+      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt (not erased)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // selectProfileRole
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
       .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
       .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds
+      .mockReturnValueOnce(
+        makeClient({ data: { ...targetTutor, id: targetTutorId, auth_user_id: null }, error: null }) as any,
+      ) // getProfileById (A-04 unban check; null auth id -> skip)
     await restoreUserFromActionInput(superAdmin, { id: targetTutorId })
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'admin-1',
@@ -310,6 +322,7 @@ describe('revokeUser', () => {
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
       .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: null }, error: null }) as any) // getProfileById (A-04 ban check; null auth id -> skip)
     await revokeUser(superAdmin, targetTutor.id)
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -317,6 +330,17 @@ describe('revokeUser', () => {
       entity_type: 'profile',
       entity_id: 'teach-1',
     })
+    expect(setAuthUserBanned).not.toHaveBeenCalled() // no auth identity -> nothing to ban
+  })
+
+  it('bans the live auth session on revoke when the account is registered (A-04)', async () => {
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: 'auth-xyz' }, error: null }) as any) // getProfileById: registered
+    await revokeUser(superAdmin, targetTutor.id)
+    expect(setAuthUserBanned).toHaveBeenCalledWith('auth-xyz', true)
   })
 
   it('restores the profile status if persona deactivation fails during revoke', async () => {
@@ -342,11 +366,13 @@ describe('restoreUser', () => {
   it('restores and audits user.restore', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
+      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt (not erased)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
       .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
       .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds (no mentees)
+      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: null }, error: null }) as any) // getProfileById (A-04 unban check; null auth id -> skip)
     await restoreUser(superAdmin, targetTutor.id)
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -359,6 +385,7 @@ describe('restoreUser', () => {
   it('reverts the profile status if persona restore fails', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
+      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt (not erased)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // activate profile
       .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // restore global (reactivate update)
@@ -525,11 +552,35 @@ describe('self-service settings writes', () => {
     })
   })
 
-  it('changeOwnPassword uses the auth client in real mode and audits', async () => {
+  it('changeOwnPassword changes the password, revokes OTHER sessions, and audits (real mode)', async () => {
     vi.mocked(isMock).mockReturnValueOnce(false as any)
     const updateUser = vi.fn(async () => ({ data: {}, error: null }))
-    vi.mocked(createClient).mockResolvedValueOnce({ auth: { updateUser } } as any)
+    const signOut = vi.fn(async () => ({ error: null }))
+    // Two createClient calls: the password update, then the sign-out of other sessions.
+    vi.mocked(createClient)
+      .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
+      .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
     await changeOwnPassword(selfActor, 'new-password-123')
+    expect(updateUser).toHaveBeenCalledWith({ password: 'new-password-123' })
+    // A-04: the change must not leave a captured session on another device alive.
+    expect(signOut).toHaveBeenCalledWith({ scope: 'others' })
+    expect(writeAudit).toHaveBeenCalledWith({
+      actor_id: 'self-1',
+      action: 'profile.password',
+      entity_type: 'profile',
+      entity_id: 'self-1',
+    })
+  })
+
+  it('changeOwnPassword still succeeds if revoking other sessions fails (best-effort)', async () => {
+    vi.mocked(isMock).mockReturnValueOnce(false as any)
+    const updateUser = vi.fn(async () => ({ data: {}, error: null }))
+    const signOut = vi.fn(async () => ({ error: { message: 'gotrue down' } }))
+    vi.mocked(createClient)
+      .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
+      .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
+    await changeOwnPassword(selfActor, 'new-password-123')
+    // The password IS changed and the action is audited even though the sign-out errored.
     expect(updateUser).toHaveBeenCalledWith({ password: 'new-password-123' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'self-1',
@@ -556,7 +607,12 @@ describe('completePasswordRegistration', () => {
   it('returns a uniform invalid error when no pending registration target exists', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
     await expect(
-      completePasswordRegistration({ email: 'missing@x.c', code: '12345678', password: 'password123' }),
+      completePasswordRegistration({
+        email: 'missing@x.c',
+        code: '12345678',
+        password: 'password123',
+        guardian_consent: false,
+      }),
     ).resolves.toEqual({
       error: "That email or code isn't valid, or the account is already set up.",
       code: ERROR_CODES.invalidInput,
@@ -578,7 +634,12 @@ describe('completePasswordRegistration', () => {
     )
     vi.mocked(setupCodeValid).mockReturnValueOnce(false as any)
     await expect(
-      completePasswordRegistration({ email: 'student@x.c', code: 'bad-code', password: 'password123' }),
+      completePasswordRegistration({
+        email: 'student@x.c',
+        code: 'bad-code',
+        password: 'password123',
+        guardian_consent: false,
+      }),
     ).resolves.toEqual({
       error: "That email or code isn't valid, or the account is already set up.",
       code: ERROR_CODES.invalidInput,
@@ -605,7 +666,12 @@ describe('completePasswordRegistration', () => {
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
 
     await expect(
-      completePasswordRegistration({ email: 'Student@x.c', code: 'valid-code', password: 'password123' }),
+      completePasswordRegistration({
+        email: 'Student@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        guardian_consent: false,
+      }),
     ).resolves.toEqual({ ok: true })
     expect(createUser).toHaveBeenCalledWith({
       email: 'student@x.c',
@@ -638,7 +704,12 @@ describe('completePasswordRegistration', () => {
       .mockReturnValueOnce(authClient as any) // deleteAuthUser
 
     await expect(
-      completePasswordRegistration({ email: 'student@x.c', code: 'valid-code', password: 'password123' }),
+      completePasswordRegistration({
+        email: 'student@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        guardian_consent: false,
+      }),
     ).resolves.toEqual({
       error: 'This account was just set up by someone else.',
       code: ERROR_CODES.invalidInput,
@@ -668,10 +739,77 @@ describe('completePasswordRegistration', () => {
       .mockReturnValueOnce(authClient as any) // deleteAuthUser
 
     await expect(
-      completePasswordRegistration({ email: 'student@x.c', code: 'valid-code', password: 'password123' }),
+      completePasswordRegistration({
+        email: 'student@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        guardian_consent: false,
+      }),
     ).resolves.toEqual({
       error: 'Could not finish setting up your account. Please try again.',
       code: ERROR_CODES.internalError,
     })
+  })
+
+  it('rejects a minor student (guardian on record) without guardian consent (N-01)', async () => {
+    vi.mocked(setupCodeValid).mockReturnValue(true as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({
+        data: {
+          id: 'kid',
+          auth_user_id: null,
+          status: 'pending',
+          setup_code_hash: 'hash',
+          setup_code_expires_at: '2099-01-01T00:00:00.000Z',
+          role: 'student',
+          guardian_name: 'A Parent',
+          date_of_birth: null,
+        },
+        error: null,
+      }) as any,
+    )
+    await expect(
+      completePasswordRegistration({
+        email: 'kid@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        guardian_consent: false,
+      }),
+    ).resolves.toEqual({
+      error: 'A parent or guardian must consent before a student under 18 can set up their account.',
+      code: ERROR_CODES.invalidInput,
+    })
+  })
+
+  it('lets a minor student register WITH guardian consent (N-01)', async () => {
+    vi.mocked(setupCodeValid).mockReturnValue(true as any)
+    const createUser = vi.fn(async () => ({ data: { user: { id: 'auth-kid' } }, error: null }))
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(
+        makeClient({
+          data: {
+            id: 'kid',
+            auth_user_id: null,
+            status: 'pending',
+            setup_code_hash: 'hash',
+            setup_code_expires_at: '2099-01-01T00:00:00.000Z',
+            role: 'student',
+            guardian_name: 'A Parent',
+            date_of_birth: null,
+          },
+          error: null,
+        }) as any,
+      )
+      .mockReturnValueOnce({ auth: { admin: { createUser, deleteUser: vi.fn() } } } as any)
+      .mockReturnValueOnce(makeClient({ data: { id: 'kid' }, error: null }) as any) // bind
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // consent insert
+    await expect(
+      completePasswordRegistration({
+        email: 'kid@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        guardian_consent: true,
+      }),
+    ).resolves.toEqual({ ok: true })
   })
 })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { bindProfileOnFirstLogin } from '@/lib/auth/binding'
+import { recordConsentAcceptance } from '@/lib/services/consents'
 
 /**
  * Only forward to an INTERNAL, relative path (prevents an open-redirect via a
@@ -18,9 +19,17 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createClient()
     const { data } = await supabase.auth.exchangeCodeForSession(code)
-    // Bind the auth user to their pre-created allowlist profile on first login.
+    // Bind the auth user to their pre-created allowlist profile on first login. A pending
+    // invite is also ACTIVATED here (B-10), so an OAuth first login is complete registration.
     if (data.user?.email) {
-      await bindProfileOnFirstLogin(data.user.id, data.user.email)
+      const bound = await bindProfileOnFirstLogin(data.user.id, data.user.email)
+      if (bound?.activated) {
+        // Parity with password registration: activating via OAuth is acceptance of the
+        // current Terms + Privacy Policy. Best-effort - the account is already active.
+        await recordConsentAcceptance(bound.profileId).catch((e) =>
+          console.error(`auth.callback: consent record failed for profile ${bound.profileId}`, e),
+        )
+      }
     }
   }
   return NextResponse.redirect(`${origin}${next}`)

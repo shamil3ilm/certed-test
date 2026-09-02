@@ -137,6 +137,27 @@ export async function selectScopedMenteeIds(mentorId: string): Promise<string[]>
   ]
 }
 
+/** When this mentor's ACTIVE mentorship of this student began: the assigned_at of their
+ *  student-scoped mentor persona. Null if they hold no such active persona. Used to scope a
+ *  mentor's pastoral-note view to their own tenure (N-03) - assigned_at is stable across a
+ *  re-activation (0037 upserts status only), so a re-added mentor keeps their original start. */
+export async function selectMentorAssignedAt(mentorId: string, studentId: string): Promise<string | null> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('persona_assignments')
+    .select('assigned_at')
+    .eq('profile_id', mentorId)
+    .eq('persona_name', 'mentor')
+    .eq('scope_type', 'student')
+    .eq('scope_id', studentId)
+    .eq('status', 'active')
+    .order('assigned_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`data.personas.mentorAssignedAt: ${error.message}`)
+  return (data as { assigned_at: string } | null)?.assigned_at ?? null
+}
+
 /** Mark ALL of a profile's personas inactive, every scope - not just global, so a
  *  revoked mentor's student-scoped personas stop granting mentee access. */
 export async function deactivateAllPersonas(profileId: string): Promise<void> {

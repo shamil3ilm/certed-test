@@ -119,6 +119,8 @@ export default async function AdminUsersPage(props: {
                     // other row is manageable by any user manager.
                     manageable={canManage && (isAdminTierRow ? data.isSuper : true)}
                     canEditPermissions={data.isSuper}
+                    // Erasure is admin-tier + irreversible, so only a Super Admin sees it.
+                    canErase={data.isSuper}
                     mentorSubtitle={mentorSubtitle}
                     teaches={data.teachingStaffIds.has(p.id)}
                     mentors={data.mentoringStaffIds.has(p.id)}

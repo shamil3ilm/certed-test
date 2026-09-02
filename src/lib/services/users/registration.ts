@@ -17,6 +17,30 @@ async function getRegistrationTarget(email: string): Promise<RegistrationTarget 
   return selectRegistrationFields(email)
 }
 
+/** Whole years between `dob` and now (UTC), for the minor check. */
+function ageYears(dob: string): number {
+  const d = new Date(dob)
+  const now = new Date()
+  let age = now.getUTCFullYear() - d.getUTCFullYear()
+  const monthDelta = now.getUTCMonth() - d.getUTCMonth()
+  if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < d.getUTCDate())) age -= 1
+  return age
+}
+
+/**
+ * Whether this profile requires a parent/guardian's consent to register (N-01). The academy
+ * is KG-12, so a guardian recorded by the admin is the reliable "this is a minor" signal;
+ * date_of_birth (under 18) is a fallback. Non-students never require it. With neither signal
+ * present we cannot assert minority, so we do not block - the guardian_name the academy sets
+ * for real minors is the operative gate.
+ */
+function requiresGuardianConsent(target: RegistrationTarget): boolean {
+  if (target.role !== 'student') return false
+  if (target.guardian_name) return true
+  if (target.date_of_birth) return ageYears(target.date_of_birth) < 18
+  return false
+}
+
 /** Binds a freshly-created auth user to the profile and consumes the setup code.
  *  Returns false when a concurrent claim already took it. */
 async function bindPasswordAccount(profileId: string, authUserId: string): Promise<boolean> {
@@ -39,6 +63,18 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
   const target = await getRegistrationTarget(input.email)
   if (!target || target.status !== 'pending' || target.auth_user_id) return invalid
   if (!setupCodeValid(input.code, target.setup_code_hash, target.setup_code_expires_at)) return invalid
+
+  // Guardian consent (N-01): a minor may only set up their account with a parent/guardian's
+  // attested consent. Checked BEFORE creating the auth account so a refusal leaves no orphan.
+  // A distinct (non-uniform) message: this is a genuine "what to do next", not a probe vector -
+  // it only fires once the email + code have already validated.
+  const needsGuardian = requiresGuardianConsent(target)
+  if (needsGuardian && !input.guardian_consent) {
+    return {
+      error: 'A parent or guardian must consent before a student under 18 can set up their account.',
+      code: ERROR_CODES.invalidInput,
+    }
+  }
 
   const created = await createAuthUser(input.email, input.password)
   if (!created) {
@@ -70,7 +106,7 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
   // consent trail the privacy policy promises. Completing setup here is the acceptance
   // (the register form states it). Best-effort: the account is already bound, so a
   // consent-write hiccup must not fail registration - log it for follow-up instead.
-  await recordConsentAcceptance(target.id).catch((e) =>
+  await recordConsentAcceptance(target.id, { guardianConsent: needsGuardian }).catch((e) =>
     console.error(`registration: consent record failed for profile ${target.id}`, e),
   )
   return { ok: true }

@@ -10,6 +10,7 @@ import {
   deleteUnregisteredProfile,
   revokeUserFromActionInput,
   restoreUserFromActionInput,
+  eraseUserFromActionInput,
   editUserFromActionInput,
 } from '@/lib/services/users'
 import {
@@ -107,6 +108,19 @@ export async function restoreUserAction(formData: FormData) {
   const me = await requireCapability('manageUsers')
   try {
     await restoreUserFromActionInput(me, { id: formData.get('id') })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(USERS_ERROR_URL)
+    throw error
+  }
+  revalidatePath('/admin/users')
+}
+
+export async function eraseUserAction(formData: FormData) {
+  // Erasure is admin-tier and irreversible; the service enforces requireAdminPersona + the
+  // revoked-only rule. manageAdminTier is the hard admin-only capability (never override-granted).
+  const me = await requireCapability('manageAdminTier')
+  try {
+    await eraseUserFromActionInput(me, { id: formData.get('id') })
   } catch (error) {
     if (error instanceof ServiceError) redirect(USERS_ERROR_URL)
     throw error

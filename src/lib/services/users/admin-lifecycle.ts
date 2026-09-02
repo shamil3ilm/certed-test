@@ -3,11 +3,16 @@ import type { Profile } from '@/lib/auth/profile'
 import type { AddUserInput, EditUserInput } from '@/lib/validation/user'
 import { generateSetupCode, hashSetupCode, setupCodeExpiry } from '@/lib/auth/setup-code'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { setAuthUserBanned, deleteAuthUser } from '@/lib/data/auth-accounts'
+import { deleteMenteeNotesForStudent } from '@/lib/data/mentee-notes'
+import { logError } from '@/lib/observability/log'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
-import { loadPersonaFlags } from '@/lib/permission/personas'
+import { loadPersonaFlags, requireAdminPersona } from '@/lib/permission/personas'
 import {
+  anonymizeProfileForErasure,
   deleteUnregisteredProfile as deleteUnregisteredProfileRow,
   revokeProfileGuarded,
+  selectProfileErasedAt,
   selectProfileRole,
   updateProfile,
   upsertAllowlistedProfile,
@@ -143,6 +148,19 @@ export async function revokeUser(actor: Profile, id: string): Promise<void> {
     await updateProfile(id, { status: 'active' })
     throw error
   }
+  // Kill the live session too. The status flip + persona disable cut DATA
+  // access via RLS immediately, but the Supabase auth token stays valid until it
+  // expires. Ban the auth user so refresh + sign-in are refused now. Best-effort: the
+  // account is already access-blocked, so a GoTrue hiccup must not leave the revoke
+  // half-applied - log and carry on. (A pending, never-registered row has no auth id.)
+  const revoked = await getProfileById(id)
+  if (revoked?.auth_user_id) {
+    try {
+      await setAuthUserBanned(revoked.auth_user_id, true)
+    } catch (error) {
+      logError('user.revoke.banSession', error)
+    }
+  }
   await auditPrivilegedAction(actor, 'user.revoke', 'profile', id)
 }
 
@@ -152,6 +170,11 @@ export async function revokeUserFromActionInput(actor: Profile, input: UserIdAct
 
 export async function restoreUser(actor: Profile, id: string): Promise<void> {
   await requireManageableTarget(actor, id)
+  // An erased account cannot be restored - its login and PII are gone (N-04), so restoring
+  // would resurrect a nameless, un-loginable "active" user. Erasure is deliberately terminal.
+  if (await selectProfileErasedAt(id)) {
+    throw new ValidationError('This account was erased and cannot be restored.')
+  }
   const role = await selectProfileRole(id)
   if (!role) throw new NotFoundError('User not found')
   await updateProfile(id, { status: 'active' })
@@ -164,11 +187,58 @@ export async function restoreUser(actor: Profile, id: string): Promise<void> {
     await updateProfile(id, { status: 'disabled' })
     throw error
   }
+  // Lift the auth ban applied on revoke so the restored user can sign in again.
+  const restored = await getProfileById(id)
+  if (restored?.auth_user_id) {
+    try {
+      await setAuthUserBanned(restored.auth_user_id, false)
+    } catch (error) {
+      logError('user.restore.unbanSession', error)
+    }
+  }
   await auditPrivilegedAction(actor, 'user.restore', 'profile', id)
 }
 
 export async function restoreUserFromActionInput(actor: Profile, input: UserIdActionInput): Promise<void> {
   await restoreUser(actor, validateUserIdInput(input))
+}
+
+/**
+ * Erasure right (N-04): permanently anonymise a REVOKED account. Deletes the auth login and
+ * every pastoral note ABOUT the person, then scrubs their PII in the profile row (keeping the
+ * row so audit-log and finance references, retained on their own lawful basis, stay intact) and
+ * stamps erased_at. Terminal - restore refuses an erased account.
+ *
+ * Structural admin-only (requireAdminPersona), on top of the tier check: erasure is
+ * irreversible PII deletion, so it sits with the admin tier, not general manageUsers. The
+ * target must already be revoked (disabled) - you revoke first, then erase - and never self.
+ */
+export async function eraseUser(actor: Profile, id: string): Promise<void> {
+  await requireAdminPersona(actor)
+  const target = await requireManageableTarget(actor, id)
+  if (id === actor.id) throw new ValidationError('You cannot erase your own account.')
+  if (target.status !== 'disabled') {
+    throw new ValidationError('Revoke the account first - only a revoked account can be erased.')
+  }
+  if (await selectProfileErasedAt(id)) return // already erased - idempotent no-op
+
+  // Notes ABOUT them, then the auth login (best-effort: the scrub below already blocks access
+  // via status=disabled + a placeholder email, so a GoTrue hiccup must not abort the erasure),
+  // then the in-place PII scrub that stamps erased_at.
+  await deleteMenteeNotesForStudent(id)
+  if (target.auth_user_id) {
+    try {
+      await deleteAuthUser(target.auth_user_id)
+    } catch (error) {
+      logError('user.erase.deleteAuth', error)
+    }
+  }
+  await anonymizeProfileForErasure(id)
+  await auditPrivilegedAction(actor, 'user.erase', 'profile', id)
+}
+
+export async function eraseUserFromActionInput(actor: Profile, input: UserIdActionInput): Promise<void> {
+  await eraseUser(actor, validateUserIdInput(input))
 }
 
 /**

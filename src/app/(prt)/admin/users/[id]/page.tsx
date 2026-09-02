@@ -18,7 +18,7 @@ export default async function UserDetailPage(props: {
   const [{ id }, { error }] = await Promise.all([props.params, props.searchParams])
   const me = await requireCapability('manageUsers')
 
-  // Authorize on the target's ROLE before loading any of its personal data (A-08).
+  // Authorize on the target's ROLE before loading any of its personal data.
   // manageUsers opens the page, but the tier rule decides WHOSE record you may see: a
   // sub_admin may read tutor/mentor/student profiles (the tier they manage), never the
   // ADMIN tier (the same boundary revoke/edit enforce). Fetch the role alone first, so a

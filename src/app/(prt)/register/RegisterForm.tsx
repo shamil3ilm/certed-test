@@ -14,6 +14,7 @@ export function RegisterForm() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
+  const [guardianConsent, setGuardianConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -31,6 +32,7 @@ export function RegisterForm() {
     formData.set('email', email)
     formData.set('code', code)
     formData.set('password', password)
+    if (guardianConsent) formData.set('guardian_consent', 'on')
 
     try {
       assertActionOk(await registerAction({ ok: true }, formData), 'Could not create account')
@@ -77,6 +79,25 @@ export function RegisterForm() {
           onChange={(event) => setPassword(event.target.value)}
         />
       </Field>
+      <label className="flex items-start gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={guardianConsent}
+          onChange={(event) => setGuardianConsent(event.target.checked)}
+        />
+        <span>
+          If the account holder is under 18, I confirm a parent or guardian has read and agrees to the{' '}
+          <a href="/terms" className="text-primary hover:underline">
+            Terms of Use
+          </a>{' '}
+          and{' '}
+          <a href="/privacy" className="text-primary hover:underline">
+            Privacy Policy
+          </a>{' '}
+          on their behalf.
+        </span>
+      </label>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
       <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">
