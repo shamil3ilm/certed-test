@@ -20,6 +20,7 @@ describe('nav ordering by persona', () => {
       'Users',
       'Finance',
       'History',
+      'Teaching hours',
       'Access management',
       'Organization',
     ])
@@ -40,6 +41,7 @@ describe('nav ordering by persona', () => {
       'Mentoring',
       'Messages',
       'Users',
+      'Teaching hours',
       'Access management',
     ])
   })

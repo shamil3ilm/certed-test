@@ -71,6 +71,39 @@ export async function selectSessionsForClasses(classIds: string[]): Promise<Clas
   return rows as unknown as ClassSessionRow[]
 }
 
+export interface SessionHoursRow {
+  class_id: string
+  tutor_id: string | null
+  actual_start: string | null
+  actual_end: string | null
+}
+
+/**
+ * Sessions for a set of classes whose recorded start falls in [startIso, endIso) - the
+ * base for MONTHLY per-tutor teaching hours. Filters on `actual_start` (the recorded
+ * window's start decides the month) and, because gte/lt exclude NULLs, silently drops
+ * sessions with no start (an incomplete session contributes no hours). Empty in, empty out.
+ */
+export async function selectSessionsForClassesInRange(
+  classIds: string[],
+  startIso: string,
+  endIso: string,
+): Promise<SessionHoursRow[]> {
+  if (classIds.length === 0) return []
+  const admin = createAdminClient()
+  return fetchAllPaged<SessionHoursRow>(
+    (from, to) =>
+      admin
+        .from('class_sessions')
+        .select('class_id, tutor_id, actual_start, actual_end')
+        .in('class_id', classIds)
+        .gte('actual_start', startIso)
+        .lt('actual_start', endIso)
+        .range(from, to),
+    'analytics.selectSessionsForClassesInRange',
+  )
+}
+
 /** A student's own attendance join/leave times - the base for learning-hours. */
 export async function selectTimedAttendanceForStudent(
   studentId: string,

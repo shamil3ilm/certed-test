@@ -1,6 +1,10 @@
 import type { Profile } from '@/lib/auth/profile'
 import { StatCard, StatGrid } from '@/lib/ui'
 import { getAdminAnalytics, getStudentAnalytics, getTutorAnalytics } from '@/lib/services/analytics'
+import { getTutorPersonalHours } from '@/lib/services/teaching-hours'
+import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
+import { todayInZone } from '@/lib/time/format'
+import { formatHours } from '@/lib/attendance/hours'
 import { usersUrl } from '@/lib/services/page-data/admin-users'
 
 // Each KPI links to the surface it's ABOUT rather than piling onto /classroom:
@@ -41,16 +45,27 @@ export async function AdminAnalyticsStats({ pendingAccess }: { pendingAccess: nu
  *  attendance). Pending grading is NOT a tile - it's the "Submissions to review"
  *  widget below - so the tile shows what's DONE, not another copy of the queue. */
 export async function TutorAnalyticsStats({ me }: { me: Profile }) {
-  const { teachingHours, sessionsHeld, attendanceRate, graded, classIds } = await getTutorAnalytics(me)
+  const tz = await getInstituteTimeZone()
+  const month = todayInZone(tz).slice(0, 7)
+  const [{ teachingHours, sessionsHeld, attendanceRate, graded, classIds }, monthly] = await Promise.all([
+    getTutorAnalytics(me),
+    getTutorPersonalHours(me, month),
+  ])
   const attendanceHref = classIds.length === 1 ? `/classroom/${classIds[0]}/attendance` : '/classroom'
   const gradingHref = classIds.length === 1 ? `/classroom/${classIds[0]}/grading` : '/classroom'
   return (
-    <StatGrid cols={3}>
+    <StatGrid cols={4}>
       <StatCard
         label="Teaching hours"
         value={teachingHours}
         tone="primary"
         sub={`${sessionsHeld} session${sessionsHeld === 1 ? '' : 's'} held`}
+        href={attendanceHref}
+      />
+      <StatCard
+        label="This month"
+        value={formatHours(monthly.minutes)}
+        sub={`${monthly.sessionCount} session${monthly.sessionCount === 1 ? '' : 's'}`}
         href={attendanceHref}
       />
       <StatCard label="Graded" value={graded} sub="results recorded" href={gradingHref} />

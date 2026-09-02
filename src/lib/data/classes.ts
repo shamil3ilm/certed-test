@@ -62,6 +62,25 @@ export async function selectAllClassIds(): Promise<string[]> {
   return ((data ?? []) as { id: string }[]).map((c) => c.id)
 }
 
+/** Every ACTIVE (non-archived) class id - the scope for teaching-hour reports, so an
+ *  archived class drops out of the mentor/admin hour views (business decision Q7). */
+export async function selectActiveClassIds(): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('classes').select('id').eq('status', 'active')
+  if (error) throw new Error(`data.classes.activeIds: ${error.message}`)
+  return ((data ?? []) as { id: string }[]).map((c) => c.id)
+}
+
+/** Of the given class ids, the subset that are ACTIVE (non-archived). Empty in, empty out.
+ *  Used to trim a mentor/tutor's authority set to live classes for the hour reports (Q7). */
+export async function selectActiveClassIdsAmong(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('classes').select('id').in('id', ids).eq('status', 'active')
+  if (error) throw new Error(`data.classes.activeAmong: ${error.message}`)
+  return ((data ?? []) as { id: string }[]).map((c) => c.id)
+}
+
 export async function selectClassesByIds(ids: string[]): Promise<ClassRow[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
