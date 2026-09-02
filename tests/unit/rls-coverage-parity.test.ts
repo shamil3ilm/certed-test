@@ -21,7 +21,6 @@ const HARNESS = 'scripts/test-rls.sh'
 // without a written reason - a new RLS-enabled table should be asserted, not exempted.
 const RLS_EXEMPT = new Set<string>([
   'audit_log',
-  'class_sessions',
   'comments',
   'consents',
   'document_counters',

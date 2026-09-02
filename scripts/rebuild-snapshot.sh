@@ -21,7 +21,8 @@ set -euo pipefail
 
 OUT="supabase/rebuild/0000_full_rebuild.sql"
 TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
+EPI="$(mktemp)"
+trap 'rm -f "$TMP" "$EPI"' EXIT
 
 if ! command -v supabase >/dev/null 2>&1; then
   echo "Error: the Supabase CLI is not on PATH. Install it, then re-run." >&2
@@ -36,6 +37,34 @@ supabase db dump --schema public -f "$TMP"
 # 0001..NNNN marker in the header so a freshness check (CI) can compare it to the
 # migration chain and flag a stale snapshot. Keep the marker's format stable.
 LATEST="$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' | sort | tail -1)"
+
+# Table privilege epilogue (R-01). A schema-only dump keeps each table's column GRANTs
+# but DROPS the migration chain's table-wide REVOKEs of Supabase's default grants (they
+# were no-ops in the migrated-only dump source). Re-emit them - see the comment block
+# below for why order and qualification are both load-bearing. This is injected BEFORE
+# the ACL section (a table-level REVOKE cascades to that table's column privileges, so it
+# MUST precede the column GRANTs or it wipes them). tests/unit/snapshot-privilege-epilogue
+# asserts presence, public. qualification, and this ordering.
+cat >"$EPI" <<'EPILOGUE'
+--
+-- Table privilege epilogue (R-01)
+-- ============================================================================
+-- The migration chain REVOKEs Supabase's table-wide default grants, then GRANTs back the
+-- specific columns each role may touch. A schema-only dump keeps the column GRANTs but
+-- drops the table-wide REVOKEs, so re-apply them HERE, BEFORE the ACL section, because:
+--   1. ORDER - a table-level REVOKE cascades to that table's COLUMN privileges, so a
+--      REVOKE after the column GRANTs wipes them (withdraw / self-service / session read
+--      break). Revoking first, then letting the ACL GRANTs below re-establish the
+--      columns, mirrors the chain (revoke in 0033, grant in 0064/0065).
+--   2. QUALIFICATION - pg_dump empties search_path, so an unqualified name errors and
+--      silently does nothing. Every name here is public.<table>.
+-- ============================================================================
+REVOKE INSERT, UPDATE ON TABLE public.submissions FROM authenticated;
+REVOKE SELECT ON TABLE public.class_sessions FROM authenticated;
+REVOKE UPDATE ON TABLE public.notifications FROM anon, authenticated;
+REVOKE UPDATE ON TABLE public.profiles FROM authenticated;
+
+EPILOGUE
 
 {
   cat <<HEADER
@@ -53,8 +82,25 @@ LATEST="$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' |
 -- ============================================================================
 
 HEADER
-  cat "$TMP"
+  # Splice the epilogue in immediately before the first ACL entry (pg_dump marks the
+  # section with "; Type: ACL;"). One-line lookahead so it lands before that block's
+  # opening "--" comment rather than inside it.
+  awk -v epifile="$EPI" '
+    BEGIN { while ((getline l < epifile) > 0) epi = epi l "\n" }
+    {
+      if (!done && $0 ~ /; Type: ACL;/) { printf "%s", epi; done = 1 }
+      if (havePrev) print prev
+      prev = $0; havePrev = 1
+    }
+    END { if (havePrev) print prev }
+  ' "$TMP"
 } >"$OUT"
+
+if ! grep -q '; Type: ACL;' "$TMP"; then
+  echo "Error: no ACL section found in the dump - the R-01 epilogue was NOT spliced in." >&2
+  echo "The rebuild snapshot would provision a DB that regains the revoked table grants." >&2
+  exit 1
+fi
 
 echo "Wrote $OUT"
 echo "Review the diff (git diff $OUT) and commit alongside the migrations it reflects."

@@ -1,10 +1,10 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0082) via
--- pg_dump of the fully-migrated schema. The numbered migrations are the single
--- source of truth; this file provisions a fresh database in one shot and is kept
--- byte-identical to applying them in order. DO NOT hand-edit - re-dump instead.
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0089) via
+-- pg_dump of the fully-migrated schema, PLUS a table-privilege epilogue (below) that a
+-- schema-only pg_dump cannot capture. The numbered migrations are the single source of
+-- truth; this provisions a fresh database in one shot. Regenerate with this script.
 --
 -- Requires the Supabase-provided `auth` schema (auth.users, auth.uid()) and the
 -- anon / authenticated / service_role roles, present on any Supabase project.
@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Rnhk8q7V5I8NyLN00FjoyS7IolOGjqMgixlFpynuCuprggK5o5ARXTaq9mNNgu6
+\restrict 8RH89u6MFjnaeQCApjKr5xgyfvbkuHo3zTOGWO3W5V4oRJejDa9HEtQ7SP42uTo
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -225,6 +225,23 @@ $$;
 
 
 --
+-- Name: default_reminder_creator(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.default_reminder_creator() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.created_by is null then
+    new.created_by := new.user_id;
+  end if;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: edit_assignment_and_reclassify(uuid, text, text, timestamp with time zone, text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -331,6 +348,41 @@ $$;
 
 
 --
+-- Name: guard_assigned_reminder_columns(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_assigned_reminder_columns() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null or public.is_active_admin() then
+    return new;
+  end if;
+  if new.created_by = new.user_id then
+    return new; -- personal reminder: owner has full control
+  end if;
+  if public.current_profile_id() = old.created_by then
+    return new; -- the creator may edit an assigned reminder freely
+  end if;
+  -- Otherwise the actor is the assignee: only a mark-done is allowed.
+  if new.title is distinct from old.title
+     or new.description is distinct from old.description
+     or new.remind_at is distinct from old.remind_at
+     or new.created_by is distinct from old.created_by
+     or new.user_id is distinct from old.user_id
+     or new.class_id is distinct from old.class_id then
+    raise exception 'assignee may only mark an assigned reminder done';
+  end if;
+  if old.is_sent and not new.is_sent then
+    raise exception 'assignee may not reopen a completed reminder';
+  end if;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: guard_profile_privileged_columns(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -402,6 +454,18 @@ CREATE FUNCTION public.is_enrolled(p_class_id uuid) RETURNS boolean
       and e.class_id = p_class_id
       and e.active
   )
+$$;
+
+
+--
+-- Name: is_http_link(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_http_link(link text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select link is null or link = '#' or link ~* '^https?://'
 $$;
 
 
@@ -1064,6 +1128,7 @@ CREATE TABLE public.assignments (
     type text DEFAULT 'assignment'::text NOT NULL,
     expects_submission boolean DEFAULT true NOT NULL,
     ends_at timestamp with time zone,
+    CONSTRAINT assignments_attachment_link_scheme CHECK (public.is_http_link(attachment_drive_link)),
     CONSTRAINT assignments_ends_after_start CHECK (((ends_at IS NULL) OR (ends_at > due_date))),
     CONSTRAINT assignments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text]))),
     CONSTRAINT assignments_type_check CHECK ((type = ANY (ARRAY['assignment'::text, 'exam'::text, 'quiz'::text, 'test'::text, 'project'::text])))
@@ -1150,7 +1215,8 @@ CREATE TABLE public.audit_log (
     action text NOT NULL,
     entity_type text NOT NULL,
     entity_id text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    metadata jsonb
 );
 
 
@@ -1424,7 +1490,8 @@ CREATE TABLE public.mentee_notes (
     student_id uuid NOT NULL,
     author_id uuid,
     body text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mentee_notes_body_length CHECK (((char_length(body) <= 2000) AND (char_length(btrim(body)) >= 1)))
 );
 
 
@@ -1563,7 +1630,8 @@ CREATE TABLE public.profiles (
     date_of_birth date,
     joined_on date,
     qualifications text,
-    bio text
+    bio text,
+    erased_at timestamp with time zone
 );
 
 
@@ -1603,7 +1671,10 @@ CREATE TABLE public.reminders (
     description text,
     remind_at timestamp with time zone NOT NULL,
     is_sent boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid NOT NULL,
+    class_id uuid,
+    completed_at timestamp with time zone
 );
 
 
@@ -1623,7 +1694,8 @@ CREATE TABLE public.resource_versions (
     file_type text,
     created_by uuid,
     note text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT resource_versions_drive_link_scheme CHECK (public.is_http_link(drive_link))
 );
 
 
@@ -1645,6 +1717,7 @@ CREATE TABLE public.resources (
     file_type text,
     download_count integer DEFAULT 0 NOT NULL,
     visibility public.document_visibility DEFAULT 'class'::public.document_visibility NOT NULL,
+    CONSTRAINT resources_drive_link_scheme CHECK (public.is_http_link(drive_link)),
     CONSTRAINT resources_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
 );
 
@@ -2536,6 +2609,20 @@ CREATE INDEX receipts_student_idx ON public.receipts USING btree (student_id);
 
 
 --
+-- Name: reminders_assignee_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reminders_assignee_pending_idx ON public.reminders USING btree (user_id, is_sent);
+
+
+--
+-- Name: reminders_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reminders_created_by_idx ON public.reminders USING btree (created_by);
+
+
+--
 -- Name: reminders_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2631,6 +2718,20 @@ CREATE TRIGGER trg_attachments_updated_at BEFORE UPDATE ON public.attachments FO
 --
 
 CREATE TRIGGER trg_capability_overrides_updated_at BEFORE UPDATE ON public.capability_overrides FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: reminders trg_default_reminder_creator; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_default_reminder_creator BEFORE INSERT ON public.reminders FOR EACH ROW EXECUTE FUNCTION public.default_reminder_creator();
+
+
+--
+-- Name: reminders trg_guard_assigned_reminder_columns; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_guard_assigned_reminder_columns BEFORE UPDATE ON public.reminders FOR EACH ROW EXECUTE FUNCTION public.guard_assigned_reminder_columns();
 
 
 --
@@ -3087,6 +3188,22 @@ ALTER TABLE ONLY public.receipts
 
 
 --
+-- Name: reminders reminders_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reminders
+    ADD CONSTRAINT reminders_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reminders reminders_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reminders
+    ADD CONSTRAINT reminders_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: reminders reminders_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3352,6 +3469,22 @@ CREATE POLICY attachments_read ON public.attachments FOR SELECT USING (((status 
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: attendance attendance_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY attendance_delete ON public.attendance FOR DELETE USING (public.is_active_admin());
+
+
+--
+-- Name: attendance attendance_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY attendance_insert ON public.attendance FOR INSERT WITH CHECK (((public.is_active_admin() OR public.teaches_class(class_id)) AND (EXISTS ( SELECT 1
+   FROM public.enrollments e
+  WHERE ((e.class_id = attendance.class_id) AND (e.student_id = attendance.student_id) AND e.active)))));
+
+
+--
 -- Name: attendance attendance_read; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3359,10 +3492,10 @@ CREATE POLICY attendance_read ON public.attendance FOR SELECT USING ((public.is_
 
 
 --
--- Name: attendance attendance_write; Type: POLICY; Schema: public; Owner: -
+-- Name: attendance attendance_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY attendance_write ON public.attendance USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK (((public.is_active_admin() OR public.teaches_class(class_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY attendance_update ON public.attendance FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK (((public.is_active_admin() OR public.teaches_class(class_id)) AND (EXISTS ( SELECT 1
    FROM public.enrollments e
   WHERE ((e.class_id = attendance.class_id) AND (e.student_id = attendance.student_id) AND e.active)))));
 
@@ -3394,6 +3527,20 @@ CREATE POLICY audit_read ON public.audit_log FOR SELECT USING (public.is_active_
 ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: calendar_events calendar_events_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY calendar_events_delete ON public.calendar_events FOR DELETE USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class_write(class_id))));
+
+
+--
+-- Name: calendar_events calendar_events_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY calendar_events_insert ON public.calendar_events FOR INSERT WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id) AND (created_by = public.current_profile_id()))));
+
+
+--
 -- Name: calendar_events calendar_events_read; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -3401,10 +3548,10 @@ CREATE POLICY calendar_events_read ON public.calendar_events FOR SELECT USING ((
 
 
 --
--- Name: calendar_events calendar_events_write; Type: POLICY; Schema: public; Owner: -
+-- Name: calendar_events calendar_events_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY calendar_events_write ON public.calendar_events USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
+CREATE POLICY calendar_events_update ON public.calendar_events FOR UPDATE USING ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))) WITH CHECK ((public.is_active_admin() OR ((class_id IS NOT NULL) AND public.teaches_class(class_id))));
 
 
 --
@@ -3420,10 +3567,27 @@ ALTER TABLE public.capability_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.class_sessions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: class_sessions class_sessions_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_sessions_delete ON public.class_sessions FOR DELETE USING (public.is_active_admin());
+
+
+--
+-- Name: class_sessions class_sessions_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY class_sessions_insert ON public.class_sessions FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
 -- Name: class_sessions class_sessions_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR public.is_enrolled(class_id)));
+CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT USING ((public.is_active_admin() OR public.teaches_class(class_id) OR (EXISTS ( SELECT 1
+   FROM (public.attendance a
+     JOIN public.profiles p ON ((p.id = a.student_id)))
+  WHERE ((a.class_id = class_sessions.class_id) AND (a.session_date = class_sessions.session_date) AND (p.auth_user_id = auth.uid()) AND (p.status = 'active'::public.user_status))))));
 
 
 --
@@ -3447,10 +3611,10 @@ CREATE POLICY class_sessions_student_feedback_update ON public.class_sessions FO
 
 
 --
--- Name: class_sessions class_sessions_write; Type: POLICY; Schema: public; Owner: -
+-- Name: class_sessions class_sessions_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY class_sessions_write ON public.class_sessions USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY class_sessions_update ON public.class_sessions FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
 
 
 --
@@ -3910,10 +4074,31 @@ CREATE POLICY receipts_read ON public.receipts FOR SELECT USING ((public.is_acti
 ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: reminders reminders_all; Type: POLICY; Schema: public; Owner: -
+-- Name: reminders reminders_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY reminders_all ON public.reminders USING (public.is_self_active(user_id));
+CREATE POLICY reminders_delete ON public.reminders FOR DELETE USING (public.is_self_active(created_by));
+
+
+--
+-- Name: reminders reminders_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reminders_insert ON public.reminders FOR INSERT WITH CHECK ((public.is_self_active(created_by) AND ((user_id = created_by) OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))));
+
+
+--
+-- Name: reminders reminders_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reminders_select ON public.reminders FOR SELECT USING ((public.is_self_active(user_id) OR public.is_self_active(created_by)));
+
+
+--
+-- Name: reminders reminders_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reminders_update ON public.reminders FOR UPDATE USING ((public.is_self_active(user_id) OR public.is_self_active(created_by))) WITH CHECK ((public.is_self_active(user_id) OR public.is_self_active(created_by)));
 
 
 --
@@ -4026,6 +4211,20 @@ CREATE POLICY tags_read ON public.tags FOR SELECT USING ((public.current_status(
 ALTER TABLE public.timetable_slots ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: timetable_slots timetable_slots_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY timetable_slots_delete ON public.timetable_slots FOR DELETE USING ((public.is_active_admin() OR public.teaches_class_write(class_id)));
+
+
+--
+-- Name: timetable_slots timetable_slots_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY timetable_slots_insert ON public.timetable_slots FOR INSERT WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+
+
+--
 -- Name: timetable_slots timetable_slots_read; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -4033,10 +4232,10 @@ CREATE POLICY timetable_slots_read ON public.timetable_slots FOR SELECT USING ((
 
 
 --
--- Name: timetable_slots timetable_slots_write; Type: POLICY; Schema: public; Owner: -
+-- Name: timetable_slots timetable_slots_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY timetable_slots_write ON public.timetable_slots USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
+CREATE POLICY timetable_slots_update ON public.timetable_slots FOR UPDATE USING ((public.is_active_admin() OR public.teaches_class(class_id))) WITH CHECK ((public.is_active_admin() OR public.teaches_class(class_id)));
 
 
 --
@@ -4072,6 +4271,13 @@ GRANT ALL ON FUNCTION public.current_status() TO authenticated;
 
 
 --
+-- Name: FUNCTION default_reminder_creator(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.default_reminder_creator() FROM PUBLIC;
+
+
+--
 -- Name: FUNCTION edit_assignment_and_reclassify(p_id uuid, p_title text, p_description text, p_due_date timestamp with time zone, p_attachment_drive_link text, p_topic text, p_max_marks numeric); Type: ACL; Schema: public; Owner: -
 --
 
@@ -4092,6 +4298,13 @@ GRANT ALL ON FUNCTION public.finance_totals(p_kind text) TO authenticated;
 --
 
 REVOKE ALL ON FUNCTION public.finance_totals_base(p_kind text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION guard_assigned_reminder_columns(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.guard_assigned_reminder_columns() FROM PUBLIC;
 
 
 --
@@ -4123,6 +4336,14 @@ GRANT ALL ON FUNCTION public.is_conversation_member(p_conversation_id uuid) TO a
 
 REVOKE ALL ON FUNCTION public.is_enrolled(p_class_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.is_enrolled(p_class_id uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION is_http_link(link text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.is_http_link(link text) TO authenticated;
+GRANT ALL ON FUNCTION public.is_http_link(link text) TO service_role;
 
 
 --
@@ -4191,6 +4412,16 @@ REVOKE ALL ON FUNCTION public.reclassify_submissions_on_due_change() FROM PUBLIC
 --
 -- Name: COLUMN submissions.is_active; Type: ACL; Schema: public; Owner: -
 --
+
+--
+-- Table privilege epilogue (R-01): the migration chain's table-level REVOKEs of Supabase's
+-- default grants, emitted BEFORE the column GRANTs so a table REVOKE never cascade-revokes them.
+--
+revoke insert on table public.submissions from authenticated;
+revoke insert, update on table public.submissions from authenticated;
+revoke select on table public.class_sessions from authenticated;
+revoke update on table public.notifications from anon, authenticated;
+revoke update on table public.profiles from authenticated;
 
 GRANT UPDATE(is_active) ON TABLE public.submissions TO authenticated;
 
@@ -4420,15 +4651,5 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Rnhk8q7V5I8NyLN00FjoyS7IolOGjqMgixlFpynuCuprggK5o5ARXTaq9mNNgu6
+\unrestrict 8RH89u6MFjnaeQCApjKr5xgyfvbkuHo3zTOGWO3W5V4oRJejDa9HEtQ7SP42uTo
 
-
--- ============================================================================
--- Table privilege epilogue (R-01): re-apply the migrations' table-level REVOKEs of
--- Supabase default grants, which a schema-only pg_dump drops. Extracted from the chain.
--- ============================================================================
-revoke insert on table submissions from authenticated;
-revoke insert, update on table submissions from authenticated;
-revoke select on table class_sessions from authenticated;
-revoke update on table notifications from anon, authenticated;
-revoke update on table profiles from authenticated;

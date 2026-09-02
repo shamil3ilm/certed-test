@@ -106,6 +106,16 @@ alter table submissions enable trigger trg_submission_status;
 insert into announcements(id,class_id,title,message,status) values
  ('f0000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','AnnC1','x','active'),
  ('f0000000-0000-4000-8000-000000000002',null,'AnnGlobal','x','active');
+-- one C1 calendar event (created by T1) to test the 0082 DELETE verb-split
+insert into calendar_events(id,title,event_date,class_id,created_by) values
+ ('ce000000-0000-4000-8000-000000000001','Evt','2999-01-01','c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010');
+-- R-05: two C1 sessions; S1 attended only the 2999 one (a reused class, prior occupant's
+-- feedback on 2998). A student must read only sessions they attended, staff read both.
+insert into class_sessions(id,class_id,session_date,student_feedback) values
+ ('c5000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','2999-01-01','attended-fb'),
+ ('c5000000-0000-4000-8000-000000000002','c0000000-0000-4000-8000-000000000001','2998-01-01','prior-occupant-fb');
+insert into attendance(class_id,student_id,session_date,status,marked_by) values
+ ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','2999-01-01','present','a0000000-0000-4000-8000-000000000010');
 -- attachments (0057): one on S1's submission (C1), one on the C1 announcement, plus
 -- a PENDING row that proves only 'active' attachments are ever readable.
 insert into attachments(id,submission_id,uploaded_by,original_filename,mime_type,file_size,storage_provider,drive_file_id,status) values
@@ -117,6 +127,10 @@ insert into attachments(id,announcement_id,uploaded_by,original_filename,mime_ty
 insert into reminders(user_id,title,remind_at,is_sent) values
  ('a0000000-0000-4000-8000-000000000030','r1',now(),false),
  ('a0000000-0000-4000-8000-000000000031','r2',now(),false);
+-- assigned reminders (0086): T1 (tutor of C1) sets a reminder ON S1 (enrolled in C1).
+insert into reminders(user_id,created_by,class_id,title,remind_at,is_sent,completed_at) values
+ ('a0000000-0000-4000-8000-000000000030','a0000000-0000-4000-8000-000000000010','c0000000-0000-4000-8000-000000000001','assigned-open',now(),false,null),
+ ('a0000000-0000-4000-8000-000000000030','a0000000-0000-4000-8000-000000000010','c0000000-0000-4000-8000-000000000001','assigned-done',now(),true,now());
 insert into notifications(profile_id,kind,title) values
  ('a0000000-0000-4000-8000-000000000030','grade','n1'),
  ('a0000000-0000-4000-8000-000000000031','grade','n2');
@@ -173,6 +187,27 @@ check_write() {
   if [ "$got" = "$expect" ]; then pass=$((pass+1));
   else fail=$((fail+1)); echo "  FAIL $label : expected $expect, got $got ${out:+- $out}"; fi
 }
+# check_guard LABEL UID SQL EXPECT(allow|block) - like check_write but "block" also
+# covers a BEFORE-trigger raising a plpgsql exception (e.g. the assigned-reminder guard),
+# which is not an RLS/permission-denied error. Rolled back, so it never mutates.
+check_guard() {
+  local label="$1" uid="$2" sql="$3" expect="$4" out got
+  out=$(psql -h $HOST -U $USER -d "$DB" -tAqc \
+    "set role authenticated; set request.jwt.claims='{\"sub\":\"$uid\"}'; begin; $sql; rollback;" 2>&1)
+  if echo "$out" | grep -qiE "row-level security|permission denied|assignee may|violates"; then got=block; else got=allow; fi
+  if [ "$got" = "$expect" ]; then pass=$((pass+1));
+  else fail=$((fail+1)); echo "  FAIL $label : expected $expect, got $got ${out:+- $out}"; fi
+}
+# check_rows LABEL UID SQL WANT - runs a statement in a ROLLED-BACK tx and asserts the
+# scalar it returns (used to count rows a filtered DELETE/UPDATE actually affects, since
+# RLS silently filters them to 0 with no error).
+check_rows() {
+  local label="$1" uid="$2" sql="$3" want="$4" got
+  got=$(psql -h $HOST -U $USER -d "$DB" -tAqc \
+    "set role authenticated; set request.jwt.claims='{\"sub\":\"$uid\"}'; begin; $sql; rollback;" 2>/dev/null | tr -d '[:space:]')
+  if [ "$got" = "$want" ]; then pass=$((pass+1));
+  else fail=$((fail+1)); echo "  FAIL $label : expected $want, got ${got:-<none>}"; fi
+}
 A=a0000000-0000-4000-8000-000000000001   # admin
 T1=a0000000-0000-4000-8000-000000000010; T2=a0000000-0000-4000-8000-000000000011
 M=a0000000-0000-4000-8000-000000000020
@@ -182,8 +217,29 @@ C2=c0000000-0000-4000-8000-000000000002   # class C2: tutor T2, enrolled S3 - M 
 
 echo "== running RLS assertions =="
 # reminders: self only
-check "reminders: S1 sees own"                 $S1 "select count(*) from reminders" 1
+check "reminders: S1 sees own personal"        $S1 "select count(*) from reminders where title='r1'" 1
 check "reminders: S1 cannot see S2's"          $S1 "select count(*) from reminders where title='r2'" 0
+# assigned reminders (0086): T1 assigns ON S1 in class C1
+# visibility: assignee + creator + the class mentor see it; an unrelated student/tutor does not
+check "assigned: S1 (assignee) sees open"      $S1 "select count(*) from reminders where title='assigned-open'" 1
+check "assigned: T1 (creator) sees open"       $T1 "select count(*) from reminders where title='assigned-open'" 1
+# only the creator + assignee see an assigned reminder - a mentor does NOT see another
+# creator's (the tutor's) reminder to a shared mentee (each creator manages their own)
+check "assigned: M (not creator) can't see"    $M  "select count(*) from reminders where title='assigned-open'" 0
+check "assigned: S2 cannot see it"             $S2 "select count(*) from reminders where title='assigned-open'" 0
+check "assigned: T2 cannot see it"             $T2 "select count(*) from reminders where title='assigned-open'" 0
+# assignee (student) may ONLY mark done - not edit, not reopen, not delete
+check_write "assigned: S1 marks open done"     $S1 "update reminders set is_sent=true,completed_at=now() where title='assigned-open'" allow
+check_guard "assigned: S1 cannot edit title"   $S1 "update reminders set title='hacked' where title='assigned-open'" block
+check_guard "assigned: S1 cannot edit deadline" $S1 "update reminders set remind_at=now()+interval '1 day' where title='assigned-open'" block
+check_guard "assigned: S1 cannot reopen done"  $S1 "update reminders set is_sent=false where title='assigned-done'" block
+check_rows "assigned: S1 delete affects 0"     $S1 "with d as (delete from reminders where title='assigned-open' returning 1) select count(*) from d" 0
+# creator (tutor) keeps full control
+check_write "assigned: T1 edits it"            $T1 "update reminders set title='edited' where title='assigned-open'" allow
+check_rows "assigned: T1 delete affects 1"     $T1 "with d as (delete from reminders where title='assigned-open' returning 1) select count(*) from d" 1
+# insert authority: a tutor may assign into a class they teach, not one they don't
+check_write "assigned: T1 assigns into C1"     $T1 "insert into reminders(user_id,created_by,class_id,title,remind_at) values('$S1','$T1','$C1','x',now())" allow
+check_write "assigned: T2 cannot assign to S1" $T2 "insert into reminders(user_id,created_by,class_id,title,remind_at) values('$S1','$T2','$C1','x',now())" block
 # notifications: self only
 check "notifications: S1 sees own"             $S1 "select count(*) from notifications" 1
 check "notifications: S2 cannot see S1's"      $S2 "select count(*) from notifications where title='n1'" 0
@@ -281,6 +337,18 @@ check_write "0082: mentor CANNOT create an event for a non-mentee class" $M \
   "insert into calendar_events(title,event_date,class_id,created_by) values ('x','2999-01-01','$C2','$M')" block
 check_write "0082: mentor CANNOT create a GLOBAL calendar event" $M \
   "insert into calendar_events(title,event_date,class_id,created_by) values ('g','2999-01-01',null,'$M')" block
+# 0082 verb-split: a mentor may INSERT/UPDATE but must NOT DELETE (destroy the tutor's calendar).
+# RLS filters DELETE rows via USING, so a blocked delete affects 0 rows (no error). Mentor runs
+# first (deletes nothing), so the row survives for the tutor's delete.
+CE=ce000000-0000-4000-8000-000000000001
+check "0082: mentor DELETE of a calendar event affects 0 rows" $M \
+  "with d as (delete from calendar_events where id='$CE' returning 1) select count(*) from d" 0
+check "0082: tutor DELETE of their class's event affects 1 row" $T1 \
+  "with d as (delete from calendar_events where id='$CE' returning 1) select count(*) from d" 1
+# R-05: a student reads only class_sessions they ATTENDED (not a prior occupant's), staff read all.
+check "R-05: S1 reads a session they attended"             $S1 "select count(*) from class_sessions where session_date='2999-01-01'" 1
+check "R-05: S1 CANNOT read a C1 session they did not attend" $S1 "select count(*) from class_sessions where session_date='2998-01-01'" 0
+check "R-05: tutor reads both C1 sessions"                 $T1 "select count(*) from class_sessions where class_id='$C1'" 2
 # mentee_notes has no write policy: even the student's mentor cannot INSERT via the API
 # (notes are written service-role only, gated in-app by canMentor).
 check_write "mentee_notes: mentor CANNOT insert via API (service-role only)" $M \
