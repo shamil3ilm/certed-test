@@ -125,16 +125,21 @@ export async function selectProfileIdByAuthUserId(authUserId: string): Promise<s
   return (data as { id: string } | null)?.id ?? null
 }
 
-export async function selectAllowlistRowByEmail(
-  email: string,
-): Promise<{ id: string; auth_user_id: string | null } | null> {
+export async function selectAllowlistRowByEmail(email: string): Promise<{
+  id: string
+  auth_user_id: string | null
+  status: string
+  role: string
+  date_of_birth: string | null
+  guardian_name: string | null
+} | null> {
   const admin = createAdminClient()
   const { data } = await admin
     .from('profiles')
-    .select('id, auth_user_id, status')
+    .select('id, auth_user_id, status, role, date_of_birth, guardian_name')
     .eq('email', email.trim().toLowerCase())
     .maybeSingle()
-  return (data as { id: string; auth_user_id: string | null }) ?? null
+  return (data as never) ?? null
 }
 
 /**

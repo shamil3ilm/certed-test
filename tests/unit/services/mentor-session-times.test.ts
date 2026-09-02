@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/permission/class', () => ({ canManageClass: vi.fn(), mentorAuthorityClassIds: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/data/classes', () => ({
   selectActiveClassIds: vi.fn(),
   selectActiveClassIdsAmong: vi.fn(),

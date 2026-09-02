@@ -2,6 +2,8 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { mentorAuthorityClassIds, canManageClass } from '@/lib/permission/class'
+import { assertClassActive } from '@/lib/permission'
+import { isCalendarDate } from '@/lib/time/format'
 import { selectActiveClassIds, selectActiveClassIdsAmong, selectClassesByIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
@@ -188,6 +190,12 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
   if (!(await canManageClass(actor, input.classId))) {
     throw new PermissionError('You are not allowed to edit this session.')
   }
+  // Sibling guards the record-session form already applies (W-08): a valid date, and no
+  // rewriting the hours of an ARCHIVED class.
+  if (!isCalendarDate(input.sessionDate)) {
+    throw new ValidationError('Invalid session date.')
+  }
+  await assertClassActive(input.classId)
   const existing = await selectSessionAsService(input.classId, input.sessionDate)
   if (!existing) {
     throw new NotFoundError('No session recorded for this date yet - record the session first.')

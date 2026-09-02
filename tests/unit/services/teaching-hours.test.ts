@@ -15,7 +15,7 @@ vi.mock('@/lib/services/classes', () => ({ myClassIds: vi.fn() }))
 import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { selectSessionsForClassesInRange, type SessionHoursRow } from '@/lib/data/analytics'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
-import { selectClassesByIds, selectActiveClassIds, selectActiveClassIdsAmong } from '@/lib/data/classes'
+import { selectClassesByIds, selectActiveClassIds } from '@/lib/data/classes'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { myClassIds } from '@/lib/services/classes'
 import {
@@ -113,11 +113,12 @@ describe('getTutorPersonalHours', () => {
     vi.mocked(getInstituteTimeZone).mockResolvedValue('Asia/Kolkata')
   })
 
-  it("sums the tutor's own classes for the month", async () => {
+  it("sums only the tutor's OWN sessions - a co-teacher's are excluded (W-07)", async () => {
     vi.mocked(myClassIds).mockResolvedValue(['C1', 'C2'])
     vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([
-      row({ class_id: 'C1', actual_end: '2026-08-02T11:30:00.000Z' }), // 90
-      row({ class_id: 'C2', actual_end: '2026-08-02T10:30:00.000Z' }), // 30
+      row({ class_id: 'C1', tutor_id: 'M1', actual_end: '2026-08-02T11:30:00.000Z' }), // 90 - mine
+      row({ class_id: 'C2', tutor_id: 'M1', actual_end: '2026-08-02T10:30:00.000Z' }), // 30 - mine
+      row({ class_id: 'C1', tutor_id: 'OTHER', actual_end: '2026-08-02T12:00:00.000Z' }), // co-teacher - excluded
     ])
     const result = await getTutorPersonalHours(actor, '2026-08')
     expect(result).toEqual({ month: '2026-08', minutes: 120, sessionCount: 2 })

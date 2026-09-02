@@ -5,6 +5,7 @@ import type { RegisterInput } from '@/lib/validation/user'
 import { bindAuthUserToProfile, selectRegistrationFields, type RegistrationFieldsRow } from '@/lib/data/profiles'
 import { createAuthUser, deleteAuthUser } from '@/lib/data/auth-accounts'
 import { recordConsentAcceptance } from '@/lib/services/consents'
+import { requiresGuardianConsent } from '@/lib/auth/minor'
 
 /** Unauthenticated bootstrap: an allowlisted profile claiming its login. */
 
@@ -15,30 +16,6 @@ export type RegistrationTarget = RegistrationFieldsRow
  *  it keeps its own shape rather than taking an actor. */
 async function getRegistrationTarget(email: string): Promise<RegistrationTarget | null> {
   return selectRegistrationFields(email)
-}
-
-/** Whole years between `dob` and now (UTC), for the minor check. */
-function ageYears(dob: string): number {
-  const d = new Date(dob)
-  const now = new Date()
-  let age = now.getUTCFullYear() - d.getUTCFullYear()
-  const monthDelta = now.getUTCMonth() - d.getUTCMonth()
-  if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < d.getUTCDate())) age -= 1
-  return age
-}
-
-/**
- * Whether this profile requires a parent/guardian's consent to register (N-01). The academy
- * is KG-12, so a guardian recorded by the admin is the reliable "this is a minor" signal;
- * date_of_birth (under 18) is a fallback. Non-students never require it. With neither signal
- * present we cannot assert minority, so we do not block - the guardian_name the academy sets
- * for real minors is the operative gate.
- */
-function requiresGuardianConsent(target: RegistrationTarget): boolean {
-  if (target.role !== 'student') return false
-  if (target.guardian_name) return true
-  if (target.date_of_birth) return ageYears(target.date_of_birth) < 18
-  return false
 }
 
 /** Binds a freshly-created auth user to the profile and consumes the setup code.

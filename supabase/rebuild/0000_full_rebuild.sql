@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Cert-Ed Academia - full schema rebuild
 -- ============================================================================
--- GENERATED from the numbered migrations (supabase/migrations/0001..0089) via
+-- GENERATED from the numbered migrations (supabase/migrations/0001..0090) via
 -- pg_dump of the fully-migrated schema, PLUS a table-privilege epilogue (below) that a
 -- schema-only pg_dump cannot capture. The numbered migrations are the single source of
 -- truth; this provisions a fresh database in one shot. Regenerate with this script.
@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 8RH89u6MFjnaeQCApjKr5xgyfvbkuHo3zTOGWO3W5V4oRJejDa9HEtQ7SP42uTo
+\restrict gbix9s9QzB20xHD0pyq9JFgkp0iwL1nsD691d9asNY20r97qd7EtP1TS36Wdlqf
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -359,19 +359,25 @@ begin
   if auth.uid() is null or public.is_active_admin() then
     return new;
   end if;
-  if new.created_by = new.user_id then
-    return new; -- personal reminder: owner has full control
-  end if;
-  if public.current_profile_id() = old.created_by then
-    return new; -- the creator may edit an assigned reminder freely
-  end if;
-  -- Otherwise the actor is the assignee: only a mark-done is allowed.
-  if new.title is distinct from old.title
-     or new.description is distinct from old.description
-     or new.remind_at is distinct from old.remind_at
-     or new.created_by is distinct from old.created_by
+  -- Identity columns are immutable on ANY non-admin update - checked FIRST so an assignee
+  -- can't set new.created_by = new.user_id to slip past the personal-reminder shortcut.
+  if new.created_by is distinct from old.created_by
      or new.user_id is distinct from old.user_id
      or new.class_id is distinct from old.class_id then
+    raise exception 'reminder ownership is immutable';
+  end if;
+  -- Personal reminder (by the ORIGINAL row): owner has full control.
+  if old.created_by = old.user_id then
+    return new;
+  end if;
+  -- The creator of an assigned reminder may edit it freely.
+  if public.current_profile_id() = old.created_by then
+    return new;
+  end if;
+  -- Otherwise the actor is the assignee: only a mark-done (is_sent false->true) is allowed.
+  if new.title is distinct from old.title
+     or new.description is distinct from old.description
+     or new.remind_at is distinct from old.remind_at then
     raise exception 'assignee may only mark an assigned reminder done';
   end if;
   if old.is_sent and not new.is_sent then
@@ -1477,7 +1483,8 @@ CREATE TABLE public.meet_links (
     active boolean DEFAULT true NOT NULL,
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    scheduled_at timestamp with time zone
+    scheduled_at timestamp with time zone,
+    CONSTRAINT meet_links_url_scheme CHECK (public.is_http_link(url))
 );
 
 
@@ -1540,7 +1547,8 @@ CREATE TABLE public.notifications (
     body text,
     link text,
     read_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT notifications_link_scheme CHECK (public.is_http_link(link))
 );
 
 
@@ -3853,7 +3861,9 @@ ALTER TABLE public.mentee_notes ENABLE ROW LEVEL SECURITY;
 -- Name: mentee_notes mentee_notes_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY mentee_notes_read ON public.mentee_notes FOR SELECT USING ((public.is_active_admin() OR public.mentors_student(student_id)));
+CREATE POLICY mentee_notes_read ON public.mentee_notes FOR SELECT USING ((public.is_active_admin() OR (public.mentors_student(student_id) AND ((author_id = public.current_profile_id()) OR (created_at >= COALESCE(( SELECT min(pa.assigned_at) AS min
+   FROM public.persona_assignments pa
+  WHERE ((pa.profile_id = public.current_profile_id()) AND (pa.persona_name = 'mentor'::public.persona_name) AND (pa.scope_type = 'student'::public.persona_scope_type) AND (pa.scope_id = mentee_notes.student_id) AND (pa.status = 'active'::text))), 'infinity'::timestamp with time zone))))));
 
 
 --
@@ -4084,7 +4094,9 @@ CREATE POLICY reminders_delete ON public.reminders FOR DELETE USING (public.is_s
 -- Name: reminders reminders_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY reminders_insert ON public.reminders FOR INSERT WITH CHECK ((public.is_self_active(created_by) AND ((user_id = created_by) OR ((class_id IS NOT NULL) AND public.teaches_class(class_id)))));
+CREATE POLICY reminders_insert ON public.reminders FOR INSERT WITH CHECK ((public.is_self_active(created_by) AND ((user_id = created_by) OR ((class_id IS NOT NULL) AND public.teaches_class(class_id) AND (EXISTS ( SELECT 1
+   FROM public.enrollments e
+  WHERE ((e.student_id = reminders.user_id) AND (e.class_id = reminders.class_id) AND e.active)))))));
 
 
 --
@@ -4417,6 +4429,7 @@ REVOKE ALL ON FUNCTION public.reclassify_submissions_on_due_change() FROM PUBLIC
 -- Table privilege epilogue (R-01): the migration chain's table-level REVOKEs of Supabase's
 -- default grants, emitted BEFORE the column GRANTs so a table REVOKE never cascade-revokes them.
 --
+revoke all on table public.reminders from authenticated;
 revoke insert on table public.submissions from authenticated;
 revoke insert, update on table public.submissions from authenticated;
 revoke select on table public.class_sessions from authenticated;
@@ -4648,8 +4661,71 @@ GRANT UPDATE(bio) ON TABLE public.profiles TO authenticated;
 
 
 --
+-- Name: TABLE reminders; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.title; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(title),UPDATE(title) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.description; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(description),UPDATE(description) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.remind_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(remind_at),UPDATE(remind_at) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.is_sent; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(is_sent),UPDATE(is_sent) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.class_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(class_id) ON TABLE public.reminders TO authenticated;
+
+
+--
+-- Name: COLUMN reminders.completed_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(completed_at) ON TABLE public.reminders TO authenticated;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 8RH89u6MFjnaeQCApjKr5xgyfvbkuHo3zTOGWO3W5V4oRJejDa9HEtQ7SP42uTo
+\unrestrict gbix9s9QzB20xHD0pyq9JFgkp0iwL1nsD691d9asNY20r97qd7EtP1TS36Wdlqf
 

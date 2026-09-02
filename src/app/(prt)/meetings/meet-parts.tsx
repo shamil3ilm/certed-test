@@ -10,6 +10,7 @@ import { useUI } from '../Providers'
 import { assertActionOk } from '../action-client'
 import { deleteMeetLinkAction, editMeetLinkAction } from './actions'
 import { isoToDatetimeLocal } from '@/lib/time/format'
+import { safeExternalHref } from '@/lib/validation/url'
 
 type Profile = { id: string; email: string; full_name: string | null; role: string }
 
@@ -187,9 +188,11 @@ export function MeetCard({
         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
           {ended ? (
             <span className="text-sm text-slate-400">This session has ended.</span>
+          ) : !safeExternalHref(link.url) ? (
+            <span className="text-sm text-slate-400">Meeting link unavailable.</span>
           ) : (
             <a
-              href={link.url}
+              href={safeExternalHref(link.url) ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-sm btn-primary inline-flex items-center gap-1.5"

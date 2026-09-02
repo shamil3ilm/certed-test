@@ -5,6 +5,7 @@ import { generateSetupCode, hashSetupCode, setupCodeExpiry } from '@/lib/auth/se
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { setAuthUserBanned, deleteAuthUser } from '@/lib/data/auth-accounts'
 import { deleteMenteeNotesForStudent } from '@/lib/data/mentee-notes'
+import { deleteGuardiansForStudent } from '@/lib/data/guardians'
 import { logError } from '@/lib/observability/log'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { loadPersonaFlags, requireAdminPersona } from '@/lib/permission/personas'
@@ -226,6 +227,9 @@ export async function eraseUser(actor: Profile, id: string): Promise<void> {
   // via status=disabled + a placeholder email, so a GoTrue hiccup must not abort the erasure),
   // then the in-place PII scrub that stamps erased_at.
   await deleteMenteeNotesForStudent(id)
+  // Guardian PII is third-party personal data about this student; the FK cascade won't fire
+  // because the profile row is kept, so remove it explicitly (W-06).
+  await deleteGuardiansForStudent(id)
   if (target.auth_user_id) {
     try {
       await deleteAuthUser(target.auth_user_id)

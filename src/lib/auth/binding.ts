@@ -1,4 +1,5 @@
 import { claimAllowlistRowOnOAuth, selectAllowlistRowByEmail, selectProfileIdByAuthUserId } from '@/lib/data/profiles'
+import { requiresGuardianConsent } from '@/lib/auth/minor'
 
 /** The outcome of a first-login bind: the resolved profile id, and whether THIS call
  *  freshly activated a pending invite (so the caller can record consent, as password
@@ -25,6 +26,12 @@ export async function bindProfileOnFirstLogin(authUserId: string, email: string)
   // Already claimed: accept it only if this same user holds it (idempotent re-login); another
   // user's row is never re-pointed.
   if (row.auth_user_id) return row.auth_user_id === authUserId ? { profileId: row.id, activated: false } : null
+
+  // A MINOR must not be activated via OAuth: Google sign-in captures no guardian consent, so
+  // activating here would set up a minor's account with guardian_consent=false, bypassing the
+  // password path's attestation (round-5 HIGH). Leave the invite pending so they register the
+  // password way, where the guardian attestation is collected.
+  if (requiresGuardianConsent(row)) return null
 
   // Unbound: claim AND activate the pending invite. Null if it wasn't pending (a revoked
   // invite is never OAuth-claimable) or a concurrent login won the race.

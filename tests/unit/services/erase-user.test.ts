@@ -12,12 +12,14 @@ vi.mock('@/lib/data/profiles', () => ({
   selectProfileRole: vi.fn(),
 }))
 vi.mock('@/lib/data/mentee-notes', () => ({ deleteMenteeNotesForStudent: vi.fn() }))
+vi.mock('@/lib/data/guardians', () => ({ deleteGuardiansForStudent: vi.fn() }))
 vi.mock('@/lib/data/auth-accounts', () => ({ deleteAuthUser: vi.fn(), setAuthUserBanned: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
 import { getProfileById } from '@/lib/services/users/directory'
 import { anonymizeProfileForErasure, selectProfileErasedAt } from '@/lib/data/profiles'
 import { deleteMenteeNotesForStudent } from '@/lib/data/mentee-notes'
+import { deleteGuardiansForStudent } from '@/lib/data/guardians'
 import { deleteAuthUser } from '@/lib/data/auth-accounts'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { eraseUser, restoreUser } from '@/lib/services/users/admin-lifecycle'
@@ -36,6 +38,7 @@ describe('eraseUser (N-04)', () => {
     vi.mocked(getProfileById).mockResolvedValue(revoked as never)
     await eraseUser(admin, 'u1')
     expect(deleteMenteeNotesForStudent).toHaveBeenCalledWith('u1')
+    expect(deleteGuardiansForStudent).toHaveBeenCalledWith('u1')
     expect(deleteAuthUser).toHaveBeenCalledWith('auth-u1')
     expect(anonymizeProfileForErasure).toHaveBeenCalledWith('u1')
     expect(auditPrivilegedAction).toHaveBeenCalledWith(admin, 'user.erase', 'profile', 'u1')

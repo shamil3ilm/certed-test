@@ -31,6 +31,16 @@ export type GuardianInsert = {
 const COLS = 'id, student_id, name, phone, email, relationship, is_primary'
 
 /** A student's guardians, primary first then oldest. */
+/** Hard-delete every guardian row for a student - used by erasure (N-04 / W-06). The
+ *  guardians FK cascades on a profile DELETE, but erasure keeps the profile row (so audit /
+ *  finance FKs survive), so that cascade never fires; this removes the guardian's PII (name,
+ *  phone, email, relationship) explicitly. */
+export async function deleteGuardiansForStudent(studentId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('guardians').delete().eq('student_id', studentId)
+  if (error) throw new Error(`data.guardians.deleteForStudent: ${error.message}`)
+}
+
 export async function selectGuardiansByStudent(studentId: string): Promise<GuardianRow[]> {
   const admin = createAdminClient()
   const { data, error } = await admin

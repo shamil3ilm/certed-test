@@ -138,7 +138,11 @@ export async function getTutorPersonalHours(actor: Profile, month: string): Prom
   const classIds = await selectActiveClassIdsAmong(await myClassIds(actor))
   if (classIds.length === 0) return { month, minutes: 0, sessionCount: 0 }
   const { startIso, endIso } = await windowFor(month)
-  const rows = await selectSessionsForClassesInRange(classIds, startIso, endIso)
-  const minutes = rows.reduce((total, r) => total + (minutesBetween(r.actual_start, r.actual_end) ?? 0), 0)
-  return { month, minutes, sessionCount: rows.length }
+  // Only sessions attributed to THIS tutor - a co-taught class must not leak a colleague's
+  // hours into your personal total (W-07), matching the module's isolation invariant.
+  const mine = (await selectSessionsForClassesInRange(classIds, startIso, endIso)).filter(
+    (r) => r.tutor_id === actor.id,
+  )
+  const minutes = mine.reduce((total, r) => total + (minutesBetween(r.actual_start, r.actual_end) ?? 0), 0)
+  return { month, minutes, sessionCount: mine.length }
 }
