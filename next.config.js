@@ -56,10 +56,38 @@ if (!mockSanctioned) {
   }
 }
 
+// FIND-10: keep the mock harness out of a real production bundle. The mock stack (its
+// JSON-DB store, seed with plaintext demo passwords, and in-memory query builder) is
+// reached ONLY through @/lib/mock/client (supabase/server.ts + admin.ts import it). In a
+// build that will NOT run the mock (no MOCK_MODE / NEXT_PUBLIC_MOCK_MODE - which the E2E
+// build also sets, so it is unaffected), alias that module to a dependency-free stub so
+// the whole subtree is excluded. isMock() is false in such a build, so it is never called.
+// A build that will run the mock stack keeps the real client: MOCK_MODE / its public
+// mirror, or the E2E build (which runs against the mock). Everything else gets the stub.
+const buildUsesMock =
+  process.env.MOCK_MODE === '1' || process.env.NEXT_PUBLIC_MOCK_MODE === '1' || isEnabling(process.env.E2E_BUILD)
+
+const MOCK_CLIENT_STUB = `${__dirname}/src/lib/mock/client-stub.ts`
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // don't advertise the framework (minor fingerprinting reduction)
+  // Let `.md`/`.mdx` files be imported as components (blog posts live in
+  // src/content/blog/*.mdx and are rendered by the (mkt)/blogs/[slug] route). Only
+  // files named page/route become routes, so content files outside app/ stay imports.
+  pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
+  // Turbopack (the default build bundler in Next 16) resolves the alias; the webpack
+  // block below covers a `--webpack` build. Both are conditional on a non-mock build.
+  turbopack: {
+    resolveAlias: buildUsesMock ? {} : { '@/lib/mock/client': './src/lib/mock/client-stub.ts' },
+  },
+  webpack: (config) => {
+    if (!buildUsesMock) {
+      config.resolve.alias['@/lib/mock/client$'] = MOCK_CLIENT_STUB
+    }
+    return config
+  },
   // Local portal QA and Playwright run through `app.localhost` while the dev
   // server itself is usually started on `localhost`; allow that explicit
   // cross-origin dev host so Next's future default block does not break local
@@ -128,4 +156,9 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Wrap with the MDX plugin so `.mdx` imports compile to React components. No remark/
+// rehype plugins are configured, so this stays CommonJS-compatible (ESM-only plugins
+// would force next.config.mjs); per-element styling lives in src/mdx-components.tsx.
+const withMDX = require('@next/mdx')()
+
+module.exports = withMDX(nextConfig)

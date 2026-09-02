@@ -1,11 +1,15 @@
 import { defineConfig, configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import mdx from '@mdx-js/rollup'
 import path from 'node:path'
 
 const workspaceRoot = process.cwd()
 
 export default defineConfig({
-  plugins: [react()],
+  // Compile `.mdx` (blog posts) so the content registry that imports them can be
+  // unit-tested and instrumented for coverage. `enforce: 'pre'` runs MDX before the
+  // React JSX transform, matching how @next/mdx feeds the app build.
+  plugins: [{ enforce: 'pre', ...mdx() }, react()],
   test: {
     environment: 'jsdom',
     setupFiles: [path.join(workspaceRoot, 'vitest.setup.ts')],

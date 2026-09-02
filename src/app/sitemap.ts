@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { BLOG_POST_SLUGS } from '@/lib/content/blog-posts'
 
 const SITE = 'https://certedacademia.com'
 
@@ -7,16 +8,9 @@ const SITE = 'https://certedacademia.com'
 export const dynamic = 'force-dynamic'
 
 /** The publicly indexable marketing pages. Portal routes are private and are
- *  excluded here and disallowed in robots.ts. */
-const PUBLIC_PATHS = [
-  '',
-  '/about',
-  '/contact',
-  '/blogs',
-  '/blogs/cbse-board-exam-preparation-tips',
-  '/blogs/cbse-icse-answer-writing-tips',
-  '/blogs/how-to-utilise-study-leave-during-exams',
-]
+ *  excluded here and disallowed in robots.ts. Per-post URLs come from the blog
+ *  registry so a new post is indexed automatically, with no list to update here. */
+const PUBLIC_PATHS = ['', '/about', '/contact', '/blogs', ...BLOG_POST_SLUGS.map((slug) => `/blogs/${slug}`)]
 
 export default function sitemap(): MetadataRoute.Sitemap {
   // A PORTAL_ONLY deploy is a private preview/test host with no public marketing
