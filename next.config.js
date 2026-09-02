@@ -159,6 +159,7 @@ const nextConfig = {
 // Wrap with the MDX plugin so `.mdx` imports compile to React components. No remark/
 // rehype plugins are configured, so this stays CommonJS-compatible (ESM-only plugins
 // would force next.config.mjs); per-element styling lives in src/mdx-components.tsx.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- next.config.js is CommonJS (module.exports + __dirname); require is the idiomatic load for @next/mdx here.
 const withMDX = require('@next/mdx')()
 
 module.exports = withMDX(nextConfig)
