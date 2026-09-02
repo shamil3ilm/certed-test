@@ -14,7 +14,7 @@ export function ExternalActionLink({
 }) {
   // Never emit an href for a non-http(s) value (javascript:, data:, ...): these are
   // stored links rendered for another user to click, so an unsafe scheme is a
-  // stored-XSS vector (A-03). Fall back to inert text when the URL isn't safe.
+  // stored-XSS vector. Fall back to inert text when the URL isn't safe.
   const safe = safeExternalHref(href)
   if (!safe) {
     return (

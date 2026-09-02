@@ -40,8 +40,12 @@ export function buildContentSecurityPolicy(nonce: string | null): string {
     'frame-src https://accounts.google.com https://content.googleapis.com https://docs.google.com https://drive.google.com',
     "object-src 'none'",
     "base-uri 'self'",
-    // NB: no `form-action` - it blocks redirect-after-POST across hosts, and the app
-    // has no cross-origin forms.
+    // Restrict where forms may POST to same-origin. form-action governs a form's
+    // SUBMISSION target, not subsequent redirects, so it does not affect
+    // redirect-after-POST (the prior comment's rationale for omitting it was wrong).
+    // The app has no cross-origin forms - every write is a same-origin server action -
+    // so this is safe and stops an injected <form> from exfiltrating to another origin.
+    "form-action 'self'",
     "frame-ancestors 'none'",
   ].join('; ')
 }

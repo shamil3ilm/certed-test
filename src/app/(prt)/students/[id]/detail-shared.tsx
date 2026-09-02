@@ -1,11 +1,16 @@
 import type { ReactNode } from 'react'
+import { safeExternalHref } from '@/lib/validation/url'
 
 export function DriveLink({ href }: { href?: string | null }) {
-  if (!href) return null
+  // Route through safeExternalHref like every other link render, so a stored
+  // non-http(s) scheme (javascript:/data:) on a legacy or resource row can never emit
+  // a clickable href. This page is staff-facing, so the reader is a tutor/admin.
+  const safe = safeExternalHref(href ?? null)
+  if (!safe) return null
 
   return (
     <a
-      href={href}
+      href={safe}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex min-h-8 items-center text-xs font-medium text-primary hover:underline"

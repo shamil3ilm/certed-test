@@ -9,6 +9,12 @@ on:
     branches: [main]
   pull_request:
 
+# Least-privilege GITHUB_TOKEN: this workflow only reads the repo to run static
+# gates, so drop the default read/write token down to read-only. A compromised
+# action step then cannot push, open PRs, or alter releases with the job token.
+permissions:
+  contents: read
+
 # A newer push to the same ref cancels the in-flight run - no point finishing CI
 # for a commit that's already been superseded.
 concurrency:
@@ -151,3 +157,10 @@ jobs:
         run: which psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
       - name: RLS policy assertions (real Postgres)
         run: bash scripts/test-rls.sh
+      # Provision a DB BOTH ways - the migration chain and the rebuild snapshot - and diff
+      # the effective table/column privileges of the API roles. This is the only gate that
+      # catches a snapshot whose privilege epilogue reads correctly but does not execute
+      # (R-01): unqualified names that error against pg_dump's empty search_path, or a
+      # table REVOKE ordered after its column GRANTs so it cascade-revokes them.
+      - name: Privilege parity (migrations vs snapshot)
+        run: bash scripts/test-privilege-parity.sh

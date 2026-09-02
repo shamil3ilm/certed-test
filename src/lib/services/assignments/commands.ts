@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageClass, assertClassActive } from '@/lib/permission'
+import { canWriteClass, assertClassActive } from '@/lib/permission'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError } from '@/lib/errors'
@@ -25,19 +25,19 @@ import {
 } from './validation'
 
 /** Creating, archiving and editing an assignment. Every write is gated on
- *  canManageClass and audited, and throttled under one per-user budget
+ *  canWriteClass and audited, and throttled under one per-user budget
  *  (throttleWrite) - the edit path is the heaviest, driving a service-role
  *  reclassify RPC, so it must be capped like create. Reads live in ./queries. */
 
 /**
- * Explicit canManageClass gate - the route this replaces relied on RLS alone
+ * Explicit canWriteClass gate - the route this replaces relied on RLS alone
  * for insert authorization; every other write path in the app double-checks
  * app-side too, so this closes that inconsistency (a hardening change, not
  * just a mechanical move).
  */
 export async function createAssignment(actor: Profile, input: CreateAssignmentInput): Promise<Assignment> {
   throttleWrite('assignment', actor.id, 'assignment')
-  if (!(await canManageClass(actor, input.class_id))) {
+  if (!(await canWriteClass(actor, input.class_id))) {
     throw new PermissionError('Not allowed to create an assignment for this class.')
   }
   await assertClassActive(input.class_id)
@@ -86,12 +86,16 @@ export async function createAssignmentFromApiInput(
   return createAssignment(actor, validateCreateAssignmentInput(input))
 }
 
-/** Resolves an assignment and proves the actor may manage its class. Authorizing
- *  against the assignment's OWN class - never a client-supplied class id. */
+/** Resolves an assignment and proves the actor may WRITE its class. Uses canWriteClass
+ *  (admin or tutor-of-class, mirroring the assignments teaches_class_write RLS) and NOT
+ *  canManageClass - a mentor's oversight, even with a manageClassContent override, must
+ *  not reach content edits. This matters because the due-date-change edit path writes via
+ *  the service role (RLS-bypassing), so this app guard is the only gate there (V-01).
+ *  Authorizing against the assignment's OWN class - never a client-supplied class id. */
 async function requireManageable(actor: Profile, id: string): Promise<Assignment> {
   const assignment = await getAssignment(id)
   if (!assignment) throw new NotFoundError('Assignment not found')
-  if (!(await canManageClass(actor, assignment.class_id))) {
+  if (!(await canWriteClass(actor, assignment.class_id))) {
     throw new PermissionError('Not authorized for this assignment')
   }
   return assignment

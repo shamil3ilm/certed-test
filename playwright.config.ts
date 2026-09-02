@@ -30,6 +30,10 @@ const MOCK_ENV = {
   // on. No real deployment sets it. Without it the mock app would boot with real
   // (unconfigured) auth and every test would fail at login.
   ALLOW_MOCK_AUTH: '1',
+  // Positively marks THIS production build as the sanctioned E2E build, so the
+  // mock-config guard (assertNoMockConfigInProduction) permits mock vars here while
+  // still failing a real self-hosted production build that carries them (V-06).
+  E2E_BUILD: '1',
   NEXT_PUBLIC_SUPABASE_URL: 'http://mock.local',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'mock-anon-key',
   SUPABASE_SECRET_KEY: 'mock-secret',

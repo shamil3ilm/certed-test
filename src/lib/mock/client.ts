@@ -14,16 +14,43 @@ function profileByUid(uid: string | null): Record<string, unknown> | null {
 }
 
 async function rpc(uid: string | null, fn: string, args: Args) {
-  // teaches_class_write (0079) is the tutor-only WRITE scope; the mock's teaches_class
-  // is already a plain class_tutors lookup (no mentor branch), so both resolve the same
-  // tutor-of-class way here.
-  if (fn === 'teaches_class' || fn === 'teaches_class_write' || fn === 'is_enrolled') {
+  if (fn === 'is_enrolled') {
     const me = profileByUid(uid)
     if (!me) return { data: false, error: null }
-    const tbl = fn === 'is_enrolled' ? table('enrollments') : table('class_tutors')
-    const idCol = fn === 'is_enrolled' ? 'student_id' : 'tutor_id'
-    const found = tbl.some((r) => r[idCol] === me.id && r.class_id === args.p_class_id)
+    const found = table('enrollments').some((r) => r.student_id === me.id && r.class_id === args.p_class_id)
     return { data: found, error: null }
+  }
+  if (fn === 'teaches_class' || fn === 'teaches_class_write') {
+    const me = profileByUid(uid)
+    if (!me) return { data: false, error: null }
+    const teaches = table('class_tutors').some((r) => r.tutor_id === me.id && r.class_id === args.p_class_id)
+    // teaches_class_write (0079) is the TUTOR-ONLY write scope.
+    if (fn === 'teaches_class_write') return { data: teaches, error: null }
+    // teaches_class (0043) is the READ scope: tutor OR mentor of a student actively enrolled
+    // in the class (mentors_class - active mentorship AND matching student-scoped persona AND
+    // enrollment). Post-0082 the two scopes genuinely diverge (calendar write went back to
+    // teaches_class), so the mock must too, or a mentor's calendar create/edit is wrongly
+    // refused (403) in mock mode while production allows it - the E2E suite runs on the mock.
+    const mentee = new Set(
+      table('mentorships')
+        .filter((m) => m.mentor_id === me.id && m.active)
+        .map((m) => m.student_id),
+    )
+    const scoped = new Set(
+      table('persona_assignments')
+        .filter(
+          (p) =>
+            p.profile_id === me.id &&
+            p.persona_name === 'mentor' &&
+            p.scope_type === 'student' &&
+            p.status === 'active',
+        )
+        .map((p) => p.scope_id),
+    )
+    const mentorsClass = table('enrollments').some(
+      (e) => e.class_id === args.p_class_id && mentee.has(e.student_id) && scoped.has(e.student_id),
+    )
+    return { data: teaches || mentorsClass, error: null }
   }
   if (fn === 'finance_totals') {
     const rows = table(args.p_kind === 'receipt' ? 'receipts' : 'payslips')

@@ -27,12 +27,16 @@ if ((process.env.NEXT_PUBLIC_MOCK_MODE ?? process.env.MOCK_MODE ?? '0') !== '1')
 // writes a plaintext JSON "DB", stores demo passwords, and authenticates off an
 // unsigned cookie - a mock var present in a production build means dev config leaked
 // into prod. isMock() also fails closed at runtime, but failing the BUILD surfaces the
-// misconfiguration in the deploy log. Scoped to Vercel's `production` environment so
-// the local E2E mock build (MOCK_MODE + ALLOW_MOCK_AUTH, no VERCEL_ENV) and Vercel
-// *preview* are unaffected. Keep this list in sync with MOCK_ONLY_ENV_VARS in
-// src/lib/mock/env.ts (assertNoMockConfigInProduction, the runtime backstop).
-if (process.env.VERCEL_ENV === 'production') {
-  const isEnabling = (v) => v != null && v !== '' && v !== '0' && String(v).toLowerCase() !== 'false'
+// misconfiguration in the deploy log. Fails CLOSED (V-06): fires in every
+// production-like build that is not positively sanctioned - local dev, a Vercel
+// *preview*, or the E2E build (E2E_BUILD=1) are the only mock-permitted contexts, so a
+// self-hosted `next start` build carrying mock vars is caught too. Keep this list and
+// the sanctioned-context logic in sync with src/lib/mock/env.ts (the runtime backstop);
+// tests/unit/mock-env-guard.test.ts asserts the list parity.
+const isEnabling = (v) => v != null && v !== '' && v !== '0' && String(v).toLowerCase() !== 'false'
+const mockSanctioned =
+  process.env.NODE_ENV !== 'production' || process.env.VERCEL_ENV === 'preview' || isEnabling(process.env.E2E_BUILD)
+if (!mockSanctioned) {
   const mockVarsPresent = [
     'MOCK_MODE',
     'NEXT_PUBLIC_MOCK_MODE',

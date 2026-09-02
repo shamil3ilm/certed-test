@@ -16,7 +16,7 @@ import {
 } from '@/lib/validation/calendar-event'
 import { parseOrThrow } from '@/lib/validation/parse'
 import { assertTimeOrder } from '@/lib/validation/time-order'
-import { canWriteCalendar, assertClassActive } from '@/lib/permission'
+import { canWriteCalendar, canWriteClass, assertClassActive } from '@/lib/permission'
 import { selectSlotById } from '@/lib/data/timetable-slots'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
@@ -163,7 +163,10 @@ export async function updateEventFromApiInput(actor: Profile, id: unknown, input
 export async function deleteEvent(actor: Profile, id: string): Promise<void> {
   const existing = await getEvent(id)
   if (!existing) throw new NotFoundError('Event not found')
-  if (!(await canWriteCalendar(actor, existing.class_id))) {
+  // DELETE is destructive, so it is tutor/admin only (canWriteClass), NOT the broader
+  // canWriteCalendar a mentor holds for create/edit - mirrors the calendar_events_delete
+  // RLS policy (teaches_class_write), so a mentor gets a clean 403 here, never a 500.
+  if (!(await canWriteClass(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this event.')
   }
   await deleteEventRow(id)

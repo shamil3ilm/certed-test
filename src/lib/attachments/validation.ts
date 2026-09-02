@@ -24,7 +24,19 @@ export const MAX_ATTACHMENT_BYTES = 26_214_400
  */
 export const MAX_ATTACHMENTS_PER_OWNER = 5
 
-/** Allowed extension -> the MIME types that legitimately carry it. */
+/**
+ * Allowed extension -> the MIME types that legitimately carry it.
+ *
+ * SECURITY: keep this allowlist free of browser-EXECUTABLE / active
+ * types - text/html, image/svg+xml, application/xhtml+xml and the like. Adding one
+ * has a second consequence beyond preview: the download route
+ * ([id]/download/route.ts) streams the attachment back with its stored mime_type
+ * and Content-Disposition: inline on `?inline=1`, so such a type would RENDER in the
+ * app's own origin (stored XSS), not merely fail to open. This closed allowlist,
+ * the magic-byte cross-check below, the global nosniff header and the portal CSP are
+ * layered defences - but the allowlist is the first, so weigh the download-route
+ * effect before extending it.
+ */
 const EXTENSION_MIME: Record<string, readonly string[]> = {
   pdf: ['application/pdf'],
   doc: ['application/msword'],

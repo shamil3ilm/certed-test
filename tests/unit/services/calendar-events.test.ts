@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canWriteCalendar: vi.fn(), assertClassActive: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canWriteCalendar: vi.fn(), canWriteClass: vi.fn(), assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
 
-import { canWriteCalendar, assertClassActive } from '@/lib/permission'
+import { canWriteCalendar, canWriteClass, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -208,7 +208,9 @@ describe('deleteEvent', () => {
 
   it('deletes and audits event.delete', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
-    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    // deleteEvent gates on canWriteClass (tutor-only), not canWriteCalendar - DELETE is
+    // destructive, so a mentor's calendar-write authority does not extend to it (Vuln 2).
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteEvent(tutor, 'evt-1')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -271,7 +273,7 @@ describe('calendar event API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...eventRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
-    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true) // delete gates on canWriteClass (tutor-only)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await deleteEventFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000')
     expect(writeAudit).toHaveBeenLastCalledWith({

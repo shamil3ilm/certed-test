@@ -24,7 +24,7 @@ describe('buildContentSecurityPolicy', () => {
       expect(csp).toContain("connect-src 'self' https://*.supabase.co")
       expect(csp).toContain("object-src 'none'")
       expect(csp).toContain("frame-ancestors 'none'")
-      expect(csp).not.toContain('form-action') // deliberately omitted
+      expect(csp).toContain("form-action 'self'") // forms may POST same-origin only (no cross-origin forms)
     }
   })
 

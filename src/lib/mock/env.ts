@@ -18,7 +18,7 @@ export function readMockModeFlag(): boolean {
  * Env vars that only ever belong in local dev or the E2E mock build. Any of them
  * reaching a real production deployment means dev config leaked into prod.
  */
-const MOCK_ONLY_ENV_VARS = [
+export const MOCK_ONLY_ENV_VARS = [
   'MOCK_MODE',
   'NEXT_PUBLIC_MOCK_MODE',
   'ALLOW_MOCK_AUTH',
@@ -33,16 +33,33 @@ function isEnablingValue(v: string | undefined): boolean {
 }
 
 /**
- * Refuse a production deployment that carries any mock-only env var. isMock() already
- * fails closed on Vercel, so the bypass would not ACTIVATE - but a mock var present in
- * production is a misconfiguration in its own right, so we fail LOUDLY (build + boot)
- * rather than tolerate it silently. Scoped to Vercel's `production` environment on
- * purpose: the local E2E build deliberately sets MOCK_MODE + ALLOW_MOCK_AUTH and has no
- * VERCEL_ENV, and Vercel *preview* is allowed to run mock. Called from next.config
- * (build time) and instrumentation.register() (runtime boot).
+ * A context where the mock stack is legitimately allowed: local dev/test (NODE_ENV is
+ * not 'production'), a Vercel PREVIEW deployment, or the E2E production build (which
+ * declares itself with E2E_BUILD=1 alongside the mock vars). Everything else that is
+ * production-like is NOT sanctioned.
+ */
+function isSanctionedMockContext(): boolean {
+  if (process.env.NODE_ENV !== 'production') return true
+  if (process.env.VERCEL_ENV === 'preview') return true
+  if (isEnablingValue(process.env.E2E_BUILD)) return true
+  return false
+}
+
+/**
+ * Refuse a production deployment that carries any mock-only env var. A mock var in
+ * production is a misconfiguration in its own right (the mock stack writes a plaintext
+ * JSON "DB", stores demo passwords, and authenticates off an unsigned cookie), so we
+ * fail LOUDLY (build + boot) rather than tolerate it silently.
+ *
+ * Fails CLOSED: the guard fires in EVERY production-like context that is not positively
+ * sanctioned (V-06). It previously keyed on VERCEL_ENV==='production' alone, so a
+ * self-hosted `next start` (NODE_ENV=production, no VERCEL_ENV) slipped through - the
+ * exact deployment where isMock() can still activate the bypass via ALLOW_MOCK_AUTH=1.
+ * Now the only production-like context that keeps mock is the E2E build (E2E_BUILD=1).
+ * Called from next.config (build time) and instrumentation.register() (runtime boot).
  */
 export function assertNoMockConfigInProduction(): void {
-  if (process.env.VERCEL_ENV !== 'production') return
+  if (isSanctionedMockContext()) return
   const present = MOCK_ONLY_ENV_VARS.filter((name) => isEnablingValue(process.env[name]))
   if (present.length > 0) {
     throw new Error(

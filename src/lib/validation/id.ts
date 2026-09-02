@@ -14,3 +14,9 @@ export function validateUuidField(raw: FormDataEntryValue | null | undefined, me
   if (!parsed.success) throw new ValidationError(message)
   return parsed.data
 }
+
+/** Non-throwing UUID check, for a boundary that returns its own error shape (e.g. a
+ *  JSON API route) rather than throwing a ValidationError. */
+export function isUuid(raw: string): boolean {
+  return uuidSchema.safeParse(raw.trim()).success
+}

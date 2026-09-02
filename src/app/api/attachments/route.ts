@@ -6,6 +6,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { uploadAttachment } from '@/lib/services/attachments/upload'
 import { driveStorageAvailable } from '@/lib/google/drive-storage'
 import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments/validation'
+import { isUuid } from '@/lib/validation/id'
 import type { AttachmentOwner, AttachmentRow } from '@/lib/data/attachments'
 import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
 import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
@@ -117,7 +118,9 @@ export async function POST(req: Request) {
   const file = form.get('file')
   const ownerKind = String(form.get('owner') ?? '')
   const ownerId = String(form.get('ownerId') ?? '')
-  if (!(file instanceof File) || !ownerId || !isOwnerKind(ownerKind)) {
+  // ownerId must be a UUID, not merely non-empty - it is looked up as a uuid
+  // column, so a non-uuid value would reach Postgres (22P02) rather than fail here.
+  if (!(file instanceof File) || !isUuid(ownerId) || !isOwnerKind(ownerKind)) {
     return invalidInput('A file and its owner are required.', 400)
   }
   // Reject an over-cap file from its declared size before buffering the bytes.
