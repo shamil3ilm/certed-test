@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 
 /**
  * A schema-only pg_dump captures explicit column GRANTs but DROPS the migrations'
- * table-wide REVOKEs of Supabase's default privileges (R-01) - they were no-ops in the
+ * table-wide REVOKEs of Supabase's default privileges - they were no-ops in the
  * dump source (a migrated-only DB that never held the defaults), so they leave no ACL.
  * On a real Supabase project the `authenticated` role DOES hold those defaults, so a
  * snapshot without the REVOKEs silently regains the table-wide INSERT/UPDATE the chain
@@ -44,7 +44,7 @@ function tablesRevokedInSnapshot(): Set<string> {
   return tables
 }
 
-describe('rebuild snapshot privilege epilogue (R-01)', () => {
+describe('rebuild snapshot privilege epilogue', () => {
   it('re-applies a table-level REVOKE for every table the chain revokes', () => {
     const inSnapshot = tablesRevokedInSnapshot()
     const missing = tablesRevokedInChain().filter((t) => !inSnapshot.has(t))

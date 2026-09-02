@@ -37,7 +37,7 @@ describe('assertNoMockConfigInProduction', () => {
     expect(() => assertNoMockConfigInProduction()).toThrow(/Mock-only env var/)
   })
 
-  it('FIRES on a self-hosted production build - NODE_ENV=production, no VERCEL_ENV, no E2E_BUILD (V-06)', () => {
+  it('FIRES on a self-hosted production build - NODE_ENV=production, no VERCEL_ENV, no E2E_BUILD', () => {
     // This is the deployment the old VERCEL_ENV-only guard let slip through, and the
     // exact one where isMock() would still activate the bypass via ALLOW_MOCK_AUTH=1.
     process.env.MOCK_MODE = '1'
@@ -84,7 +84,7 @@ describe('assertNoMockConfigInProduction', () => {
   })
 })
 
-describe('mock-var list parity (V-08)', () => {
+describe('mock-var list parity', () => {
   it("next.config.js build guard lists EXACTLY mock/env.ts's MOCK_ONLY_ENV_VARS", () => {
     // The build-time guard in next.config.js (CommonJS, cannot import the TS module)
     // hand-copies this list. Bind the two so a var added in one but not the other fails

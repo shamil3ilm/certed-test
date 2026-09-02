@@ -126,7 +126,7 @@ export async function updatePasswordClient(password: string): Promise<void> {
     throw new Error(PASSWORD_UPDATE_MESSAGE)
   }
 
-  // A-04: a reset is often done BECAUSE another session was compromised, so revoke every
+  // A reset is often done BECAUSE another session was compromised, so revoke every
   // OTHER session once the new password is set - keeping this (recovery) one. Best-effort:
   // the password is already updated, so this cleanup must never fail the reset.
   try {

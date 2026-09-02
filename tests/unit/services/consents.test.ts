@@ -17,7 +17,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => vi.clearAllMocks())
 
-describe('getConsentStatus / needsPolicyReacceptance (N-06/N-07)', () => {
+describe('getConsentStatus / needsPolicyReacceptance', () => {
   it('reports up-to-date when the latest accepted versions match the current ones', async () => {
     vi.mocked(selectLatestConsent).mockResolvedValue(row() as never)
     const status = await getConsentStatus('u1')

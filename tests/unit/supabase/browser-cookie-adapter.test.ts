@@ -2,11 +2,11 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { serializeHardenedCookie, parseCookieHeader } from '@/lib/supabase/browser-cookie-adapter'
 
 // The maxAge @supabase/ssr forces onto every browser cookie write (its
-// DEFAULT_COOKIE_OPTIONS.maxAge), which R-02 is about capping.
+// DEFAULT_COOKIE_OPTIONS.maxAge), which the adapter caps.
 const FOUR_HUNDRED_DAYS = 400 * 24 * 60 * 60
 const THIRTY_DAYS = 30 * 24 * 60 * 60
 
-describe('browser cookie adapter (R-02)', () => {
+describe('browser cookie adapter', () => {
   afterEach(() => vi.unstubAllEnvs())
 
   it('caps the 400-day maxAge the library forces back to the 30-day ceiling', () => {

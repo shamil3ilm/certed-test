@@ -90,7 +90,7 @@ export async function createAssignmentFromApiInput(
  *  (admin or tutor-of-class, mirroring the assignments teaches_class_write RLS) and NOT
  *  canManageClass - a mentor's oversight, even with a manageClassContent override, must
  *  not reach content edits. This matters because the due-date-change edit path writes via
- *  the service role (RLS-bypassing), so this app guard is the only gate there (V-01).
+ *  the service role (RLS-bypassing), so this app guard is the only gate there.
  *  Authorizing against the assignment's OWN class - never a client-supplied class id. */
 async function requireManageable(actor: Profile, id: string): Promise<Assignment> {
   const assignment = await getAssignment(id)

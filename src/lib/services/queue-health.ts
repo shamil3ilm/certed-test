@@ -25,7 +25,7 @@ const ATTACH_FAILED_ALARM = 20 // failed custodial uploads piling up
 // migrations applied?" unknown into an observable, alarmed signal. Exported so
 // tests/unit/rls-required-parity.test.ts can bind it to the live schema - every
 // RLS-enabled table must be either monitored here or explicitly exempted, so the list
-// can't silently drift out of date as new tables are added (V-07).
+// can't silently drift out of date as new tables are added.
 export const RLS_REQUIRED_TABLES = [
   'attachments',
   'class_sessions',

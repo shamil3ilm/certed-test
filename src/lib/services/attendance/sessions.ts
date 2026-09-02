@@ -162,6 +162,12 @@ export type SaveFeedbackActionInput = {
  * actor being the class's enrolled student (staff use the summary field instead),
  * then written to that session's row - creating it if the tutor hasn't recorded
  * times yet.
+ *
+ * student_feedback is a single column on the session, not keyed per student. That is
+ * safe because a class has exactly ONE active student (enforced by
+ * enrollments_one_active_student_per_class), so the session's feedback IS that student's.
+ * If multi-student classes are ever introduced, this must move to a per-(session, student)
+ * table before feedback can be attributed or isolated per student.
  */
 export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackActionInput): Promise<void> {
   const classId = String(input.classId ?? '')

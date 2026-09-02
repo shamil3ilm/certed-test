@@ -25,7 +25,7 @@ describe('bindProfileOnFirstLogin', () => {
     expect(claimAllowlistRowOnOAuth).not.toHaveBeenCalled()
   })
 
-  it('claims AND activates an unbound pending invite, returning activated:true (B-10)', async () => {
+  it('claims AND activates an unbound pending invite, returning activated:true', async () => {
     vi.mocked(selectProfileIdByAuthUserId).mockResolvedValueOnce(null)
     vi.mocked(selectAllowlistRowByEmail).mockResolvedValueOnce({ id: 'p2', auth_user_id: null, role: 'tutor' } as never)
     vi.mocked(claimAllowlistRowOnOAuth).mockResolvedValueOnce('p2')

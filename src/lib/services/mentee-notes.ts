@@ -20,7 +20,7 @@ export async function listMenteeNotes(actor: Profile, studentId: string): Promis
   if (!(await canMentor(actor, studentId))) throw new PermissionError('Not allowed to view these notes.')
   const notes = await selectMenteeNotesByStudent(studentId)
 
-  // Data minimisation (N-03): a mentor sees pastoral notes only from THEIR OWN mentorship
+  // Data minimisation: a mentor sees pastoral notes only from THEIR OWN mentorship
   // onward, plus any they authored - not a previous mentor's private observations. An admin
   // (oversight) sees the full history. Enforced here because the read is service-role gated by
   // this service, so this IS the operative boundary. Fail-closed: a non-admin with no resolved

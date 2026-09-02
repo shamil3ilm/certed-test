@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs'
  * Every table that enables row-level security in the migration chain must be exercised
  * by scripts/test-rls.sh - named in at least one seed row or assertion. This does NOT
  * prove the assertions are GOOD, only that a policy can't ship with ZERO coverage,
- * which was NEW-32's failure mode (the `guardians` PII policy shipped unasserted).
+ * which is the failure mode (the `guardians` PII policy shipped unasserted).
  *
  * Mirrors mock-schema-parity.test.ts: it turns "keep the RLS harness in step with the
  * policies" from a habit into a gate that runs in the existing `verify` job - the same

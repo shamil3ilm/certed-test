@@ -66,7 +66,7 @@ function hasAnyPersona(personas: PersonaAssignment[], name: PersonaName): boolea
  *
  * Pinning the exact scope_type - rather than merely "not global" - keeps this app-layer
  * check in lockstep with the DB's mentors_student policy, which pins scope_type='student'
- * (N-10). The looser "!= global" test would have accepted a hypothetical 'class'-scoped
+ *. The looser "!= global" test would have accepted a hypothetical 'class'-scoped
  * mentor persona; no writer produces one today, but the app check is the operative gate for
  * pastoral notes, so it must be the tighter of the two.
  */
@@ -90,7 +90,7 @@ export function hasScopedPersona(
  * Whether the profile effectively holds manageClasses, honouring admin OVERRIDES -
  * not the persona baseline alone. A deny override on manageClasses must actually strip
  * the academy-wide class authority, not merely grey out the UI while operations keep
- * working (A-09). For the current actor the resolved set is already computed once per
+ * working. For the current actor the resolved set is already computed once per
  * request by getActorContext (no extra query); loadPersonaFlags is otherwise always
  * called for the actor, so the baseline fallback (which cannot see another profile's
  * overrides) is a safety net, not a real path.
@@ -117,7 +117,7 @@ export async function loadPersonaFlags(profileId: string) {
     isManager: isAdmin || isTutor,
     /** Holds academy-wide class authority (manageClasses): an admin or sub_admin - but
      *  RESOLVED against admin overrides, so an explicit deny removes it here exactly as
-     *  it does in canManageClass and the nav (A-09). The class-scope equivalent of isAdmin. */
+     *  it does in canManageClass and the nav. The class-scope equivalent of isAdmin. */
     isClassAdmin: await resolvedHasManageClasses(profileId, personas),
     isStudent: hasPersona(personas, 'student'),
     /** IDENTITY: holds the GLOBAL mentor persona (a dedicated mentor account). A

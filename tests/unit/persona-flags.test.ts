@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Exercises the REAL loadPersonaFlags (not the re-mocked one in permission.test.ts) to
-// lock in A-09: isClassAdmin must honour an admin deny override, not the persona baseline.
+// lock in that isClassAdmin honours an admin deny override, not the persona baseline.
 vi.mock('@/lib/session/actor-context', () => ({ getActorContext: vi.fn() }))
 vi.mock('@/lib/data/personas', () => ({ selectActivePersonaAssignments: vi.fn() }))
 
@@ -26,7 +26,7 @@ function actorCtx(id: string, allowed: string[]) {
 
 beforeEach(() => vi.clearAllMocks())
 
-describe('loadPersonaFlags.isClassAdmin (A-09: override-aware)', () => {
+describe('loadPersonaFlags.isClassAdmin (override-aware)', () => {
   it('is true for a sub_admin whose manageClasses is intact', async () => {
     vi.mocked(getActorContext).mockResolvedValue(actorCtx('u1', ['manageClasses', 'viewClasses']) as never)
     const flags = await loadPersonaFlags('u1')

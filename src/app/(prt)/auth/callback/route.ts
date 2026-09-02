@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { data } = await supabase.auth.exchangeCodeForSession(code)
     // Bind the auth user to their pre-created allowlist profile on first login. A pending
-    // invite is also ACTIVATED here (B-10), so an OAuth first login is complete registration.
+    // invite is also ACTIVATED here, so an OAuth first login is complete registration.
     if (data.user?.email) {
       const bound = await bindProfileOnFirstLogin(data.user.id, data.user.email)
       if (bound?.activated) {

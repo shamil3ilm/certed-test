@@ -24,7 +24,7 @@ export async function insertMenteeNote(studentId: string, authorId: string, body
   if (error) throw new Error(`menteeNotes.insert: ${error.message}`)
 }
 
-/** Hard-delete every pastoral note ABOUT a student - used by the erasure right (N-04), which
+/** Hard-delete every pastoral note ABOUT a student - used by the erasure right, which
  *  removes personal data held about the erased person. Notes they AUTHORED about OTHERS stay
  *  (author_id is ON DELETE SET NULL at the row level), so other students' records are intact. */
 export async function deleteMenteeNotesForStudent(studentId: string): Promise<void> {

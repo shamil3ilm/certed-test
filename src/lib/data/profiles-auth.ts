@@ -9,7 +9,7 @@ export type RegistrationFieldsRow = {
   status: string
   setup_code_hash: string | null
   setup_code_expires_at: string | null
-  /** Minor-status signals for the guardian-consent gate (N-01): a student with a guardian on
+  /** Minor-status signals for the guardian-consent gate: a student with a guardian on
    *  record, or a date_of_birth under 18, requires a parent/guardian's consent to register. */
   role: string
   date_of_birth: string | null
@@ -70,7 +70,7 @@ export async function bindMockAuthUserId(profileId: string, authUserId: string):
 }
 
 /** The erasure marker for a profile: the instant it was anonymised, or null if not erased.
- *  Used to refuse restoring an erased account (N-04). */
+ *  Used to refuse restoring an erased account. */
 export async function selectProfileErasedAt(id: string): Promise<string | null> {
   const admin = createAdminClient()
   const { data } = await admin.from('profiles').select('erased_at').eq('id', id).maybeSingle()
@@ -78,7 +78,7 @@ export async function selectProfileErasedAt(id: string): Promise<string | null> 
 }
 
 /**
- * Anonymise a profile IN PLACE for the erasure right (N-04): scrub every PII field, unbind the
+ * Anonymise a profile IN PLACE for the erasure right: scrub every PII field, unbind the
  * (now-deleted) auth login, and stamp erased_at. The row itself is kept so audit-log and
  * finance references stay intact - those are retained on their own lawful basis, not erased
  * here. email is NOT NULL, so it becomes a unique per-id placeholder rather than null.
@@ -148,7 +148,7 @@ export async function selectAllowlistRowByEmail(email: string): Promise<{
  * end state password registration produces (bindAuthUserToProfile). Google has verified the
  * email, so this is a valid claim of the invite. Without the activation an OAuth first login
  * left the account bound-but-`pending`: locked out AND unable to finish password
- * registration (auth_user_id was set), bricking the setup code (B-10).
+ * registration (auth_user_id was set), bricking the setup code.
  *
  * The `status='pending'` + `auth_user_id is null` guard means a revoked (disabled) invite is
  * never re-activated by signing in with Google, and a concurrent claim that already bound

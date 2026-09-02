@@ -64,7 +64,7 @@ describe('loadCalendarPageData', () => {
     vi.mocked(listClasses).mockResolvedValueOnce([{ id: 'c1', name: 'Math', status: 'active' }] as any)
     vi.mocked(listActiveTeacherCandidates).mockResolvedValueOnce([{ id: 't1', name: 'Maya Mentor' }] as any)
 
-    // A-09: academy-wide class authority is read from the RESOLVED capability set now
+    // Academy-wide class authority is read from the RESOLVED capability set now
     // (manageClasses), not flags.isClassAdmin, so a deny override is honoured.
     await expect(
       loadCalendarPageData({ id: 'sub-1', role: 'sub_admin' } as any, caps('manageCalendar', 'manageClasses')),

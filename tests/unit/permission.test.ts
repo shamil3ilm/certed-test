@@ -75,7 +75,7 @@ describe('permission/class', () => {
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
-  it('canManageClass: a manageClasses DENY override revokes a sub_admin academy-wide (A-09)', async () => {
+  it('canManageClass: a manageClasses DENY override revokes a sub_admin academy-wide', async () => {
     const subAdmin = {
       profile_id: 'sub-1',
       persona_name: 'sub_admin',

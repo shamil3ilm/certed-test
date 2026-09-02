@@ -94,7 +94,7 @@ describe('middleware auth gate', () => {
     })
   })
 
-  it('carries the refreshed session cookies + CSP header across a redirect (NEW-24)', async () => {
+  it('carries the refreshed session cookies + CSP header across a redirect', async () => {
     // updateSession rotates the Supabase token and writes it onto the response; a
     // redirect that discarded it would leave the browser holding the old token and
     // log the user out on the next request.

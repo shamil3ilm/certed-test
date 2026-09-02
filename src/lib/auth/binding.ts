@@ -12,7 +12,7 @@ export type FirstLoginBinding = { profileId: string; activated: boolean }
  *
  * A still-`pending` allowlist row is not only bound but ACTIVATED here (Google verified the
  * email), so an OAuth first login lands an ACTIVE account rather than a bound-but-pending one
- * whose setup code is now unusable (B-10). Returns null if the email isn't allowlisted, the
+ * whose setup code is now unusable. Returns null if the email isn't allowlisted, the
  * matching row is bound to a different user, or the (non-pending) row can't be claimed via
  * OAuth. Table access is in src/lib/data/profiles; the rules about WHICH row may be claimed
  * are here.

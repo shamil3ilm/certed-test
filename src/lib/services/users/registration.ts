@@ -41,7 +41,7 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
   if (!target || target.status !== 'pending' || target.auth_user_id) return invalid
   if (!setupCodeValid(input.code, target.setup_code_hash, target.setup_code_expires_at)) return invalid
 
-  // Guardian consent (N-01): a minor may only set up their account with a parent/guardian's
+  // Guardian consent: a minor may only set up their account with a parent/guardian's
   // attested consent. Checked BEFORE creating the auth account so a refusal leaves no orphan.
   // A distinct (non-uniform) message: this is a genuine "what to do next", not a probe vector -
   // it only fires once the email + code have already validated.

@@ -21,7 +21,7 @@ const asMentor = () => vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: 
 beforeEach(() => vi.resetAllMocks())
 
 describe('mentee notes (pastoral)', () => {
-  it('admin sees the full history and the view is audited (N-05)', async () => {
+  it('admin sees the full history and the view is audited', async () => {
     vi.mocked(canMentor).mockResolvedValue(true)
     asAdmin()
     vi.mocked(selectMenteeNotesByStudent).mockResolvedValue([
@@ -40,7 +40,7 @@ describe('mentee notes (pastoral)', () => {
     expect(auditPrivilegedAction).not.toHaveBeenCalled()
   })
 
-  it('minimises a mentor to their own tenure + their own notes (N-03)', async () => {
+  it('minimises a mentor to their own tenure + their own notes', async () => {
     vi.mocked(canMentor).mockResolvedValue(true)
     asMentor()
     vi.mocked(selectMentorAssignedAt).mockResolvedValue('2026-06-01T00:00:00.000Z')
@@ -82,7 +82,7 @@ describe('mentee notes (pastoral)', () => {
     expect(insertMenteeNote).not.toHaveBeenCalled()
   })
 
-  it('refuses to add for a non-mentor, and audits the denied attempt (N-12)', async () => {
+  it('refuses to add for a non-mentor, and audits the denied attempt', async () => {
     vi.mocked(canMentor).mockResolvedValue(false)
     await expect(addMenteeNote(actor, 's1', 'x')).rejects.toBeInstanceOf(PermissionError)
     expect(insertMenteeNote).not.toHaveBeenCalled()

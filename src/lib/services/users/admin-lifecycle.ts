@@ -171,7 +171,7 @@ export async function revokeUserFromActionInput(actor: Profile, input: UserIdAct
 
 export async function restoreUser(actor: Profile, id: string): Promise<void> {
   await requireManageableTarget(actor, id)
-  // An erased account cannot be restored - its login and PII are gone (N-04), so restoring
+  // An erased account cannot be restored - its login and PII are gone, so restoring
   // would resurrect a nameless, un-loginable "active" user. Erasure is deliberately terminal.
   if (await selectProfileErasedAt(id)) {
     throw new ValidationError('This account was erased and cannot be restored.')
@@ -205,7 +205,7 @@ export async function restoreUserFromActionInput(actor: Profile, input: UserIdAc
 }
 
 /**
- * Erasure right (N-04): permanently anonymise a REVOKED account. Deletes the auth login and
+ * Erasure right: permanently anonymise a REVOKED account. Deletes the auth login and
  * every pastoral note ABOUT the person, then scrubs their PII in the profile row (keeping the
  * row so audit-log and finance references, retained on their own lawful basis, stay intact) and
  * stamps erased_at. Terminal - restore refuses an erased account.
@@ -228,7 +228,7 @@ export async function eraseUser(actor: Profile, id: string): Promise<void> {
   // then the in-place PII scrub that stamps erased_at.
   await deleteMenteeNotesForStudent(id)
   // Guardian PII is third-party personal data about this student; the FK cascade won't fire
-  // because the profile row is kept, so remove it explicitly (W-06).
+  // because the profile row is kept, so remove it explicitly.
   await deleteGuardiansForStudent(id)
   if (target.auth_user_id) {
     try {

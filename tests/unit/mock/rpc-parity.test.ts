@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 /**
- * Generalized mock-parity guard (NEW-35-H2): the E2E suite runs against MOCK mode, so every
+ * Generalized mock-parity guard: the E2E suite runs against MOCK mode, so every
  * Postgres function the app invokes via `.rpc('fn')` must have a mock implementation - or that
  * code path silently misbehaves (or errors) in every E2E, and the specs neither confirm nor
  * refute real behaviour. teaches-class-rpc.test.ts locks the SEMANTICS of one pair; this test
@@ -54,7 +54,7 @@ function collectRpcCalls(): { literal: Set<string>; dynamicFiles: Set<string> } 
 
 const { literal, dynamicFiles } = collectRpcCalls()
 
-describe('mock RPC parity: every app .rpc() has a mock (NEW-35-H2)', () => {
+describe('mock RPC parity: every app .rpc() has a mock', () => {
   it('found the app RPC call sites at all (guards a broken scan)', () => {
     // Sanity: known literal RPCs must be present, or the regex silently matched nothing.
     expect(literal.has('teaches_class')).toBe(true)

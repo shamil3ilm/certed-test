@@ -9,7 +9,7 @@ function ageYears(dob: string): number {
 }
 
 /**
- * Whether an account requires a parent/guardian's consent to be set up (N-01). Shared by the
+ * Whether an account requires a parent/guardian's consent to be set up. Shared by the
  * password-registration path AND the OAuth first-login activation, so one rule covers both
  * (an earlier version lived only in registration.ts, letting a minor activate via Google with
  * no consent - round-5 HIGH).

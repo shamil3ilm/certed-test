@@ -113,7 +113,7 @@ describe('getTutorPersonalHours', () => {
     vi.mocked(getInstituteTimeZone).mockResolvedValue('Asia/Kolkata')
   })
 
-  it("sums only the tutor's OWN sessions - a co-teacher's are excluded (W-07)", async () => {
+  it("sums only the tutor's OWN sessions - a co-teacher's are excluded", async () => {
     vi.mocked(myClassIds).mockResolvedValue(['C1', 'C2'])
     vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([
       row({ class_id: 'C1', tutor_id: 'M1', actual_end: '2026-08-02T11:30:00.000Z' }), // 90 - mine

@@ -190,7 +190,7 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
   if (!(await canManageClass(actor, input.classId))) {
     throw new PermissionError('You are not allowed to edit this session.')
   }
-  // Sibling guards the record-session form already applies (W-08): a valid date, and no
+  // Sibling guards the record-session form already applies: a valid date, and no
   // rewriting the hours of an ARCHIVED class.
   if (!isCalendarDate(input.sessionDate)) {
     throw new ValidationError('Invalid session date.')

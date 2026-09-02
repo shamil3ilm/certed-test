@@ -31,7 +31,7 @@ export type GuardianInsert = {
 const COLS = 'id, student_id, name, phone, email, relationship, is_primary'
 
 /** A student's guardians, primary first then oldest. */
-/** Hard-delete every guardian row for a student - used by erasure (N-04 / W-06). The
+/** Hard-delete every guardian row for a student - used by erasure. The
  *  guardians FK cascades on a profile DELETE, but erasure keeps the profile row (so audit /
  *  finance FKs survive), so that cascade never fires; this removes the guardian's PII (name,
  *  phone, email, relationship) explicitly. */

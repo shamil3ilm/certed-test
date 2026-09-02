@@ -50,7 +50,7 @@ for (const [email, urls] of Object.entries(BLOCKED)) {
       // Some guards bounce via a redirect that resolves as a SOFT client navigation
       // - it lands a beat after domcontentloaded when the guard runs below the
       // already-committed portal layout (e.g. /grades' non-student check). Wait for
-      // that navigation to settle before asserting, or the check races it (NEW-21).
+      // that navigation to settle before asserting, or the check races it.
       await page.waitForURL(DASHBOARD, { timeout: 15000 }).catch(() => {})
       await expect(page, `${email} must NOT reach ${url}`).toHaveURL(DASHBOARD)
     }
@@ -66,7 +66,7 @@ for (const [email, urls] of Object.entries(ALLOWED)) {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
       // Let any soft redirect fire before asserting the route was NOT bounced, so a
       // late client redirect can't slip past a check that sampled the URL too early
-      // and passed (the false-pass side of the same NEW-21 race).
+      // and passed (the false-pass side of the same race).
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
       await expect(page, `${email} should stay on ${url}, not be bounced`).not.toHaveURL(DASHBOARD)
     }

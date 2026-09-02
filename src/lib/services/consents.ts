@@ -48,9 +48,8 @@ export type ConsentStatus = {
 
 /**
  * A person's consent standing: which Terms + Privacy versions they last accepted, when, and
- * whether that matches the CURRENTLY published versions. Reads the append-only log (which
- * previously nothing read - N-06), so the UI can show what was accepted and prompt
- * re-acceptance when the policy has since changed (N-07).
+ * whether that matches the CURRENTLY published versions. Reads the append-only log so the
+ * UI can show what was accepted and prompt re-acceptance when the policy has since changed.
  */
 export async function getConsentStatus(profileId: string): Promise<ConsentStatus> {
   const latest = await selectLatestConsent(profileId)
@@ -72,7 +71,7 @@ export async function needsPolicyReacceptance(profileId: string): Promise<boolea
   return !(await getConsentStatus(profileId)).upToDate
 }
 
-/** Record a fresh acceptance of the CURRENT policy versions (N-07). The log is append-only,
+/** Record a fresh acceptance of the CURRENT policy versions. The log is append-only,
  *  so re-affirming simply adds the current-version row - the prior acceptances stay on record. */
 export async function reaffirmCurrentConsent(profileId: string): Promise<void> {
   await recordConsentAcceptance(profileId)

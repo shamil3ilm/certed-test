@@ -40,10 +40,9 @@ export type ConsentRow = {
 
 /**
  * The person's MOST RECENT recorded consent, read through their OWN RLS session (0073's
- * self-read policy), so a person only ever reads their own. null if none yet. This is the
- * read counterpart to the previously write-only log: the app can now surface WHICH policy
- * versions a person accepted and WHEN, and detect when a new version needs re-acceptance
- * (N-06 / N-07).
+ * self-read policy), so a person only ever reads their own. null if none yet. Lets the app
+ * surface WHICH policy versions a person accepted and WHEN, and detect when a new version
+ * needs re-acceptance.
  */
 export async function selectLatestConsent(profileId: string): Promise<ConsentRow | null> {
   const supabase = await createClient()

@@ -2,8 +2,8 @@ import { parse, serialize, type SerializeOptions } from 'cookie'
 import { hardenCookieOptions } from './cookie-options'
 
 /**
- * The browser Supabase client's cookie read/write, split out so the R-02 hardening is
- * unit-testable.
+ * The browser Supabase client's cookie read/write, split out so the session-cookie
+ * TTL hardening is unit-testable.
  *
  * @supabase/ssr rebuilds the write options as
  *   { ...DEFAULT_COOKIE_OPTIONS, ...cookieOptions, maxAge: DEFAULT_COOKIE_OPTIONS.maxAge }

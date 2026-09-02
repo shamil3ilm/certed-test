@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.mocked(selectProfileErasedAt).mockResolvedValue(null)
 })
 
-describe('eraseUser (N-04)', () => {
+describe('eraseUser', () => {
   it('erases a revoked account: deletes notes + auth, anonymises, and audits', async () => {
     vi.mocked(getProfileById).mockResolvedValue(revoked as never)
     await eraseUser(admin, 'u1')
@@ -75,7 +75,7 @@ describe('eraseUser (N-04)', () => {
   })
 })
 
-describe('restoreUser refuses an erased account (N-04)', () => {
+describe('restoreUser refuses an erased account', () => {
   it('throws instead of resurrecting a nameless, un-loginable account', async () => {
     vi.mocked(getProfileById).mockResolvedValue({ ...revoked } as never)
     vi.mocked(selectProfileErasedAt).mockResolvedValue('2026-09-01T00:00:00.000Z')

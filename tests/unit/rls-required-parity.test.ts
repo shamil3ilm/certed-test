@@ -3,12 +3,12 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { RLS_REQUIRED_TABLES } from '@/lib/services/queue-health'
 
 /**
- * V-07 anti-drift guard: bind queue-health's RLS_REQUIRED_TABLES (the tables whose
+ * Anti-drift guard: bind queue-health's RLS_REQUIRED_TABLES (the tables whose
  * disabled-RLS misconfiguration must ALARM) to the live schema, so a new RLS-enabled table
  * cannot be silently forgotten by the monitor. Mirrors rls-coverage-parity.test.ts:
  *   - every monitored table must actually enable RLS in the chain (no stale/renamed entry),
  *   - every RLS-enabled table must be EITHER monitored OR explicitly exempted with a reason.
- * Adding a table without a decision fails the build - the drift V-07 was about.
+ * Adding a table without a decision fails the build - the drift this guards against.
  */
 
 const MIGRATIONS_DIR = 'supabase/migrations'
@@ -63,7 +63,7 @@ function rlsEnabledTables(): Set<string> {
   return tables
 }
 
-describe('queue-health RLS_REQUIRED_TABLES parity with the schema (V-07)', () => {
+describe('queue-health RLS_REQUIRED_TABLES parity with the schema', () => {
   const rls = rlsEnabledTables()
 
   it('every monitored table actually enables RLS in the migration chain', () => {
