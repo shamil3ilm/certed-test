@@ -53,7 +53,10 @@ export async function loadLoginPageData(
     }
   }
 
-  const demoEmails = mockMode ? [...MOCK_DEMO_EMAILS] : []
+  // Gate on the BUILD-TIME mock literal (Next inlines NEXT_PUBLIC_* everywhere), so the
+  // demo-email constants are tree-shaken OUT of a production bundle rather than merely
+  // hidden at runtime. mockMode still gates the render within a mock build.
+  const demoEmails = process.env.NEXT_PUBLIC_MOCK_MODE === '1' && mockMode ? [...MOCK_DEMO_EMAILS] : []
 
   return {
     redirectTo: null,

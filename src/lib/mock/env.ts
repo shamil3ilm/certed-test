@@ -52,7 +52,7 @@ function isSanctionedMockContext(): boolean {
  * fail LOUDLY (build + boot) rather than tolerate it silently.
  *
  * Fails CLOSED: the guard fires in EVERY production-like context that is not positively
- * sanctioned (V-06). It previously keyed on VERCEL_ENV==='production' alone, so a
+ * sanctioned. It previously keyed on VERCEL_ENV==='production' alone, so a
  * self-hosted `next start` (NODE_ENV=production, no VERCEL_ENV) slipped through - the
  * exact deployment where isMock() can still activate the bypass via ALLOW_MOCK_AUTH=1.
  * Now the only production-like context that keeps mock is the E2E build (E2E_BUILD=1).
@@ -61,13 +61,21 @@ function isSanctionedMockContext(): boolean {
 export function assertNoMockConfigInProduction(): void {
   if (isSanctionedMockContext()) return
   const present = MOCK_ONLY_ENV_VARS.filter((name) => isEnablingValue(process.env[name]))
-  if (present.length > 0) {
-    throw new Error(
-      `[prod] Mock-only env var(s) set in a production deployment: ${present.join(', ')}. ` +
-        'These drive the in-memory mock auth/DB bypass and must never be present in production. ' +
-        'Remove them from the Production environment and redeploy.',
-    )
-  }
+  if (present.length === 0) return
+  // The most common way to hit this is a LOCAL `next build` (NODE_ENV=production) while the
+  // quick-start .env.local still carries MOCK_MODE=1 - a developer at their laptop, not a
+  // real deployment. Detect that (no Vercel, no CI markers) and give them the local fix
+  // rather than "remove from Production and redeploy", which is useless advice there.
+  const isLocalBuild = !process.env.VERCEL && !process.env.CI
+  const advice = isLocalBuild
+    ? 'These belong in .env.local for `npm run dev` only. For a local production build, unset ' +
+      'MOCK_MODE / NEXT_PUBLIC_MOCK_MODE, or run the build with E2E_BUILD=1.'
+    : 'Remove them from the Production environment and redeploy.'
+  throw new Error(
+    `[prod] Mock-only env var(s) set in a production-like build: ${present.join(', ')}. ` +
+      'These drive the in-memory mock auth/DB bypass and must never run in production. ' +
+      advice,
+  )
 }
 
 export function isMock(): boolean {

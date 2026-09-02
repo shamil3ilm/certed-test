@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadLoginPageData, loadRegisterPageData } from '@/lib/services/page-data/auth-entry-page'
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.unstubAllEnvs()
+})
 
 describe('loadLoginPageData', () => {
   it('returns the correct redirect for an active signed-in actor', async () => {
@@ -12,6 +15,9 @@ describe('loadLoginPageData', () => {
   })
 
   it('loads mock demo emails and banner flags for the logged-out login page', async () => {
+    // The demo emails are gated on the BUILD-TIME NEXT_PUBLIC_MOCK_MODE literal (so they
+    // tree-shake out of a production bundle), as well as the runtime mockMode. Set both.
+    vi.stubEnv('NEXT_PUBLIC_MOCK_MODE', '1')
     await expect(
       loadLoginPageData({ profile: null, accessState: 'unauthenticated' }, { error: '1', registered: '1' }, true),
     ).resolves.toEqual({
