@@ -108,10 +108,13 @@ function ReminderPanelBody({
       {
         id: createClientId('temp'),
         user_id: '',
+        created_by: '',
+        class_id: null,
         title,
         description,
         remind_at: remindAtIso,
         is_sent: false,
+        completed_at: null,
         created_at: new Date().toISOString(),
       },
     ])

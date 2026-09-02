@@ -96,6 +96,10 @@ export function ReminderItems({
     <ul className="mt-3 space-y-2">
       {reminders.map((reminder) => {
         const { label, overdue } = formatRemindAt(reminder.remind_at, nowMs, displayTz)
+        // This list is the viewer's OWN reminders (user_id = them), so a differing
+        // created_by means it was ASSIGNED to them by a tutor/mentor: they may only mark
+        // it done, never edit or delete it (the service enforces the same).
+        const assigned = reminder.created_by !== reminder.user_id
         return (
           <li
             key={reminder.id}
@@ -115,7 +119,14 @@ export function ReminderItems({
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
             </svg>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-slate-800">{reminder.title}</p>
+              <p className="truncate text-sm font-medium text-slate-800">
+                {reminder.title}
+                {assigned && (
+                  <span className="ml-2 inline-block rounded-full bg-indigo-50 px-1.5 py-0.5 align-middle text-micro font-semibold text-indigo-600">
+                    Assigned
+                  </span>
+                )}
+              </p>
               {reminder.description && <p className="mt-0.5 truncate text-xs text-slate-500">{reminder.description}</p>}
               <p
                 suppressHydrationWarning
@@ -124,15 +135,17 @@ export function ReminderItems({
                 {label}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => onEdit(reminder)}
-              disabled={isPending}
-              aria-label="Edit reminder"
-              className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
-            >
-              Edit
-            </button>
+            {!assigned && (
+              <button
+                type="button"
+                onClick={() => onEdit(reminder)}
+                disabled={isPending}
+                aria-label="Edit reminder"
+                className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+              >
+                Edit
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onMarkDone(reminder)}
@@ -142,15 +155,17 @@ export function ReminderItems({
             >
               Done
             </button>
-            <button
-              type="button"
-              onClick={() => onDelete(reminder.id)}
-              disabled={isPending}
-              aria-label="Delete reminder"
-              className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
-            >
-              Delete
-            </button>
+            {!assigned && (
+              <button
+                type="button"
+                onClick={() => onDelete(reminder.id)}
+                disabled={isPending}
+                aria-label="Delete reminder"
+                className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
+              >
+                Delete
+              </button>
+            )}
           </li>
         )
       })}

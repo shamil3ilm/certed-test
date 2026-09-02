@@ -41,16 +41,37 @@ describe('listMyPastReminders', () => {
 })
 
 describe('markReminderSent', () => {
-  it('updates is_sent to true for the given id', async () => {
-    const ownerClient = makeClient({ data: { user_id: 'user-1' }, error: null })
+  it('updates is_sent + completed_at for the given id (owner of a personal reminder)', async () => {
+    const partiesClient = makeClient({ data: { user_id: 'user-1', created_by: 'user-1' }, error: null })
     const updateClient = makeClient({ data: null, error: null })
     vi.mocked(createClient)
-      .mockResolvedValueOnce(ownerClient as any)
+      .mockResolvedValueOnce(partiesClient as any)
       .mockResolvedValueOnce(updateClient as any)
     await markReminderSent('user-1', 'rem-1')
     const builder = updateClient.from.mock.results[0].value
-    expect(builder.update).toHaveBeenCalledWith({ is_sent: true })
+    expect(builder.update).toHaveBeenCalledWith({ is_sent: true, completed_at: expect.any(String) })
     expect(builder.eq).toHaveBeenCalledWith('id', 'rem-1')
+  })
+
+  it('lets the ASSIGNEE (user_id) mark an assigned reminder done', async () => {
+    // assigned: created_by is the tutor, user_id is the student marking it done
+    const partiesClient = makeClient({ data: { user_id: 'student', created_by: 'tutor' }, error: null })
+    const updateClient = makeClient({ data: null, error: null })
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(partiesClient as any)
+      .mockResolvedValueOnce(updateClient as any)
+    await markReminderSent('student', 'rem-1')
+    expect(updateClient.from.mock.results[0].value.update).toHaveBeenCalledWith({
+      is_sent: true,
+      completed_at: expect.any(String),
+    })
+  })
+
+  it('rejects a stranger (neither assignee nor creator) marking it done', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { user_id: 'student', created_by: 'tutor' }, error: null }) as any,
+    )
+    await expect(markReminderSent('someone-else', 'rem-1')).rejects.toBeInstanceOf(PermissionError)
   })
 })
 
@@ -105,11 +126,11 @@ describe('createReminderFromActionInput', () => {
 describe('editReminderFromActionInput', () => {
   const validId = '550e8400-e29b-41d4-a716-446655440000'
 
-  it('updates title/note/time after an ownership check', async () => {
-    const ownerClient = makeClient({ data: { user_id: 'user-1' }, error: null })
+  it('updates title/note/time after a CREATOR check (personal: owner is creator)', async () => {
+    const partiesClient = makeClient({ data: { user_id: 'user-1', created_by: 'user-1' }, error: null })
     const updateClient = makeClient({ data: null, error: null })
     vi.mocked(createClient)
-      .mockResolvedValueOnce(ownerClient as any)
+      .mockResolvedValueOnce(partiesClient as any)
       .mockResolvedValueOnce(updateClient as any)
     await editReminderFromActionInput('user-1', {
       id: validId,
@@ -126,13 +147,28 @@ describe('editReminderFromActionInput', () => {
     expect(builder.eq).toHaveBeenCalledWith('id', validId)
   })
 
-  it('rejects editing a reminder the caller does not own, without an update', async () => {
-    const ownerClient = makeClient({ data: { user_id: 'someone-else' }, error: null })
-    vi.mocked(createClient).mockResolvedValueOnce(ownerClient as any)
+  it('lets the CREATOR edit an assigned reminder', async () => {
+    const partiesClient = makeClient({ data: { user_id: 'student', created_by: 'tutor' }, error: null })
+    const updateClient = makeClient({ data: null, error: null })
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(partiesClient as any)
+      .mockResolvedValueOnce(updateClient as any)
+    await editReminderFromActionInput('tutor', {
+      id: validId,
+      title: 'Updated',
+      description: null,
+      remind_at: '2026-07-21T10:00:00.000Z',
+    })
+    expect(updateClient.from.mock.results[0].value.update).toHaveBeenCalled()
+  })
+
+  it('rejects the ASSIGNEE (student) editing an assigned reminder, without an update', async () => {
+    const partiesClient = makeClient({ data: { user_id: 'student', created_by: 'tutor' }, error: null })
+    vi.mocked(createClient).mockResolvedValueOnce(partiesClient as any)
     await expect(
-      editReminderFromActionInput('user-1', {
+      editReminderFromActionInput('student', {
         id: validId,
-        title: 'x',
+        title: 'hacked',
         description: null,
         remind_at: '2026-07-21T10:00:00.000Z',
       }),

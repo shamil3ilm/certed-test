@@ -1,17 +1,27 @@
 import {
   deleteReminderRow,
+  insertAssignedReminder,
   insertReminder,
   markSent,
-  selectReminderOwner,
+  selectAssignedByCreator,
+  selectReminderParties,
   selectPendingForUser,
   selectSentForUser,
   updateReminderRow,
   type ReminderRow,
 } from '@/lib/data/reminders'
+import type { Profile } from '@/lib/auth/profile'
+import { canManageClass } from '@/lib/permission'
+import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { PermissionError, ValidationError } from '@/lib/errors'
-import { createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
+import { assignReminderSchema, createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
 
 export type Reminder = ReminderRow
+
+/** True when the reminder was assigned by someone other than its owner. */
+export function isAssignedReminder(r: Reminder): boolean {
+  return r.created_by !== r.user_id
+}
 
 type CreateReminderActionInput = {
   title?: FormDataEntryValue | null
@@ -82,18 +92,30 @@ export function validateEditReminderInput(input: EditReminderActionInput) {
   return parsed.data
 }
 
-async function assertReminderOwner(actorId: string, reminderId: string): Promise<void> {
-  const ownerId = await selectReminderOwner(reminderId)
-  if (!ownerId || ownerId !== actorId) {
-    throw new PermissionError('You can only modify your own reminders.')
+/** The CREATOR may edit/delete (for a personal reminder creator = owner, so its owner
+ *  passes; for an assigned reminder only the tutor/mentor who made it, never the student
+ *  assignee). RLS + the guard trigger enforce this in production; the explicit check keeps
+ *  mock mode honest and returns a clean error instead of a raw DB exception. */
+async function assertReminderCreator(actorId: string, reminderId: string): Promise<void> {
+  const parties = await selectReminderParties(reminderId)
+  if (!parties || parties.createdBy !== actorId) {
+    throw new PermissionError('Only the person who created this reminder can change it.')
   }
 }
 
-/** Edit a reminder's title / note / time. Ownership-checked like delete (RLS
- *  protects production; the explicit check keeps mock mode honest too). */
+/** EITHER party (assignee or creator) may mark a reminder done. */
+async function assertReminderParty(actorId: string, reminderId: string): Promise<void> {
+  const parties = await selectReminderParties(reminderId)
+  if (!parties || (parties.userId !== actorId && parties.createdBy !== actorId)) {
+    throw new PermissionError('You can only update your own reminders.')
+  }
+}
+
+/** Edit a reminder's title / note / time - CREATOR only (a student can never edit a
+ *  reminder assigned to them, only mark it done). */
 export async function editReminderFromActionInput(actorId: string, input: EditReminderActionInput): Promise<void> {
   const parsed = validateEditReminderInput(input)
-  await assertReminderOwner(actorId, parsed.id)
+  await assertReminderCreator(actorId, parsed.id)
   await updateReminderRow(parsed.id, {
     title: parsed.title,
     description: parsed.description ?? null,
@@ -101,15 +123,58 @@ export async function editReminderFromActionInput(actorId: string, input: EditRe
   })
 }
 
-/** Delete a reminder by id. RLS protects production; this explicit ownership
- *  check keeps mock mode honest as well. */
+/** Delete a reminder by id - CREATOR only. */
 export async function deleteReminder(actorId: string, id: string): Promise<void> {
-  await assertReminderOwner(actorId, id)
+  await assertReminderCreator(actorId, id)
   await deleteReminderRow(id)
 }
 
-/** Marks a reminder done. Ownership-checked like delete. */
+/** Marks a reminder done - assignee or creator. */
 export async function markReminderSent(actorId: string, id: string): Promise<void> {
-  await assertReminderOwner(actorId, id)
+  await assertReminderParty(actorId, id)
   await markSent(id)
+}
+
+type AssignReminderActionInput = CreateReminderActionInput & {
+  assigneeId?: FormDataEntryValue | null
+  classId?: FormDataEntryValue | null
+}
+
+/**
+ * Assign a reminder ON a student. The actor must manage the class (tutor of it, or a
+ * mentor of an enrolled student - canManageClass) AND the assignee must be actively
+ * enrolled in that class. Enforced here for a clean error; RLS (teaches_class on insert)
+ * is the production backstop.
+ */
+export async function assignReminderFromActionInput(actor: Profile, input: AssignReminderActionInput): Promise<void> {
+  const parsed = assignReminderSchema.safeParse({
+    title: input.title,
+    description: String(input.description ?? '').trim() || undefined,
+    remind_at: input.remind_at,
+    assigneeId: input.assigneeId,
+    classId: input.classId,
+  })
+  if (!parsed.success) {
+    throw new ValidationError(`Invalid reminder data: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
+  }
+  if (!(await canManageClass(actor, parsed.data.classId))) {
+    throw new PermissionError('You cannot assign reminders in this class.')
+  }
+  const assigneeClassIds = await selectActiveClassIdsForStudent(parsed.data.assigneeId)
+  if (!assigneeClassIds.includes(parsed.data.classId)) {
+    throw new ValidationError('That student is not enrolled in this class.')
+  }
+  await insertAssignedReminder({
+    assigneeId: parsed.data.assigneeId,
+    createdBy: actor.id,
+    classId: parsed.data.classId,
+    title: parsed.data.title,
+    description: parsed.data.description ?? null,
+    remind_at: parsed.data.remind_at,
+  })
+}
+
+/** Reminders the actor has assigned to students (their management list). */
+export async function listRemindersIAssigned(actorId: string): Promise<Reminder[]> {
+  return selectAssignedByCreator(actorId)
 }

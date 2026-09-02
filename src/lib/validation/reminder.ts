@@ -12,3 +12,10 @@ export const createReminderSchema = z.object({
 export const editReminderSchema = createReminderSchema.extend({
   id: z.string().uuid(),
 })
+
+/** A reminder a tutor/mentor assigns ON a student: the reminder fields plus the
+ *  assignee (student) and the class it belongs to. */
+export const assignReminderSchema = createReminderSchema.extend({
+  assigneeId: z.string().uuid(),
+  classId: z.string().uuid(),
+})

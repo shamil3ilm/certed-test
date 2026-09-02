@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { actionDone, toActionError, type ActionStatusResult } from '@/lib/api/action-error'
 import { requireCapability } from '@/lib/auth/require-role'
 import {
+  assignReminderFromActionInput,
   createReminderFromActionInput,
   deleteReminder,
   editReminderFromActionInput,
@@ -64,6 +65,26 @@ export async function markReminderSentAction(formData: FormData): Promise<Action
   if (!id) return actionDone()
   try {
     await markReminderSent(me.id, id)
+    revalidatePath('/dashboard')
+    return actionDone()
+  } catch (error) {
+    return toActionError(error)
+  }
+}
+
+/** Assign a reminder ON a student. The coarse gate is viewDashboard (every staff
+ *  persona holds it); the real authority - the actor must manage the class and the
+ *  student must be enrolled - is enforced in the service via canManageClass. */
+export async function assignReminderAction(formData: FormData): Promise<ActionStatusResult> {
+  const me = await requireCapability('viewDashboard')
+  try {
+    await assignReminderFromActionInput(me, {
+      assigneeId: formData.get('assigneeId'),
+      classId: formData.get('classId'),
+      title: formData.get('title'),
+      description: formData.get('description'),
+      remind_at: formData.get('remind_at'),
+    })
     revalidatePath('/dashboard')
     return actionDone()
   } catch (error) {
