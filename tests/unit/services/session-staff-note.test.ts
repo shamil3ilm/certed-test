@@ -11,6 +11,7 @@ vi.mock('@/lib/data/class-sessions', () => ({
   selectRecentSessions: vi.fn(),
   selectSession: vi.fn(),
   selectSessionAsService: vi.fn(),
+  selectTutorOverlappingSessions: vi.fn(),
   upsertSession: vi.fn(),
   writeStudentSessionFeedback: vi.fn(),
 }))
@@ -19,7 +20,7 @@ vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn(
 
 import { canManageClass } from '@/lib/permission'
 import { selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
-import { upsertSession } from '@/lib/data/class-sessions'
+import { upsertSession, selectTutorOverlappingSessions } from '@/lib/data/class-sessions'
 import { saveSessionTimes } from '@/lib/services/attendance/sessions'
 
 const ACTOR = 'a0000000-0000-4000-8000-000000000001'
@@ -31,6 +32,7 @@ beforeEach(() => {
   vi.mocked(canManageClass).mockResolvedValue(true)
   vi.mocked(upsertSession).mockResolvedValue({ id: 's1' } as never)
   vi.mocked(selectActiveTutorRowsForClass).mockResolvedValue([{ id: 'ct1', tutor_id: ACTOR }] as never)
+  vi.mocked(selectTutorOverlappingSessions).mockResolvedValue([])
 })
 
 describe('saveSessionTimes - staff note (only manageClassContent may write it)', () => {

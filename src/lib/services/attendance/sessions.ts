@@ -2,6 +2,8 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
+import { resolveSessionWindow } from '@/lib/attendance/session-window'
+import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import {
@@ -88,6 +90,10 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   if (!parsed.success) {
     throw new ValidationError('Invalid session times.')
   }
+  // Resolve + validate the window: roll a cross-midnight end to the next day, then reject an
+  // impossible window (end before/at start, end with no start) or an absurd duration. Session
+  // times feed teaching-hour totals and the DB does not constrain this, so guard it here.
+  const window = resolveSessionWindow(parsed.data.actual_start, parsed.data.actual_end)
 
   // Student entry (the student's attendance join) is a ROSTER fact, set on the mark-
   // attendance form (manageAttendance - mentors too), not here on the session record.
@@ -114,6 +120,14 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     tutorId = await defaultSessionTutor(actor.id, classId)
   }
 
+  // A tutor cannot teach two classes at once - reject a window that overlaps another of this
+  // tutor's sessions (excluding this same session on re-record).
+  await assertNoTutorOverlap(tutorId, window.start, window.end, classId, sessionDate)
+
+  // Capture the prior window (if any) so the audit records what changed, not just that a
+  // session was recorded.
+  const before = await selectSession(classId, sessionDate)
+
   // Times + summary are editable by any manageAttendance holder (mentors included, via
   // the action). The staff-PRIVATE note is a higher bar - only a manageClassContent
   // holder (tutor / admin) may set it (the action resolves canEditStaffNote). When the
@@ -124,12 +138,16 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     class_id: classId,
     session_date: sessionDate,
     tutor_id: tutorId,
-    actual_start: parsed.data.actual_start,
-    actual_end: parsed.data.actual_end,
+    actual_start: window.start,
+    actual_end: window.end,
     summary: noteField.parse(String(input.summary ?? '')),
     ...(canEditStaffNote ? { staff_note: noteField.parse(String(input.staff_note ?? '')) } : {}),
   })
-  await auditPrivilegedAction(actor, 'attendance.session', 'class', classId)
+  await auditPrivilegedAction(actor, 'attendance.session', 'class', classId, {
+    session_date: sessionDate,
+    before: before ? { actual_start: before.actual_start, actual_end: before.actual_end } : null,
+    after: { actual_start: window.start, actual_end: window.end },
+  })
   return saved
 }
 

@@ -100,6 +100,54 @@ export async function upsertSession(row: ClassSessionUpsert): Promise<ClassSessi
   return data as ClassSessionRow
 }
 
+/** Narrow update of ONLY a session's actual window (start + end) on an EXISTING row,
+ *  via the service role. Never touches tutor attribution, summary or the staff note, so a
+ *  times-only correction preserves everything else on the row.
+ *
+ *  When `expectedUpdatedAt` is given, the update is guarded on it (optimistic lock): the row
+ *  is written only if its `updated_at` still matches what the editor loaded. Returns false
+ *  when nothing matched - either the row is gone (no lock) or it changed underneath the editor
+ *  (a concurrent edit), which the caller distinguishes by having read the row first. */
+export async function updateSessionActualTimesAsService(
+  classId: string,
+  date: string,
+  actualStart: string | null,
+  actualEnd: string | null,
+  expectedUpdatedAt?: string | null,
+): Promise<boolean> {
+  const admin = createAdminClient()
+  let query = admin
+    .from('class_sessions')
+    .update({ actual_start: actualStart, actual_end: actualEnd, updated_at: new Date().toISOString() })
+    .eq('class_id', classId)
+    .eq('session_date', date)
+  if (expectedUpdatedAt != null) query = query.eq('updated_at', expectedUpdatedAt)
+  const { data, error } = await query.select('id').maybeSingle()
+  if (error) throw new Error(`classSessions.updateActualTimes: ${error.message}`)
+  return data != null
+}
+
+/** Sessions of a given tutor whose recorded window OVERLAPS [startIso, endIso) - the base for
+ *  the double-booking check (a tutor cannot teach two classes at once). Overlap is
+ *  `existing.actual_start < newEnd AND existing.actual_end > newStart`; gt/lt exclude rows with
+ *  null times, so an incomplete session never false-positives. Returns the (class, date) keys so
+ *  the caller can exclude the session being edited. */
+export async function selectTutorOverlappingSessions(
+  tutorId: string,
+  startIso: string,
+  endIso: string,
+): Promise<Array<{ class_id: string; session_date: string }>> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('class_sessions')
+    .select('class_id, session_date')
+    .eq('tutor_id', tutorId)
+    .lt('actual_start', endIso)
+    .gt('actual_end', startIso)
+  if (error) throw new Error(`classSessions.overlapping: ${error.message}`)
+  return (data ?? []) as Array<{ class_id: string; session_date: string }>
+}
+
 /** Set ONLY a session's student feedback through the caller's OWN RLS session (not
  *  service role), so the class_sessions RLS - enrolled + attended, student_feedback
  *  column only (migration 0068) - is the real control. Updates the existing row's

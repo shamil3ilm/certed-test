@@ -16,12 +16,15 @@ export async function auditPrivilegedAction(
   action: string,
   entity_type: string,
   entity_id: string | null,
+  metadata?: Record<string, unknown> | null,
 ): Promise<void> {
   await writeAudit({
     actor_id: actor.id,
     action,
     entity_type,
     entity_id,
+    // Only carry metadata when there is some - a plain audit call stays exactly as before.
+    ...(metadata != null ? { metadata } : {}),
   })
 }
 

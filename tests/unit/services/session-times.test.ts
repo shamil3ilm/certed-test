@@ -82,3 +82,43 @@ describe('saveSessionTimes tutor_id guard', () => {
     expect(upsertSession).not.toHaveBeenCalled()
   })
 })
+
+describe('saveSessionTimes window validation', () => {
+  const START = '2026-08-05T10:00:00.000Z'
+
+  it('rejects an end BEFORE the start', async () => {
+    await expect(
+      saveSessionTimes(actor, { ...base, actual_start: START, actual_end: '2026-08-05T09:00:00.000Z' }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(upsertSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects an end EQUAL to the start (zero-length)', async () => {
+    await expect(saveSessionTimes(actor, { ...base, actual_start: START, actual_end: START })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(upsertSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects an end with NO start', async () => {
+    await expect(saveSessionTimes(actor, { ...base, actual_start: '', actual_end: START })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(upsertSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects a session longer than 24 hours', async () => {
+    await expect(
+      saveSessionTimes(actor, { ...base, actual_start: START, actual_end: '2026-08-06T11:00:00.000Z' }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(upsertSession).not.toHaveBeenCalled()
+  })
+
+  it('accepts a valid window (end after start, within a day)', async () => {
+    vi.mocked(selectActiveTutorRowsForClass).mockResolvedValue([])
+    await saveSessionTimes(actor, { ...base, actual_start: START, actual_end: '2026-08-05T11:30:00.000Z' })
+    expect(upsertSession).toHaveBeenCalledWith(
+      expect.objectContaining({ actual_start: START, actual_end: '2026-08-05T11:30:00.000Z' }),
+    )
+  })
+})

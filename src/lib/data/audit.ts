@@ -56,6 +56,9 @@ export async function writeAudit(entry: {
   action: AuditAction
   entity_type: string
   entity_id?: string | null
+  /** Structured before/after (or other) detail for the change, stored in audit_log.metadata
+   *  (0089). Omit for events that need no diff - the column stays null. */
+  metadata?: Record<string, unknown> | null
 }): Promise<void> {
   // Best-effort: an audit failure must never break the primary action.
   try {
@@ -65,6 +68,7 @@ export async function writeAudit(entry: {
       action: entry.action,
       entity_type: entry.entity_type,
       entity_id: entry.entity_id ?? null,
+      metadata: entry.metadata ?? null,
     })
   } catch (error) {
     // Best-effort must not break the primary action, but a lost audit record is
