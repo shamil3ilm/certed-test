@@ -41,13 +41,19 @@ const MANAGE_ACTIONS: ReadonlySet<DocumentAction> = new Set(['upload', 'edit', '
 
 type PersonaFlags = Awaited<ReturnType<typeof loadPersonaFlags>>
 
-/** The highest-privilege document role this actor holds. A person may hold
- *  several personas; class scope (below) still confines mentor/tutor powers to
- *  the relevant classes. */
+/** The document role this actor holds. A person may hold several personas; class
+ *  scope (below) still confines mentor/tutor powers to the relevant classes.
+ *
+ *  A tutor is matched BEFORE the mentor branch, and the mentor branch keys on the
+ *  DEDICATED mentor identity (isMentor), not hasMentorAuthority (A-10). Otherwise a
+ *  tutor who also mentors one student - which sets hasMentorAuthority - would resolve
+ *  to the mentor row and silently upgrade their edit/delete scope from 'own' (only
+ *  documents they uploaded) to 'yes' (any document in a class they teach). Mentoring a
+ *  student must never widen a tutor's authorship rights. */
 export function documentRoleFor(flags: PersonaFlags): DocumentRole {
   if (flags.isAdmin) return 'admin'
-  if (flags.hasMentorAuthority) return 'mentor'
   if (flags.isTutor) return 'tutor'
+  if (flags.isMentor) return 'mentor'
   return 'student'
 }
 

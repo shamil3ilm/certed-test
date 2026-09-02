@@ -119,9 +119,19 @@ export async function requestPasswordResetClient(email: string): Promise<void> {
 export async function updatePasswordClient(password: string): Promise<void> {
   requireBrowserAuthConfig()
 
-  const { error } = await runAuth(() => createClient().auth.updateUser({ password }))
+  const client = createClient()
+  const { error } = await runAuth(() => client.auth.updateUser({ password }))
 
   if (error) {
     throw new Error(PASSWORD_UPDATE_MESSAGE)
+  }
+
+  // A-04: a reset is often done BECAUSE another session was compromised, so revoke every
+  // OTHER session once the new password is set - keeping this (recovery) one. Best-effort:
+  // the password is already updated, so this cleanup must never fail the reset.
+  try {
+    await client.auth.signOut({ scope: 'others' })
+  } catch {
+    // The password change already succeeded; a failure to revoke siblings is non-fatal.
   }
 }

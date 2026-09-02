@@ -6,7 +6,8 @@ import { RateLimitError, ValidationError } from '@/lib/errors'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { updateOwnProfile as updateOwnProfileRow, updateProfile } from '@/lib/data/profiles'
-import { updateOwnAuthPassword, updateAuthUserEmail } from '@/lib/data/auth-accounts'
+import { updateOwnAuthPassword, signOutOwnOtherSessions, updateAuthUserEmail } from '@/lib/data/auth-accounts'
+import { logError } from '@/lib/observability/log'
 import { getProfileByEmail } from './directory'
 
 /** What a signed-in user may change about their OWN account. */
@@ -57,6 +58,15 @@ export async function changeOwnPassword(actor: Pick<Profile, 'id'>, password: st
     await updateProfile(actor.id, { password })
   } else {
     await updateOwnAuthPassword(password)
+    // A-04: a password change must re-secure the account everywhere, not just here. Revoke
+    // every OTHER session (keeping this one) so a previously-captured session on another
+    // device can't outlive the password it no longer knows. Best-effort: the password IS
+    // already changed, so a GoTrue hiccup here must not fail the whole change - log it.
+    try {
+      await signOutOwnOtherSessions()
+    } catch (error) {
+      logError('profile.password.signOutOthers', error)
+    }
   }
   await auditPrivilegedAction(actor, 'profile.password', 'profile', actor.id)
 }

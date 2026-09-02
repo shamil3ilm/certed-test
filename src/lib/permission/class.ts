@@ -3,6 +3,8 @@ import type { Profile } from '@/lib/auth/profile'
 import { isActiveClassTutor, isActiveEnrollee, selectActiveClassIdsForStudents } from '@/lib/data/class-membership'
 import { selectScopedMenteeIds } from '@/lib/data/personas'
 import { selectClassStatus } from '@/lib/data/classes'
+import { selectActiveGlobalOverrides } from '@/lib/data/capability-overrides'
+import { resolveCapabilities, type CapabilityOverride } from '@/lib/capabilities'
 import { ValidationError } from '@/lib/errors'
 import { loadPersonaFlags } from './personas'
 
@@ -29,11 +31,22 @@ export const mentorAuthorityClassIds = cache(async (profileId: string): Promise<
  *  (admin or sub_admin - anyone with manageClasses), a tutor of it, or a mentor of a
  *  student enrolled in it. */
 export async function canManageClass(profile: Pick<Profile, 'id'>, classId: string): Promise<boolean> {
-  const { isAdmin, isClassAdmin, isTutor, hasMentorAuthority } = await loadPersonaFlags(profile.id)
-  if (isAdmin || isClassAdmin) return true
+  const flags = await loadPersonaFlags(profile.id)
+  if (flags.isAdmin) return true
+  // Academy-wide class authority (manageClasses) can be DENIED via an admin override,
+  // and isClassAdmin (the persona baseline alone) does not see that deny. Resolve the
+  // effective set here (baseline minus deny overrides) and gate on that, so a denied
+  // capability actually stops the class operations it gates.
+  const resolved = resolveCapabilities({
+    personas: flags.personas,
+    overrides: (await selectActiveGlobalOverrides(profile.id)) as CapabilityOverride[],
+  })
+  if (resolved.allowed.has('manageClasses')) return true
   const [teaches, mentors] = await Promise.all([
-    isTutor ? isActiveClassTutor(profile.id, classId) : Promise.resolve(false),
-    hasMentorAuthority ? mentorAuthorityClassIds(profile.id).then((ids) => ids.has(classId)) : Promise.resolve(false),
+    flags.isTutor ? isActiveClassTutor(profile.id, classId) : Promise.resolve(false),
+    flags.hasMentorAuthority
+      ? mentorAuthorityClassIds(profile.id).then((ids) => ids.has(classId))
+      : Promise.resolve(false),
   ])
   return teaches || mentors
 }

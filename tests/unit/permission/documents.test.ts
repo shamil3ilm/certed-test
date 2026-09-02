@@ -7,8 +7,8 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { canManageClass, canAccessClass } from '@/lib/permission/class'
 import { canDocument, documentRoleFor } from '@/lib/permission/documents'
 
-const FLAGS = (o: Partial<Record<'isAdmin' | 'isTutor' | 'hasMentorAuthority' | 'isStudent', boolean>>) =>
-  ({ isAdmin: false, isTutor: false, hasMentorAuthority: false, isStudent: false, ...o }) as any
+const FLAGS = (o: Partial<Record<'isAdmin' | 'isTutor' | 'isMentor' | 'hasMentorAuthority' | 'isStudent', boolean>>) =>
+  ({ isAdmin: false, isTutor: false, isMentor: false, hasMentorAuthority: false, isStudent: false, ...o }) as any
 
 const actor = { id: 'u-1' } as any
 const doc = { class_id: 'c-1', uploaded_by: 'u-1', visibility: 'class' as const }
@@ -19,10 +19,14 @@ beforeEach(() => {
   vi.mocked(canAccessClass).mockResolvedValue(true)
 })
 
-describe('documentRoleFor - highest-privilege role', () => {
-  it('resolves in admin > mentor > tutor > student order', () => {
+describe('documentRoleFor - role resolution (mentoring never upgrades a tutor, A-10)', () => {
+  it('resolves admin > tutor > mentor > student, keying the mentor row on the dedicated identity', () => {
     expect(documentRoleFor(FLAGS({ isAdmin: true, isTutor: true }))).toBe('admin')
-    expect(documentRoleFor(FLAGS({ hasMentorAuthority: true, isTutor: true }))).toBe('mentor')
+    // A tutor who ALSO mentors a student (hasMentorAuthority) stays a tutor (edit:'own');
+    // mentoring must not promote them to the mentor row's 'yes' scope.
+    expect(documentRoleFor(FLAGS({ isTutor: true, hasMentorAuthority: true }))).toBe('tutor')
+    // A DEDICATED mentor (global mentor identity, not a tutor) gets the mentor row.
+    expect(documentRoleFor(FLAGS({ isMentor: true, hasMentorAuthority: true }))).toBe('mentor')
     expect(documentRoleFor(FLAGS({ isTutor: true }))).toBe('tutor')
     expect(documentRoleFor(FLAGS({ isStudent: true }))).toBe('student')
   })
@@ -73,7 +77,7 @@ describe('canDocument - tutor (own-only edit/delete)', () => {
 })
 
 describe('canDocument - mentor manages any tutor resource in scope', () => {
-  beforeEach(() => vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ hasMentorAuthority: true })))
+  beforeEach(() => vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true, hasMentorAuthority: true })))
 
   it('may edit/delete a document another user uploaded', async () => {
     const other = { ...doc, uploaded_by: 'a-tutor' }

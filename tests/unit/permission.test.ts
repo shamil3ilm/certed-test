@@ -25,6 +25,7 @@ function adminClientReturning(row: unknown) {
 // doesn't actually export it — see that file for why).
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+vi.mock('@/lib/data/capability-overrides', () => ({ selectActiveGlobalOverrides: vi.fn(async () => []) }))
 vi.mock('@/lib/permission/personas', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/permission/personas')>()
   const loadActivePersonas = vi.fn()
@@ -41,6 +42,7 @@ vi.mock('@/lib/permission/personas', async (importOriginal) => {
       isManager: has('admin') || has('tutor'),
       isStudent: has('student'),
       isMentor: has('mentor'),
+      hasMentorAuthority: (personas as { persona_name: string }[]).some((p) => p.persona_name === 'mentor'),
     }
   })
   return {
@@ -51,6 +53,7 @@ vi.mock('@/lib/permission/personas', async (importOriginal) => {
 })
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { selectActiveGlobalOverrides } from '@/lib/data/capability-overrides'
 import { loadActivePersonas } from '@/lib/permission/personas'
 import { canManageClass, canManageScope, canAccessClass } from '@/lib/permission/class'
 import { canMentor } from '@/lib/permission/mentor'
@@ -70,6 +73,28 @@ describe('permission/class', () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([adminPersona] as any)
     expect(await canManageClass(profile({ id: 'admin-cmc-1', role: 'admin' }), 'class-cmc-admin')).toBe(true)
     expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('canManageClass: a manageClasses DENY override revokes a sub_admin academy-wide (A-09)', async () => {
+    const subAdmin = {
+      profile_id: 'sub-1',
+      persona_name: 'sub_admin',
+      status: 'active',
+      scope_type: 'global',
+      scope_id: null,
+    }
+    // With the deny override, the sub_admin's baseline manageClasses is revoked and,
+    // not being a tutor of the class, there is no other path -> denied.
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([subAdmin] as any)
+    vi.mocked(selectActiveGlobalOverrides).mockResolvedValueOnce([
+      { capability: 'manageClasses', effect: 'deny' },
+    ] as any)
+    expect(await canManageClass(profile({ id: 'sub-1', role: 'sub_admin' }), 'class-x')).toBe(false)
+
+    // Without the override, the same persona baseline confers manageClasses -> allowed.
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([subAdmin] as any)
+    vi.mocked(selectActiveGlobalOverrides).mockResolvedValueOnce([] as any)
+    expect(await canManageClass(profile({ id: 'sub-1', role: 'sub_admin' }), 'class-x')).toBe(true)
   })
 
   it('canManageClass: tutor of the class can manage, a tutor not of it cannot', async () => {
