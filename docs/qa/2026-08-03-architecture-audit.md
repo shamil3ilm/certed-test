@@ -1,78 +1,72 @@
 # Cert-Ed Academia — Full Architecture & Codebase Audit
 
-- **Date:** 2026-08-25 · **Revision 15** (living document; supersedes revisions 1–14. Filename reflects the first pass.)
+- **Date:** 2026-08-26 · **Revision 16** (living document; supersedes revisions 1–15. Filename reflects the first pass.)
 - **Repository:** `c:\laragon\www\wed_cert` (package `cert-ed-academia`)
-- **Branch:** `feature/cert-ed-academia-app` @ `5e23697` · **working tree clean**
+- **Branch:** `feature/cert-ed-academia-app` @ `fa11762` · **working tree clean**
 - **Method:** read-only static analysis + **serial** execution of `typecheck`, `format:check`, `lint`, `npm audit`, `test:coverage`, `test-rls.sh` (real Postgres 18), `build` (clean `.next`), `check:bundle`, `check-snapshot-freshness`, `playwright test`
 - **Scope:** Phases 1–19 of the audit brief
 
 ---
 
-## 0. Revision 15 — every gate green, for the first time in fifteen passes
+## 0. Revision 16 — a security-hardening window; one E2E failure that is the mock, not the app
 
-Ten commits. **All eleven checks pass**, including two that have never been green together
-before, and the longest-carried operational finding in the series is now scripted.
+Seven commits, almost entirely **security re-audit round 3** remediation plus production
+hardening. Ten of eleven gates green.
+
+The single failure is worth reading carefully: a mentor is denied calendar write in E2E, but
+**the product is correct and the mock is wrong** — and the way it went undetected exposes a gap
+in the parity guards added over the last two passes.
 
 ### Verification results
 
-| Command                 | R12      | R13          | R14        | R15                                   |
-| ----------------------- | -------- | ------------ | ---------- | ------------------------------------- |
-| `npm run typecheck`     | ✅       | ✅           | ✅         | ✅                                    |
-| `npm run lint`          | ✅       | ✅           | ❌ 1 error | ✅                                    |
-| `npm run format:check`  | ❌ 10    | ✅           | ✅         | ✅                                    |
-| `npm test`              | 924      | 953          | 1,154      | ✅ **1,161 (153 files)**              |
-| `npm run test:coverage` | ✅       | ❌           | ✅         | ✅ **76.96% lines · 64.04% branches** |
-| `npm run build`         | ✅       | ✅           | ✅         | ✅ **0 warnings**                     |
-| `npm run check:bundle`  | ✅       | ✅           | ✅         | ✅ **127.4 / 133 KB — ratchet taken** |
-| `npx playwright test`   | ✅ 65/65 | ❌ 49 failed | ✅ 69/69   | ✅ **69 / 69**                        |
-| Snapshot freshness      | ❌       | ❌ 6th       | ✅         | ✅ **0079 current**                   |
-| `scripts/test-rls.sh`   | ✅ 34    | ✅ 34        | ✅ 34      | ✅ **64 passed**                      |
-| `npm audit --omit=dev`  | ✅       | ✅           | ✅         | ✅ **0**                              |
+| Command                 | R13    | R14      | R15      | R16                                   |
+| ----------------------- | ------ | -------- | -------- | ------------------------------------- |
+| `npm run typecheck`     | ✅     | ✅       | ✅       | ✅                                    |
+| `npm run lint`          | ✅     | ❌       | ✅       | ✅                                    |
+| `npm run format:check`  | ✅     | ✅       | ✅       | ✅                                    |
+| `npm test`              | 953    | 1,154    | 1,161    | ✅ **1,179 (157 files)**              |
+| `npm run test:coverage` | ❌     | ✅       | ✅       | ✅ **76.69% lines · 63.77% branches** |
+| `npm run build`         | ✅     | ✅       | ✅       | ✅ **0 warnings**                     |
+| `npm run check:bundle`  | ✅     | ✅       | ✅       | ✅ **127.4 / 133 KB**                 |
+| `npx playwright test`   | ❌ 49  | ✅ 69/69 | ✅ 69/69 | ❌ **1 failed / 68 passed**           |
+| Snapshot freshness      | ❌ 6th | ✅       | ✅       | ✅ **0082 current**                   |
+| `scripts/test-rls.sh`   | 34     | 34       | 64       | ✅ **67 passed**                      |
+| `npm audit --omit=dev`  | ✅     | ✅       | ✅       | ✅ **0**                              |
 
-### Findings closed this pass
+### What shipped
 
-| ID             | Finding                                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NEW-33** 🟠  | `CookieNotice` lint error blocking CI                   | ✅ `dcb09ac` — fixed with **`useSyncExternalStore`**, the recommended option, rather than suppressing the rule.                                                                                                                                                                                                                                                                           |
-| **NEW-32** 🟡  | RLS assertions (34) not keeping pace with policies (76) | ✅ **Closed, and made mechanical.** `c8e1bea` adds assertions for **guardians (PII), subjects, the financial system-of-record** (receipts/payslips/lines + org_settings) and **mentee_notes** — **34 → 64 passing**. Plus `tests/unit/rls-coverage-parity.test.ts`: every RLS-enabled table must be named in the harness or explicitly exempted, **and the exempt list may only shrink**. |
-| **M5** 🟢      | Bundle ratchet 145 → 133 — open **nine passes**         | ✅ `firstLoadSharedKb: 133`, measured 127.4 KB. The win is locked in.                                                                                                                                                                                                                                                                                                                     |
-| **FIND-35** 🟡 | Restore drill — open since **revision 4**               | ✅ **Scripted.** `scripts/restore-drill.sh` verifies a restored DB is at head and its receipts reconcile, with a `--rehearse` mode proving the build→dump→restore→verify cycle locally. **Partially closed** — see below.                                                                                                                                                                 |
+**Security re-audit round 3** — the team's own findings, fixed and referenced by ID:
 
-#### The exempt-list ratchet is the detail worth noting
+| Commit    | Closes                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------ |
+| `01a0091` | **A-07** — tutor-only content writes; new `canWriteCalendar` for mentor calendar authority |
+| `b3d405d` | Submission deadline + Drive-link scheme enforced **at the DB boundary**, not just the app  |
+| `5f85d00` | Consent-record honesty, self-update guard, snapshot privilege epilogue                     |
+| `3c88285` | Messaging recipients **re-filtered by live profile status**; search escaped                |
+| `7e2f19d` | **A-08, A-13, R-03** — read-path PII + input hardening, session read authz                 |
+| `6bf9677` | **R-02** — browser cookie adapter + session TTL hardening                                  |
+| `71be574` | Production hardening — mock-var guard, queue-health alarm, deploy runbook                  |
 
-`rls-coverage-parity.test.ts` could have been a checkbox that any new table escapes by being
-added to an ignore list. Instead the list **may only shrink**, and the comment says why: _"a new
-RLS-enabled table should be asserted, not exempted."_ That closes the usual escape hatch, and
-it is the same instinct that made the coverage and bundle budgets work — a ratchet, not a
-threshold.
+`71be574` deserves a specific mention: `assertNoMockConfigInProduction` **refuses a production
+deployment carrying any mock-only env var** (`MOCK_MODE`, `ALLOW_MOCK_AUTH`, …), failing both
+the build and boot, scoped to `VERCEL_ENV=production` so local E2E and previews are unaffected.
+That closes the "mock mode escapes to production" risk class at the deployment boundary rather
+than relying on `isMock()`'s runtime checks alone.
 
-#### FIND-35 — scripted, not yet performed
+### New finding
 
-The script is a real step forward and it anticipates the gap I raised in revision 10:
-
-> The real drill: restore the latest Supabase backup into a scratch project, run this to
-> confirm the schema is at head and receipts reconcile, and **SEPARATELY confirm the custodial
-> attachments come back from Google Drive (they live outside the DB backup).**
-
-But `docs/operations.md` still reads _"do it once, then annually"_, and there is no recorded
-RTO. **The drill is now one command instead of a procedure — it has still not been run against
-a real backup.** Severity drops from Medium to Low; it does not disappear, because the whole
-point of the finding is that an untested backup is a hypothesis.
-
-### New observation
-
-| ID         | Observation                                                                                                                                                                                   | Severity |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| **NEW-34** | `mentee_notes` (`0078`) holds pastoral notes about a student that the student can never read. Sound as an application rule; it needs a documented position on data-subject access under DPDP. | 🟢 Low   |
+| ID         | Finding                                                                                                                                                                                                                                                 | Severity |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **NEW-35** | The mock's `teaches_class` RPC has **no mentor branch**, so mock-mode E2E enforces a different authorization rule than production. One spec fails as a result; more importantly, **the parity guards cover tables and policies but not RPC semantics.** | 🟠 High  |
 
 ### Still open
 
-| ID                                                                     | Finding                                                                                                                              | Severity  |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| **FIND-29**                                                            | No dark mode — `grep "dark:"` → **0**, **fifteenth pass**, while `layout.tsx` declares a dark `themeColor`                           | 🟡 Medium |
-| **FIND-35**                                                            | Restore drill scripted but never executed against a real backup                                                                      | 🟢 Low    |
-| **FIND-32**                                                            | No automated a11y check                                                                                                              | 🟢 Low    |
-| **NEW-06 / FIND-09 / FIND-10 / FIND-31 / FIND-44 / FIND-45 / FIND-46** | Matrix-persona batching; `src/features`; mock harness in the production graph; blog JSX; global search; footer mojibake; in-app help | 🟢 Low    |
+| ID                                                              | Finding                                                                                                                                          | Severity  |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| **FIND-29**                                                     | No dark mode — `grep "dark:"` → **0**, **sixteenth pass**                                                                                        | 🟡 Medium |
+| **FIND-35**                                                     | Restore drill scripted and rehearsed (5/5); **production drill never performed**                                                                 | 🟢 Low    |
+| **NEW-34**                                                      | No written position on data-subject access to pastoral notes                                                                                     | 🟢 Low    |
+| **FIND-32 / NEW-06 / FIND-09 / FIND-10 / FIND-31 / FIND-44–46** | a11y check; matrix-persona batching; `src/features`; mock harness in the production graph; blog JSX; global search; footer mojibake; in-app help | 🟢 Low    |
 
 ---
 
@@ -82,22 +76,32 @@ Cert-Ed Academia is a Next.js 16 App Router monolith serving two hosts from one 
 public marketing site (`certedacademia.com`) and a private academy portal
 (`app.certedacademia.com`), on Supabase (Auth + Postgres with RLS) and Vercel.
 
-**Every gate is green.** That has not happened before in fifteen passes — the closest was
-revision 7 (ten of eleven, with the RLS harness dead) and revision 11 (ten of eleven, with one
-E2E failure). Today: 1,161 unit tests, 64 RLS assertions against real Postgres, 69 E2E specs,
-a clean build, a ratcheted bundle budget, a current schema snapshot, and no dependency
-vulnerabilities.
+This window was almost entirely defensive: seven commits closing the team's own round-3
+security findings, plus a deployment guard that refuses to ship production with mock
+configuration present. RLS assertions rose again (64 → 67), and the enforcement of two rules —
+submission deadlines and Drive-link schemes — moved from the application down to the database
+boundary, which is the right direction.
 
-More importantly, the two findings closed this pass were closed **mechanically**: the RLS
-coverage gap became a parity test with a shrink-only exemption list, and the restore drill
-became a script. That is the pattern this audit has been pushing since revision 9, and it is
-now the project's default response rather than something it has to be reminded of.
+The one red gate is instructive rather than alarming. Migration `0082` deliberately gives a
+mentor calendar-write authority over a mentee's class; the RLS harness confirms the real
+database honours it; the E2E spec correctly asserts it; and the spec fails because **the mock's
+`teaches_class` is a plain tutor lookup with no mentor branch**. The application is right, the
+mock is behind, and the mock's own comment says so.
 
-What remains is a short tail. The only Medium is dark mode — carried fifteen passes, and at
-this point the honest choice is to build it on the existing token layer or delete the dark
-`themeColor` that advertises it.
+That matters beyond one spec. The parity guards added in revisions 14 and 15 —
+`mock-schema-parity.test.ts` and `rls-coverage-parity.test.ts` — cover _tables_ and _policies_.
+Neither covers the **behaviour of the SECURITY DEFINER functions** the app calls by RPC, which
+is where authorization actually gets decided.
 
-**Overall project health: 9.7 / 10** (…8.8 → 9.5 → 9.7). The highest in the series.
+| #   | Problem                                                                    | Severity  |
+| --- | -------------------------------------------------------------------------- | --------- |
+| 1   | Mock `teaches_class` diverges from production; RPC semantics unguarded     | 🟠 High   |
+| 2   | No dark mode, sixteenth pass, while the app advertises a dark `themeColor` | 🟡 Medium |
+| 3   | Production restore drill never performed                                   | 🟢 Low    |
+| 4   | No documented position on pastoral-notes subject access                    | 🟢 Low    |
+
+**Overall project health: 9.6 / 10** (…9.5 → 9.7 → 9.6). A marginal dip on one red gate; the
+underlying security posture improved.
 
 ---
 
@@ -105,63 +109,48 @@ this point the honest choice is to build it on the existing token layer or delet
 
 ### 2.1 Stack
 
-| Concern       | Technology                                                                                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework     | Next.js 16.3, App Router, Turbopack build                                                                                                                     |
-| Language      | TypeScript 5, `strict: true`                                                                                                                                  |
-| UI            | React 19.2, Tailwind CSS v4, design-system tokens                                                                                                             |
-| Edge          | `src/proxy.ts` — host split, session refresh, auth gate, per-request CSP nonce, cookie-preserving redirects                                                   |
-| Database      | Supabase Postgres, RLS on every table, chain `0001`–`0079`, `pg_cron` retention + email drain                                                                 |
-| Auth          | Supabase Auth, allowlist-first, hardened cookies, mock-auth fails closed off Vercel                                                                           |
-| File storage  | Custodial — academy-owned Google Drive (ADR-0006)                                                                                                             |
-| Privacy       | Privacy/terms pages, cookie + contact notices, DPDP minimisation, **consent records**                                                                         |
-| Email         | Resend, drained from a queue with atomic row claiming                                                                                                         |
-| Observability | `logError` → stderr + Sentry, request-id correlated, PII stripped; queue-health monitoring                                                                    |
-| Testing       | Vitest (153 files, 1,161 tests) + coverage ratchet + **RLS parity test** + Playwright (69 specs) + RLS harness (**64 assertions**) + **restore drill script** |
-| CI            | `verify` + `e2e` + `rls` jobs; executable pre-commit and pre-push hooks                                                                                       |
-| Hosting       | Vercel, region `bom1`                                                                                                                                         |
+| Concern           | Technology                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework         | Next.js 16.3, App Router, Turbopack build                                                                                                      |
+| Language          | TypeScript 5, `strict: true`                                                                                                                   |
+| UI                | React 19.2, Tailwind CSS v4, design-system tokens                                                                                              |
+| Edge              | `src/proxy.ts` — host split, session refresh, auth gate, per-request CSP nonce, cookie-preserving redirects                                    |
+| Database          | Supabase Postgres, RLS on every table, chain `0001`–`0082`, `pg_cron` retention + email drain                                                  |
+| Auth              | Supabase Auth, allowlist-first, hardened cookies, **session TTL hardening**, mock-auth fails closed off Vercel                                 |
+| Deployment safety | **`assertNoMockConfigInProduction`** — build and boot both refuse mock env vars under `VERCEL_ENV=production`                                  |
+| File storage      | Custodial — academy-owned Google Drive (ADR-0006)                                                                                              |
+| Privacy           | Privacy/terms pages, DPDP minimisation, consent records                                                                                        |
+| Email             | Resend, queue-drained with atomic row claiming; **queue-health alarm on the keepalive cron**                                                   |
+| Observability     | `logError` → stderr + Sentry, request-id correlated, PII stripped                                                                              |
+| Testing           | Vitest (157 files, 1,179) + coverage ratchet + 2 parity tests + Playwright (69 specs) + RLS harness (**67 assertions**) + restore-drill script |
+| CI                | `verify` + `e2e` + `rls`; executable pre-commit and pre-push hooks                                                                             |
+| Hosting           | Vercel, region `bom1`                                                                                                                          |
 
-### 2.2 What shipped this window
+### 2.2 The authorization split this window
 
-**Pastoral and safeguarding data**: `mentee_notes` (`0078`) — a mentor's private notes about a
-mentee, readable by that student's mentors and admins only; guardian-contacts service wired
-into the admin user detail; attendance session times with staff session notes.
+`0079` narrowed **every** class-scoped write to tutor-only (`teaches_class_write`) to close a
+mentor-write leak on class content. `0082` then repointed **only the two calendar write
+policies** back to `teaches_class` (tutor _or_ mentor-of-an-enrolled-student), with the
+reasoning recorded in the migration:
 
-**Privacy**: consent-record data and service layer (`c3bd741`), privacy/terms/register copy,
-further auth-cookie hardening.
+> Calendar is not content: repoint just the two CALENDAR write policies back to teaches_class …
+> while announcements/resources/assignments/meet_links stay tutor-only on teaches_class_write.
 
-**Security**: `7953067 fix(security): re-audit RLS/policy hardening (R-04, R-12, A-07)` — the
-team's own re-audit findings, fixed and referenced by ID.
+That is a careful split — a mentor can coordinate mentoring sessions on a mentee's calendar
+without gaining write access to teaching content. The app layer mirrors it with `canWriteClass`
+(tutor-only) and the new `canWriteCalendar`, and `calendar-events.ts` / `timetable-slots.ts`
+call the correct one at all seven call sites.
 
-**Quality**: the CookieNotice fix, the bundle ratchet, the RLS assertion expansion, the RLS
-parity test, and the restore-drill script.
+**Everything about this is right except the mock** (NEW-35).
 
 ### 2.3 Bundle profile
 
 ```
 First-load shared JS (gzipped): 127.4 KB across 4 chunks
-Budget (firstLoadSharedKb):     133 KB   ← ratcheted down from 145
+Budget (firstLoadSharedKb):     133 KB
 ```
 
-Nine passes of the script printing _"ratchet toward 133 to lock in the reduction"_, now acted
-on. The measured figure has not moved in nine passes; the budget now reflects that rather than
-leaving 17.6 KB of unearned headroom.
-
-### 2.4 Authorization model
-
-Unchanged in shape, and now verified far more thoroughly:
-
-```
-hard rule  >  explicit deny  >  explicit allow  >  persona default
-```
-
-- **App layer**: 69 E2E specs including negative sweeps, positive controls and API scoping.
-- **Database layer**: **64 RLS assertions**, now covering guardians (PII), subjects, the financial system-of-record, and mentee_notes — with a parity test ensuring no RLS-enabled table ships unasserted.
-
-`0078` is a good example of the model being applied thoughtfully: notes are **read** through an
-RLS policy, but have **no insert/update/delete policy at all** — writes go service-role only,
-gated by `canMentor` in the app, _"so the Data API can't forge or alter a note."_ Removing the
-write surface entirely is stronger than writing a policy for it.
+Unchanged, within the budget ratcheted last pass.
 
 ---
 
@@ -169,217 +158,227 @@ write surface entirely is stronger than writing a policy for it.
 
 ---
 
-### NEW-34 · `mentee_notes` and data-subject access — 🟢 Low _(observation, not a defect)_
+### NEW-35 · The mock's `teaches_class` has no mentor branch — 🟠 High
 
-`0078_mentee_notes.sql` is well designed and well documented:
+```
+api -- a mentor CAN create an event for a mentee class, but not a global one
+  Expected: 201    Received: 403
+```
 
-> Readable by the student's mentor(s) and admins; **NEVER by the student**, and not by tutors
-> (unless they also mentor the student).
+Deterministic across both attempts.
 
-As an application access rule this is correct — pastoral observation needs candour, and a note
-a student can read is a note that will not be written honestly.
+**The application is correct.** The chain is verifiable end to end:
 
-**The observation is about the layer above the application.** Under DPDP — and the privacy work
-in the previous window shows the team is engaging with it seriously — pastoral notes about a
-student are that student's personal data, and a data principal generally has a right of access
-to personal data concerning them. Most regimes allow that right to be narrowed (third-party
-data, confidential references, safeguarding), but the narrowing usually has to be a
-**documented position**, not an absence.
+| Layer                         | State                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| Real `teaches_class` (`0043`) | tutor **OR** mentor-of-an-enrolled-student                                         |
+| `0082_mentor_calendar_write`  | repoints `calendar_events_write` / `timetable_slots_write` to `teaches_class`      |
+| RLS harness                   | ✅ **67 assertions passing against real Postgres**                                 |
+| `canWriteCalendar`            | `isAdmin → true`, else `teachesClass(classId)`                                     |
+| Call sites                    | `calendar-events.ts` (×4) and `timetable-slots.ts` (×3) all use `canWriteCalendar` |
+| E2E spec                      | correctly asserts 201 for a mentor                                                 |
 
-So: the app should keep doing exactly what it does. What is missing is a line in the privacy
-documentation saying how a subject-access request touching pastoral notes is handled, and on
-what basis any material is withheld.
+**The mock is behind, and admits it** —
+[src/lib/mock/client.ts:16-18](src/lib/mock/client.ts#L16-L18):
 
-**Not legal advice** — this is a flag that the question exists and currently has no written
-answer, alongside a privacy posture that answers most others.
+```ts
+// teaches_class_write (0079) is the tutor-only WRITE scope; the mock's teaches_class
+// is already a plain class_tutors lookup (no mentor branch), so both resolve the same
+// tutor-of-class way here.
+if (fn === 'teaches_class' || fn === 'teaches_class_write' || fn === 'is_enrolled') {
+```
 
-**Recommendation:** add a short section to the privacy documentation covering pastoral notes:
-who can see them, why the student cannot in-app, and the process for a subject-access request.
-~30 minutes, and it closes the gap between a good technical control and a defensible position.
+Both function names resolve to the same `class_tutors` lookup. In production they are two
+different scopes; in mock they are one. A mentor therefore gets `false` from `teaches_class`,
+`canWriteCalendar` returns false, and the route 403s.
 
----
+**Why this is High rather than a spec nit.** The E2E suite runs against mock mode. Any
+authorization path that depends on `teaches_class`'s mentor branch is being exercised against a
+**different rule than production enforces** — so those specs are neither confirming nor
+refuting the real behaviour. The RLS harness covers the database side, which is why the product
+can be shown correct here; but the app-layer specs that pass on this path are passing for the
+wrong reason.
 
-### FIND-29 · No dark mode, fifteenth pass — 🟡 Medium
+**The guard-coverage gap this exposes.** Two parity guards were added over the last two passes,
+and both stop short of this:
 
-`grep -rc "dark:" src --include=*.tsx` → **0**, while `src/app/layout.tsx` still declares a dark
-`themeColor`. The app tells the browser it has a dark appearance and then renders light in
-every case.
+| Guard                               | Covers                                                 | Misses                        |
+| ----------------------------------- | ------------------------------------------------------ | ----------------------------- |
+| `mock-schema-parity.test.ts` (R14)  | every migration **table** has a mock counterpart       | ✔ tables only                 |
+| `rls-coverage-parity.test.ts` (R15) | every RLS-enabled table is **asserted** in the harness | ✔ policies only               |
+| —                                   | —                                                      | ❌ **RPC function semantics** |
 
-This is now the only Medium finding, and it has outlived every other item raised in this audit.
-The design-token layer added in revision 12 is the foundation an implementation would need.
+This is the third distinct _kind_ of mock-parity failure in the series — missing table (R9,
+`exchange_rates`), missing table (R13, `subjects`), now **divergent function behaviour**. The
+first two are now guarded; this one is not.
 
-**Recommendation — pick one and close it:**
+**Recommendation:**
 
-1. **Implement it** on the token layer: define the dark palette against the existing tokens, migrate `src/lib/ui` first (that covers most surfaces), then route-level components.
-2. **Delete the dark `themeColor`** — one line, and the app stops advertising something it does not do.
+1. **Fix the mock** — give `teaches_class` the mentor branch (tutor-of-class **OR** mentor of a student enrolled in that class), keeping `teaches_class_write` as the tutor-only lookup. That restores the split `0079`/`0082` define and turns the spec green.
+2. **Extend the guard to RPCs.** A parity test that every `create ... function` in the migration chain which the app calls via `.rpc(` has a mock branch would have caught this. It cannot verify _semantics_, but a divergence like two names collapsing into one implementation is worth an explicit acknowledgement in code rather than a comment.
+3. **At minimum, make the comment a warning.** The current comment reads as a justification (_"so both resolve the same tutor-of-class way here"_); after `0082` it is a known divergence and should say so.
 
-Either is defensible. Fifteen passes of neither is the only outcome that is not.
+**Effort:** ~30 minutes for (1); ~1 hour for (2).
 
 ---
 
 ### Remaining carried findings
 
-| ID                         | Finding                                                                                 | Severity | Note                                                                                                                                                                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **FIND-35**                | Restore drill scripted, not yet run against a real backup.                              | 🟢 Low   | Now one command (`scripts/restore-drill.sh`), with a `--rehearse` mode. The remaining step is a real Supabase restore plus a separate check that custodial Drive attachments return — the script's own header says so. Record the RTO. |
-| **FIND-32**                | No automated a11y check.                                                                | 🟢 Low   | The E2E suite is green, gated, and uploads artifacts; `@axe-core/playwright` is a drop-in.                                                                                                                                             |
-| **Cron wiring**            | Email drain and attachment reconcile are manual deploy-time steps.                      | 🟢 Low   | Documented in `deployment.md` §5 with consequences, and queue-health monitoring now alarms if they stall.                                                                                                                              |
-| **NEW-06**                 | Matrix-persona reads sequential (bounded at 5).                                         | 🟢 Low   |                                                                                                                                                                                                                                        |
-| **FIND-09 / FIND-10**      | `src/features` documented but never built; mock harness in the production module graph. | 🟢 Low   |                                                                                                                                                                                                                                        |
-| **FIND-31 / 44 / 45 / 46** | Blog JSX; no global search; footer mojibake; no in-app help.                            | 🟢 Low   |                                                                                                                                                                                                                                        |
+| ID                                                    | Finding                                                                                                                               | Severity  | Note                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FIND-29**                                           | No dark mode — `grep "dark:"` → **0** across sixteen passes, while `layout.tsx` declares a dark `themeColor`.                         | 🟡 Medium | Still the only Medium besides NEW-35. Build it on the token layer, or delete the one line.                                                                                                                                                                                                                                                                                  |
+| **FIND-35**                                           | Restore drill **rehearsed 5/5**, production drill never performed.                                                                    | 🟢 Low    | [docs/operations.md](docs/operations.md) is now exemplary here: it states the mechanics are proven, that _"the production drill against a real backup has not yet been performed, and no production RTO is recorded here,"_ and carries a placeholder — _"Last production drill: **never performed** — record date + RTO here."_ Honest self-documentation of an open item. |
+| **NEW-34**                                            | No written position on data-subject access to `mentee_notes`.                                                                         | 🟢 Low    |                                                                                                                                                                                                                                                                                                                                                                             |
+| **FIND-32**                                           | No automated a11y check.                                                                                                              | 🟢 Low    |                                                                                                                                                                                                                                                                                                                                                                             |
+| **NEW-06 / FIND-09 / FIND-10 / FIND-31 / FIND-44–46** | Matrix-persona batching; `src/features`; mock harness in the production graph; blog JSX; global search; footer mojibake; in-app help. | 🟢 Low    |                                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
 
 ## 4. Security Audit (Phase 3)
 
-| Control                                  | State                                                                                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dependency vulnerabilities**           | ✅ **0**.                                                                                                                                   |
-| **Database-layer authorization**         | ✅ **64 assertions** — nearly double last pass — now covering PII (guardians), the financial system-of-record, subjects and pastoral notes. |
-| **RLS coverage cannot silently regress** | ✅ `rls-coverage-parity.test.ts`, with a **shrink-only** exempt list.                                                                       |
-| **App-layer authorization**              | ✅ 69/69 E2E.                                                                                                                               |
-| **Write-surface removal**                | ✅ `mentee_notes` has no insert/update/delete policy — the Data API cannot forge or alter a note.                                           |
-| **Self-directed re-audit**               | ✅ `7953067` fixes R-04, R-12 and A-07 from the team's own security re-audit.                                                               |
-| **CSP**                                  | ✅ Nonce-based, `'strict-dynamic'`, preserved across redirects.                                                                             |
-| **Consent records**                      | ✅ New data + service layer.                                                                                                                |
-| **Secrets / telemetry**                  | ✅ None in git; PII stripped from Sentry.                                                                                                   |
+**A strong defensive window.** Round-3 findings closed and referenced by ID.
 
-**No OWASP category carries a confirmed open defect**, and the database half of access control
-is now verified at roughly twice the depth of any prior pass.
+| Control                                             | State                                                                                                                                                                        |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dependency vulnerabilities**                      | ✅ **0**.                                                                                                                                                                    |
+| **Database-layer authorization**                    | ✅ **67 assertions** (up from 64), parity-gated.                                                                                                                             |
+| **Enforcement moved down a layer**                  | ✅ `b3d405d` puts the **submission deadline and Drive-link scheme at the DB boundary** — previously app-only. A constraint the Data API cannot bypass beats a service check. |
+| **Content vs calendar write split**                 | ✅ `0079` + `0082` — mentors get calendar authority without content-write access, with the rationale in the migration.                                                       |
+| **Messaging recipients re-filtered by live status** | ✅ `3c88285` — a recipient disabled between compose and send is now dropped.                                                                                                 |
+| **Read-path PII + input hardening**                 | ✅ A-08, A-13, R-03; session read authz.                                                                                                                                     |
+| **Session TTL + browser cookie adapter**            | ✅ R-02.                                                                                                                                                                     |
+| **Mock config cannot reach production**             | ✅ `assertNoMockConfigInProduction` fails the build **and** boot.                                                                                                            |
+| **Queue health**                                    | ✅ Alarm on the keepalive cron if queues back up or **RLS is disabled**.                                                                                                     |
+| **App-layer authorization**                         | ⚠️ 68/69 — and see NEW-35 on what mock-mode specs can and cannot establish.                                                                                                  |
+
+**No OWASP category carries a confirmed open defect.** A01 is verified at the database layer by
+67 assertions; the app-layer verification has a known blind spot on the `teaches_class` mentor
+branch until the mock is fixed.
 
 ---
 
 ## 5. Performance Audit (Phase 4)
 
-First-load **127.4 KB against a tightened 133 KB budget**. Everything else unchanged and
-strong: email queued off the request path with atomic claiming, org settings cached, dashboards
-batched, 304 on unchanged finance PDFs, queue-health monitoring.
+Unchanged: first-load 127.4 KB against a 133 KB budget, email queued off the request path with
+atomic claiming, org settings cached, dashboards batched, 304 on unchanged finance PDFs.
 
-**Open:** the bounded matrix-persona loop (NEW-06) — five sequential reads, unchanged since
-revision 3 and still the only known query-shape inefficiency.
+**Open:** the bounded matrix-persona loop (NEW-06).
 
 ---
 
 ## 6. Maintainability (Phase 5)
 
-| Principle                       | Assessment                                                                                                                                                        |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Mechanical over documentary** | ✅ **Now the default.** Both findings closed this pass produced a guard, not a fix: a parity test and a drill script. The project no longer needs to be told.     |
-| **Ratchets over thresholds**    | The exempt list may only shrink; the bundle budget tightened to the measured value; coverage raised rather than patched. Three different controls, same instinct. |
-| **Write-surface minimisation**  | `mentee_notes` has no write policy because writes do not belong on the Data API.                                                                                  |
-| **Self-audit**                  | Security findings now originate in-house, tracked by ID, and are referenced in the commits that fix them.                                                         |
-| **SRP / OCP / DRY / KISS**      | **Strong**, unchanged.                                                                                                                                            |
+| Principle                                   | Assessment                                                                                                      |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Enforcement at the lowest useful layer**  | ✅ Submission deadlines and Drive-link schemes moved from app checks to DB constraints.                         |
+| **Deliberate, documented privilege splits** | ✅ `0082` explains why calendar is not content, in the migration itself.                                        |
+| **Guard at the deployment boundary**        | ✅ Mock env vars refused under `VERCEL_ENV=production`, at build _and_ boot.                                    |
+| **Honest documentation of open items**      | ✅ `operations.md` records "never performed" with a placeholder rather than implying the drill is done.         |
+| **Mock fidelity**                           | ⚠️ The one area where a shortcut is documented as a justification rather than flagged as a divergence (NEW-35). |
 
 ### Module scorecard
 
-| Module                                                                  |  R13  |   R14   |     R15     | Note                                                     |
-| ----------------------------------------------------------------------- | :---: | :-----: | :---------: | -------------------------------------------------------- |
-| `src/lib/capabilities` / `permission`                                   |  10   |   10    |   **10**    |                                                          |
-| `src/lib/security` / `observability`                                    |  10   |   10    |   **10**    |                                                          |
-| `src/proxy.ts` / `attachments`                                          |  10   |   10    |   **10**    |                                                          |
-| `src/app/components`                                                    |   —   |    8    |   **10**    | +2: `useSyncExternalStore` fix                           |
-| `src/app/(prt)`                                                         |   9   |    9    |    **9**    |                                                          |
-| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |   9   |   10    |   **10**    | Consents, guardians, mentee notes                        |
-| `src/lib/ui`                                                            |   9   |    9    |    **9**    | −1: still no dark-mode implementation on the token layer |
-| `supabase/migrations` / `rebuild`                                       | 9 / 6 | 10 / 10 | **10 / 10** | Chain `0079`, snapshot current                           |
-| `scripts/` + `.githooks/`                                               |   7   |   10    |   **10**    | Restore drill added                                      |
-| `scripts/test-rls.sh`                                                   |   —   |    7    |   **10**    | +3: 34 → 64 assertions, parity-gated                     |
-| `src/lib/mock`                                                          |   4   |   10    |   **10**    |                                                          |
-| `tests/unit`                                                            |   8   |   10    |   **10**    | 1,161 tests; two parity guards                           |
-| `tests/e2e`                                                             |   6   |   10    |   **10**    | 69/69                                                    |
-| `.github/`                                                              |  10   |   10    |   **10**    |                                                          |
-| `docs/`                                                                 |  10   |   10    |   **10**    | −0; see NEW-34 for the one gap                           |
+| Module                                                                  |   R14   |   R15   |     R16     | Note                                                            |
+| ----------------------------------------------------------------------- | :-----: | :-----: | :---------: | --------------------------------------------------------------- |
+| `src/lib/capabilities` / `permission`                                   |   10    |   10    |   **10**    | `canWriteCalendar` mirrors the RLS split at all 7 call sites    |
+| `src/lib/security` / `observability`                                    |   10    |   10    |   **10**    |                                                                 |
+| `src/proxy.ts` / `attachments`                                          |   10    |   10    |   **10**    |                                                                 |
+| `src/app/components` / `(prt)`                                          | 10 / 9  | 10 / 9  | **10 / 9**  |                                                                 |
+| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |   10    |   10    |   **10**    |                                                                 |
+| `src/lib/ui`                                                            |    9    |    9    |    **9**    | −1: no dark-mode implementation on the token layer              |
+| `supabase/migrations` / `rebuild`                                       | 10 / 10 | 10 / 10 | **10 / 10** | Chain `0082`, snapshot current                                  |
+| `scripts/` + `.githooks/`                                               |   10    |   10    |   **10**    |                                                                 |
+| `scripts/test-rls.sh`                                                   |    7    |   10    |   **10**    | 67 assertions                                                   |
+| `src/lib/mock`                                                          |   10    |   10    |    **6**    | −4: `teaches_class` diverges from production (NEW-35)           |
+| `tests/unit`                                                            |   10    |   10    |    **9**    | −1: parity guards stop at tables/policies, not RPCs             |
+| `tests/e2e`                                                             |   10    |   10    |    **9**    | −1: one red spec, correctly asserting production behaviour      |
+| `.github/` / `docs/`                                                    | 10 / 10 | 10 / 9  | **10 / 10** | `operations.md` restore-drill entry is a model of honest status |
 
 ---
 
 ## 7. Documentation (Phase 6)
 
-Strong and self-directed. The documentation set covers navigation (`where-to-find-what.md`),
-operations, deployment, environment, a production checklist, 6 ADRs with correct supersession,
-FK/cascade and RLS inventories, a hook-backed migration checklist, and the team's own security
-audits.
+Strong. This window added a deploy runbook and two more QA documents (security re-audit round 3
+and a production-readiness audit), and the restore-drill entry in `operations.md` was rewritten
+to state precisely what has and has not been done.
 
-**Two small gaps:**
-
-- `docs/operations.md` still describes the restore drill as a manual annual procedure; it should now point at `scripts/restore-drill.sh` and carry the recorded RTO once the drill is run.
-- No written position on pastoral-notes access (NEW-34).
+**One gap unchanged:** no written position on pastoral-notes subject access (NEW-34).
 
 ---
 
 ## 8. Debugging Experience (Phase 7)
 
-Complete: structured logs → Sentry with request-id correlation and PII stripped, CI report
-artifacts, queue-health monitoring.
+Complete, and extended: the keepalive cron now emits a structured breach log if the email or
+attachment queues back up **or RLS is disabled on any table** — monitoring that watches a
+security control, not just a performance one.
 
 ---
 
 ## 9. Database Review (Phase 8)
 
-**Schema:** chain `0001`–`0079`, RLS on every table, snapshot current, `pg_cron` retention and
-email drain, **64 harness assertions** with a parity test preventing regression.
+**Schema:** chain `0001`–`0082`, RLS on every table, snapshot current, **67 harness assertions**
+with a parity test preventing regression.
 
-`0078_mentee_notes` is the standout migration: it explains _why_ the table exists (a mentor's
-pastoral channel is attached to the student, not the tutor's session), states exactly who may
-read it, and deliberately omits write policies with the reasoning recorded.
+Two migrations stand out:
+
+- **`0082_mentor_calendar_write`** — a narrow, reasoned repoint of exactly two policies, with the content/calendar distinction argued in the header.
+- **`b3d405d`'s DB-boundary constraints** — submission deadline and Drive-link scheme enforced in Postgres, so the Data API cannot bypass what the app enforces.
 
 ---
 
 ## 10. Frontend Review (Phase 9)
 
-The CookieNotice fix used `useSyncExternalStore` with a server snapshot — the correct hook for
-"read a client-only value without a hydration mismatch or a cascading render" — rather than
-suppressing the rule.
+No significant frontend change this window.
 
 | ID          | Finding                       | Severity  |
 | ----------- | ----------------------------- | --------- |
-| **FIND-29** | No dark mode (fifteenth pass) | 🟡 Medium |
+| **FIND-29** | No dark mode (sixteenth pass) | 🟡 Medium |
 | **FIND-32** | No automated a11y check       | 🟢 Low    |
 
 ---
 
 ## 11. Backend Review (Phase 10)
 
-Unchanged in shape and steadily hardened: consent records, guardian contacts, pastoral notes
-with a service-role-only write path, session notes, further auth-cookie hardening, and three
-fixes from the team's own RLS re-audit.
+Materially hardened: read-path PII scrubbing, input hardening, session read authorization,
+session TTL, browser cookie adapter, consent-record honesty, self-update guard, messaging
+recipient re-filtering by live profile status, and search escaping.
 
 ---
 
 ## 12. DevOps Review (Phase 11)
 
-Three CI jobs, executable hooks, queue-health monitoring, and now a restore-drill script. **All
-gates green.**
+Three CI jobs, executable hooks, queue-health alarm, deploy runbook, and a production
+deployment guard against mock configuration.
 
-The one insurance item still worth adding, carried from revision 13: a CI assertion that the
-hooks remain mode `100755`, so a future squash cannot silently drop them the way one already
-did.
+The insurance item carried from revision 13 remains: a CI assertion that hooks stay mode
+`100755`, so a future squash cannot silently drop them the way one already did.
 
 ---
 
 ## 13. Testing Review (Phase 12)
 
-| Type               | R13          | R14        | R15                                   |
-| ------------------ | ------------ | ---------- | ------------------------------------- |
-| Unit / integration | 123, 953     | 150, 1,154 | ✅ **153 files, 1,161**               |
-| Coverage           | ❌ 70.75%    | 77.1%      | ✅ **76.96% lines · 64.04% branches** |
-| E2E                | ❌ 49 failed | 69/69      | ✅ **69 / 69**                        |
-| RLS                | 34           | 34         | ✅ **64 passed**                      |
-| Restore drill      | —            | —          | ✅ **scripted** (not yet run)         |
+| Type               | R14        | R15        | R16                                            |
+| ------------------ | ---------- | ---------- | ---------------------------------------------- |
+| Unit / integration | 150, 1,154 | 153, 1,161 | ✅ **157 files, 1,179**                        |
+| Coverage           | 77.1%      | 76.96%     | ✅ **76.69% lines · 63.77% branches**          |
+| E2E                | 69/69      | 69/69      | ❌ **68 passed / 1 failed**                    |
+| RLS                | 34         | 64         | ✅ **67 passed**                               |
+| Restore drill      | —          | scripted   | ✅ **rehearsed 5/5**, production drill pending |
 
-The RLS expansion is the substantive win: assertions now cover the data that would matter most
-in a breach — guardian contact details for minors, the financial system-of-record, and pastoral
-notes. Coverage dipped 0.14 points, which is noise within a healthy margin.
+**The failing spec is doing its job.** It was written to assert the behaviour `0082`
+deliberately introduced, and it is failing because the harness it runs against has not caught
+up. That is a better outcome than the spec being written to match the mock — which would have
+locked the divergence in silently.
 
 ---
 
 ## 14. UX Review (Phase 13)
 
-Guardian contacts in the admin user detail, staff session notes, consent records, refreshed
-privacy/terms/register copy.
+No user-facing change this window; it was defensive throughout.
 
 | ID                | Finding                                           | Severity  |
 | ----------------- | ------------------------------------------------- | --------- |
-| **FIND-29**       | No dark mode (fifteenth pass)                     | 🟡 Medium |
+| **FIND-29**       | No dark mode (sixteenth pass)                     | 🟡 Medium |
 | **FIND-44/45/46** | No global search; footer mojibake; no in-app help | 🟢 Low    |
 
 ---
@@ -388,11 +387,11 @@ privacy/terms/register copy.
 
 | Dimension                            | Assessment                                                                                                                                        |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Concurrency / horizontal scaling** | **Good.** Atomic queue claiming.                                                                                                                  |
+| **Concurrency / horizontal scaling** | **Good.**                                                                                                                                         |
 | **Request path**                     | **Good.**                                                                                                                                         |
-| **Large database**                   | Growth tables bounded by retention. Index inventories for `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags` still unexamined. |
-| **Client payload**                   | ✅ 127.4 KB against a tightened 133 KB budget.                                                                                                    |
-| **Backup/restore**                   | ✅ Scripted; not yet exercised.                                                                                                                   |
+| **Large database**                   | Growth tables bounded by retention; index inventories for `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags` still unexamined. |
+| **Client payload**                   | ✅ 127.4 KB / 133 KB.                                                                                                                             |
+| **Backup/restore**                   | ✅ Scripted and rehearsed; production drill pending.                                                                                              |
 
 ---
 
@@ -400,98 +399,108 @@ privacy/terms/register copy.
 
 **Over-engineering:** none.
 
-**Under-engineering — the table that has driven this audit since revision 9:**
+**Under-engineering — the recurring table:**
 
-| Control            | R13             | R14             | R15                      |
-| ------------------ | --------------- | --------------- | ------------------------ |
-| Snapshot freshness | May not execute | ✅ Executable   | ✅ Current at `0079`     |
-| Formatting         | ✅              | ✅              | ✅                       |
-| Mock parity        | ❌ Rule only    | ✅ Unit test    | ✅                       |
-| Coverage           | ❌ Breached     | ✅ Floor raised | ✅                       |
-| RLS assertions     | ❌ 34 of 76     | ❌ 34 of 76     | ✅ **64 + parity test**  |
-| Restore drill      | ❌ Never run    | ❌ Never run    | ⚠️ **Scripted, not run** |
+| Control                                   | R15         | R16                         |
+| ----------------------------------------- | ----------- | --------------------------- |
+| Snapshot / formatting / coverage / bundle | ✅          | ✅                          |
+| Mock **table** parity                     | ✅          | ✅                          |
+| RLS assertion parity                      | ✅          | ✅                          |
+| **Mock RPC parity**                       | —           | ❌ **Unguarded — NEW-35**   |
+| Production restore drill                  | ⚠️ Scripted | ⚠️ Rehearsed, not performed |
 
-Six of six now have a mechanism. One still needs to be executed once.
+Every parity guard added so far has closed the _previous_ failure's shape. This is the next
+shape.
 
 ---
 
 ## 17. Prioritised Action Plan (Phase 18)
 
+### 🟠 High
+
+**H1 · Give the mock's `teaches_class` its mentor branch** — NEW-35 · ~30 min · tutor-of-class
+**or** mentor of an enrolled student, keeping `teaches_class_write` tutor-only. Turns the spec
+green and stops mock-mode E2E enforcing a rule production does not.
+
+**H2 · Extend parity to RPCs** — NEW-35 · ~1 h · a test that every migration function the app
+calls via `.rpc(` has a distinct mock branch. It cannot verify semantics, but two scopes
+collapsing into one implementation should require an explicit, reasoned exemption — the same
+shrink-only pattern `rls-coverage-parity.test.ts` already uses.
+
 ### 🟡 Medium
 
-**M1 · Close dark mode either way** — FIND-29 · fifteenth pass · implement on the token layer,
-or delete the dark `themeColor` (one line). Continuing to advertise a dark appearance the app
-does not render is the only outcome worth ruling out.
+**M1 · Close dark mode either way** — FIND-29 · sixteenth pass · implement on the token layer,
+or delete the dark `themeColor`.
 
 ### 🟢 Low
 
-| ID  | Action                                                                                                                                                  | Finding          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| L1  | Run `scripts/restore-drill.sh` against a real Supabase backup; record the RTO in `operations.md`; separately confirm custodial Drive attachments return | FIND-35          |
-| L2  | Write the pastoral-notes access position into the privacy documentation                                                                                 | NEW-34           |
-| L3  | Add a CI assertion that hooks stay mode `100755`                                                                                                        | R13 carry        |
-| L4  | `@axe-core/playwright` assertions                                                                                                                       | FIND-32          |
-| L5  | Index review for `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags`                                                                  | §15              |
-| L6  | Batch the matrix-persona reads                                                                                                                          | NEW-06           |
-| L7  | Mark `src/features` PLANNED or remove it                                                                                                                | FIND-09          |
-| L8  | Blog content → MDX; footer mojibake; global search; in-app help                                                                                         | FIND-31/45/44/46 |
+| ID  | Action                                                                                        | Finding          |
+| --- | --------------------------------------------------------------------------------------------- | ---------------- |
+| L1  | Run the production restore drill; record date + RTO in the placeholder already waiting for it | FIND-35          |
+| L2  | Write the pastoral-notes access position into the privacy documentation                       | NEW-34           |
+| L3  | CI assertion that hooks stay mode `100755`                                                    | R13 carry        |
+| L4  | `@axe-core/playwright` assertions                                                             | FIND-32          |
+| L5  | Index review for `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags`        | §15              |
+| L6  | Batch the matrix-persona reads                                                                | NEW-06           |
+| L7  | Mark `src/features` PLANNED or remove it                                                      | FIND-09          |
+| L8  | Blog content → MDX; footer mojibake; global search; in-app help                               | FIND-31/45/44/46 |
 
 ---
 
 ## 18. Quick Wins
 
-1. **Delete the dark `themeColor`** if dark mode isn't planned — 5 min; ends a fifteen-pass mismatch. _(M1)_
-2. **CI hook-mode assertion** — 5 min; insurance against a guard that was silently dropped once. _(L3)_
-3. **`bash scripts/restore-drill.sh --rehearse`** — 15 min; proves the cycle works before the real drill. _(L1)_
-4. **Pastoral-notes privacy paragraph** — 30 min. _(L2)_
-5. **`@axe-core/playwright`** — 1 h; the suite is green, gated, and uploading artifacts. _(L4)_
+1. **Mentor branch in the mock's `teaches_class`** — 30 min; turns the last red gate green. _(H1)_
+2. **Rewrite the mock comment as a warning** — 2 min; it currently reads as a justification for a divergence that `0082` made real. _(H1)_
+3. **Delete the dark `themeColor`** if dark mode isn't planned — 5 min; sixteen passes. _(M1)_
+4. **CI hook-mode assertion** — 5 min. _(L3)_
+5. **Run the restore drill** — half a day; the placeholder is already in `operations.md`. _(L1)_
 
 ---
 
 ## 19. Long-Term Improvements
 
-1. **Run the restore drill.** It is now one command. The finding has been open since revision 4 and is the last control that exists but has never been exercised.
-2. **Dark mode or drop the claim.** Fifteen passes.
-3. **Multi-tenancy readiness.** Subjects, guardians, consents, multi-currency, custodial storage and per-slot timezones all point at a product that will need tenant scoping; `org_settings` is still single-row by constraint.
+1. **Mock fidelity as a first-class concern.** Three parity failures of three different shapes have now cost passes. Tables and policies are guarded; functions are next.
+2. **Run the production restore drill.** Rehearsed 5/5; the real one has never been done.
+3. **Dark mode or drop the claim.** Sixteen passes.
+4. **Multi-tenancy readiness.** `org_settings` is still single-row by constraint while the data model keeps widening.
 
 ---
 
 ## 20. Overall Scorecard (Phase 16)
 
-| Dimension                  |   R12   |   R13   |   R14   |   R15   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------------- | :-----: | :-----: | :-----: | :-----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Architecture**           |    9    |    9    |    9    |  **9**  | Pastoral notes and consents fit the model cleanly. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                                                                                        |
-| **Security**               |   10    |    8    |   10    | **10**  | 64 RLS assertions covering PII, finance and pastoral data; a parity test preventing regression; write surfaces removed rather than policed; in-house re-audit findings fixed.                                                                                                                                                                                                                                                                |
-| **Maintainability**        |    9    |    9    |   10    | **10**  | Mechanical-over-documentary is now the default response, not a recommendation.                                                                                                                                                                                                                                                                                                                                                               |
-| **Performance**            |   10    |   10    |   10    | **10**  | Budget ratcheted to the measured value.                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **Scalability**            |    9    |    9    |    9    |  **9**  | Index inventories still unexamined.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Documentation**          |   10    |   10    |   10    |  **9**  | −1: `operations.md` predates the drill script, and pastoral-notes access has no written position.                                                                                                                                                                                                                                                                                                                                            |
-| **Testing**                |   10    |    6    |    9    | **10**  | 1,161 unit + 64 RLS + 69 E2E, all green, with two parity guards and a drill script.                                                                                                                                                                                                                                                                                                                                                          |
-| **Developer Experience**   |    8    |    7    |    9    | **10**  | Every gate green; every recurring failure now has a mechanism.                                                                                                                                                                                                                                                                                                                                                                               |
-| **User Experience**        |   10    |    9    |   10    |  **9**  | −1: dark mode, fifteenth pass.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Code Quality**           |    9    |    9    |    9    | **10**  | Eleven of eleven gates green, 0 warnings, 0 vulnerabilities.                                                                                                                                                                                                                                                                                                                                                                                 |
-|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **Overall Project Health** | **9.4** | **8.8** | **9.5** | **9.7** | The first fully green pass in fifteen. Both findings were closed with a mechanism rather than a fix — a parity test with a shrink-only exemption list, and a restore drill reduced to one command. RLS assertions nearly doubled and now cover guardian PII, the financial system-of-record and pastoral notes. What remains is a genuinely short tail: one Medium that is a decision rather than work, and a drill that needs running once. |
+| Dimension                  |   R13   |   R14   |   R15   |   R16   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | :-----: | :-----: | :-----: | :-----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architecture**           |    9    |    9    |    9    |  **9**  | The content/calendar write split is a precise, well-argued privilege boundary. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                                                                                          |
+| **Security**               |    8    |   10    |   10    | **10**  | Round-3 findings closed by ID; enforcement pushed down to DB constraints; production refuses mock config; RLS assertions up to 67.                                                                                                                                                                                                                                                                                                                                         |
+| **Maintainability**        |    9    |   10    |   10    |  **9**  | −1: the mock divergence is documented as a justification rather than flagged as a known gap.                                                                                                                                                                                                                                                                                                                                                                               |
+| **Performance**            |   10    |   10    |   10    | **10**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Scalability**            |    9    |    9    |    9    |  **9**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Documentation**          |   10    |   10    |    9    | **10**  | The restore-drill entry states exactly what is and is not done, with a placeholder for the result.                                                                                                                                                                                                                                                                                                                                                                         |
+| **Testing**                |    6    |    9    |   10    |  **9**  | −1: 1,179 unit + 67 RLS are excellent, but the E2E layer is running against a mock that enforces a different authorization rule on one path.                                                                                                                                                                                                                                                                                                                               |
+| **Developer Experience**   |    7    |    9    |   10    |  **9**  | −1 for the red gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **User Experience**        |    9    |   10    |    9    |  **9**  | −1: dark mode, sixteenth pass.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Code Quality**           |    9    |    9    |   10    |  **9**  | Ten of eleven gates green, 0 warnings, 0 vulnerabilities.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Overall Project Health** | **8.8** | **9.5** | **9.7** | **9.6** | A defensive window that closed the team's own round-3 findings and pushed two rules down into database constraints. The single red gate is the most useful kind of failure: a spec asserting the behaviour a migration deliberately introduced, failing because the mock has not caught up. Fixing the mock is thirty minutes; the more valuable follow-through is extending parity from tables and policies to the RPC functions where authorization is actually decided. |
 
 ---
 
 ## 21. Strengths
 
-1. **Every gate green** — 1,161 unit tests, 64 RLS assertions, 69 E2E specs, clean build, ratcheted bundle, current snapshot, zero vulnerabilities.
-2. **The exempt list may only shrink.** `rls-coverage-parity.test.ts` closes the escape hatch that would otherwise let a new table opt out of RLS assertions.
-3. **RLS assertions nearly doubled**, and they were pointed at the right data first — guardian PII for minors, the financial system-of-record, pastoral notes.
-4. **The write surface was removed, not policed** — `mentee_notes` has no insert/update/delete policy, so the Data API cannot forge or alter a note.
-5. **The restore drill anticipated the gap I raised in revision 10** — its header explicitly says custodial Drive attachments must be verified separately, because they live outside the DB backup.
-6. **The lint fix used the right hook**, `useSyncExternalStore` with a server snapshot, rather than suppressing a rule the project benefits from.
-7. **The bundle ratchet was finally taken** — the budget now reflects nine passes of stable measurement instead of unearned headroom.
-8. **Security findings now originate in-house**, tracked by ID and referenced in the commits that fix them.
-9. **Migration `0078` explains itself** — why the table exists, who may read it, and why it has no write policy.
-10. **Commits that name their findings**, fifteen passes running.
+1. **Enforcement moved down a layer.** Submission deadlines and Drive-link schemes are now DB constraints, not just service checks — the Data API cannot bypass them.
+2. **A precise privilege split, argued in the migration.** `0082` repoints exactly two calendar policies while content stays tutor-only, with the content/calendar distinction written down.
+3. **Production refuses mock configuration** — `assertNoMockConfigInProduction` fails both build and boot, scoped so local E2E and previews still work.
+4. **Monitoring that watches a security control** — the queue-health alarm also fires if RLS is disabled on any table.
+5. **Messaging recipients re-filtered by live status**, closing the compose-then-disabled window.
+6. **RLS assertions up to 67**, parity-gated so no RLS-enabled table can ship unasserted.
+7. **The failing spec was written to production behaviour, not to the mock** — had it been written to match the mock, the divergence would have been locked in silently.
+8. **`operations.md` records "never performed"** with a placeholder rather than implying the drill is done. Honest status beats optimistic status.
+9. **Security findings originate in-house**, tracked by ID across three rounds, and referenced in the commits that fix them.
+10. **Commits that name their findings**, sixteen passes running.
 
 ---
 
-_Revision 15 performed 2026-08-25 against `feature/cert-ed-academia-app` @ `5e23697` with a
-clean working tree, a clean `rm -rf .next` rebuild, and **serial** execution of every gate
-(learning from revision 14, where concurrent runs contaminated two measurements). Not verified:
-whether the Sentry DSNs are configured in Vercel, whether the drain/reconcile crons are wired on
-the production project, and whether the restore drill has been run against a real backup._
+_Revision 16 performed 2026-08-26 against `feature/cert-ed-academia-app` @ `fa11762` with a
+clean working tree, a clean `rm -rf .next` rebuild, and serial execution of every gate. Not
+verified: whether the Sentry DSNs are configured in Vercel, whether the drain/reconcile crons
+are wired on the production project, and whether the production restore drill has been run._
