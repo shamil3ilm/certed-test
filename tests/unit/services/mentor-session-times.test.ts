@@ -23,14 +23,21 @@ vi.mock('@/lib/data/attendance', () => ({
 }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
-import { canManageClass } from '@/lib/permission/class'
+import { canManageClass, mentorAuthorityClassIds } from '@/lib/permission/class'
+import { loadPersonaFlags } from '@/lib/permission/personas'
+import { selectActiveClassIdsAmong, selectClassesByIds } from '@/lib/data/classes'
+import { selectSubjectsByIds } from '@/lib/data/subjects'
+import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
+import { getProfileNamesByIds } from '@/lib/services/users'
 import {
   selectSessionAsService,
+  selectSessionsForClassesAsService,
   selectTutorOverlappingSessions,
   updateSessionActualTimesAsService,
 } from '@/lib/data/class-sessions'
+import { selectJoinRowsForClassesAsService } from '@/lib/data/attendance'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { updateSessionTimes } from '@/lib/services/mentor-session-timings'
+import { listMenteeSessionTimings, updateSessionTimes } from '@/lib/services/mentor-session-timings'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'm1' } as never
@@ -150,5 +157,57 @@ describe('updateSessionTimes', () => {
     await updateSessionTimes(actor, { ...base, startAt: null, endAt: null })
     expect(selectTutorOverlappingSessions).not.toHaveBeenCalled()
     expect(updateSessionActualTimesAsService).toHaveBeenCalledWith('c1', '2026-08-05', null, null, 'v1')
+  })
+})
+
+describe('listMenteeSessionTimings', () => {
+  beforeEach(() => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false } as never)
+    vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set(['c1']))
+    vi.mocked(selectActiveClassIdsAmong).mockResolvedValue(['c1'])
+    vi.mocked(selectSessionsForClassesAsService).mockResolvedValue([
+      {
+        class_id: 'c1',
+        session_date: '2026-08-05',
+        tutor_id: 't1',
+        actual_start: START,
+        actual_end: END,
+        updated_at: 'v1',
+      },
+    ] as never)
+    vi.mocked(selectJoinRowsForClassesAsService).mockResolvedValue([
+      { class_id: 'c1', student_id: 's1', session_date: '2026-08-05', join_at: '2026-08-05T10:05:00.000Z' },
+    ] as never)
+    vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([{ class_id: 'c1', student_id: 's1' }] as never)
+    vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c1', name: 'Maths', subject_id: 'sub1' }] as never)
+    vi.mocked(selectSubjectsByIds).mockResolvedValue([{ id: 'sub1', name: 'Algebra' }] as never)
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(
+      new Map([
+        ['s1', 'Sam'],
+        ['t1', 'Tara'],
+      ]),
+    )
+  })
+
+  it('returns one row per (class, date) unioning session + attendance, with names/subject/updatedAt', async () => {
+    const rows = await listMenteeSessionTimings(actor)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      classId: 'c1',
+      className: 'Maths',
+      subject: 'Algebra',
+      studentName: 'Sam',
+      tutorName: 'Tara',
+      sessionDate: '2026-08-05',
+      startAt: START,
+      endAt: END,
+      studentEntryAt: '2026-08-05T10:05:00.000Z',
+      updatedAt: 'v1',
+    })
+  })
+
+  it('returns nothing when the mentor has no active authority classes', async () => {
+    vi.mocked(selectActiveClassIdsAmong).mockResolvedValue([])
+    expect(await listMenteeSessionTimings(actor)).toEqual([])
   })
 })
