@@ -16,6 +16,10 @@ import type { AttendanceStatus } from '@/lib/attendance/summary'
 export type AttendanceRow = {
   id: string
   class_id: string
+  /** The SESSION this mark belongs to (0094). A student is marked once per session, so a
+   *  day with two sessions carries two marks - class_id/session_date describe the mark's
+   *  session but no longer identify it. */
+  session_id: string
   student_id: string
   session_date: string // 'YYYY-MM-DD'
   status: AttendanceStatus
@@ -28,6 +32,7 @@ export type AttendanceRow = {
 
 export type AttendanceMark = {
   class_id: string
+  session_id: string
   student_id: string
   session_date: string
   status: AttendanceStatus
@@ -39,7 +44,7 @@ export type AttendanceMark = {
 // Explicit projection so a future wide column on `attendance` isn't shipped on
 // every list read.
 const ATTENDANCE_COLUMNS =
-  'id, class_id, student_id, session_date, status, join_at, leave_at, marked_by, created_at, updated_at'
+  'id, class_id, session_id, student_id, session_date, status, join_at, leave_at, marked_by, created_at, updated_at'
 
 type StatusCounts = { present: number; late: number; absent: number; total: number }
 
@@ -163,7 +168,9 @@ export async function upsertMarks(rows: ReadonlyArray<AttendanceMark>): Promise<
   const admin = createAdminClient()
   const now = new Date().toISOString()
   const stamped = rows.map((r) => ({ ...r, updated_at: now }))
-  const { error } = await admin.from('attendance').upsert(stamped, { onConflict: 'class_id,student_id,session_date' })
+  // One mark per student per SESSION (0094). Keying on the session - not the date -
+  // is what lets a student be present for the morning session and absent for the afternoon.
+  const { error } = await admin.from('attendance').upsert(stamped, { onConflict: 'session_id,student_id' })
   if (error) throw new Error(`attendance.markMany: ${error.message}`)
 }
 
@@ -229,34 +236,33 @@ export async function selectRowsForStudentsAsService(
  *  list to show/edit the student joined time. */
 export async function selectJoinRowsForClassesAsService(
   classIds: string[],
-): Promise<Pick<AttendanceRow, 'class_id' | 'student_id' | 'session_date' | 'join_at'>[]> {
+): Promise<Pick<AttendanceRow, 'class_id' | 'session_id' | 'student_id' | 'session_date' | 'join_at'>[]> {
   if (classIds.length === 0) return []
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('attendance')
-    .select('class_id, student_id, session_date, join_at')
+    // session_id is selected because a day can hold several marks now (one per session);
+    // callers must key on it rather than on (class, date), which would keep only one.
+    .select('class_id, session_id, student_id, session_date, join_at')
     .in('class_id', classIds)
   if (error) throw new Error(`sessionTimings.joinRows: ${error.message}`)
-  return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'student_id' | 'session_date' | 'join_at'>[]
+  return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'session_id' | 'student_id' | 'session_date' | 'join_at'>[]
 }
 
-/** Update ONLY the student join time on an existing attendance row (service role;
- *  domain gates on canManageClass). Returns false if no row exists for that
- *  (class, student, date) - the caller surfaces that instead of creating one.
- *  Status and leave time are left untouched. */
+/** Set a student's entry time on ONE session's mark. Keyed on the session, not the date:
+ *  a day may hold several marks for the same student (one per session), and updating by
+ *  date would rewrite every one of them. */
 export async function updateJoinAtAsService(
-  classId: string,
+  sessionId: string,
   studentId: string,
-  sessionDate: string,
   joinAt: string | null,
 ): Promise<boolean> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('attendance')
     .update({ join_at: joinAt, updated_at: new Date().toISOString() })
-    .eq('class_id', classId)
+    .eq('session_id', sessionId)
     .eq('student_id', studentId)
-    .eq('session_date', sessionDate)
     .select('id')
   if (error) throw new Error(`sessionTimings.updateJoinAt: ${error.message}`)
   return (data?.length ?? 0) > 0

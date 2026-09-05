@@ -71,3 +71,30 @@ test('a sub_admin can open and manage a mentor account (revoke/restore)', async 
   const mayaRow = page.locator('li', { hasText: 'Maya Mentor' }).first()
   await expect(mayaRow.getByRole('button', { name: /revoke|restore/i })).toBeVisible()
 })
+
+test('revoke and restore both confirm first, and the modal names the account being changed', async ({ page }) => {
+  await loginAs(page, 'subadmin@mock.test')
+  await page.goto('/admin/users')
+  const mayaRow = page.locator('li', { hasText: 'Maya Mentor' }).first()
+
+  // Each row's control is addressable by WHO it acts on. Two accounts can have
+  // near-identical emails (an imported "ef.0803.maya@x.test" beside "maya@x.test"),
+  // so a bare "Revoke" would be ambiguous to a screen reader and to this test.
+  await mayaRow.getByRole('button', { name: /^Revoke access for / }).click()
+
+  // The confirm modal covers the list, so it must name the account itself -
+  // otherwise "they are signed out" points at nothing still on screen.
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Maya Mentor')
+  await dialog.getByRole('button', { name: 'Revoke' }).click()
+
+  // Restore confirms too. It used to submit on a single click, sitting next to the
+  // irreversible Erase, and re-grants sign-in - so it asks like its siblings.
+  const restore = mayaRow.getByRole('button', { name: /^Restore access for / })
+  await expect(restore).toBeVisible()
+  await restore.click()
+  await expect(dialog).toContainText('Maya Mentor')
+  await dialog.getByRole('button', { name: 'Restore' }).click()
+
+  await expect(mayaRow.getByRole('button', { name: /^Revoke access for / })).toBeVisible()
+})

@@ -8,6 +8,7 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { deleteSession, upsertMarks, type AttendanceMark } from '@/lib/data/attendance'
+import { insertSession, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 
 /** Recording and correcting a session's attendance. Both paths are gated on
  *  canManageClass (a tutor of THIS class, or an admin) and audited. */
@@ -26,7 +27,29 @@ function isoOrNull(value: string | null | undefined): string | null {
 }
 
 /**
- * Marks a whole class for one session date in a single atomic write.
+ * The session a batch of marks belongs to (0094: attendance is per session, not per day).
+ *
+ * An explicit id is verified to belong to THIS class and date, so a mark can never be
+ * attached to another class's session. With no id - the plain "mark today's roster" flow -
+ * the day's first session is used, and if the day has none a timeless session is created:
+ * marking attendance asserts a session happened, and recording its times is a separate,
+ * optional step. A timeless session contributes zero teaching minutes, so totals are
+ * unaffected.
+ */
+async function resolveMarkingSession(classId: string, sessionDate: string, sessionId?: string): Promise<string> {
+  const sessions = await selectSessionsForDateAsService(classId, sessionDate)
+  if (sessionId) {
+    const named = sessions.find((s) => s.id === sessionId)
+    if (!named) throw new ValidationError('That session does not belong to this class and date.')
+    return named.id
+  }
+  if (sessions.length > 0) return sessions[0].id
+  const created = await insertSession({ class_id: classId, session_date: sessionDate })
+  return created.id
+}
+
+/**
+ * Marks a whole class for one session in a single atomic write.
  *
  * Every student_id must be on this class's roster. That check is the security
  * boundary, not a convenience: without it a forged status:<foreignId> would
@@ -36,11 +59,12 @@ function isoOrNull(value: string | null | undefined): string | null {
  */
 export async function markAttendance(
   actor: Profile,
-  params: { classId: string; sessionDate: string; marks: MarkAttendanceInput[] },
+  params: { classId: string; sessionDate: string; sessionId?: string; marks: MarkAttendanceInput[] },
 ): Promise<{ saved: number }> {
   if (!(await canManageClass(actor, params.classId))) {
     throw new PermissionError('Not allowed to mark attendance for this class.')
   }
+  const sessionId = await resolveMarkingSession(params.classId, params.sessionDate, params.sessionId)
   const { students } = await getClassMembers(params.classId)
   const enrolled = new Set(students.map((s) => s.id))
 
@@ -56,6 +80,7 @@ export async function markAttendance(
     if (parsed.success) {
       rows.push({
         ...parsed.data,
+        session_id: sessionId,
         join_at: isoOrNull(m.join_at),
         leave_at: isoOrNull(m.leave_at),
         marked_by: actor.id,

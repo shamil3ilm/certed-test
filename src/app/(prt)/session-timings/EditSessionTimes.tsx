@@ -13,12 +13,15 @@ import { updateSessionTimesAction } from './actions'
  *  and the joined-time editor handle times. The service validates the window and touches
  *  nothing else on the session. */
 export function EditSessionTimes({
+  sessionId,
   classId,
   sessionDate,
   startAt,
   endAt,
   updatedAt,
 }: {
+  /** The session being edited - (class, date) no longer identifies one row. */
+  sessionId: string
   classId: string
   sessionDate: string
   startAt: string | null
@@ -42,6 +45,7 @@ export function EditSessionTimes({
     event.preventDefault()
     setBusy(true)
     const formData = new FormData()
+    formData.set('session_id', sessionId)
     formData.set('class_id', classId)
     formData.set('session_date', sessionDate)
     formData.set('start_at', start ? localTimeToIso(sessionDate, start) : '')

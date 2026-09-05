@@ -29,9 +29,13 @@ export function MarkAttendanceForm({
   date,
   students,
   session,
+  sessionId,
 }: {
   classId: string
   date: string
+  /** Marks belong to a SESSION (0094). Omitted only for a date with no recorded session,
+   *  where saving records one. */
+  sessionId?: string
   students: Row[]
   session: SessionTimes | null
 }) {
@@ -40,18 +44,27 @@ export function MarkAttendanceForm({
     .join('|')
 
   return (
-    <MarkAttendanceFormBody key={serverSignature} classId={classId} date={date} students={students} session={session} />
+    <MarkAttendanceFormBody
+      key={serverSignature}
+      classId={classId}
+      date={date}
+      sessionId={sessionId}
+      students={students}
+      session={session}
+    />
   )
 }
 
 function MarkAttendanceFormBody({
   classId,
   date,
+  sessionId,
   students,
   session,
 }: {
   classId: string
   date: string
+  sessionId?: string
   students: Row[]
   session: SessionTimes | null
 }) {
@@ -90,6 +103,7 @@ function MarkAttendanceFormBody({
     const formData = new FormData()
     formData.set('class_id', classId)
     formData.set('session_date', date)
+    if (sessionId) formData.set('session_id', sessionId)
     for (const row of rows) {
       if (row.status === null) continue
       formData.set(`status:${row.id}`, row.status)
@@ -119,7 +133,7 @@ function MarkAttendanceFormBody({
         >
           Mark all present
         </button>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-600">
           {markedCount} of {rows.length} marked - unmarked students are not recorded
         </p>
       </div>
@@ -148,7 +162,7 @@ function MarkAttendanceFormBody({
                   ))}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
                 <label className="inline-flex items-center gap-1">
                   Join
                   <input
@@ -168,7 +182,7 @@ function MarkAttendanceFormBody({
                   />
                 </label>
                 {metrics.learningMinutes != null && (
-                  <span className="text-slate-400">
+                  <span className="text-slate-600">
                     Learning {formatMinutes(metrics.learningMinutes)}
                     {metrics.lateJoinMinutes ? ` · late ${formatMinutes(metrics.lateJoinMinutes)}` : ''}
                     {metrics.earlyLeaveMinutes ? ` · early ${formatMinutes(metrics.earlyLeaveMinutes)}` : ''}

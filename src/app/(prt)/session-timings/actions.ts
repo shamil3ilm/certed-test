@@ -33,16 +33,16 @@ export async function updateStudentJoinAction(formData: FormData): Promise<Actio
  */
 export async function updateSessionTimesAction(formData: FormData): Promise<ActionResult<{ ok: true }>> {
   const me = await requireCapability('viewMentees')
-  const classId = String(formData.get('class_id') ?? '')
-  const sessionDate = String(formData.get('session_date') ?? '')
+  const sessionId = String(formData.get('session_id') ?? '')
   const startRaw = String(formData.get('start_at') ?? '')
   const endRaw = String(formData.get('end_at') ?? '')
   const expectedUpdatedAt = String(formData.get('expected_updated_at') ?? '') || null
-  if (!classId || !sessionDate) return actionFail('Missing class or date.')
+  // A session is identified by its own id: since 0093 a class can hold several sessions
+  // on one date, so (class, date) no longer names a single row.
+  if (!sessionId) return actionFail('Missing session.')
   try {
     await updateSessionTimes(me, {
-      classId,
-      sessionDate,
+      sessionId,
       startAt: startRaw || null,
       endAt: endRaw || null,
       expectedUpdatedAt,

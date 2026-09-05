@@ -7,6 +7,7 @@ import { actionFail, actionOk, toActionError, type ActionResult } from '@/lib/ap
 import {
   clearAttendanceSession,
   markAttendance,
+  deleteSessionTimes,
   saveSessionTimes,
   saveSessionFeedback,
   type MarkAttendanceInput,
@@ -44,7 +45,13 @@ export async function markAttendanceAction(formData: FormData): Promise<ActionRe
   const marks = [...byStudent.values()].filter((m) => m.status)
 
   try {
-    const { saved } = await markAttendance(me, { classId, sessionDate: date, marks })
+    const { saved } = await markAttendance(me, {
+      classId,
+      sessionDate: date,
+      // Present when marking a specific session's roster; absent records/uses the day's.
+      sessionId: String(formData.get('session_id') ?? '') || undefined,
+      marks,
+    })
     revalidatePath(`/classroom/${classId}/attendance`)
     return actionOk({ saved })
   } catch (e) {
@@ -67,6 +74,8 @@ export async function saveSessionAction(formData: FormData): Promise<ActionResul
     await saveSessionTimes(me, {
       classId,
       sessionDate: formData.get('session_date'),
+      // Present when editing an existing session; absent records a new one.
+      sessionId: formData.get('session_id'),
       tutor_id: formData.get('tutor_id'),
       actual_start: formData.get('actual_start'),
       actual_end: formData.get('actual_end'),
@@ -123,6 +132,32 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
     if (e instanceof PermissionError) return
     // Carry the session date back so the banner shows on the SAME roster the
     // manager was clearing, not a reset to today's default date.
+    if (e instanceof ServiceError) {
+      redirect(`/classroom/${classId}/attendance?${new URLSearchParams({ date, error: '1' }).toString()}`)
+    }
+    throw e
+  }
+}
+
+/** Remove ONE recorded session. Gated like recording (manageAttendance at the transport,
+ *  canManageClass on the session's own class inside the service), so a mentor overseeing
+ *  the class may correct a mistaken entry. The monthly hours total recomputes from the
+ *  remaining sessions on the next read - nothing is cached. */
+export async function deleteSessionAction(formData: FormData): Promise<void> {
+  const me = await requireCapability('manageAttendance')
+  const classId = String(formData.get('class_id') ?? '')
+  const sessionId = String(formData.get('session_id') ?? '')
+  const date = String(formData.get('session_date') ?? '')
+  if (!classId || !sessionId) return
+
+  try {
+    await deleteSessionTimes(me, sessionId)
+    revalidatePath(`/classroom/${classId}/attendance`)
+  } catch (e) {
+    // Same shape as clearAttendanceAction: a denial is a silent no-op (the control is
+    // not shown to someone who cannot manage the class), a user-correctable failure
+    // comes back as an inline banner, and anything else is a real fault.
+    if (e instanceof PermissionError) return
     if (e instanceof ServiceError) {
       redirect(`/classroom/${classId}/attendance?${new URLSearchParams({ date, error: '1' }).toString()}`)
     }

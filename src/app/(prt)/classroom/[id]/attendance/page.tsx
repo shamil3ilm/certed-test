@@ -5,7 +5,7 @@ import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/serv
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { SessionTimesForm } from './SessionTimesForm'
 import { SessionFeedbackForm } from './SessionFeedbackForm'
-import { clearAttendanceAction } from './actions'
+import { clearAttendanceAction, deleteSessionAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
   AlertBanner,
@@ -53,7 +53,15 @@ export default async function AttendancePage(props: {
   const data = await loadClassAttendancePageData(me, course.id, searchParams)
 
   if (data.kind === 'student') {
-    const sessionByDate = new Map(data.sessions.map((s) => [s.session_date, s]))
+    // A class may hold SEVERAL sessions on one date, so group them - a Map keyed by date
+    // would keep only the last one, hiding every earlier session's summary and shortening
+    // the learning time to that one window.
+    const sessionsByDate = new Map<string, typeof data.sessions>()
+    for (const session of data.sessions) {
+      const forDate = sessionsByDate.get(session.session_date) ?? []
+      forDate.push(session)
+      sessionsByDate.set(session.session_date, forDate)
+    }
     return (
       <div className="space-y-4">
         <SectionLabel>My attendance</SectionLabel>
@@ -75,16 +83,28 @@ export default async function AttendancePage(props: {
         ) : (
           <ul className="space-y-2">
             {data.rows.map((row) => {
-              const s = sessionByDate.get(row.session_date)
-              const learning = s
-                ? studentMetrics(s, { join_at: row.join_at, leave_at: row.leave_at }).learningMinutes
+              const daySessions = sessionsByDate.get(row.session_date) ?? []
+              // Attendance is recorded once per day, so learning time is measured against
+              // the day's OVERALL window (earliest start -> latest end) across its sessions.
+              const dayStarts = daySessions.map((x) => x.actual_start).filter((v): v is string => v != null)
+              const dayEnds = daySessions.map((x) => x.actual_end).filter((v): v is string => v != null)
+              const s = daySessions[0] ?? null
+              const learning = daySessions.length
+                ? studentMetrics(
+                    {
+                      ...daySessions[0],
+                      actual_start: dayStarts.length ? dayStarts.reduce((a, b) => (a < b ? a : b)) : null,
+                      actual_end: dayEnds.length ? dayEnds.reduce((a, b) => (a > b ? a : b)) : null,
+                    },
+                    { join_at: row.join_at, leave_at: row.leave_at },
+                  ).learningMinutes
                 : null
               return (
                 <li key={row.id} className="rounded-xl border border-slate-200 bg-white">
                   <div className="flex items-center justify-between px-4 py-3">
                     <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
                     <span className="flex items-center gap-2">
-                      {learning != null && <span className="text-xs text-slate-400">{formatMinutes(learning)}</span>}
+                      {learning != null && <span className="text-xs text-slate-600">{formatMinutes(learning)}</span>}
                       <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
                     </span>
                   </div>
@@ -92,17 +112,26 @@ export default async function AttendancePage(props: {
                     <summary className="cursor-pointer text-xs font-medium text-primary transition hover:underline">
                       Summary &amp; feedback
                     </summary>
-                    {s?.summary ? (
+                    {daySessions.some((x) => x.summary) ? (
                       <div className="mt-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                           Tutor&apos;s summary
                         </p>
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{s.summary}</p>
+                        {daySessions
+                          .filter((x) => x.summary)
+                          .map((x, i, all) => (
+                            <p key={x.id} className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+                              {all.length > 1 && (
+                                <span className="mr-1 font-semibold text-slate-600">Session {i + 1}:</span>
+                              )}
+                              {x.summary}
+                            </p>
+                          ))}
                       </div>
                     ) : (
-                      <p className="mt-2 text-xs text-slate-400">No summary from your tutor for this session yet.</p>
+                      <p className="mt-2 text-xs text-slate-600">No summary from your tutor for this session yet.</p>
                     )}
-                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Your feedback</p>
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-600">Your feedback</p>
                     <SessionFeedbackForm
                       classId={course.id}
                       date={row.session_date}
@@ -125,14 +154,28 @@ export default async function AttendancePage(props: {
     )
   }
 
-  const sessionM = sessionMetrics(data.session ?? EMPTY_SESSION_TIMES)
+  // A class may hold SEVERAL sessions on one date. The day's length is the sum of them,
+  // and the per-student learning metrics are bounded by the day's overall window
+  // (earliest start -> latest end), since attendance is recorded per day, not per session.
+  const daySessions = data.sessions
+  const dayMinutes = daySessions.reduce((total, s) => total + (sessionMetrics(s).sessionMinutes ?? 0), 0)
+  const starts = daySessions.map((s) => s.actual_start).filter((v): v is string => v != null)
+  const ends = daySessions.map((s) => s.actual_end).filter((v): v is string => v != null)
+  const dayWindow = {
+    ...EMPTY_SESSION_TIMES,
+    actual_start: starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null,
+    actual_end: ends.length ? ends.reduce((a, b) => (a > b ? a : b)) : null,
+  }
   // Everyone reaching this manager view holds manageAttendance, so all may mark and edit
   // the session TIMES + SUMMARY (mentors included). The staff-PRIVATE note and the
   // destructive "clear session" need manageClassContent (tutor / admin). Strip the note
   // VALUE from a non-content actor's payload so it never reaches their browser, and hide
   // the field + the clear control below.
   const canManageContent = (await getActorContext()).capabilities.allowed.has('manageClassContent')
-  const sessionForForm = canManageContent ? data.session : data.session && { ...data.session, staff_note: null }
+  const rosterBySession = new Map(data.sessionRosters.map((r) => [r.session.id, r.roster]))
+  const sessionsForForm = canManageContent
+    ? daySessions
+    : daySessions.map((session) => ({ ...session, staff_note: null }))
 
   return (
     <div className="space-y-8">
@@ -152,7 +195,7 @@ export default async function AttendancePage(props: {
         )}
 
         <form className="flex flex-wrap items-end gap-2">
-          <label className="text-xs font-medium text-slate-500">
+          <label className="text-xs font-medium text-slate-600">
             Session date
             <input
               type="date"
@@ -166,22 +209,66 @@ export default async function AttendancePage(props: {
           </button>
         </form>
 
-        <SessionTimesForm
-          classId={course.id}
-          date={data.date}
-          session={sessionForForm}
-          canEditStaffNote={canManageContent}
-        />
+        {sessionsForForm.map((session, index) => (
+          <div key={session.id} className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <SectionLabel>
+                Session {index + 1} of {sessionsForForm.length}
+              </SectionLabel>
+              <form action={deleteSessionAction}>
+                <input type="hidden" name="class_id" value={course.id} />
+                <input type="hidden" name="session_id" value={session.id} />
+                <input type="hidden" name="session_date" value={data.date} />
+                <ConfirmSubmit
+                  className="btn btn-sm btn-ghost text-red-600"
+                  title="Remove this session?"
+                  message="Its hours drop out of the monthly total. Other sessions on this date are unaffected."
+                  confirmLabel="Remove session"
+                  pendingLabel="Removing..."
+                >
+                  Remove session
+                </ConfirmSubmit>
+              </form>
+            </div>
+            <SessionTimesForm
+              classId={course.id}
+              date={data.date}
+              session={session}
+              canEditStaffNote={canManageContent}
+            />
+            {data.roster.length > 0 && (
+              <MarkAttendanceForm
+                classId={course.id}
+                date={data.date}
+                sessionId={session.id}
+                students={rosterBySession.get(session.id) ?? []}
+                session={session}
+              />
+            )}
+          </div>
+        ))}
+
+        <div className="space-y-2">
+          <SectionLabel>{sessionsForForm.length > 0 ? 'Record another session' : 'Record the session'}</SectionLabel>
+          <SessionTimesForm classId={course.id} date={data.date} session={null} canEditStaffNote={canManageContent} />
+        </div>
 
         <div className="max-w-xs">
-          <StatCard label="Session length" value={formatMinutes(sessionM.sessionMinutes)} />
+          <StatCard
+            label={daySessions.length > 1 ? `Total for ${daySessions.length} sessions` : 'Session length'}
+            value={formatMinutes(dayMinutes)}
+          />
         </div>
 
         {data.roster.length === 0 ? (
           <EmptyState>No students enrolled yet - add students on the People tab first.</EmptyState>
         ) : (
           <>
-            <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={data.session} />
+            {daySessions.length === 0 && (
+              // No session recorded for this date yet - marking here records one, so the
+              // marks still belong to a session.
+              <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={dayWindow} />
+            )}
             {canManageContent && data.hasMarks && (
               <form action={clearAttendanceAction} className="flex justify-end">
                 <input type="hidden" name="class_id" value={course.id} />
@@ -191,6 +278,7 @@ export default async function AttendancePage(props: {
                   title="Clear this session?"
                   message={`This removes every mark for ${data.date}. You can re-mark it afterwards.`}
                   confirmLabel="Clear session"
+                  pendingLabel="Clearing..."
                 >
                   Clear this session
                 </ConfirmSubmit>
@@ -257,7 +345,7 @@ export default async function AttendancePage(props: {
                       <td className="whitespace-nowrap">
                         <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
                       </td>
-                      <td className="whitespace-nowrap text-slate-500">
+                      <td className="whitespace-nowrap text-slate-600">
                         {learned != null ? formatMinutes(learned) : '-'}
                       </td>
                     </tr>

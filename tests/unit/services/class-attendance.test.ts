@@ -11,7 +11,7 @@ vi.mock('@/lib/services/attendance', () => ({
   listAttendanceForStudentPage: vi.fn(),
   listAttendanceHistoryForClass: vi.fn(),
   summarizeAttendanceForStudent: vi.fn(),
-  getManagerSession: vi.fn(),
+  listManagerSessionsForDate: vi.fn(),
   listRecentSessions: vi.fn(),
 }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
@@ -26,7 +26,7 @@ import {
   listAttendanceForStudentPage,
   listAttendanceHistoryForClass,
   summarizeAttendanceForStudent,
-  getManagerSession,
+  listManagerSessionsForDate,
   listRecentSessions,
 } from '@/lib/services/attendance'
 import {
@@ -61,7 +61,7 @@ beforeEach(() => {
     } as any
   })
   vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
-  vi.mocked(getManagerSession).mockResolvedValue(null)
+  vi.mocked(listManagerSessionsForDate).mockResolvedValue([])
   vi.mocked(listRecentSessions).mockResolvedValue([])
   vi.mocked(listAttendanceHistoryForClass).mockResolvedValue([])
   vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map())
@@ -122,7 +122,13 @@ describe('loadClassAttendancePageData', () => {
         { id: 's2', name: 'Sam Student' },
       ],
     } as any)
-    vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([{ student_id: 's1', status: 'late' }] as any)
+    // 0094: a mark belongs to a session, so the day has one and the mark names it.
+    vi.mocked(listManagerSessionsForDate).mockResolvedValueOnce([
+      { id: 'ses1', class_id: 'c1', session_date: '2026-07-16' },
+    ] as any)
+    vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([
+      { student_id: 's1', session_id: 'ses1', status: 'late' },
+    ] as any)
     vi.mocked(listAttendanceHistoryForClass).mockResolvedValueOnce([
       { session_date: '2026-07-16', status: 'late', student_id: 's1', join_at: null, leave_at: null },
     ] as any)
@@ -132,10 +138,21 @@ describe('loadClassAttendancePageData', () => {
     ).resolves.toEqual({
       kind: 'manager',
       date: '2026-07-16',
-      session: null,
       hasMarks: true,
+      sessions: [{ id: 'ses1', class_id: 'c1', session_date: '2026-07-16' }],
+      // The session carries the marks; `roster` is the unmarked base used when a date has
+      // no session yet.
+      sessionRosters: [
+        {
+          session: { id: 'ses1', class_id: 'c1', session_date: '2026-07-16' },
+          roster: [
+            { id: 's1', name: 'Sara Student', status: 'late', join_at: null, leave_at: null },
+            { id: 's2', name: 'Sam Student', status: null, join_at: null, leave_at: null },
+          ],
+        },
+      ],
       roster: [
-        { id: 's1', name: 'Sara Student', status: 'late', join_at: null, leave_at: null },
+        { id: 's1', name: 'Sara Student', status: null, join_at: null, leave_at: null },
         { id: 's2', name: 'Sam Student', status: null, join_at: null, leave_at: null },
       ],
       historyFilters: { status: '', from: '', to: '' },

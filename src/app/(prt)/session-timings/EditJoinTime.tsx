@@ -11,10 +11,13 @@ import { updateStudentJoinAction } from './actions'
  *  from the stored instant on the client, and converts the edited local time back
  *  to an ISO instant on save - matching how the attendance form handles times. */
 export function EditJoinTime({
+  sessionId,
   classId,
   sessionDate,
   studentJoinAt,
 }: {
+  /** Which session's window bounds the join time (attendance itself stays per day). */
+  sessionId: string | null
   classId: string
   sessionDate: string
   studentJoinAt: string | null
@@ -32,6 +35,7 @@ export function EditJoinTime({
     event.preventDefault()
     setBusy(true)
     const formData = new FormData()
+    if (sessionId) formData.set('session_id', sessionId)
     formData.set('class_id', classId)
     formData.set('session_date', sessionDate)
     formData.set('join_at', time ? localTimeToIso(sessionDate, time) : '')

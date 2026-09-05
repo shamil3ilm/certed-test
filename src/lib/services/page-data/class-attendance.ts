@@ -2,7 +2,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
 import {
-  getManagerSession,
+  listManagerSessionsForDate,
   listAttendanceForClassDate,
   listAttendanceForStudentPage,
   listAttendanceHistoryForClass,
@@ -77,7 +77,12 @@ type RosterEntry = {
 type ManagerAttendancePageData = {
   kind: 'manager'
   date: string
-  session: ClassSession | null
+  /** EVERY session recorded for this class on `date`. A class may hold several, so the page
+   *  lists them all and offers a blank form to record another. */
+  sessions: ClassSession[]
+  /** Each session with its OWN attendance roster - a student can be present for one
+   *  session of the day and absent for another. */
+  sessionRosters: { session: ClassSession; roster: RosterEntry[] }[]
   roster: RosterEntry[]
   // Whether the date has ANY attendance rows - independent of the current roster.
   // The clear control keys off this (not "is a current enrollee marked") so a
@@ -132,17 +137,32 @@ export async function loadClassAttendancePageData(
     from: isCalendarDate(searchParams?.aFrom ?? '') ? (searchParams!.aFrom as string) : '',
     to: isCalendarDate(searchParams?.aTo ?? '') ? (searchParams!.aTo as string) : '',
   }
-  const [{ students }, marks, session, historyRows] = await Promise.all([
+  const [{ students }, marks, sessions, historyRows] = await Promise.all([
     getClassMembers(courseId),
     listAttendanceForClassDate(courseId, date),
-    getManagerSession(me, courseId, date),
+    listManagerSessionsForDate(me, courseId, date),
     listAttendanceHistoryForClass(courseId, {
       status: historyFilters.status || undefined,
       from: historyFilters.from || undefined,
       to: historyFilters.to || undefined,
     }),
   ])
-  const byStudent = new Map(marks.map((m) => [m.student_id, m]))
+  // Attendance is per SESSION (0094): a day can hold one mark per student PER session, so
+  // index by (session, student). A Map keyed on student alone would keep only one mark and
+  // make every session show the same statuses.
+  const markKey = (sessionId: string, studentId: string) => `${sessionId}|${studentId}`
+  const bySessionStudent = new Map(marks.map((m) => [markKey(m.session_id, m.student_id), m]))
+  const rosterFor = (sessionId: string | null): RosterEntry[] =>
+    students.map((s) => {
+      const mark = sessionId ? bySessionStudent.get(markKey(sessionId, s.id)) : undefined
+      return {
+        id: s.id,
+        name: s.name,
+        status: (mark?.status ?? null) as AttendanceStatus | null,
+        join_at: mark?.join_at ?? null,
+        leave_at: mark?.leave_at ?? null,
+      }
+    })
   const historyStudentIds = [...new Set(historyRows.map((row) => row.student_id))]
   const historicalNames = await getProfileNamesByIds(historyStudentIds)
   const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
@@ -150,7 +170,7 @@ export async function loadClassAttendancePageData(
   return {
     kind: 'manager',
     date,
-    session,
+    sessions,
     historyFilters,
     hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
     history: historyRows.map((r) => ({
@@ -160,16 +180,10 @@ export async function loadClassAttendancePageData(
       join_at: r.join_at,
       leave_at: r.leave_at,
     })),
-    roster: students.map((s) => {
-      const mark = byStudent.get(s.id)
-      return {
-        id: s.id,
-        name: s.name,
-        status: (mark?.status ?? null) as AttendanceStatus | null,
-        join_at: mark?.join_at ?? null,
-        leave_at: mark?.leave_at ?? null,
-      }
-    }),
+    // One roster per recorded session, each showing that session's own marks.
+    sessionRosters: sessions.map((session) => ({ session, roster: rosterFor(session.id) })),
+    // The unmarked roster, used when the date has no session yet - marking it records one.
+    roster: rosterFor(null),
     hasMarks: marks.length > 0,
   }
 }

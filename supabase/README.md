@@ -67,6 +67,11 @@ Authorization:
 - `0045` to `0051`: document management, attendance working hours, document versions, shared rate limits, audit indexing, and notification retention
 - `0052` to `0055`: one-active-student enforcement, session feedback, tags, and tag-entity RLS hardening
 - `0056` to `0060`: admin-managed multi-currency conversion, custodial attachment storage, the pending-emails delivery queue, audit-log retention, and per-slot timetable timezones
+- `0061` to `0065`: exam calendar kind, assignment-owned attachments, dead-column cleanup, the `subjects` master + richer profile details, and profile self-service grants
+- `0066` to `0072`: atomic email-queue claim, submission deadlines enforced in the DB, student session feedback, an RLS health check, staff-private session notes, assignment types, and PII minimisation (dropping gender/address)
+- `0073` to `0078`: `consents`, assignment `ends_at`, legacy exam-event migration, `guardians`, re-audit feedback + function grants, and `mentee_notes`
+- `0079` to `0085`: splitting `teaches_class_write` (tutor-only content writes) from `teaches_class`, write-scope grant hardening, link-scheme CHECKs, mentor calendar write authority with no hard delete, and attendance-scoped session reads
+- `0086` to `0091`: assigned reminders, a mentee-note length bound, profile erasure, audit metadata, round-5 RLS hardening, and the teaching-hours index
 
 ## Related
 

@@ -5,12 +5,15 @@ import { isCalendarDate } from '@/lib/time/format'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 import {
+  deleteSessionById,
+  insertSession,
   selectRecentSessions,
-  selectSession,
-  selectSessionAsService,
-  upsertSession,
+  selectSessionByIdAsService,
+  selectSessionsForDate,
+  selectSessionsForDateAsService,
+  updateSessionById,
   writeStudentSessionFeedback,
   type ClassSessionRow,
 } from '@/lib/data/class-sessions'
@@ -52,6 +55,9 @@ const sessionTimesSchema = z.object({
 export type SaveSessionActionInput = {
   classId?: FormDataEntryValue | null
   sessionDate?: FormDataEntryValue | null
+  /** The session being EDITED. Absent/empty records a NEW session, so a class can hold
+   *  several sessions on the same date (0093) instead of each save replacing the last. */
+  sessionId?: FormDataEntryValue | null
   tutor_id?: FormDataEntryValue | null
   actual_start?: FormDataEntryValue | null
   actual_end?: FormDataEntryValue | null
@@ -120,35 +126,67 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     tutorId = await defaultSessionTutor(actor.id, classId)
   }
 
-  // A tutor cannot teach two classes at once - reject a window that overlaps another of this
-  // tutor's sessions (excluding this same session on re-record).
-  await assertNoTutorOverlap(tutorId, window.start, window.end, classId, sessionDate)
+  // Editing an existing session, or recording a new one? An id identifies the row now that
+  // (class, date) no longer does. Load it first so we can (a) confirm it really belongs to
+  // this class - an id from another class must not be editable through this class's form -
+  // and (b) record what changed in the audit.
+  const rawSessionId = String(input.sessionId ?? '').trim()
+  let before: ClassSession | null = null
+  if (rawSessionId) {
+    validateUuidField(rawSessionId, 'Invalid session id.')
+    before = await selectSessionByIdAsService(rawSessionId)
+    if (!before) throw new NotFoundError('That session no longer exists.')
+    if (before.class_id !== classId) throw new PermissionError('That session belongs to another class.')
+  }
 
-  // Capture the prior window (if any) so the audit records what changed, not just that a
-  // session was recorded.
-  const before = await selectSession(classId, sessionDate)
+  // A tutor cannot teach two classes at once - reject a window that overlaps another of this
+  // tutor's sessions. An edit excludes ITSELF by id; a new session excludes nothing.
+  await assertNoTutorOverlap(tutorId, window.start, window.end, before?.id ?? null)
 
   // Times + summary are editable by any manageAttendance holder (mentors included, via
   // the action). The staff-PRIVATE note is a higher bar - only a manageClassContent
   // holder (tutor / admin) may set it (the action resolves canEditStaffNote). When the
-  // caller lacks it, staff_note is OMITTED from the upsert entirely, so an existing note
+  // caller lacks it, staff_note is OMITTED from the write entirely, so an existing note
   // is PRESERVED (not cleared) and a mentor can never write it.
   const canEditStaffNote = input.canEditStaffNote ?? false
-  const saved = await upsertSession({
-    class_id: classId,
-    session_date: sessionDate,
+  const fields = {
     tutor_id: tutorId,
     actual_start: window.start,
     actual_end: window.end,
     summary: noteField.parse(String(input.summary ?? '')),
     ...(canEditStaffNote ? { staff_note: noteField.parse(String(input.staff_note ?? '')) } : {}),
-  })
+  }
+  const saved = before
+    ? await updateSessionById(before.id, fields)
+    : await insertSession({ class_id: classId, session_date: sessionDate, ...fields })
+
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId, {
+    session_id: saved.id,
     session_date: sessionDate,
     before: before ? { actual_start: before.actual_start, actual_end: before.actual_end } : null,
     after: { actual_start: window.start, actual_end: window.end },
   })
   return saved
+}
+
+/**
+ * Remove a recorded session. Gated like recording one (canManageClass on the session's OWN
+ * class, resolved from the row rather than trusted from the caller), and audited with the
+ * window that was removed so a monthly total that drops can be explained.
+ */
+export async function deleteSessionTimes(actor: Profile, sessionId: string): Promise<void> {
+  validateUuidField(sessionId, 'Invalid session id.')
+  const session = await selectSessionByIdAsService(sessionId)
+  if (!session) throw new NotFoundError('That session no longer exists.')
+  if (!(await canManageClass(actor, session.class_id))) {
+    throw new PermissionError('Not allowed to remove this session.')
+  }
+  await deleteSessionById(sessionId)
+  await auditPrivilegedAction(actor, 'attendance.session.delete', 'class', session.class_id, {
+    session_id: sessionId,
+    session_date: session.session_date,
+    removed: { actual_start: session.actual_start, actual_end: session.actual_end },
+  })
 }
 
 export type SaveFeedbackActionInput = {
@@ -189,19 +227,24 @@ export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackAct
   await auditPrivilegedAction(actor, 'attendance.feedback', 'class', classId)
 }
 
-export async function getSession(classId: string, date: string): Promise<ClassSession | null> {
-  return selectSession(classId, date)
+/** Every session recorded for a class on one date (a class may hold several). */
+export async function listSessionsForDate(classId: string, date: string): Promise<ClassSession[]> {
+  return selectSessionsForDate(classId, date)
 }
 
 /** The session INCLUDING the staff-private note, for a manager's own view/form.
  *  Self-gates the service-role read on canManageClass (staff_note is withheld from
  *  the authenticated SELECT grant, 0070, so this reads it via the service role) -
  *  mirroring listGuardians, so safety no longer rests on the caller proving remit. */
-export async function getManagerSession(actor: Profile, classId: string, date: string): Promise<ClassSession | null> {
+export async function listManagerSessionsForDate(
+  actor: Profile,
+  classId: string,
+  date: string,
+): Promise<ClassSession[]> {
   if (!(await canManageClass(actor, classId))) {
     throw new PermissionError('Not allowed to view this session.')
   }
-  return selectSessionAsService(classId, date)
+  return selectSessionsForDateAsService(classId, date)
 }
 
 export async function listRecentSessions(classId: string, limit?: number): Promise<ClassSession[]> {

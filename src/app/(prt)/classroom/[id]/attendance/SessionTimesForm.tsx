@@ -9,6 +9,7 @@ import { saveSessionAction } from './actions'
 import { isoToLocalTime, localTimeToIso } from '@/lib/time/format'
 
 type SessionRecord = {
+  id: string
   actual_start: string | null
   actual_end: string | null
   summary?: string | null
@@ -29,6 +30,8 @@ export function SessionTimesForm({
 }: {
   classId: string
   date: string
+  /** The session being edited, or null to RECORD A NEW one. A class may hold several
+   *  sessions on the same date, so a null session adds another rather than replacing. */
   session: SessionRecord | null
   /** Only a manageClassContent holder (tutor / admin) sees + edits the staff-private
    *  note. A mentor editing the times/summary never sees it (the value is also stripped
@@ -56,6 +59,8 @@ export function SessionTimesForm({
     const formData = new FormData()
     formData.set('class_id', classId)
     formData.set('session_date', date)
+    // Editing targets a specific session; omitting the id records a NEW one.
+    if (session?.id) formData.set('session_id', session.id)
     formData.set('actual_start', localTimeToIso(date, start))
     formData.set('actual_end', localTimeToIso(date, end))
     formData.set('summary', summary.trim())
@@ -65,7 +70,14 @@ export function SessionTimesForm({
 
     try {
       assertActionOk(await saveSessionAction(formData), 'Could not save session')
-      toast('Session saved', 'success')
+      toast(session?.id ? 'Session updated' : 'Session recorded', 'success')
+      if (!session?.id) {
+        // Recording another session: clear the blank form so the next entry starts empty.
+        setStart('')
+        setEnd('')
+        setSummary('')
+        setStaffNote('')
+      }
       router.refresh()
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not save session times', 'error')
@@ -78,7 +90,7 @@ export function SessionTimesForm({
     <form onSubmit={onSubmit} className={cx(CARD, 'space-y-3 p-4')}>
       <h3 className="text-sm font-semibold text-slate-800">Session times</h3>
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="text-xs font-medium text-slate-500">
+        <label className="text-xs font-medium text-slate-600">
           Start time
           <input
             type="time"
@@ -87,7 +99,7 @@ export function SessionTimesForm({
             className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
           />
         </label>
-        <label className="text-xs font-medium text-slate-500">
+        <label className="text-xs font-medium text-slate-600">
           End time
           <input
             type="time"
@@ -98,8 +110,8 @@ export function SessionTimesForm({
         </label>
       </div>
 
-      <label className="block text-xs font-medium text-slate-500">
-        Session summary <span className="font-normal text-slate-400">(optional - shared with the student)</span>
+      <label className="block text-xs font-medium text-slate-600">
+        Session summary <span className="font-normal text-slate-600">(optional - shared with the student)</span>
         <textarea
           value={summary}
           onChange={(event) => setSummary(event.target.value)}
@@ -111,9 +123,9 @@ export function SessionTimesForm({
       </label>
 
       {canEditStaffNote && (
-        <label className="block text-xs font-medium text-slate-500">
+        <label className="block text-xs font-medium text-slate-600">
           Private note{' '}
-          <span className="font-normal text-slate-400">(optional - staff only, NOT shared with the student)</span>
+          <span className="font-normal text-slate-600">(optional - staff only, NOT shared with the student)</span>
           <textarea
             value={staffNote}
             onChange={(event) => setStaffNote(event.target.value)}
@@ -127,7 +139,7 @@ export function SessionTimesForm({
 
       {session?.student_feedback && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Student feedback</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Student feedback</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{session.student_feedback}</p>
         </div>
       )}

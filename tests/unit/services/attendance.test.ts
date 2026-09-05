@@ -6,6 +6,11 @@ vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+// Attendance is per SESSION (0094): markAttendance resolves the session a batch belongs to.
+vi.mock('@/lib/data/class-sessions', () => ({
+  selectSessionsForDateAsService: vi.fn(),
+  insertSession: vi.fn(),
+}))
 vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
@@ -14,6 +19,7 @@ import { getClassMembers } from '@/lib/services/classes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
+import { insertSession, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 import {
   markAttendance,
   clearAttendanceSession,
@@ -33,7 +39,14 @@ const roster = {
   students: [{ id: enrolledStudentId, rowId: 'e1', name: 'A', email: 'a@x.c', role: 'student' }],
 }
 
-beforeEach(() => vi.resetAllMocks())
+const SESSION_ID = 'c5000000-0000-4000-8000-000000000001'
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  // The day already has one recorded session, so marks attach to it.
+  vi.mocked(selectSessionsForDateAsService).mockResolvedValue([{ id: SESSION_ID }] as never)
+  vi.mocked(insertSession).mockResolvedValue({ id: SESSION_ID } as never)
+})
 
 describe('markAttendance', () => {
   it('rejects a non-manager without reading the roster or writing', async () => {
@@ -71,6 +84,42 @@ describe('markAttendance', () => {
         classId,
         sessionDate: '2026-07-15',
         marks: [{ student_id: enrolledStudentId, status: 'not-a-status' }],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('records the mark against the NAMED session, so a day can hold one mark per session', async () => {
+    // The gap this closes: attendance used to be keyed (class, student, DATE), so a student
+    // present for the morning session and absent for the afternoon could not be recorded -
+    // the second mark overwrote the first.
+    const OTHER = 'c5000000-0000-4000-8000-000000000002'
+    vi.mocked(canManageClass).mockResolvedValue(true)
+    vi.mocked(getClassMembers).mockResolvedValue(roster as any)
+    vi.mocked(selectSessionsForDateAsService).mockResolvedValue([{ id: SESSION_ID }, { id: OTHER }] as never)
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+
+    await markAttendance(actor, {
+      classId,
+      sessionDate: '2026-07-15',
+      sessionId: OTHER,
+      marks: [{ student_id: enrolledStudentId, status: 'absent' }],
+    })
+    const builder = client.from.mock.results[0].value
+    expect(builder.upsert).toHaveBeenCalledWith([expect.objectContaining({ session_id: OTHER, status: 'absent' })], {
+      onConflict: 'session_id,student_id',
+    })
+  })
+
+  it('refuses a session id that belongs to another class or date', async () => {
+    vi.mocked(canManageClass).mockResolvedValue(true)
+    vi.mocked(selectSessionsForDateAsService).mockResolvedValue([{ id: SESSION_ID }] as never)
+    await expect(
+      markAttendance(actor, {
+        classId,
+        sessionDate: '2026-07-15',
+        sessionId: 'c5000000-0000-4000-8000-000000000009',
+        marks: [{ student_id: enrolledStudentId, status: 'present' }],
       }),
     ).rejects.toBeInstanceOf(ValidationError)
   })
