@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { loginAs, SEED } from './support'
+import { attemptName, loginAs, SEED } from './support'
 
 /**
  * Custodial attachment round-trip against the real upload + download routes in MOCK
@@ -52,14 +52,15 @@ test('custodial round-trip: student uploads to their submission, then it streams
   expect(download.disposition).toContain('e2e.pdf')
 })
 
-test('a tutor posts an announcement with a file; it renders and streams back', async ({ page }) => {
+test('a tutor posts an announcement with a file; it renders and streams back', async ({ page }, testInfo) => {
+  const title = attemptName('E2E Handout Post', testInfo)
   await loginAs(page, 'tutor@mock.test')
   await page.goto(`/classroom/${SEED.math}`)
 
   // Compose a plain announcement (no meeting URL) with a custodial file via the real
   // StreamComposer: the post is created, then the file is uploaded to it.
   const composer = page.locator('form:has-text("Post to the class")')
-  await composer.getByPlaceholder('Title').fill('E2E Handout Post')
+  await composer.getByPlaceholder('Title').fill(title)
   await composer.getByPlaceholder('Share something with your class...').fill('See the attached worksheet')
   await composer.getByText('Attachments & scheduling').click()
   await composer.locator('input[type=file]').setInputFiles({
@@ -71,7 +72,7 @@ test('a tutor posts an announcement with a file; it renders and streams back', a
   // so the attachment appears without a manual reload racing the upload.
   await composer.getByRole('button', { name: 'Post' }).click()
 
-  const card = page.locator('li:has-text("E2E Handout Post")').first()
+  const card = page.locator(`li:has-text("${title}")`).first()
   await expect(card.getByText('handout.pdf')).toBeVisible({ timeout: 15000 })
 
   // The Download link points at the access-checked streaming route; the bytes we

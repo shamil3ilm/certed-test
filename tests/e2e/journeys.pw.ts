@@ -1,12 +1,18 @@
 import { test, expect } from '@playwright/test'
-import { SEED, loginAs, submitAndReload } from './support'
+import { SEED, attemptName, loginAs, submitAndReload } from './support'
 
 // Full-browser end-to-end journeys per persona, exercising the 'use server'
 // FORM submissions that HTTP-level tests can't reach (create class, enrol, post
 // announcement, issue receipt, add user, create assignment, comment, submit).
 // Runs against the production build in MOCK mode (seed reset before the run).
 
-test('ADMIN -- create class (as a student subject) -> announce -> issue receipt -> add user', async ({ page }) => {
+test('ADMIN -- create class (as a student subject) -> announce -> issue receipt -> add user', async ({
+  page,
+}, testInfo) => {
+  // Names this attempt creates rows under, so a retry never collides with the rows the
+  // previous attempt left in the (run-scoped) mock database.
+  const announcement = attemptName('Welcome to Physics', testInfo)
+  const newbieEmail = attemptName('e2e-newbie', testInfo).replace(' ', '-') + '@mock.test'
   await loginAs(page, 'admin@mock.test')
 
   // A class is created only as a student's SUBJECT: adding "Physics" to Sara creates
@@ -34,10 +40,10 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // Post an announcement to the class Stream
   await page.goto(`/classroom/${classId}`)
   const post = page.locator('form:has-text("Post to the class")')
-  await post.getByPlaceholder('Title').fill('Welcome to Physics')
+  await post.getByPlaceholder('Title').fill(announcement)
   await post.getByPlaceholder(/Share something/).fill('First class Monday.')
   await submitAndReload(page, () => post.getByRole('button', { name: 'Post', exact: true }).click())
-  await expect(page.getByRole('heading', { name: 'Welcome to Physics' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: announcement })).toBeVisible()
 
   // Issue a receipt (8h x Rs 600 = Rs 4,800) for Sara
   await page.goto('/admin/finance')
@@ -70,14 +76,14 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // Add a new user
   await page.goto('/admin/users')
   const add = page.locator('form', { has: page.getByRole('button', { name: 'Add user' }) })
-  await add.locator('input[name=email]').fill('e2e-newbie@mock.test')
+  await add.locator('input[name=email]').fill(newbieEmail)
   await add.locator('input[name=full_name]').fill('Eve Newbie')
   await add.locator('select[name=role]').selectOption('student')
   // A student is role-aware: class/grade and country are required to add one.
   await add.locator('input[name=class_level]').fill('Grade 10')
   await add.locator('input[name=country]').fill('India')
   await submitAndReload(page, () => add.getByRole('button', { name: 'Add user' }).click())
-  await expect(page.getByText('e2e-newbie@mock.test')).toBeVisible()
+  await expect(page.getByText(newbieEmail)).toBeVisible()
 
   // The activity log renders the audited actions just performed.
   await page.goto('/admin/history')
@@ -85,17 +91,18 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
 })
 
-test('TUTOR -- create assignment + comment on a student submission', async ({ page }) => {
+test('TUTOR -- create assignment + comment on a student submission', async ({ page }, testInfo) => {
+  const assignment = attemptName('E2E Trigonometry HW', testInfo)
   await loginAs(page, 'tutor@mock.test')
 
   // Create an assignment in the Math classwork tab
   await page.goto(`/classroom/${SEED.math}/classwork`)
   const af = page.locator('form:has-text("Create assignment")')
-  await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill('E2E Trigonometry HW')
+  await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill(assignment)
   await af.locator('input[type=datetime-local]').fill('2026-12-01T10:00')
   await af.getByPlaceholder('e.g. 20').fill('20') // max marks is required
   await af.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'E2E Trigonometry HW' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: assignment })).toBeVisible()
 
   // Comment on Sara's seeded submission via the review page
   await page.goto(`/assignments/${SEED.asgMath}`)
@@ -105,7 +112,8 @@ test('TUTOR -- create assignment + comment on a student submission', async ({ pa
   await expect(page.getByText('Great work, Sara!')).toBeVisible()
 })
 
-test('TUTOR -- create an EXAM (in-person) + record a mark from the roster', async ({ page }) => {
+test('TUTOR -- create an EXAM (in-person) + record a mark from the roster', async ({ page }, testInfo) => {
+  const exam = attemptName('E2E Midterm Exam', testInfo)
   await loginAs(page, 'tutor@mock.test')
 
   // Create an EXAM-type classwork in the Math classwork tab. Located by the type
@@ -113,7 +121,7 @@ test('TUTOR -- create an EXAM (in-person) + record a mark from the roster', asyn
   await page.goto(`/classroom/${SEED.math}/classwork`)
   const af = page.locator('form:has(select:has(option[value="exam"]))')
   await af.locator('select:has(option[value="exam"])').selectOption('exam')
-  await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill('E2E Midterm Exam')
+  await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill(exam)
   // Exam shows a "Starts" datetime (first) + an optional "Ends"; fill just the start.
   await af.locator('input[type=datetime-local]').first().fill('2026-12-05T10:00')
   await af.getByPlaceholder('e.g. 20').fill('50') // max marks is required
@@ -121,8 +129,8 @@ test('TUTOR -- create an EXAM (in-person) + record a mark from the roster', asyn
   await af.getByRole('button', { name: 'Create', exact: true }).click()
 
   // It appears in the list with the Exam type badge.
-  await expect(page.getByRole('heading', { name: 'E2E Midterm Exam' })).toBeVisible()
-  const card = page.locator('li:has-text("E2E Midterm Exam")')
+  await expect(page.getByRole('heading', { name: exam })).toBeVisible()
+  const card = page.locator(`li:has-text("${exam}")`)
   await expect(card.getByText('Exam', { exact: true })).toBeVisible()
 
   // An in-person exam shows the enrolled roster to mark directly (no submissions list).

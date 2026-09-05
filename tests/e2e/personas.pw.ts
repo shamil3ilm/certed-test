@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { SEED, loginAs, submitAndReload } from './support'
+import { SEED, attemptName, loginAs, submitAndReload, ensureRecordedSession } from './support'
 
 // Complete Tutor + Student persona journeys -- every capability each role needs,
 // end to end in MOCK mode. The Tutor tests run first and set up the state
@@ -46,18 +46,19 @@ async function gradeSeededMathSubmission(page: Page, score = '9') {
   await expect(page.locator('form:has-text("Save mark") input[type=number]').first()).toHaveValue(score)
 }
 
-test('TUTOR -- shares a meet link, a resource, and comments on the resource', async ({ page }) => {
+test('TUTOR -- shares a meet link, a resource, and comments on the resource', async ({ page }, testInfo) => {
+  const meeting = attemptName('E2E Doubt Session', testInfo)
   await loginAs(page, 'tutor@mock.test')
 
   // Post a meeting to the class Stream: a stream post carrying a join link IS a meeting
   await page.goto(`/classroom/${SEED.math}`)
   const composer = page.locator('form:has-text("Post to the class")')
-  await composer.getByPlaceholder('Title').fill('E2E Doubt Session')
+  await composer.getByPlaceholder('Title').fill(meeting)
   await composer.getByPlaceholder('Share something with your class...').fill('Join for doubt clearing')
   await composer.getByText('Add a meeting link').click()
   await composer.getByPlaceholder('https://meet.google.com/...').fill('https://meet.google.com/e2e-abc')
   await submitAndReload(page, () => composer.getByRole('button', { name: 'Post' }).click())
-  await expect(page.getByText('E2E Doubt Session').first()).toBeVisible()
+  await expect(page.getByText(meeting).first()).toBeVisible()
 
   // Share a document in the Classwork -> Documents section
   await page.goto(`/classroom/${SEED.math}/classwork`)
@@ -105,20 +106,23 @@ test('TUTOR -- creates an assignment, grades homework + comments on it', async (
   await expect(page.getByText('Well done, Sara!')).toBeVisible()
 })
 
-test('TUTOR -- marks attendance and adds a reminder', async ({ page }) => {
+test('TUTOR -- marks attendance and adds a reminder', async ({ page }, testInfo) => {
+  const reminder = attemptName('Prep Chapter 5', testInfo)
   await loginAs(page, 'tutor@mock.test')
 
   await page.goto(`/classroom/${SEED.math}/attendance`)
-  await page.getByRole('button', { name: 'Mark all present' }).click()
-  await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).click())
-  await expect(page.getByRole('button', { name: 'Save attendance' })).toBeVisible()
+  await ensureRecordedSession(page)
+  // .first(): one roster renders per recorded session since 0093/0094.
+  await page.getByRole('button', { name: 'Mark all present' }).first().click()
+  await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).first().click())
+  await expect(page.getByRole('button', { name: 'Save attendance' }).first()).toBeVisible()
 
   await page.goto('/dashboard')
   await page.getByRole('button', { name: '+ Add' }).click()
-  await page.getByPlaceholder('Reminder title...').fill('Prep Chapter 5')
+  await page.getByPlaceholder('Reminder title...').fill(reminder)
   await page.locator('input[name=remind_at]').fill('2026-12-10T09:00')
   await page.getByRole('button', { name: 'Save' }).click()
-  await expect(page.getByText('Prep Chapter 5')).toBeVisible()
+  await expect(page.getByText(reminder)).toBeVisible()
 })
 
 test('SUB ADMIN -- lands on a real dashboard and can reach settings (no blank lock-out)', async ({ page }) => {
