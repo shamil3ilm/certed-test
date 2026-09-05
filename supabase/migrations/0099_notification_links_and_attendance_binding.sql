@@ -36,6 +36,14 @@ alter table notifications add constraint notifications_link_scheme check (is_app
 -- Bind it in the schema instead: a composite FK can only reference a UNIQUE key, so add
 -- one on the three columns first. (id alone is still the primary key; this is an
 -- additional key, not a replacement, and it is trivially satisfied by existing rows.)
+--
+-- ORDER MATTERS, and it is the reason the FK is dropped FIRST: on a RE-RUN the unique key
+-- already exists and the composite FK below already references it, so dropping the key
+-- while that FK stands fails with "cannot drop constraint ... because other objects depend
+-- on it" - the `if exists` guard does not help, because the constraint does exist. Dropping
+-- the dependant first makes this file re-runnable, the same property 0095 was corrected for.
+alter table attendance drop constraint if exists attendance_session_id_fkey;
+
 alter table class_sessions
   drop constraint if exists class_sessions_id_class_id_session_date_key;
 alter table class_sessions
@@ -44,7 +52,6 @@ alter table class_sessions
 -- Repoint the FK at all three columns, so a mark can only belong to a session of the
 -- same class on the same date. Existing rows already satisfy it (0094 backfilled
 -- session_id from the matching class_id + session_date), so this validates as-is.
-alter table attendance drop constraint if exists attendance_session_id_fkey;
 alter table attendance
   add constraint attendance_session_id_fkey
   foreign key (session_id, class_id, session_date)
