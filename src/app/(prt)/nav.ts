@@ -28,10 +28,12 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/admin/users', label: 'Users', group: 'admin', capability: 'viewUsers' },
   { href: '/admin/finance', label: 'Finance', group: 'admin', capability: 'viewFinance' },
   { href: '/admin/history', label: 'History', group: 'admin', capability: 'viewHistory' },
-  // Academy-wide teaching-hours report. manageClasses is the academy class-oversight
-  // marker (admin + sub_admin, never a tutor/mentor), so the report sits in lockstep
-  // with that authority - a mentor's own scoped hours live on /session-timings instead.
-  { href: '/admin/teaching-hours', label: 'Teaching hours', group: 'admin', capability: 'manageClasses' },
+  // Academy-wide class-hours report - hours TAUGHT (per tutor/mentor) and RECEIVED (per
+  // student). manageClasses is the academy class-oversight marker (admin + sub_admin, never
+  // a tutor/mentor), so the report sits in lockstep with that authority - a mentor's own
+  // scoped hours live on /session-timings instead. The href keeps its original
+  // /admin/teaching-hours path so existing links and bookmarks still resolve.
+  { href: '/admin/teaching-hours', label: 'Class hours', group: 'admin', capability: 'manageClasses' },
   { href: '/admin/messaging', label: 'Access management', group: 'admin', capability: 'manageUsers' },
   // Admin-tier only: Organization settings expose the bank/IFSC fields the DB
   // restricts to admins (is_active_admin(), 0017), so this must match the page's

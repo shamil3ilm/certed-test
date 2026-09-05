@@ -72,6 +72,9 @@ export async function selectSessionsForClasses(classIds: string[]): Promise<Clas
 }
 
 export interface SessionHoursRow {
+  /** The session's own id - the join key for per-STUDENT hours since 0094 attached each
+   *  attendance mark to the session it belongs to. */
+  id: string
   class_id: string
   tutor_id: string | null
   actual_start: string | null
@@ -95,12 +98,43 @@ export async function selectSessionsForClassesInRange(
     (from, to) =>
       admin
         .from('class_sessions')
-        .select('class_id, tutor_id, actual_start, actual_end')
+        .select('id, class_id, tutor_id, actual_start, actual_end')
         .in('class_id', classIds)
         .gte('actual_start', startIso)
         .lt('actual_start', endIso)
         .range(from, to),
     'analytics.selectSessionsForClassesInRange',
+  )
+}
+
+export interface AttendedRow {
+  session_id: string
+  student_id: string
+}
+
+/**
+ * Who was PRESENT (or late) in each of `sessionIds` - the join between a session's
+ * recorded window and the students those hours were delivered to.
+ *
+ * Keyed on the SESSION, not the day. Before 0094 a mark covered a whole calendar date, so
+ * a student who attended only the morning of a two-session day was indistinguishable from
+ * one who attended both; now each mark names its session and the hours follow exactly.
+ *
+ * 'late' counts as attended, matching every other attendance figure in the app (see
+ * getStudentAnalytics: `present + late`). 'absent' contributes no hours. Empty in, empty out.
+ */
+export async function selectAttendedForSessions(sessionIds: string[]): Promise<AttendedRow[]> {
+  if (sessionIds.length === 0) return []
+  const admin = createAdminClient()
+  return fetchAllPaged<AttendedRow>(
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('session_id, student_id')
+        .in('session_id', sessionIds)
+        .in('status', ['present', 'late'])
+        .range(from, to),
+    'analytics.selectAttendedForSessions',
   )
 }
 
