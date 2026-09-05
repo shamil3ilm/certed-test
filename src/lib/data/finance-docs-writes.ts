@@ -19,6 +19,7 @@ export async function callIssueDoc(kind: FinanceKind, doc: IssueFinanceDocInput)
     p_created_by: doc.created_by,
     p_prefix: doc.prefix,
     p_lines: doc.lines,
+    p_billing_period: doc.billing_period,
   })
   if (error) throw new Error(`${kind}.issue: ${error.message}`)
   return toDoc(kind, data as Record<string, unknown>)

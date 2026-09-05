@@ -186,6 +186,9 @@ async function rpc(uid: string | null, fn: string, args: Args) {
       voided: false,
       created_by: args.p_created_by ?? null,
       created_at: now,
+      // 0094: the month the document bills for, set in the same write as the document
+      // itself - mirroring issue_receipt_doc/issue_payslip_doc.
+      billing_period: args.p_billing_period ?? null,
       ...(docType === 'receipt'
         ? {
             student_id: args.p_party_id,
@@ -248,6 +251,20 @@ function createMockClient(uid: string | null): SupabaseClient {
       // OAuth paths are bypassed by the dev login in mock mode; provide harmless no-ops.
       exchangeCodeForSession: async () => ({ data: { user: null, session: null }, error: null }),
       signInWithOAuth: async () => ({ data: { provider: 'google', url: '/login' }, error: null }),
+      // Service-role surface. Mock mode has no identity provider, so these succeed
+      // without doing anything - the profiles table is the whole source of truth.
+      // They must EXIST rather than be left off: a caller reaching for a missing
+      // `auth.admin.x` gets a TypeError, not a Supabase `{ error }`, so code that
+      // correctly fails closed on an auth error (restore un-banning a revoked
+      // account) would break in mock mode for a reason that cannot happen in real mode.
+      admin: {
+        createUser: async (attrs: { email?: string } = {}) => ({
+          data: { user: { id: `mock-auth-${attrs.email ?? 'user'}` } },
+          error: null,
+        }),
+        deleteUser: async () => ({ data: { user: null }, error: null }),
+        updateUserById: async () => ({ data: { user: null }, error: null }),
+      },
     },
   }
   return client as unknown as SupabaseClient

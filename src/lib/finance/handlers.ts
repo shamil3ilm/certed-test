@@ -13,6 +13,7 @@ import {
 import { requireActiveProfileApi, requireCapabilityApi, requireRoleApi } from '@/lib/auth/require-role'
 import { ValidationError } from '@/lib/errors'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
+import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
 import { resolveDocForViewer, renderResolvedDocPdf } from '@/lib/finance/render'
 import { validateFinanceDocId, voidDoc, listAllDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -23,6 +24,9 @@ import { rateLimit } from '@/lib/security/rate-limit'
  * and `/api/payslips` route file is a one-line export of one of these bound to
  * its kind, so the request/auth/response boilerplate lives in exactly one place.
  */
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 
 /** Escape a CSV field, neutralizing spreadsheet formula injection first: a field
  *  starting with = + - @ (or a control char) is executed by Excel/Sheets, so a
@@ -56,6 +60,40 @@ export function issueHandler(kind: FinanceKind) {
       // Don't surface the raw Postgres/repo error text to the client - it leaks
       // internal schema/constraint detail even to an admin.
       return fail('Could not issue the document. Please check the details and try again.', 500)
+    }
+  }
+}
+
+/**
+ * GET /api/{kind}s/draft?party=<uuid>&month=YYYY-MM - the hours-derived DRAFT for one
+ * party and month: the class lines, their hours at that person's stored rate, and any
+ * warning worth reading before issuing. It writes NOTHING.
+ *
+ * Admin-only like issuing, not viewFinance: the response carries a person's hourly rate,
+ * which is admin-tier data (0094), and this is the pre-step of an admin-only action.
+ */
+export function draftHandler(kind: FinanceKind) {
+  return async function GET(req: Request) {
+    let me
+    try {
+      me = await requireRoleApi(['admin'])
+    } catch (e) {
+      return authFail(e)
+    }
+    const rl = rateLimit(`finance-draft:${me.id}`, { limit: 60, windowMs: 60 * 1000 })
+    if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
+
+    const url = new URL(req.url)
+    const party = url.searchParams.get('party') ?? ''
+    const month = url.searchParams.get('month') ?? ''
+    if (!UUID_RE.test(party)) return invalidInput('Select a valid party.')
+    if (!MONTH_RE.test(month)) return invalidInput('Choose a month in YYYY-MM form.')
+
+    try {
+      return ok(await buildBillingDraft(kind, party, month))
+    } catch {
+      // Same rule as the issue handler: never hand the client raw repo/Postgres text.
+      return fail('Could not build the draft. Please try again in a moment.', 500)
     }
   }
 }

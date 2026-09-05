@@ -44,6 +44,18 @@ The workflow rules that must remain true across code, RLS, and admin operations 
 5. Changing class teaching staff requires `manageClasses`.
 6. Attendance, class content, and grading changes must remain class-scoped.
 
+## 4a. Hours reporting
+
+Hours are always DERIVED from recorded sessions; no hours figure is ever typed in.
+
+1. A session contributes hours only through its recorded window (`class_sessions.actual_start` -> `actual_end`). A session with no recorded start is excluded from every hours report; one with a start but no end counts as a session worth zero minutes.
+2. The month is bounded by the INSTITUTE timezone's month edges, not the viewer's.
+3. Hours TAUGHT are attributed to `class_sessions.tutor_id`, grouped by class first. A tutor's hours in one class must never be summed into a scope that only entitles the viewer to another class - grouping by (class, tutor) is what keeps a mentor's scoped view honest.
+4. Hours RECEIVED by a student are that student's attended share of the same windows: a student marked `present` or `late` for a SESSION is credited with that session's recorded window. `absent` is credited nothing.
+5. Attendance is per session, not per day (0094). A student who attended the morning of a two-session day is credited the morning only. Any hours figure must join on `attendance.session_id`, never on (class, date), which cannot tell the two sessions apart.
+6. Student hours are NOT a partition of tutor hours and must never be reconciled against them. One hour taught to six students is one tutor-hour and six student-hours; the two answer different questions.
+7. The academy-wide report is `manageClasses`-gated (admin and sub_admin). Narrower scopes have their own views: a mentor sees only classes their mentees are in, a tutor only their own totals.
+
 ## 5. Submissions and grading
 
 1. A student submits only their own work.
@@ -65,6 +77,11 @@ The workflow rules that must remain true across code, RLS, and admin operations 
 2. `viewFinance` is a read capability.
 3. Issuing and voiding finance documents are structural admin-only operations.
 4. Finance corrections are void-and-reissue, not in-place mutation.
+5. An hourly rate is admin-tier data, not profile data. Nobody reads their own rate - a person sees the receipt or pay slip it produced, which is the record that is actually theirs.
+6. A document may be GENERATED from hours, but it is never ISSUED automatically. Generation fills a draft; a person issues it. The number comes from a shared counter and the document cannot be edited afterwards, so the irreversible step stays deliberate.
+7. Generation refuses rather than guesses: no rate set, or no hours in the month, produces a stated reason and no lines. It never bills zero.
+8. A document records the month it bills for (`billing_period`), which is not its issue date. A live document already covering that person and month raises a warning, not a refusal - one month may legitimately span several documents.
+9. A rate is denominated in its own currency. Hours are priced in the currency stored beside the rate, never in a currency chosen elsewhere on the form.
 
 ## 8. Permission UI and admin understanding
 

@@ -48,6 +48,10 @@ export const RLS_REQUIRED_TABLES = [
   // as the parent receipts/payslips.
   'receipt_lines',
   'payslip_lines',
+  // Hourly rates (0095). RLS is the ONLY thing keeping a tutor from reading their own
+  // pay rate - or anyone else's - since the table carries no per-row owner column to
+  // fall back on. Disabled RLS here would expose every rate in the academy at once.
+  'billing_rates',
   // PII / authority tables whose read boundary is RLS-only, so a disabled-RLS
   // misconfiguration on any of them must alarm.
   'guardians',

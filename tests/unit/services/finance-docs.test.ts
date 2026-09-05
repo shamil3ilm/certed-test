@@ -91,6 +91,7 @@ describe('issueDocRecord', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
     const result = await issueDocRecord('admin-1', 'receipt', {
       prefix: 'CEA-R',
+      billing_period: null,
       party_id: 'stud-1',
       party_name: 'Sara Student',
       class_level: 'Grade 10',
@@ -122,6 +123,7 @@ describe('issueDocRecord', () => {
     await expect(
       issueDocRecord('admin-1', 'payslip', {
         prefix: 'CEA-P',
+        billing_period: null,
         party_id: 'teach-1',
         party_name: 'Tarun Tutor',
         class_level: null,
@@ -147,6 +149,7 @@ describe('finance mutations enforce their own permission check', () => {
     await expect(
       issueDocRecord('not-an-admin', 'receipt', {
         prefix: 'CEA-R',
+        billing_period: null,
         party_id: 'stud-1',
         party_name: 'Sara Student',
         class_level: null,

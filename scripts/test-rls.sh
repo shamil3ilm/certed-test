@@ -114,8 +114,9 @@ insert into calendar_events(id,title,event_date,class_id,created_by) values
 insert into class_sessions(id,class_id,session_date,student_feedback) values
  ('c5000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','2999-01-01','attended-fb'),
  ('c5000000-0000-4000-8000-000000000002','c0000000-0000-4000-8000-000000000001','2998-01-01','prior-occupant-fb');
-insert into attendance(class_id,student_id,session_date,status,marked_by) values
- ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','2999-01-01','present','a0000000-0000-4000-8000-000000000010');
+-- 0094: a mark belongs to a SESSION, so it carries the id of the 2999 session above.
+insert into attendance(class_id,session_id,student_id,session_date,status,marked_by) values
+ ('c0000000-0000-4000-8000-000000000001','c5000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','2999-01-01','present','a0000000-0000-4000-8000-000000000010');
 -- attachments (0057): one on S1's submission (C1), one on the C1 announcement, plus
 -- a PENDING row that proves only 'active' attachments are ever readable.
 insert into attachments(id,submission_id,uploaded_by,original_filename,mime_type,file_size,storage_provider,drive_file_id,status) values
@@ -164,6 +165,13 @@ insert into payslip_lines(payslip_id,label,hours,rate,amount)
  select id,'Teaching',1,500,500 from payslips where number='CEA-P-TEST-0001';
 -- org_settings single row (org_read = active admin only).
 insert into org_settings(id) values (true) on conflict do nothing;
+-- 0095 hourly rates: money data, admin-tier ONLY - not even the person they price may read
+-- their own row (they see the resulting receipt/pay slip instead, which is the record that
+-- is actually theirs).
+insert into billing_rates(profile_id,fee_rate,currency) values
+ ('a0000000-0000-4000-8000-000000000030',600,'INR');
+insert into billing_rates(profile_id,pay_rate,currency) values
+ ('a0000000-0000-4000-8000-000000000010',500,'INR');
 SQL
 
 pass=0; fail=0
@@ -330,7 +338,7 @@ check_write "A-07: mentor CANNOT insert announcement in mentee class" $M \
 check_write "A-07: tutor CAN still insert assignment in own class" $T1 \
   "insert into assignments(class_id,title,due_date,status) values ('$C1','real',now(),'active')" allow
 check_write "A-07: mentor CAN still write attendance (manageAttendance)" $M \
-  "insert into attendance(class_id,student_id,session_date,status,marked_by) values ('$C1','$S1','2999-01-01','present','$M')" allow
+  "insert into attendance(class_id,session_id,student_id,session_date,status,marked_by) values ('$C1','c5000000-0000-4000-8000-000000000002','$S1','2998-01-01','present','$M')" allow
 check_write "0082: mentor CAN create a calendar event for a mentee class" $M \
   "insert into calendar_events(title,event_date,class_id,created_by) values ('mentoring','2999-01-01','$C1','$M')" allow
 check_write "0082: mentor CANNOT create an event for a non-mentee class" $M \
@@ -353,6 +361,34 @@ check "R-05: tutor reads both C1 sessions"                 $T1 "select count(*) 
 # (notes are written service-role only, gated in-app by canMentor).
 check_write "mentee_notes: mentor CANNOT insert via API (service-role only)" $M \
   "insert into mentee_notes(student_id,author_id,body) values ('$S1','$M','x')" block
+
+# 0095 billing_rates: an hourly rate is money data, gated to the admin tier like
+# org_settings - NOT to the person it prices, and NOT to the sub_admin tier (0092 widened
+# sub_admin over CLASS-scoped tables and deliberately left the finance ledger to admins).
+SA=a0000000-0000-4000-8000-000000000002
+check "0095: admin reads billing rates"                    $A  "select count(*) from billing_rates" 2
+check "0095: sub_admin CANNOT read billing rates"          $SA "select count(*) from billing_rates" 0
+check "0095: tutor CANNOT read their OWN pay rate"         $T1 "select count(*) from billing_rates" 0
+check "0095: student CANNOT read their OWN fee rate"       $S1 "select count(*) from billing_rates" 0
+check "0095: mentor CANNOT read billing rates"             $M  "select count(*) from billing_rates" 0
+# An UPDATE the policy's USING clause filters out raises nothing - it simply matches no
+# rows - so this asserts the row COUNT affected, not an error (the same shape as the
+# 0082 calendar-event delete above). The table-level REVOKE in 0094 is defence in depth,
+# not the gate: this harness re-grants table privileges to `authenticated` on purpose,
+# because Supabase's default privileges do exactly that to every new table.
+check_rows "0095: tutor pay-rate UPDATE affects 0 rows"    $T1 \
+  "with u as (update billing_rates set pay_rate=99999 where profile_id='$T1' returning 1) select count(*) from u" 0
+check_rows "0095: admin pay-rate UPDATE affects 1 row"     $A \
+  "with u as (update billing_rates set pay_rate=550 where profile_id='$T1' returning 1) select count(*) from u" 1
+check_write "0095: sub_admin CANNOT insert a billing rate" $SA \
+  "insert into billing_rates(profile_id,fee_rate,currency) values ('$S2',1,'INR')" block
+check_write "0095: admin CAN set a billing rate"           $A  \
+  "insert into billing_rates(profile_id,fee_rate,currency) values ('$S2',700,'INR')" allow
+# The billing period is validated in the DATABASE too, so a hand-run insert cannot store a
+# shape the duplicate-document lookup would silently miss.
+check_guard "0095: a malformed billing_period is rejected" $A \
+  "insert into receipts(number,student_id,student_name_snapshot,currency,subtotal,total,created_by,billing_period)
+   values ('CEA-R-TEST-9999','$S1','S One','INR',1,1,'$A','Sept-2026')" block
 
 echo "== RLS RESULT: $pass passed, $fail failed =="
 psql -h $HOST -U $USER -q -c "drop database if exists $DB" >/dev/null 2>&1

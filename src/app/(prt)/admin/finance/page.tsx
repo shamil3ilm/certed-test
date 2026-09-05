@@ -1,4 +1,6 @@
 import { requireCapability } from '@/lib/auth/require-role'
+import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
+import { todayInZone } from '@/lib/time/format'
 import { isAdminTier } from '@/lib/capabilities'
 import {
   financeUrl,
@@ -35,7 +37,7 @@ function DocTable({
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* h2 (not h3) so a viewer without the issue-forms above still gets an
             unbroken h1 -> h2 outline rather than an h1 -> h3 skip. */}
-        <h2 className="text-sm font-medium text-slate-500">{title}</h2>
+        <h2 className="text-sm font-medium text-slate-600">{title}</h2>
         <a href={`/api/${kind}/export`} className="btn btn-sm btn-soft">
           Export CSV
         </a>
@@ -66,7 +68,7 @@ function DocTable({
       <div className="mt-2 overflow-x-auto">
         <table className="data-table">
           <thead>
-            <tr className="text-left text-slate-400">
+            <tr className="text-left text-slate-600">
               <th scope="col" className="p-2">
                 Number
               </th>
@@ -86,7 +88,7 @@ function DocTable({
                 <td>{row.name}</td>
                 <td>
                   {row.totalLabel}
-                  {row.baseLabel && <span className="block text-xs text-slate-400">{row.baseLabel}</span>}
+                  {row.baseLabel && <span className="block text-xs text-slate-600">{row.baseLabel}</span>}
                 </td>
                 <td className="py-1">
                   <div className="flex items-center justify-end gap-2">
@@ -95,17 +97,23 @@ function DocTable({
                       target="_blank"
                       rel="noopener"
                       className="btn btn-sm btn-soft"
+                      aria-label={`PDF of ${row.number} - ${row.name}`}
                     >
                       PDF
                     </a>
-                    {canManage && !row.voided && <VoidButton endpoint={`/api/${kind}/${row.id}/void`} />}
+                    {canManage && !row.voided && (
+                      <VoidButton
+                        endpoint={`/api/${kind}/${row.id}/void`}
+                        documentLabel={`${row.number} - ${row.name}`}
+                      />
+                    )}
                   </div>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="p-4 text-center text-slate-400">
+                <td colSpan={4} className="p-4 text-center text-slate-600">
                   No {kind === 'receipts' ? 'receipts' : 'pay slips'} yet.
                 </td>
               </tr>
@@ -157,6 +165,9 @@ export default async function FinancePage(props: {
   // same value on SSR and hydration (a client-side new Date() can differ across
   // a midnight/timezone boundary and trip a hydration mismatch).
   const today = new Date().toISOString().slice(0, 10)
+  // The month to bill defaults to the CURRENT month in the institute's timezone - the same
+  // month edges the hours report uses, so "this month" means one thing across both screens.
+  const defaultMonth = todayInZone(await getInstituteTimeZone()).slice(0, 7)
 
   return (
     <main className="mx-auto max-w-4xl space-y-10 p-4 sm:p-6 lg:p-8">
@@ -165,9 +176,14 @@ export default async function FinancePage(props: {
           title="Finance"
           action={
             canManage ? (
-              <a href="/admin/finance/rates" className="btn btn-soft btn-sm">
-                Currency conversion
-              </a>
+              <span className="flex flex-wrap gap-2">
+                <a href="/admin/finance/billing-rates" className="btn btn-soft btn-sm">
+                  Hourly rates
+                </a>
+                <a href="/admin/finance/rates" className="btn btn-soft btn-sm">
+                  Currency conversion
+                </a>
+              </span>
             ) : undefined
           }
         />
@@ -179,7 +195,9 @@ export default async function FinancePage(props: {
                 partyLabel="Student"
                 searchParties={searchFinanceStudentsAction}
                 endpoint="/api/receipts"
+                draftEndpoint="/api/receipts/draft"
                 defaultIssueDate={today}
+                defaultMonth={defaultMonth}
               />
             </div>
           </>
@@ -196,7 +214,9 @@ export default async function FinancePage(props: {
                 partyLabel="Payee (tutor or mentor)"
                 parties={data.tutors}
                 endpoint="/api/payslips"
+                draftEndpoint="/api/payslips/draft"
                 defaultIssueDate={today}
+                defaultMonth={defaultMonth}
               />
             </div>
           </>

@@ -25,6 +25,14 @@ export const issueDocSchema = z
     note: z.string().max(500).optional(),
     discount: z.number().nonnegative().max(1_000_000).optional(),
     lines: z.array(lineSchema).min(1).max(50),
+    // The 'YYYY-MM' this document bills for, distinct from issue_date (September's
+    // fees are commonly issued in October). Optional: a hand-written document that
+    // bills no particular month stays valid. The same shape is checked in the
+    // database (0094), so a value that reaches the column always matches.
+    billing_period: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Billing period must be YYYY-MM')
+      .optional(),
   })
   .superRefine((v, ctx) => {
     // Validate against the SAME rounded amounts that get stored (round(line)

@@ -8,6 +8,7 @@ import type { ActionResult } from '@/lib/api/action-error'
 import { requestJson } from '../../api-client'
 import { useUI } from '../../Providers'
 import { IssueHeaderFields, IssueLineItems, IssueTotals, type Line, type Party } from './issue-form-parts'
+import { HoursDraftPanel, type BillingDraft } from './HoursDraftPanel'
 
 function createEmptyLine(): Line {
   return { id: createClientId('line'), subject: '', hours: '', rate: '' }
@@ -19,6 +20,8 @@ export function IssueForm({
   searchParties,
   endpoint,
   defaultIssueDate,
+  draftEndpoint,
+  defaultMonth,
 }: {
   partyLabel: string
   /** Eager candidate list (pay-slip payees). Omitted when `searchParties` drives
@@ -29,6 +32,11 @@ export function IssueForm({
   searchParties?: (query: string) => Promise<ActionResult<Party[]>>
   endpoint: string
   defaultIssueDate: string
+  /** GET endpoint returning the hours-derived draft for a party + month. */
+  draftEndpoint: string
+  /** Current month in the institute's timezone, server-computed so the month input's
+   *  value matches between SSR and hydration (same reason as defaultIssueDate). */
+  defaultMonth: string
 }) {
   const router = useRouter()
   const { toast } = useUI()
@@ -43,6 +51,10 @@ export function IssueForm({
   const [currency, setCurrency] = useState('INR')
   const [discount, setDiscount] = useState('')
   const [lines, setLines] = useState<Line[]>([createEmptyLine()])
+  // Set only when the lines came from recorded hours, and cleared the moment the admin
+  // edits them by hand: the stored period must describe what the document ACTUALLY bills,
+  // so it is never carried over onto figures that are no longer the derived ones.
+  const [billingPeriod, setBillingPeriod] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, startRefreshTransition] = useTransition()
@@ -54,6 +66,7 @@ export function IssueForm({
   const { subtotal, total } = computeTotals(numeric, Number(discount) || 0, currency)
 
   function setLine(index: number, patch: Partial<Line>) {
+    setBillingPeriod(null)
     setLines((currentLines) =>
       currentLines.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)),
     )
@@ -96,6 +109,7 @@ export function IssueForm({
           issue_date: new Date(issueDate).toISOString(),
           currency,
           discount: discount ? Number(discount) : undefined,
+          billing_period: billingPeriod ?? undefined,
           lines: validLines.map((line) => ({
             subject: line.subject,
             hours: Number(line.hours),
@@ -108,6 +122,7 @@ export function IssueForm({
       setPartyName('')
       setDiscount('')
       setLines([createEmptyLine()])
+      setBillingPeriod(null)
       toast(isReceipt ? 'Receipt issued' : 'Pay slip issued', 'success')
       startRefreshTransition(() => {
         router.refresh()
@@ -129,25 +144,55 @@ export function IssueForm({
         partyName={partyName}
         issueDate={issueDate}
         currency={currency}
-        onPartyChange={setPartyId}
+        onPartyChange={(id) => {
+          setPartyId(id)
+          setBillingPeriod(null)
+        }}
         onPartyPick={(party) => {
           setPartyId(party.id)
           setPartyName(party.name)
+          setBillingPeriod(null)
         }}
         onPartyClear={() => {
           setPartyId('')
           setPartyName('')
+          setBillingPeriod(null)
         }}
         onIssueDateChange={setIssueDate}
         onCurrencyChange={setCurrency}
+      />
+
+      <HoursDraftPanel
+        partyLabel={partyLabel}
+        partyId={partyId}
+        draftEndpoint={draftEndpoint}
+        defaultMonth={defaultMonth}
+        onFilled={(draft: BillingDraft) => {
+          setCurrency(draft.currency)
+          setBillingPeriod(draft.period)
+          setLines(
+            draft.lines.map((line) => ({
+              id: createClientId('line'),
+              subject: line.subject,
+              hours: String(line.hours),
+              rate: String(line.rate),
+            })),
+          )
+        }}
       />
 
       <IssueLineItems
         lines={lines}
         currency={currency}
         onLineChange={setLine}
-        onRemoveLine={(index) => setLines((currentLines) => currentLines.filter((_, lineIndex) => lineIndex !== index))}
-        onAddLine={() => setLines((currentLines) => [...currentLines, createEmptyLine()])}
+        onRemoveLine={(index) => {
+          setBillingPeriod(null)
+          setLines((currentLines) => currentLines.filter((_, lineIndex) => lineIndex !== index))
+        }}
+        onAddLine={() => {
+          setBillingPeriod(null)
+          setLines((currentLines) => [...currentLines, createEmptyLine()])
+        }}
       />
 
       <IssueTotals

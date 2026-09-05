@@ -56,6 +56,7 @@ async function issueDoc(
     created_by: actorId,
     prefix,
     lines,
+    billing_period: input.billing_period ?? null,
   })
 
   // Best-effort: the document is already committed (numbered + line items) by

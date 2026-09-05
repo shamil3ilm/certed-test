@@ -14,15 +14,44 @@ import { loginAs, SEED } from './support'
  */
 
 const BLOCKED: Record<string, string[]> = {
-  'student@mock.test': ['/students', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
+  'student@mock.test': [
+    '/students',
+    '/admin/users',
+    '/admin/finance',
+    '/admin/history',
+    '/admin/messaging',
+    '/admin/teaching-hours',
+    '/admin/finance/billing-rates',
+  ],
   // /grades is a student's OWN grade card - student-only by design; a tutor is
   // bounced (the staff view of a student's marks lives on /students/[id]).
-  'tutor@mock.test': ['/grades', '/students', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
-  'mentor@mock.test': ['/grades', '/admin/users', '/admin/finance', '/admin/history', '/admin/messaging'],
+  'tutor@mock.test': [
+    '/grades',
+    '/students',
+    '/admin/users',
+    '/admin/finance',
+    '/admin/history',
+    '/admin/messaging',
+    // The academy-wide class-hours report is manageClasses-gated oversight; a tutor's
+    // own hours live on their dashboard, a mentor's scoped view on /session-timings.
+    '/admin/teaching-hours',
+    // A tutor must not read the hourly rates - not even their own pay rate.
+    '/admin/finance/billing-rates',
+  ],
+  'mentor@mock.test': [
+    '/grades',
+    '/admin/users',
+    '/admin/finance',
+    '/admin/history',
+    '/admin/messaging',
+    '/admin/teaching-hours',
+    '/admin/finance/billing-rates',
+  ],
   // Sub-admin is now an operational admin (holds viewClasses + viewMentees), so it
-  // reaches /classroom, /documents and /students. It still lacks viewFinance/
-  // viewHistory, and /grades is a student's own card - those stay blocked.
-  'subadmin@mock.test': ['/grades', '/admin/finance', '/admin/history'],
+  // reaches /classroom, /documents and /students - and manageClasses, so the class-hours
+  // report is allowed. It still lacks viewFinance/viewHistory, so the ledger and the
+  // hourly rates behind it stay out of reach, and /grades is a student's own card.
+  'subadmin@mock.test': ['/grades', '/admin/finance', '/admin/finance/billing-rates', '/admin/history'],
 }
 
 const ALLOWED: Record<string, string[]> = {
@@ -32,6 +61,8 @@ const ALLOWED: Record<string, string[]> = {
   'subadmin@mock.test': [
     '/admin/users',
     '/admin/messaging',
+    // Holds manageClasses, so the class-hours report is oversight it is entitled to.
+    '/admin/teaching-hours',
     '/calendar',
     '/messages',
     '/classroom',

@@ -45,6 +45,12 @@ LATEST="$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' |
 # the ACL section (a table-level REVOKE cascades to that table's column privileges, so it
 # MUST precede the column GRANTs or it wipes them). tests/unit/snapshot-privilege-epilogue
 # asserts presence, public. qualification, and this ordering.
+#
+# THIS LIST IS HAND-MAINTAINED. Add an entry whenever a migration adds a table-level
+# REVOKE, or a snapshot-provisioned database silently regains the grant the chain
+# removed. tests/unit/snapshot-privilege-epilogue.test.ts compares this against every
+# `revoke ... on table` in supabase/migrations and fails when one is missing, so the
+# gap surfaces in CI rather than in a provisioned environment.
 cat >"$EPI" <<'EPILOGUE'
 --
 -- Table privilege epilogue (R-01)
@@ -64,6 +70,7 @@ REVOKE SELECT ON TABLE public.class_sessions FROM authenticated;
 REVOKE UPDATE ON TABLE public.notifications FROM anon, authenticated;
 REVOKE UPDATE ON TABLE public.profiles FROM authenticated;
 REVOKE ALL ON TABLE public.reminders FROM authenticated;
+REVOKE ALL ON TABLE public.billing_rates FROM anon, authenticated;
 
 EPILOGUE
 

@@ -139,8 +139,25 @@ export function buildSeed(): MockDb {
       },
     ],
     classes: [
-      { id: IDS.math, name: 'Mathematics - Grade 10', status: 'active', created_at: NOW },
-      { id: IDS.science, name: 'Science - Grade 10', status: 'active', created_at: NOW },
+      // subject_id LINKS the class to the managed subject list above (ids are positional:
+      // ...0001 Mathematics, ...0002 Physics). Without it the Subject column on the session
+      // lists renders blank, because the subject of a session comes from its CLASS - a class
+      // is one (student, subject, tutor) pairing, which is how one tutor teaches several
+      // subjects: one class per subject.
+      {
+        id: IDS.math,
+        name: 'Mathematics - Grade 10',
+        subject_id: 'd0000000-0000-4000-8000-000000000001',
+        status: 'active',
+        created_at: NOW,
+      },
+      {
+        id: IDS.science,
+        name: 'Physics - Grade 10',
+        subject_id: 'd0000000-0000-4000-8000-000000000002',
+        status: 'active',
+        created_at: NOW,
+      },
     ],
     enrollments: [
       {
@@ -688,6 +705,7 @@ export function buildSeed(): MockDb {
     resource_versions: [],
     capability_overrides: [],
     exchange_rates: [],
+    billing_rates: [],
     pending_emails: [],
     rate_limit_counters: [],
     consents: [],

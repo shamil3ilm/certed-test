@@ -84,4 +84,6 @@ export type IssueFinanceDocInput = Omit<
 > & {
   prefix: string
   lines: FinanceLine[]
+  /** 'YYYY-MM' the document bills for; null when it bills no particular month. */
+  billing_period: string | null
 }
