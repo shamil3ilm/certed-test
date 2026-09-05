@@ -38,6 +38,7 @@ next-env.d.ts
 # playwright (E2E run artifacts — the specs + config ARE committed)
 test-results/
 playwright-report/
+playwright-report-staging/
 .playwright/
 
 # Local Claude Code tooling config (per-machine; never shared)
@@ -46,3 +47,6 @@ playwright-report/
 # Auto-generated agent rule files (Next 16 emits these on build; regenerated, not source)
 /AGENTS.md
 /CLAUDE.md
+
+# Supabase CLI scratch (version cache) - machine-local, never part of the repo.
+supabase/.temp/

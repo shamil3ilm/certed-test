@@ -28,12 +28,12 @@ staged_all=$(git diff --cached --name-only --diff-filter=ACM)
 # 1) Formatting - only the Prettier-handled files staged for THIS commit.
 staged_fmt=$(echo "$staged_all" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|json|md|css|ya?ml)$' || true)
 if [ -n "$staged_fmt" ]; then
-  if ! echo "$staged_fmt" | xargs -d '\n' npx prettier --check >/dev/null 2>&1; then
+  if ! echo "$staged_fmt" | tr '\n' '\0' | xargs -0 npx prettier --check >/dev/null 2>&1; then
     echo "" >&2
     echo "pre-commit blocked: staged files are not Prettier-formatted (CI's format:check would fail first)." >&2
     echo "Fix: npm run format  (or npx prettier --write on the files), then 'git add' and commit again." >&2
     echo "Offending files:" >&2
-    echo "$staged_fmt" | xargs -d '\n' npx prettier --list-different >&2 || true
+    echo "$staged_fmt" | tr '\n' '\0' | xargs -0 npx prettier --list-different >&2 || true
     exit 1
   fi
 fi

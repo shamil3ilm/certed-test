@@ -2,6 +2,9 @@
   "name": "cert-ed-academia",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "node ./scripts/validate-build-env.mjs && next build --webpack && node ./scripts/check-client-manifest.mjs",

@@ -64,8 +64,14 @@ if (!mockSanctioned) {
 // the whole subtree is excluded. isMock() is false in such a build, so it is never called.
 // A build that will run the mock stack keeps the real client: MOCK_MODE / its public
 // mirror, or the E2E build (which runs against the mock). Everything else gets the stub.
+// A Vercel build NEVER uses the mock: isMock() hard-disables on VERCEL=1, preview included.
+// Without that clause a preview build (which next.config sanctions carrying MOCK_* vars)
+// would BUNDLE the seed's plaintext demo passwords and the JSON-DB writer while isMock()
+// kept them permanently unreachable - dead credential-shaped fixtures shipped for nothing.
+// Keeping this in step with isMock() means "bundles the mock" and "can run the mock" agree.
 const buildUsesMock =
-  process.env.MOCK_MODE === '1' || process.env.NEXT_PUBLIC_MOCK_MODE === '1' || isEnabling(process.env.E2E_BUILD)
+  process.env.VERCEL !== '1' &&
+  (process.env.MOCK_MODE === '1' || process.env.NEXT_PUBLIC_MOCK_MODE === '1' || isEnabling(process.env.E2E_BUILD))
 
 const MOCK_CLIENT_STUB = `${__dirname}/src/lib/mock/client-stub.ts`
 

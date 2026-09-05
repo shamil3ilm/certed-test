@@ -35,6 +35,47 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Layering guard: the app layer talks to services, never straight to the data layer.
+    // Reaching past services loses the authorization + validation that lives there, and it
+    // is how service-role reads/writes end up issued from route handlers. See
+    // docs/architecture-rules.md and ADR 0001.
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/lib/data/*', '@/lib/data'],
+              message:
+                'src/app must not import the data layer directly. Call a service in @/lib/services (add a thin wrapper if none exists) so the authorization and validation are not bypassed.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The dependency direction is app -> services -> data. A lib module importing from
+    // src/app inverts it and couples domain code to a route group's file layout - even for
+    // a type, which belongs in the lib layer instead.
+    files: ['src/lib/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/app/*', '@/app'],
+              message:
+                'src/lib must not import from src/app. Move the shared type or helper into src/lib (e.g. @/lib/attachments/view) and import it from both sides.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['tests/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
@@ -50,6 +91,11 @@ const eslintConfig = defineConfig([
     // Generated coverage report (its bundled JS carries its own eslint-disable
     // directives) - never lint it.
     'coverage/**',
+    // Generated Playwright artifacts (HTML report bundles + trace viewer JS).
+    // ESLint does not read .gitignore, so these need their own entry or a run
+    // that has produced a report will fail the lint gate on vendored bundles.
+    'playwright-report*/**',
+    'test-results/**',
   ]),
 ])
 
