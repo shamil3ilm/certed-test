@@ -23,8 +23,21 @@ export PGPASSWORD="${PGPASSWORD:-}"
 HOST=127.0.0.1
 USER=postgres
 SNAPSHOT="${1:-supabase/rebuild/0000_full_rebuild.sql}"
+# Per-run scratch database names (PID-suffixed) for the same reason test-rls.sh uses one:
+# a fixed name is a shared resource, so a concurrent run - or anything else in the
+# workspace holding it - blocks reset_database's drop and kills the chain mid-provision
+# (NEW-41). Already dropped on every exit by the cleanup trap below.
+DB_MIG="certed_pp_mig_$$"
+DB_SNAP="certed_pp_snap_$$"
 TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"; psql -h $HOST -U $USER -q -c "drop database if exists certed_pp_mig" -c "drop database if exists certed_pp_snap" >/dev/null 2>&1' EXIT
+# shellcheck source=scripts/lib/pg-reset.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/pg-reset.sh"
+cleanup() {
+  rm -rf "$TMPDIR"
+  drop_database "$HOST" 5432 "$USER" "$DB_MIG"
+  drop_database "$HOST" 5432 "$USER" "$DB_SNAP"
+}
+trap cleanup EXIT
 
 PSQL() { psql -h $HOST -U $USER "$@"; }
 
@@ -56,34 +69,52 @@ union all
 select 'COLUMN', grantee, table_name, column_name, privilege_type
 from information_schema.column_privileges
 where table_schema = 'public' and grantee in ('anon','authenticated')
+union all
+-- FUNCTION privileges. This gate compared tables and columns only, so the snapshot's C-01
+-- function sweep could diverge from the chain unnoticed - which is exactly how a function
+-- the chain grants to authenticated (is_app_link, backing the CHECK constraint on
+-- notifications.link) went missing from the epilogue's hand-maintained keeps list, leaving
+-- a snapshot-provisioned database refusing every notification insert. Read through
+-- has_function_privilege so privileges inherited from DEFAULT PRIVILEGES resolve the same
+-- way Postgres resolves them, and skip extension-owned functions.
+select 'FUNCTION', r.rolname, p.proname, pg_get_function_identity_arguments(p.oid), 'EXECUTE'
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+cross join (select rolname from pg_roles where rolname in ('anon','authenticated')) r
+where n.nspname = 'public'
+  and not exists (
+    select 1 from pg_depend d
+    where d.objid = p.oid and d.classid = 'pg_proc'::regclass and d.deptype = 'e'
+  )
+  and has_function_privilege(r.rolname, p.oid, 'EXECUTE')
 order by 1,2,3,4,5;
 SQL
 }
 
 echo "== provisioning via MIGRATIONS =="
-PSQL -q -c "drop database if exists certed_pp_mig" -c "create database certed_pp_mig" >/dev/null 2>&1
-base_setup certed_pp_mig
-for f in supabase/migrations/00*.sql; do
-  if ! PSQL -d certed_pp_mig -v ON_ERROR_STOP=1 -q -f "$f" >"$TMPDIR/mig.log" 2>&1; then
+reset_database "$HOST" 5432 "$USER" "$DB_MIG" || exit 1
+base_setup "$DB_MIG"
+for f in supabase/migrations/[0-9][0-9][0-9][0-9]_*.sql; do
+  if ! PSQL -d "$DB_MIG" -v ON_ERROR_STOP=1 -q -f "$f" >"$TMPDIR/mig.log" 2>&1; then
     echo "MIGRATION FAILED: $f"; tail -3 "$TMPDIR/mig.log"; exit 1
   fi
 done
 
 echo "== provisioning via SNAPSHOT =="
-PSQL -q -c "drop database if exists certed_pp_snap" -c "create database certed_pp_snap" >/dev/null 2>&1
-base_setup certed_pp_snap
+reset_database "$HOST" 5432 "$USER" "$DB_SNAP" || exit 1
+base_setup "$DB_SNAP"
 # The snapshot issues CREATE SCHEMA public, so remove the default one first (as real
 # provisioning does). The global default privileges set above survive this.
-PSQL -d certed_pp_snap -q -c "drop schema if exists public cascade" >/dev/null 2>&1
-if ! PSQL -d certed_pp_snap -v ON_ERROR_STOP=1 -q -f "$SNAPSHOT" >"$TMPDIR/snap.log" 2>&1; then
+PSQL -d "$DB_SNAP" -q -c "drop schema if exists public cascade" >/dev/null 2>&1
+if ! PSQL -d "$DB_SNAP" -v ON_ERROR_STOP=1 -q -f "$SNAPSHOT" >"$TMPDIR/snap.log" 2>&1; then
   echo "SNAPSHOT APPLY FAILED - the epilogue likely errors at runtime (e.g. unqualified names"
   echo "against pg_dump's empty search_path). First errors:"
   grep -iE "error|does not exist" "$TMPDIR/snap.log" | head -5
   exit 1
 fi
 
-dump_privs certed_pp_mig "$TMPDIR/mig.privs"
-dump_privs certed_pp_snap "$TMPDIR/snap.privs"
+dump_privs "$DB_MIG" "$TMPDIR/mig.privs"
+dump_privs "$DB_SNAP" "$TMPDIR/snap.privs"
 
 if diff -u "$TMPDIR/mig.privs" "$TMPDIR/snap.privs" >"$TMPDIR/diff.txt"; then
   echo "== PRIVILEGE PARITY: OK =="

@@ -18,6 +18,9 @@
 # ============================================================================
 set -uo pipefail
 HOST="${PGHOST:-127.0.0.1}"; PORT="${PGPORT:-5432}"; USER="${PGUSER:-postgres}"
+
+# shellcheck source=scripts/lib/pg-reset.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/pg-reset.sh"
 export PGPASSWORD="${PGPASSWORD:-}"
 
 pass=0; fail=0
@@ -49,7 +52,7 @@ verify() { # DB - the reusable verification (runs as superuser, so RLS is bypass
 if [ "${1:-}" = "--rehearse" ]; then
   DB=certed_restore_drill; DUMP="$(mktemp --suffix=.dump)"
   echo "== [rehearse] building a production-like DB from the migration chain =="
-  psql -h "$HOST" -p "$PORT" -U "$USER" -q -c "drop database if exists $DB" -c "create database $DB" >/dev/null 2>&1
+  reset_database "$HOST" "$PORT" "$USER" "$DB" || exit 1
   psql -h "$HOST" -p "$PORT" -U "$USER" -d "$DB" -q >/dev/null 2>&1 <<'SQL'
 create schema if not exists auth;
 create table if not exists auth.users(id uuid primary key, email text);
@@ -60,7 +63,7 @@ do $$ begin
   if not exists(select 1 from pg_roles where rolname='service_role') then create role service_role; end if;
 end $$;
 SQL
-  for f in supabase/migrations/00*.sql; do
+  for f in supabase/migrations/[0-9][0-9][0-9][0-9]_*.sql; do
     psql -h "$HOST" -p "$PORT" -U "$USER" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f" >/tmp/_drillmig 2>&1 \
       || { echo "MIGRATION FAILED: $f"; head -3 /tmp/_drillmig; exit 1; }
   done
@@ -75,13 +78,17 @@ SQL
   echo "== [rehearse] pg_dump (simulated backup) -> drop -> restore =="
   start=$(date +%s)
   pg_dump -h "$HOST" -p "$PORT" -U "$USER" -Fc "$DB" -f "$DUMP" 2>/tmp/_drilldump || { echo "DUMP FAILED"; cat /tmp/_drilldump; exit 1; }
-  psql -h "$HOST" -p "$PORT" -U "$USER" -q -c "drop database $DB" -c "create database $DB" >/dev/null 2>&1
+  # The drop is the whole point of the rehearsal: if it silently fails, pg_restore
+  # below refills a database that was never emptied and verify() then passes against
+  # data the "restore" never restored - a drill that proves nothing while reporting
+  # success. reset_database terminates lingering backends and aborts loudly instead.
+  reset_database "$HOST" "$PORT" "$USER" "$DB" || exit 1
   pg_restore -h "$HOST" -p "$PORT" -U "$USER" -d "$DB" --no-owner --no-privileges "$DUMP" >/tmp/_drillrestore 2>&1
   end=$(date +%s)
   verify "$DB"
   echo "== restore + verify took $((end - start))s (RTO signal) =="
   rm -f "$DUMP"
-  psql -h "$HOST" -p "$PORT" -U "$USER" -q -c "drop database if exists $DB" >/dev/null 2>&1
+  drop_database "$HOST" "$PORT" "$USER" "$DB"
 else
   DB="${PGDATABASE:?set PGDATABASE to the scratch database a backup was restored into (never production)}"
   start=$(date +%s); verify "$DB"; end=$(date +%s)

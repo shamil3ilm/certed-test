@@ -6,18 +6,32 @@
 # verify (the mock has no RLS), so it is checked here against the migration
 # schema with a Supabase-shaped auth context.
 #
-# Usage:  bash scripts/test-rls.sh
+# Usage:  bash scripts/test-rls.sh            (scratch DB name is unique per run)
+#         RLS_TEST_DB=my_db bash scripts/test-rls.sh   (pin the name, e.g. to inspect it)
 # Requires: local Postgres (psql on PATH), superuser `postgres`, empty password.
+#
+# The scratch database name carries the PID so CONCURRENT runs cannot collide. It used
+# to be the fixed `certed_rls_test`, which meant a second run - or anything else in the
+# workspace holding that name - made reset_database's drop fail and killed the chain
+# mid-migration. That was flagged as theoretical and then bit twice for real (NEW-41);
+# a per-run name removes the shared resource rather than documenting the hazard.
 # ============================================================================
 set -uo pipefail
 export PGPASSWORD="${PGPASSWORD:-}"
 HOST=127.0.0.1
 USER=postgres
-DB=certed_rls_test
+DB="${RLS_TEST_DB:-certed_rls_test_$$}"
 Q() { psql -h $HOST -U $USER -d "$DB" -tAqc "$1" 2>/dev/null; }
 
 echo "== provisioning $DB =="
-psql -h $HOST -U $USER -q -c "drop database if exists $DB" -c "create database $DB" >/dev/null 2>&1
+# Reset the scratch database HONESTLY: a drop blocked by a lingering connection used
+# to fail silently and leave the assertions below running against a stale database.
+# shellcheck source=scripts/lib/pg-reset.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/pg-reset.sh"
+reset_database "$HOST" 5432 "$USER" "$DB" || exit 1
+# Drop the per-run scratch DB however this script leaves - an `exit 1` from a failed
+# migration or seed included - so an aborted run does not leak a database per attempt.
+trap 'drop_database "$HOST" 5432 "$USER" "$DB" >/dev/null 2>&1' EXIT
 
 # Supabase-shaped auth: auth.uid() reads the JWT-claims GUC; anon/authenticated/service_role roles.
 psql -h $HOST -U $USER -d "$DB" -q >/dev/null 2>&1 <<'SQL'
@@ -34,7 +48,7 @@ end $$;
 SQL
 
 echo "== applying migrations =="
-for f in supabase/migrations/00*.sql; do
+for f in supabase/migrations/[0-9][0-9][0-9][0-9]_*.sql; do
   if ! psql -h $HOST -U $USER -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f" >/tmp/_rlsmig 2>&1; then
     echo "MIGRATION FAILED: $f"; head -3 /tmp/_rlsmig; exit 1
   fi
@@ -113,7 +127,13 @@ insert into calendar_events(id,title,event_date,class_id,created_by) values
 -- feedback on 2998). A student must read only sessions they attended, staff read both.
 insert into class_sessions(id,class_id,session_date,student_feedback) values
  ('c5000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','2999-01-01','attended-fb'),
- ('c5000000-0000-4000-8000-000000000002','c0000000-0000-4000-8000-000000000001','2998-01-01','prior-occupant-fb');
+ ('c5000000-0000-4000-8000-000000000002','c0000000-0000-4000-8000-000000000001','2998-01-01','prior-occupant-fb'),
+ -- 0097: a SECOND session on a date S1 DOES attend, which S1 was never marked for. Before
+ -- 0097 the read/feedback policies keyed on (class_id, session_date), so attending the
+ -- first session of a day handed the student the whole day. Both sessions here share
+ -- 2999-01-01 deliberately - the earlier fixture put its two sessions on different dates,
+ -- which is exactly why that widening passed unnoticed.
+ ('c5000000-0000-4000-8000-000000000003','c0000000-0000-4000-8000-000000000001','2999-01-01','same-day-unattended-fb');
 -- 0094: a mark belongs to a SESSION, so it carries the id of the 2999 session above.
 insert into attendance(class_id,session_id,student_id,session_date,status,marked_by) values
  ('c0000000-0000-4000-8000-000000000001','c5000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000030','2999-01-01','present','a0000000-0000-4000-8000-000000000010');
@@ -356,7 +376,27 @@ check "0082: tutor DELETE of their class's event affects 1 row" $T1 \
 # R-05: a student reads only class_sessions they ATTENDED (not a prior occupant's), staff read all.
 check "R-05: S1 reads a session they attended"             $S1 "select count(*) from class_sessions where session_date='2999-01-01'" 1
 check "R-05: S1 CANNOT read a C1 session they did not attend" $S1 "select count(*) from class_sessions where session_date='2998-01-01'" 0
-check "R-05: tutor reads both C1 sessions"                 $T1 "select count(*) from class_sessions where class_id='$C1'" 2
+check "R-05: tutor reads all C1 sessions"                  $T1 "select count(*) from class_sessions where class_id='$C1'" 3
+# 0097: the same invariant WITHIN one date. A class may hold several sessions a day (0093)
+# and a mark names its session (0094), so "attended" is per session, not per day.
+SAME_DAY_UNATTENDED=c5000000-0000-4000-8000-000000000003
+check "0097: S1 reads ONLY the session they were marked for, on a shared date" $S1 \
+  "select count(*) from class_sessions where session_date='2999-01-01'" 1
+check "0097: S1 CANNOT read the same-day session they were not marked for" $S1 \
+  "select count(*) from class_sessions where id='$SAME_DAY_UNATTENDED'" 0
+# The feedback write is filtered by USING, so a refused UPDATE matches 0 rows silently.
+check_rows "0097: S1 feedback UPDATE on that session affects 0 rows" $S1 \
+  "with u as (update class_sessions set student_feedback='nope' where id='$SAME_DAY_UNATTENDED' returning 1) select count(*) from u" 0
+check_rows "0097: S1 feedback UPDATE on their OWN session affects 1 row" $S1 \
+  "with u as (update class_sessions set student_feedback='mine' where id='c5000000-0000-4000-8000-000000000001' returning 1) select count(*) from u" 1
+# A day-scoped write (which is what the feedback form still issues) must touch only the
+# attended session, never smear one student's note across the whole date.
+check_rows "0097: a day-scoped feedback UPDATE touches only the attended session" $S1 \
+  "with u as (update class_sessions set student_feedback='day' where class_id='$C1' and session_date='2999-01-01' returning 1) select count(*) from u" 1
+# 0097 withdrew the student INSERT path: since 0094 a mark cannot exist without its session,
+# so a student never needs to create one.
+check_write "0097: S1 cannot INSERT a class_sessions row" $S1 \
+  "insert into class_sessions(class_id,session_date,student_feedback) values ('$C1','2997-01-01','x')" block
 # mentee_notes has no write policy: even the student's mentor cannot INSERT via the API
 # (notes are written service-role only, gated in-app by canMentor).
 check_write "mentee_notes: mentor CANNOT insert via API (service-role only)" $M \
@@ -391,5 +431,5 @@ check_guard "0095: a malformed billing_period is rejected" $A \
    values ('CEA-R-TEST-9999','$S1','S One','INR',1,1,'$A','Sept-2026')" block
 
 echo "== RLS RESULT: $pass passed, $fail failed =="
-psql -h $HOST -U $USER -q -c "drop database if exists $DB" >/dev/null 2>&1
+drop_database "$HOST" 5432 "$USER" "$DB"
 [ $fail -eq 0 ]
