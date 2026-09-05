@@ -30,7 +30,11 @@
 -- 3. issue_receipt_doc / issue_payslip_doc gain p_billing_period. Postgres cannot add a
 --    parameter in place - CREATE OR REPLACE with a new signature creates an OVERLOAD, and
 --    two overloads reachable by name is exactly how an ambiguous-function error at issue
---    time happens - so each function is dropped and recreated with its ACL restored. The
+--    time happens - so the OLD 12-argument signature is dropped explicitly and the new one
+--    is written with CREATE OR REPLACE. Both halves are needed: the drop removes the
+--    overload, and the replace is what lets this file run a SECOND time (a bare CREATE
+--    would fail with "function already exists with same argument types", since by then the
+--    drop matches nothing). ACLs are restored below. The
 --    body is otherwise unchanged. Setting the period inside the same function keeps it
 --    atomic with the insert: a document can never exist without the period it bills.
 --
@@ -111,7 +115,7 @@ create index if not exists payslips_party_period_idx
 
 drop function if exists public.issue_receipt_doc(uuid, text, text, date, text, text, numeric, numeric, numeric, uuid, text, jsonb);
 
-create function public.issue_receipt_doc(
+create or replace function public.issue_receipt_doc(
   p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text,
   p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid,
   p_prefix text, p_lines jsonb, p_billing_period text default null
@@ -156,7 +160,7 @@ grant all on function public.issue_receipt_doc(uuid, text, text, date, text, tex
 
 drop function if exists public.issue_payslip_doc(uuid, text, text, date, text, text, numeric, numeric, numeric, uuid, text, jsonb);
 
-create function public.issue_payslip_doc(
+create or replace function public.issue_payslip_doc(
   p_party_id uuid, p_party_name text, p_class_level text, p_issue_date date, p_currency text,
   p_note text, p_subtotal numeric, p_discount numeric, p_total numeric, p_created_by uuid,
   p_prefix text, p_lines jsonb, p_billing_period text default null
