@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeIlike, escapeOrIlike } from '@/lib/text/ilike'
 import type { DocumentCategory, DocumentVisibility } from '@/lib/documents/categories'
+import { assertMutated } from './mutation'
 
 /**
  * Table access for `resources` - the class document library (a document is a
@@ -153,16 +154,16 @@ export async function insertResource(row: ResourceInsert): Promise<ResourceRow> 
 /** Soft archive / restore - the row is kept either way. */
 export async function updateResourceStatus(id: string, status: ResourceRow['status']): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('resources').update({ status }).eq('id', id)
-  if (error) throw new Error(`resources.${status === 'active' ? 'restore' : 'archive'}: ${error.message}`)
+  const result = await supabase.from('resources').update({ status }).eq('id', id).select('id')
+  assertMutated(result, `resources.${status === 'active' ? 'restore' : 'archive'}`, 'Document not found.')
 }
 
 /** Edit a document's own metadata fields. Status + download_count change
  *  through their own functions. */
 export async function updateResource(id: string, patch: ResourceEditPatch): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('resources').update(patch).eq('id', id)
-  if (error) throw new Error(`resources.edit: ${error.message}`)
+  const result = await supabase.from('resources').update(patch).eq('id', id).select('id')
+  assertMutated(result, 'resources.edit', 'Document not found.')
 }
 
 /** Record a download. Service-role read-modify-write (the caller has already
@@ -186,7 +187,8 @@ export async function incrementResourceDownloadCount(id: string): Promise<void> 
  */
 export async function selectResourceClassIdAsService(id: string): Promise<{ class_id: string | null } | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('resources').select('class_id').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('resources').select('class_id').eq('id', id).maybeSingle()
+  if (error) throw new Error(`resources.selectClassId: ${error.message}`)
   return (data as { class_id: string | null }) ?? null
 }
 

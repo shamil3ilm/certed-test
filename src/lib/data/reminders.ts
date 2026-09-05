@@ -1,5 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
+import { assertMutated } from './mutation'
 
 /**
  * Table access for `reminders`. RLS client throughout, and here policy is the
@@ -135,23 +136,24 @@ export async function updateReminderRow(
   patch: { title: string; description: string | null; remind_at: string },
 ): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('reminders').update(patch).eq('id', id)
-  if (error) throw new Error(`reminders.update: ${error.message}`)
+  const result = await supabase.from('reminders').update(patch).eq('id', id).select('id')
+  assertMutated(result, 'reminders.update', 'Reminder not found.')
 }
 
 export async function deleteReminderRow(id: string): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('reminders').delete().eq('id', id)
-  if (error) throw new Error(`reminders.delete: ${error.message}`)
+  const result = await supabase.from('reminders').delete().eq('id', id).select('id')
+  assertMutated(result, 'reminders.delete', 'Reminder not found.')
 }
 
 export async function markSent(id: string): Promise<void> {
   const supabase = await createClient()
   // is_sent + completed_at only - the exact narrow write the assigned-reminder guard
   // trigger permits an assignee, and harmless for a personal reminder.
-  const { error } = await supabase
+  const result = await supabase
     .from('reminders')
     .update({ is_sent: true, completed_at: new Date().toISOString() })
     .eq('id', id)
-  if (error) throw new Error(`reminders.markSent: ${error.message}`)
+    .select('id')
+  assertMutated(result, 'reminders.markSent', 'Reminder not found.')
 }

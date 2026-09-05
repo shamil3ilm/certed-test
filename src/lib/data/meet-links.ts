@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertMutated } from './mutation'
 
 /**
  * Table access for `meet_links`. RLS client throughout - a tutor may post a link
@@ -89,14 +90,14 @@ export async function updateMeetLink(
   patch: { title: string; url: string; description: string | null; scheduled_at: string | null },
 ): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('meet_links').update(patch).eq('id', id)
-  if (error) throw new Error(`meetLinks.update: ${error.message}`)
+  const result = await supabase.from('meet_links').update(patch).eq('id', id).select('id')
+  assertMutated(result, 'meetLinks.update', 'Meeting link not found.')
 }
 
 export async function setMeetLinkActive(id: string, active: boolean): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('meet_links').update({ active }).eq('id', id)
-  if (error) throw new Error(`meetLinks.${active ? 'restore' : 'delete'}: ${error.message}`)
+  const result = await supabase.from('meet_links').update({ active }).eq('id', id).select('id')
+  assertMutated(result, `meetLinks.${active ? 'restore' : 'delete'}`, 'Meeting link not found.')
 }
 
 /** A meet link's class, SERVICE-ROLE - same reason as
@@ -104,6 +105,7 @@ export async function setMeetLinkActive(id: string, active: boolean): Promise<vo
  *  row from an invisible one. */
 export async function selectMeetLinkClassIdAsService(id: string): Promise<{ class_id: string | null } | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('meet_links').select('class_id').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('meet_links').select('class_id').eq('id', id).maybeSingle()
+  if (error) throw new Error(`meetLinks.selectClassId: ${error.message}`)
   return (data as { class_id: string | null }) ?? null
 }

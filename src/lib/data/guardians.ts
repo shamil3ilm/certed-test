@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertMutated } from './mutation'
 
 /**
  * Table access for `guardians` - a student's parent/guardian contacts (one row each,
@@ -30,7 +31,6 @@ export type GuardianInsert = {
 
 const COLS = 'id, student_id, name, phone, email, relationship, is_primary'
 
-/** A student's guardians, primary first then oldest. */
 /** Hard-delete every guardian row for a student - used by erasure. The
  *  guardians FK cascades on a profile DELETE, but erasure keeps the profile row (so audit /
  *  finance FKs survive), so that cascade never fires; this removes the guardian's PII (name,
@@ -41,6 +41,7 @@ export async function deleteGuardiansForStudent(studentId: string): Promise<void
   if (error) throw new Error(`data.guardians.deleteForStudent: ${error.message}`)
 }
 
+/** A student's guardians, primary first then oldest. */
 export async function selectGuardiansByStudent(studentId: string): Promise<GuardianRow[]> {
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -53,17 +54,18 @@ export async function selectGuardiansByStudent(studentId: string): Promise<Guard
   return (data ?? []) as GuardianRow[]
 }
 
-export async function insertGuardian(row: GuardianInsert): Promise<void> {
+export async function insertGuardian(row: GuardianInsert): Promise<string> {
   const admin = createAdminClient()
-  const { error } = await admin.from('guardians').insert(row)
+  const { data, error } = await admin.from('guardians').insert(row).select('id').single()
   if (error) throw new Error(`guardians.insert: ${error.message}`)
+  return (data as { id: string }).id
 }
 
 /** Delete one guardian, scoped to the student so a stray id can't reach another's row. */
 export async function deleteGuardian(id: string, studentId: string): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin.from('guardians').delete().eq('id', id).eq('student_id', studentId)
-  if (error) throw new Error(`guardians.delete: ${error.message}`)
+  const result = await admin.from('guardians').delete().eq('id', id).eq('student_id', studentId).select('id')
+  assertMutated(result, 'guardians.delete', 'Guardian not found.')
 }
 
 /** Clear the primary flag on all of a student's guardians (before setting a new one). */
@@ -76,6 +78,11 @@ export async function clearPrimaryForStudent(studentId: string): Promise<void> {
 /** Mark one guardian primary (scoped to the student). Callers clear the others first. */
 export async function setGuardianPrimary(id: string, studentId: string): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin.from('guardians').update({ is_primary: true }).eq('id', id).eq('student_id', studentId)
-  if (error) throw new Error(`guardians.setPrimary: ${error.message}`)
+  const result = await admin
+    .from('guardians')
+    .update({ is_primary: true })
+    .eq('id', id)
+    .eq('student_id', studentId)
+    .select('id')
+  assertMutated(result, 'guardians.setPrimary', 'Guardian not found.')
 }

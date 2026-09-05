@@ -1,5 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
+import { assertMutated } from './mutation'
 
 /**
  * Table access for `calendar_events`. RLS client throughout, and it carries real
@@ -72,6 +73,6 @@ export async function updateEventRow(id: string, patch: CalendarEventPatch): Pro
 
 export async function deleteEventRow(id: string): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('calendar_events').delete().eq('id', id)
-  if (error) throw new Error(`deleteEvent: ${error.message}`)
+  const result = await supabase.from('calendar_events').delete().eq('id', id).select('id')
+  assertMutated(result, 'deleteEvent', 'Event not found.')
 }

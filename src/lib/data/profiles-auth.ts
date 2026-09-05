@@ -2,6 +2,7 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { assertMutated } from './mutation'
 
 export type RegistrationFieldsRow = {
   id: string
@@ -53,8 +54,11 @@ export async function updateOwnProfile(
   },
 ): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('profiles').update(patch).eq('id', profileId)
-  if (error) throw new Error(`data.profiles.updateOwn: ${error.message}`)
+  const result = await supabase.from('profiles').update(patch).eq('id', profileId).select('id')
+  // RLS keys this on auth_user_id = auth.uid(). A profile whose auth link is missing
+  // or stale matches ZERO rows and returns no error, so without this the settings page
+  // reports "saved" and the change is silently discarded.
+  assertMutated(result, 'data.profiles.updateOwn', 'Your profile could not be found.')
 }
 
 export async function selectMockCredentialProfile(email: string): Promise<MockCredentialRow | null> {
@@ -69,11 +73,14 @@ export async function bindMockAuthUserId(profileId: string, authUserId: string):
   if (error) throw new Error(`data.profiles.bindMockAuthUserId: ${error.message}`)
 }
 
-/** The erasure marker for a profile: the instant it was anonymised, or null if not erased.
- *  Used to refuse restoring an erased account. */
+/** When a profile was erased, or null if it never was. THROWS on a read error rather than
+ *  reporting null: callers treat null as "not erased", so swallowing a failure here would let
+ *  a restore proceed on a permanently-erased account. Erasure is terminal, so this read must
+ *  fail closed. */
 export async function selectProfileErasedAt(id: string): Promise<string | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('erased_at').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('profiles').select('erased_at').eq('id', id).maybeSingle()
+  if (error) throw new Error(`data.profiles.erasedAt: ${error.message}`)
   return (data as { erased_at: string | null } | null)?.erased_at ?? null
 }
 
@@ -113,9 +120,20 @@ export async function selectActiveIdsAmong(ids: string[]): Promise<string[]> {
   return ((data ?? []) as { id: string }[]).map((row) => row.id)
 }
 
+/**
+ * The actor's OWN profile, read through the RLS self-read policy - the other half of the
+ * session bootstrap alongside the persona and override reads.
+ *
+ * THROWS on error, and that is load-bearing. Coercing a failed read to null makes a healthy
+ * ACTIVE user look un-onboarded: resolveAccessState reads null as 'pending' and bounces them
+ * to /access-pending with nothing logged, indistinguishable from a genuine pending account.
+ * That is the same failure mode the persona/override reads were hardened against, so this
+ * read fails closed and loud too. A genuinely absent row still returns null.
+ */
 export async function selectOwnProfileByAuthUserId(authUserId: string): Promise<Profile | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('profiles').select('*').eq('auth_user_id', authUserId).maybeSingle()
+  const { data, error } = await supabase.from('profiles').select('*').eq('auth_user_id', authUserId).maybeSingle()
+  if (error) throw new Error(`getActorContext: profiles read failed: ${error.message}`)
   return (data as Profile) ?? null
 }
 

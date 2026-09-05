@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeOrIlike } from '@/lib/text/ilike'
 import type { Attachment } from '@/lib/documents/preview'
+import { assertMutated } from './mutation'
 
 /**
  * Table access for `announcements`. RLS client throughout - a tutor may post to
@@ -150,8 +151,8 @@ export async function insertAnnouncement(row: AnnouncementInsert): Promise<Annou
 
 export async function updateAnnouncement(id: string, patch: AnnouncementPatch): Promise<void> {
   const supabase = await createClient()
-  const { error } = await supabase.from('announcements').update(patch).eq('id', id)
-  if (error) throw new Error(`announcements.update: ${error.message}`)
+  const result = await supabase.from('announcements').update(patch).eq('id', id).select('id')
+  assertMutated(result, 'announcements.update', 'Announcement not found.')
 }
 
 /** Service-role class lookup for comment authorization: assertCanComment has to
@@ -160,6 +161,7 @@ export async function updateAnnouncement(id: string, patch: AnnouncementPatch): 
  *  academy-wide announcement. Mirrors selectMeetLinkClassIdAsService. */
 export async function selectAnnouncementClassIdAsService(id: string): Promise<{ class_id: string | null } | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('announcements').select('class_id').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('announcements').select('class_id').eq('id', id).maybeSingle()
+  if (error) throw new Error(`announcements.selectClassId: ${error.message}`)
   return (data as { class_id: string | null }) ?? null
 }
