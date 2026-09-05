@@ -16,12 +16,13 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 - [engineering-guidelines.md](engineering-guidelines.md) — cross-cutting good-practice rules (idempotency, observability, accessibility, concurrency, …) that complement the binding rulebook
 - [application-standards.md](application-standards.md) — **canonical** code style, naming, and file/function size thresholds
 - [design-system.md](design-system.md) — **canonical** visual system: tokens, typography, and `@/lib/ui` primitives
+- [content-pipeline.md](content-pipeline.md) — **canonical** marketing content: the structured copy modules and the MDX blog (how to add a post)
 - [architecture-implementation-plan.md](architecture-implementation-plan.md) — status of the (mostly shipped) architecture overhaul
 - [adr/README.md](adr/README.md) — architecture decision records (0001–0006)
 
 ## Schema and data
 
-- [schema-reference.md](schema-reference.md) — **canonical** table-by-table reference (36 tables)
+- [schema-reference.md](schema-reference.md) — **canonical** table-by-table reference (40 tables)
 - [rls-policy-inventory.md](rls-policy-inventory.md) — RLS policy families to verify
 - [fk-cascade-inventory.md](fk-cascade-inventory.md) — **canonical** foreign-key list and `ON DELETE` behaviour (owns the FK count)
 - [persona-model.md](persona-model.md) — personas, capabilities, and the fixed-identity model

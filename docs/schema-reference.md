@@ -1,6 +1,6 @@
 # Schema reference
 
-A high-level, table-by-table summary of the active schema and helper-function model (36 tables) — not a generated full-column dump. The source of truth is the migrations in `supabase/migrations`.
+A high-level, table-by-table summary of the active schema and helper-function model (40 tables) — not a generated full-column dump. The source of truth is the migrations in `supabase/migrations`.
 
 Use this file for:
 
@@ -85,6 +85,34 @@ Operational notes:
 - hard capabilities are not override-grantable
 - admin-facing capability tooling currently reflects global capability state, not every scoped access path
 
+### `guardians`
+
+Purpose:
+
+- guardian/parent contact records for a student (`student_id` → `profiles`)
+
+Notes:
+
+- columns: `name`, `phone`, `email`, `relationship`, `is_primary`
+- third-party PII: these are contact details of someone who is **not** a platform user, so
+  erasing a student must delete these rows explicitly — the `profiles` row is retained for
+  audit/finance FKs, so an `ON DELETE CASCADE` never fires
+- RLS: `guardians_read` (SELECT only); writes go through the service role behind a
+  `manageUsers` gate
+
+### `consents`
+
+Purpose:
+
+- a profile's acceptance of the current policy versions (`profile_id` → `profiles`)
+
+Notes:
+
+- columns: `terms_version`, `privacy_version`, `guardian_consent`, `cross_border_consent`,
+  `jurisdiction`, `accepted_at`
+- one row per acceptance, so the history of which version a user accepted is preserved
+- RLS: `consents_read` (SELECT only)
+
 ## Academic structure
 
 ### `classes`
@@ -123,6 +151,32 @@ Notes:
 - mentors may be dedicated mentors or tutors who also mentor
 - revoking a mentor disables these links in the current workflow
 - restoring a revoked mentor does not automatically reactivate prior links in the current workflow
+
+### `subjects`
+
+Purpose:
+
+- the subject master list a class is taught against (`classes.subject_id` → `subjects`)
+
+Notes:
+
+- columns: `name`, `active`, `created_by`
+- `active` soft-retires a subject without breaking classes that reference it
+- RLS: `subjects_read` (SELECT only); writes are service-role behind an admin gate
+
+### `mentee_notes`
+
+Purpose:
+
+- a mentor's private pastoral notes about a mentee (`student_id`, `author_id` → `profiles`)
+
+Notes:
+
+- `body` is CHECK-constrained to 1–2000 characters
+- deliberately minimal: no title, no category — the smallest shape that serves the purpose
+- RLS: `mentee_notes_read` (SELECT only), scoped so a mentor sees only notes from **their
+  own tenure** with that student; writes are service-role behind a `canMentor` gate
+- erasing a student deletes these rows explicitly
 
 ## Content and learning records
 

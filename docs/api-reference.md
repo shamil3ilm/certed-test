@@ -36,6 +36,7 @@ Every route under `src/app/api`. "Guard" is the primary access check at the entr
 | `/api/cron/keepalive`             | GET       | `CRON_SECRET` (fails closed)                                 |
 | `/api/cron/drain-emails`          | GET       | `CRON_SECRET` (fails closed) - sends queued `pending_emails` |
 | `/api/cron/reconcile-attachments` | GET       | `CRON_SECRET` (fails closed) - sweeps orphaned uploads       |
+| `/api/cron/queue-health`          | GET       | `CRON_SECRET` (fails closed) - alarms on a stalled queue     |
 | `/api/dev/login`                  | GET, POST | dev/mock only - no-op unless mock mode                       |
 | `/api/dev/logout`                 | GET       | dev/mock only                                                |
 

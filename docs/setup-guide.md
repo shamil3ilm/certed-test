@@ -8,10 +8,14 @@ No Supabase or Google account needed — the portal runs against a JSON-file fak
 
 ```bash
 npm install
+cp .env.example .env.local   # sets MOCK_MODE=1 — required; absent env is not a fallback
 npm run dev
 ```
 
-Sign in at `/login` with a seeded demo account (e.g. `admin@mock.test` / `cert-ed`). See [mock-mode.md](mock-mode.md) for the full account list and how the mock client behaves.
+Marketing is at <http://localhost:3000>; the portal is at <http://app.localhost:3000>
+(the two apps are split by hostname — any host that is not `app.*` gets marketing).
+
+Sign in at `app.localhost:3000/login` with a seeded demo account (e.g. `admin@mock.test` / `cert-ed`). See [mock-mode.md](mock-mode.md) for the full account list and how the mock client behaves.
 
 ## 2. Run against a real Supabase project
 

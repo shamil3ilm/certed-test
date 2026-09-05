@@ -41,16 +41,42 @@ The portal is a class-centric learning and operations app for:
 - Tailwind CSS
 - Vercel hosting
 
+## Repository and branches
+
+> **The live codebase is the `feature/cert-ed-academia-app` branch.**
+> `main` still holds the superseded standalone marketing site and has no `src/`,
+> `docs/`, or `supabase/`. A plain `git clone` checks out `main`, so switch first:
+>
+> ```bash
+> git clone <repo-url> && cd wed_cert
+> git checkout feature/cert-ed-academia-app
+> ```
+
+Remotes: `origin` is the primary repository; `test` is a deploy mirror whose `main`
+branch builds the staging site. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Local development
 
-The fastest local path is mock mode.
+Requires **Node 20 or newer** (CI builds on 20; `.nvmrc` pins 20 for nvm users).
+
+The fastest local path is mock mode — a keyless, JSON-backed harness, so you need no
+Supabase project to run the app:
 
 ```bash
 npm install
+cp .env.example .env.local   # ships with MOCK_MODE=1 — required, there is no auto-fallback
 npm run dev
 ```
 
-When Supabase env vars are absent locally, the app runs against the JSON-backed mock harness in `src/lib/mock`.
+Then open:
+
+- **Marketing site** — <http://localhost:3000>
+- **Portal** — <http://app.localhost:3000> (the two are split by hostname; any host that
+  is not `app.*` is served the marketing site)
+
+Mock mode is **opt-in**: it activates only when `MOCK_MODE=1` (or `NEXT_PUBLIC_MOCK_MODE=1`)
+is set, which `.env.example` does for you. Without a `.env.local` the portal stays dormant
+and the Supabase client throws on the missing keys — absent env is not a fallback to mock.
 
 Demo accounts (all use password `cert-ed`): `admin@mock.test`, `tutor@mock.test`, `mentor@mock.test`, `student@mock.test`, and more.
 
@@ -75,14 +101,25 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm run test
-npm run build
+E2E_BUILD=1 npm run build
 ```
 
-Optional:
+> `npm run build` is a **production** build, and a production build refuses to carry the
+> mock variables. With the quick-start `.env.local` (which sets `MOCK_MODE=1`) a bare
+> `npm run build` fails on purpose with
+> `[build] Mock-only env var(s) set in a production deployment`.
+> Prefix it with `E2E_BUILD=1` to sanction the mock config, or unset the `MOCK_*` vars.
+
+End-to-end (Playwright). Browsers must be installed once, and each run does a full
+production build, so allow a few minutes:
 
 ```bash
+npx playwright install --with-deps chromium
 npx playwright test
 ```
+
+CI runs more gates than the list above — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
+full set, including the RLS and privilege-parity suites.
 
 ## Project structure
 
@@ -96,6 +133,8 @@ Current key areas:
 - `src/lib/auth`: auth guards and access helpers
 - `src/lib/capabilities`: persona baseline and capability resolution
 - `src/lib/session`: actor context loading
+- `src/lib/content`: marketing copy modules and the blog registry
+- `src/content/blog`: MDX blog posts (see [docs/content-pipeline.md](docs/content-pipeline.md))
 - `src/lib/mock`: mock mode harness
 - `src/lib/api`: shared API and action response helpers
 - `src/lib/validation`: schemas and input validation

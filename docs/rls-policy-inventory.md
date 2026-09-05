@@ -58,6 +58,14 @@ This is the current functional inventory. It is intentionally grouped by purpose
   - admin update
   - admin delete
 
+- `guardians`
+  - read (`guardians_read`)
+  - no write policy — service-role only, behind `manageUsers`
+
+- `consents`
+  - read (`consents_read`)
+  - no write policy — service-role only (written on acceptance)
+
 ### Organization and admin-only records
 
 - `org_settings`
@@ -89,6 +97,14 @@ This is the current functional inventory. It is intentionally grouped by purpose
 - `mentorships`
   - read
   - admin write
+
+- `subjects`
+  - read (`subjects_read`)
+  - no write policy — service-role only, behind an admin gate
+
+- `mentee_notes`
+  - read (`mentee_notes_read`) — scoped to the mentor's own tenure with that student
+  - no write policy — service-role only, behind `canMentor`
 
 ### Content tables
 

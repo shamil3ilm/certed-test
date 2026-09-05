@@ -62,6 +62,38 @@ Server-only; a refresh token for the academy's dedicated Drive account, exchange
 | `MOCK_PASSWORD`                       | runtime          | no     | Shared password for the seeded demo users (default `cert-ed`)                 |
 | `MOCK_CHROME_PATH`                    | runtime          | no     | Chrome path for finance-PDF rendering in local dev                            |
 
+## Mock / test-only — never set these in a real deployment
+
+The mock stack is a keyless JSON-file fake of Supabase with plaintext demo passwords and
+an **unsigned** identity cookie. Three variables can widen where it is allowed to run, so
+they are listed separately: any of them present in a production environment is an incident
+(`production-checklist.md` treats them as go-live blockers, and `instrumentation.ts` throws
+at boot if they are found there).
+
+| Variable             | Scope   | Secret | Purpose                                                                                                                                                                                |
+| -------------------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ALLOW_MOCK_AUTH`    | runtime | no     | Affirmative opt-in letting mock mode activate under `NODE_ENV=production` on a **non-Vercel** host. Used only by the Playwright run.                                                   |
+| `E2E_BUILD`          | build   | no     | Sanctions a production-mode build that carries the `MOCK_*` vars. Without it `npm run build` refuses them by design — this is the flag the local-build error message tells you to use. |
+| `SEED_TEST_PASSWORD` | runtime | no     | Password used by `scripts/seed-test-users.mjs` (default `CertEd@123`)                                                                                                                  |
+
+`isMock()` fails closed: it is hard-disabled whenever `VERCEL=1`, so no Vercel deployment
+(**preview included**) can run the mock stack regardless of the above.
+
+## Platform-provided (read, never set by you)
+
+| Variable                     | Read by                                | Why it matters                                                               |
+| ---------------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `VERCEL`                     | `src/lib/mock/env.ts`                  | `1` hard-disables mock mode on any Vercel deploy                             |
+| `VERCEL_ENV`                 | `instrumentation.ts`, `next.config.js` | `preview` sanctions mock config in a preview build                           |
+| `NEXT_PUBLIC_SENTRY_ENABLED` | `instrumentation-client.ts`            | Derived at build from the DSN; folds the Sentry SDK out of the client bundle |
+| `CI`                         | `scripts/validate-build-env.mjs`       | Distinguishes a CI build from a developer's laptop in guard messaging        |
+
+### Legacy alias
+
+`SUPABASE_SERVICE_ROLE_KEY` is accepted as a fallback for `SUPABASE_SECRET_KEY` by
+`scripts/seed-test-data.ts` and `scripts/verify-migrations.ts` only. New configuration
+should set `SUPABASE_SECRET_KEY`.
+
 ## Environment separation
 
 Use **separate** Supabase projects and Drive root folders for production vs preview — a preview deploy pointed at production data can mutate live records. Set the `NEXT_PUBLIC_*` and secret values per Vercel environment (Production / Preview) so a preview build never inlines production endpoints.

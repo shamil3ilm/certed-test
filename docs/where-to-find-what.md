@@ -21,7 +21,7 @@ If you find yourself writing a Supabase query in a page, or a permission check i
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Where does authentication happen?        | [src/lib/session/actor-context.ts](../src/lib/session/actor-context.ts) — the single resolver. Session refresh in [src/lib/supabase/middleware.ts](../src/lib/supabase/middleware.ts), invoked from [src/proxy.ts](../src/proxy.ts)                                                                                                     |
 | Where is authorization checked?          | Route gate: [src/lib/auth/require-role.ts](../src/lib/auth/require-role.ts). Per-resource: [src/lib/permission/](../src/lib/permission/). Database: RLS policies in `supabase/migrations/`                                                                                                                                              |
-| Where are capabilities defined?          | [src/lib/capabilities/index.ts](../src/lib/capabilities/index.ts) — 16 capabilities and the persona → capability map                                                                                                                                                                                                                    |
+| Where are capabilities defined?          | [src/lib/capabilities/index.ts](../src/lib/capabilities/index.ts) — 18 capabilities and the persona → capability map                                                                                                                                                                                                                    |
 | Where are roles/personas defined?        | Fixed identity: `profiles.role`. Assignable: `persona_assignments`. Logic in [src/lib/services/users/personas.ts](../src/lib/services/users/personas.ts)                                                                                                                                                                                |
 | Where are users created?                 | [src/lib/data/auth-accounts.ts](../src/lib/data/auth-accounts.ts) (`auth.admin.createUser`) + [src/lib/services/users/](../src/lib/services/users/)                                                                                                                                                                                     |
 | Where are resources created?             | [src/app/(prt)/resources/UploadForm.tsx](<../src/app/(prt)/resources/UploadForm.tsx>) → [src/lib/services/resources.ts](../src/lib/services/resources.ts) → [src/lib/data/resources.ts](../src/lib/data/resources.ts)                                                                                                                   |
@@ -29,25 +29,25 @@ If you find yourself writing a Supabase query in a page, or a permission check i
 | Where are attachments uploaded?          | Server-side to the academy's own Drive: [src/lib/services/attachments/](../src/lib/services/attachments/) + [src/lib/google/drive-storage-google.ts](../src/lib/google/drive-storage-google.ts), streamed back via [src/app/api/attachments/](../src/app/api/attachments/). See [ADR-0006](./adr/0006-custodial-attachment-storage.md). |
 | Where are attachments downloaded?        | [src/app/api/resources/[id]/download/route.ts](../src/app/api/resources/[id]/download/route.ts)                                                                                                                                                                                                                                         |
 | Where is Google Drive accessed?          | [src/lib/google/](../src/lib/google/) — server-side `drive-storage-google.ts` (real) and `drive-storage-mock.ts`, behind the `drive-storage.ts` interface. Link validation in [src/lib/drive-link.ts](../src/lib/drive-link.ts)                                                                                                         |
-| Where are Supabase queries performed?    | **Only** in [src/lib/data/](../src/lib/data/) (44 modules, one per table group)                                                                                                                                                                                                                                                         |
-| Where are API routes?                    | [src/app/api/](../src/app/api/) — 27 route handlers                                                                                                                                                                                                                                                                                     |
+| Where are Supabase queries performed?    | **Only** in [src/lib/data/](../src/lib/data/) (50 modules, one per table group)                                                                                                                                                                                                                                                         |
+| Where are API routes?                    | [src/app/api/](../src/app/api/) — 28 route handlers                                                                                                                                                                                                                                                                                     |
 | Where are errors handled?                | [src/lib/errors.ts](../src/lib/errors.ts) (types), [src/lib/api/response.ts](../src/lib/api/response.ts) (HTTP shapes), [src/lib/observability/log.ts](../src/lib/observability/log.ts) (`logError`)                                                                                                                                    |
 | Where is validation performed?           | [src/lib/validation/](../src/lib/validation/) — Zod schemas, one per domain                                                                                                                                                                                                                                                             |
 | Where are environment variables defined? | Template: [.env.example](../.env.example). Accessors: [src/lib/env.ts](../src/lib/env.ts). Build guard: [next.config.js](../next.config.js) + [scripts/validate-build-env.mjs](../scripts/validate-build-env.mjs)                                                                                                                       |
 | Where are deployment settings?           | [vercel.json](../vercel.json) (region, crons), [next.config.js](../next.config.js) (headers, CSP, tracing), per-route `runtime`/`maxDuration` exports                                                                                                                                                                                   |
 | Where are business rules?                | [src/lib/services/](../src/lib/services/) — and [docs/workflow-invariants.md](./workflow-invariants.md) states the ones that must hold                                                                                                                                                                                                  |
 | Where is rate limiting?                  | [src/lib/security/rate-limit.ts](../src/lib/security/rate-limit.ts) (in-process), [rate-limit-shared.ts](../src/lib/security/rate-limit-shared.ts) (Postgres-backed)                                                                                                                                                                    |
-| Where is the database schema?            | `supabase/migrations/` — the highest-numbered file is the head (currently `0059`). `supabase/rebuild/0000_full_rebuild.sql` is a generated snapshot for one-shot provisioning. Prose: [docs/schema-reference.md](./schema-reference.md)                                                                                                 |
+| Where is the database schema?            | `supabase/migrations/` — the highest-numbered file is the head (currently `0091`). `supabase/rebuild/0000_full_rebuild.sql` is a generated snapshot for one-shot provisioning. Prose: [docs/schema-reference.md](./schema-reference.md)                                                                                                 |
 
 ---
 
 ## Route groups
 
-| Group            | Host                     | Purpose                                                                  |
-| ---------------- | ------------------------ | ------------------------------------------------------------------------ |
-| `src/app/(mkt)/` | `certedacademia.com`     | Public marketing site — about, classes, contact, blogs                   |
-| `src/app/(prt)/` | `app.certedacademia.com` | The academy portal — everything authenticated                            |
-| `src/app/api/`   | app host                 | Route handlers: finance PDFs, calendar, timetable, reports, cron, health |
+| Group            | Host                     | Purpose                                                                                                                  |
+| ---------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `src/app/(mkt)/` | `certedacademia.com`     | Public marketing site — about, classes, contact, blogs (content authoring: [content-pipeline.md](./content-pipeline.md)) |
+| `src/app/(prt)/` | `app.certedacademia.com` | The academy portal — everything authenticated                                                                            |
+| `src/app/api/`   | app host                 | Route handlers: finance PDFs, calendar, timetable, reports, cron, health                                                 |
 
 The split is enforced in [src/proxy.ts](../src/proxy.ts) via `resolveHost()`. `PORTAL_ONLY=1` forces everything to the portal, for preview deploys on a bare `*.vercel.app` host.
 
@@ -205,18 +205,18 @@ The throw convention is load-bearing: it is why a provisioning fault surfaces as
 
 ## Reference documents
 
-| Document                                                                                     | Covers                                       |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [architecture-rules.md](./architecture-rules.md)                                             | Layering rules                               |
-| [application-standards.md](./application-standards.md)                                       | Conventions                                  |
-| [schema-reference.md](./schema-reference.md)                                                 | Tables in prose                              |
-| [rls-policy-inventory.md](./rls-policy-inventory.md)                                         | Every RLS policy                             |
-| [persona-model.md](./persona-model.md)                                                       | Roles vs personas                            |
-| [workflow-invariants.md](./workflow-invariants.md)                                           | Rules that must hold                         |
-| [migration-checklist.md](./migration-checklist.md)                                           | Before shipping a migration                  |
-| [security-operations.md](./security-operations.md)                                           | Secrets, rotation, backup/recovery           |
-| [setup-guide.md](./setup-guide.md)                                                           | Provisioning a live environment              |
-| [mock-mode.md](./mock-mode.md)                                                               | Local development                            |
-| [api-reference.md](./api-reference.md)                                                       | Route handlers                               |
-| [adr/](./adr/)                                                                               | Decisions and their reasoning                |
-| [qa/2026-08-11-production-readiness-audit.md](./qa/2026-08-11-production-readiness-audit.md) | Current audit — findings and production plan |
+| Document                                               | Covers                                                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| [architecture-rules.md](./architecture-rules.md)       | Layering rules                                                                                   |
+| [application-standards.md](./application-standards.md) | Conventions                                                                                      |
+| [schema-reference.md](./schema-reference.md)           | Tables in prose                                                                                  |
+| [rls-policy-inventory.md](./rls-policy-inventory.md)   | Every RLS policy                                                                                 |
+| [persona-model.md](./persona-model.md)                 | Roles vs personas                                                                                |
+| [workflow-invariants.md](./workflow-invariants.md)     | Rules that must hold                                                                             |
+| [migration-checklist.md](./migration-checklist.md)     | Before shipping a migration                                                                      |
+| [security-operations.md](./security-operations.md)     | Secrets, rotation, backup/recovery                                                               |
+| [setup-guide.md](./setup-guide.md)                     | Provisioning a live environment                                                                  |
+| [mock-mode.md](./mock-mode.md)                         | Local development                                                                                |
+| [api-reference.md](./api-reference.md)                 | Route handlers                                                                                   |
+| [adr/](./adr/)                                         | Decisions and their reasoning                                                                    |
+| [qa/](./qa/)                                           | Dated point-in-time audits — the newest file is the authoritative status; older ones are history |

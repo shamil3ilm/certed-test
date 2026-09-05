@@ -2,7 +2,7 @@
 
 The complete inventory of foreign keys and their `ON DELETE` behaviour, extracted from the fully-migrated schema (`supabase/rebuild/0000_full_rebuild.sql`). It exists so that the delete-time blast radius of any row is reviewable without reading every migration — see [schema-reference.md](./schema-reference.md#foreign-keys-and-cascade-behaviour) for the summary. Regenerate this table whenever a migration adds or changes a foreign key.
 
-At the current chain head there are **59 foreign keys** across the public schema.
+At the current chain head there are **68 foreign keys** across the public schema.
 
 ## The four behaviours and when each is used
 

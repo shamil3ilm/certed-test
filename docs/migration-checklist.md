@@ -51,11 +51,25 @@ The `check:doc-links` gate (CI + pre-push) catches a link broken by a doc move; 
 
 A migration that advances the chain head changes the snapshot's expected `0001..NNNN` marker, and CI's rebuild-freshness check is now a **blocking gate** (`exit 1`, no longer warn-only). Regenerate the snapshot **in the same change that adds the migration** — not "later" — or the gate blocks the next, unrelated PR (this is exactly how the snapshot drifted 4 migrations behind before the gate was made blocking):
 
-1. `supabase db reset` — replay the full chain (`0001..NNNN`) onto a fresh local DB.
+1. `npx supabase db reset` — replay the full chain (`0001..NNNN`) onto a fresh local DB (see prerequisites below).
 2. `npm run db:rebuild-snapshot` — dump that end state into `supabase/rebuild/0000_full_rebuild.sql` (the script re-derives the `0001..NNNN` marker the CI check parses).
 3. `git diff supabase/rebuild/0000_full_rebuild.sql` — review, then commit it **alongside** the migration.
 
-If you cannot run a local DB, the migration is **not ready to merge**: the snapshot would drift and the freshness gate would block the next PR. Regeneration needs the Supabase CLI + local Postgres.
+If you cannot run a local DB, the migration is **not ready to merge**: the snapshot would drift and the freshness gate would block the next PR.
+
+### Prerequisites for step 1
+
+The Supabase CLI is already a devDependency, so use `npx supabase` — no global install. It
+does **not** use a local Postgres install; it runs Postgres in a container, so you need:
+
+- **Docker Desktop or Podman** running, and
+- an initialised local project — this repo does not commit a `supabase/config.toml`, so run
+  `npx supabase init` once before the first `db reset`.
+
+Alternative if you cannot run containers: point the CLI at a database that already has the
+**entire** chain applied (`npx supabase link --project-ref <ref>`) and run step 2 against
+it. The snapshot is a `pg_dump` of the end state, so any fully-migrated database works —
+never hand-edit the snapshot to "catch it up".
 
 This is enforced locally, not just in CI: `.githooks/pre-commit` blocks a commit that stages a `supabase/migrations/*.sql` while the snapshot is stale, and `.githooks/pre-push` runs the same `scripts/check-snapshot-freshness.sh` — so migration and snapshot stay atomic before CI ever sees them (hooks are wired by the package.json `prepare` script; bypass in an emergency with `--no-verify`).
 
