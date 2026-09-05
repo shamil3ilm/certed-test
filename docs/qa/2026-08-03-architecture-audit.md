@@ -1,69 +1,72 @@
 # Cert-Ed Academia — Full Architecture & Codebase Audit
 
-- **Date:** 2026-09-02 · **Revision 17** (living document; supersedes revisions 1–16. Filename reflects the first pass.)
+- **Date:** 2026-09-05 · **Revision 18** (living document; supersedes revisions 1–17. Filename reflects the first pass.)
 - **Repository:** `c:\laragon\www\wed_cert` (package `cert-ed-academia`)
-- **Branch:** `feature/cert-ed-academia-app` @ `11f92f1` · **working tree clean**
-- **Method:** read-only static analysis + **serial** execution of `typecheck`, `format:check`, `lint`, `npm audit`, `test:coverage`, `test-rls.sh` (real Postgres 18), `build` (clean `.next`), `check:bundle`, `check-snapshot-freshness`, `playwright test`
+- **Branch:** `feature/cert-ed-academia-app` @ `0f999c8` · working tree carries in-progress staging-test work
+- **Method:** read-only static analysis + **serial** execution of `typecheck`, `format:check`, `lint`, `npm audit`, `test:coverage`, `test-rls.sh` (real Postgres 18, isolated DB), `build` (clean `.next`, `E2E_BUILD=1`), `check:bundle`, `check-snapshot-freshness`, `playwright test`
 - **Scope:** Phases 1–19 of the audit brief
 
 ---
 
-## 0. Revision 17 — NEW-35 closed well; a UX regression and the coverage ratchet break
+## 0. Revision 18 — six findings closed; five E2E failures traced to the test helper
 
-Nine commits: eight migrations, guardian consent and erasure, teaching-hours reporting, mentor
-session-time editing, assigned reminders, and round-4 security hardening.
+Twenty-five commits: accessibility gating, MDX blog content, durable rate limiting, several
+migrations through `0095`, finance generated from recorded hours, multi-session attendance, and
+a staging Playwright project.
 
-**NEW-35 is closed exactly as recommended**, and RLS assertions jumped **67 → 86**. Two gates
-are red: the coverage ratchet (third occurrence) and three responsive specs — the latter a
-**regression of a defect first reported in the July 2026 QA audit and fixed in revision 12**.
+**Six carried findings closed**, including three that had been open for many passes. Two gates
+are red, and both trace to causes outside the application code.
 
 ### Verification results
 
-| Command                 | R14   | R15   | R16   | R17                          |
-| ----------------------- | ----- | ----- | ----- | ---------------------------- |
-| `npm run typecheck`     | ✅    | ✅    | ✅    | ✅                           |
-| `npm run lint`          | ❌    | ✅    | ✅    | ✅                           |
-| `npm run format:check`  | ✅    | ✅    | ✅    | ✅                           |
-| `npm test`              | 1,154 | 1,161 | 1,179 | ✅ **1,265 (166 files)**     |
-| `npm run test:coverage` | ✅    | ✅    | ✅    | ❌ **2 thresholds breached** |
-| `npm run build`         | ✅    | ✅    | ✅    | ✅ **0 warnings** (see note) |
-| `npm run check:bundle`  | ✅    | ✅    | ✅    | ✅ **127.4 / 133 KB**        |
-| `npx playwright test`   | 69/69 | 69/69 | ❌ 1  | ❌ **3 failed / 66 passed**  |
-| Snapshot freshness      | ✅    | ✅    | ✅    | ✅ **0089 current**          |
-| `scripts/test-rls.sh`   | 34    | 64    | 67    | ✅ **86 passed**             |
-| `npm audit --omit=dev`  | ✅    | ✅    | ✅    | ✅ **0**                     |
-
-> **Build note — not a finding.** My first `npm run build` failed with _"Mock-only env var(s)
-> set in a production deployment: MOCK_MODE, NEXT_PUBLIC_MOCK_MODE."_ That is the new
-> fail-closed guard (V-06) working correctly: `next build` sets `NODE_ENV=production`, and the
-> repo's `.env.local` carries `MOCK_MODE=1`. The sanctioned path is `E2E_BUILD=1`, which
-> `playwright.config.ts` sets — building that way succeeds. See NEW-38 for the one small gap
-> this exposed.
+| Command                 | R15   | R16   | R17   | R18                                   |
+| ----------------------- | ----- | ----- | ----- | ------------------------------------- |
+| `npm run typecheck`     | ✅    | ✅    | ✅    | ✅                                    |
+| `npm run lint`          | ✅    | ✅    | ✅    | ✅                                    |
+| `npm run format:check`  | ✅    | ✅    | ✅    | ✅                                    |
+| `npm test`              | 1,161 | 1,179 | 1,265 | ✅ **1,350 (170 files)**              |
+| `npm run test:coverage` | ✅    | ✅    | ❌    | ✅ **77.23% lines · 64.03% branches** |
+| `npm run build`         | ✅    | ✅    | ✅    | ✅ **0 warnings**                     |
+| `npm run check:bundle`  | ✅    | ✅    | ✅    | ✅ **127.4 / 133 KB**                 |
+| `npx playwright test`   | 69/69 | ❌ 1  | ❌ 3  | ❌ **5 failed / 74 passed**           |
+| Snapshot freshness      | ✅    | ✅    | ✅    | ✅ **0095 current**                   |
+| `scripts/test-rls.sh`   | 64    | 67    | 86    | ✅ **96 passed**                      |
+| `npm audit --omit=dev`  | ✅ 0  | ✅ 0  | ✅ 0  | ❌ **1 high (build-time)**            |
 
 ### Findings closed this pass
 
-| ID            | Finding                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NEW-35** 🟠 | Mock `teaches_class` had no mentor branch | ✅ **Closed exactly as recommended.** The mock now separates the scopes — `teaches_class_write` stays the tutor-only lookup, `teaches_class` gains the mentor branch (active mentorship **and** student-scoped persona **and** enrolment). The comment records the reasoning: _"Post-0082 the two scopes genuinely diverge … so the mock must too, or a mentor's calendar create/edit is wrongly refused (403) in mock mode while production allows it — the E2E suite runs on the mock."_ The mentor calendar spec passes. |
-| **RLS depth** | 67 assertions                             | ✅ **86 passed**, and a third parity guard exists (`rls-required-parity.test.ts` alongside `mock-schema-parity` and `rls-coverage-parity`).                                                                                                                                                                                                                                                                                                                                                                                 |
+| ID             | Finding                                                              | Evidence                                                                                                                                                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **NEW-36** 🟠  | 320 px brand-logo overflow on every page — regression of QA-2026-004 | ✅ All four responsive specs pass. Closed in the E2E/UX defect-closure work (`8c44f9f`).                                                                                                                                                                                                                      |
+| **NEW-37** 🟠  | Coverage ratchet breached (3rd occurrence)                           | ✅ **77.23% lines / 64.03% branches**, all four thresholds clear, with 85 new tests.                                                                                                                                                                                                                          |
+| **NEW-38** 🟢  | `E2E_BUILD` undocumented                                             | ✅ `44b9ae0 chore(build): keep the mock stack out of the production bundle + **clearer local-build guard**`.                                                                                                                                                                                                  |
+| **FIND-32** 🟢 | No automated a11y check — open since revision 9                      | ✅ `8274937 test(a11y): **axe-core gate on serious/critical WCAG 2 A/AA violations**`, plus `tests/e2e/a11y.pw.ts`, a baselined violation set (`7c40149`), AA-compliant text tokens (`4d18170`), a `secondary-ink` brand token with a **contrast gate** (`3a8814e`), and FullCalendar ARIA fixes (`7b07dd0`). |
+| **NEW-06** 🟢  | Matrix-persona reads sequential — open since revision 3              | ✅ `3142f03 perf(messaging): resolve matrix persona members in **one union query**`.                                                                                                                                                                                                                          |
+| **FIND-31** 🟢 | Blog content hard-coded as JSX                                       | ✅ Migrated to MDX — `src/content/blog/*.mdx` behind a `[slug]` route.                                                                                                                                                                                                                                        |
+| **FIND-10** 🟢 | Mock harness in the production module graph                          | ✅ `44b9ae0` keeps the mock stack out of the production bundle.                                                                                                                                                                                                                                               |
+
+Also closed since the last pass but worth noting: **RLS assertions 86 → 96**, durable rate
+limiting and a health service (`46ecc45`), a **staging Playwright project** (`67c7ba7`), Node
+pinned via `.nvmrc` (`d40f5b5`), and `0fe1517 refactor(data): assert writes actually matched a
+row` — the `assertMutated` pattern extended across the data layer.
 
 ### New findings
 
-| ID         | Finding                                                                                                                                                             | Severity |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| **NEW-36** | Horizontal overflow at 320 px on **every page** for tutor, mentor and student — the portal brand logo. A regression of QA-2026-004 / FIND-30, fixed in revision 12. | 🟠 High  |
-| **NEW-37** | Coverage ratchet breached — **third occurrence** (functions 71.63/72, statements 72.83/73)                                                                          | 🟠 High  |
-| **NEW-38** | `E2E_BUILD=1` is the only sanctioned local build path with `.env.local` present, and it is documented nowhere outside `playwright.config.ts`                        | 🟢 Low   |
+| ID         | Finding                                                                                                                                                                                        | Severity  |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **NEW-39** | `submitAndReload` reloads a page whose last navigation was a server-action POST, replaying it and creating the record twice. Five specs fail on strict-mode locators that match the duplicate. | 🟡 Medium |
+| **NEW-40** | `npm audit --omit=dev` reports 1 high (`fast-uri` ≤3.1.5) via `@mdx-js/loader → webpack → schema-utils → ajv`. Build-time path; `fixAvailable: true`.                                          | 🟢 Low    |
+| **NEW-41** | `scripts/test-rls.sh` hardcodes one database name; a concurrent process destroyed two runs this pass.                                                                                          | 🟢 Low    |
 
 ### Still open
 
-| ID                                                              | Finding                                                                                                                                          | Severity  |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| **FIND-29**                                                     | No dark mode — `grep "dark:"` → **0**, **seventeenth pass**                                                                                      | 🟡 Medium |
-| **NEW-35 follow-through**                                       | No RPC-semantics parity guard; three parity tests cover tables and policies only                                                                 | 🟡 Medium |
-| **FIND-35**                                                     | Restore drill rehearsed 5/5; production drill never performed                                                                                    | 🟢 Low    |
-| **NEW-34**                                                      | No written position on data-subject access to pastoral notes                                                                                     | 🟢 Low    |
-| **FIND-32 / NEW-06 / FIND-09 / FIND-10 / FIND-31 / FIND-44–46** | a11y check; matrix-persona batching; `src/features`; mock harness in the production graph; blog JSX; global search; footer mojibake; in-app help | 🟢 Low    |
+| ID                                        | Finding                                                      | Severity  |
+| ----------------------------------------- | ------------------------------------------------------------ | --------- |
+| **FIND-29**                               | No dark mode — `grep "dark:"` → **0**, **eighteenth pass**   | 🟡 Medium |
+| **NEW-35 follow-through**                 | No RPC-semantics parity guard                                | 🟡 Medium |
+| **FIND-35**                               | Restore drill rehearsed; production drill never performed    | 🟢 Low    |
+| **NEW-34**                                | No written position on data-subject access to pastoral notes | 🟢 Low    |
+| **FIND-09 / FIND-44 / FIND-45 / FIND-46** | `src/features`; global search; footer mojibake; in-app help  | 🟢 Low    |
 
 ---
 
@@ -73,28 +76,27 @@ Cert-Ed Academia is a Next.js 16 App Router monolith serving two hosts from one 
 public marketing site (`certedacademia.com`) and a private academy portal
 (`app.certedacademia.com`), on Supabase (Auth + Postgres with RLS) and Vercel.
 
-A substantial window: eight migrations, guardian consent with note minimisation and erasure,
-monthly per-tutor teaching hours with class isolation, mentor session-time editing, assigned
-reminders, and round-4 security hardening (A-04, A-09, A-10, N-10). RLS assertions rose from 67
-to **86** — the deepest database-layer verification in the series.
+This window cleared a long tail. Three findings that had survived nine or more passes —
+no automated a11y check (revision 9), sequential matrix-persona reads (revision 3), and blog
+content as hard-coded JSX (revision 8) — are all closed, and the accessibility work went
+further than the recommendation: an axe-core gate on serious/critical WCAG A/AA violations, a
+baselined starting set so the gate could be turned on immediately, AA-compliant text tokens,
+and a **colour-contrast gate** on the brand palette.
 
-Two gates are red, and the more interesting one is a **regression**. Three responsive specs
-fail because the portal brand logo overflows the viewport by 8 px on every page at 320 px. That
-is the same element, the same delta, and the same signature as **QA-2026-004** in the original
-July 2026 QA audit — reported there as _"offender points to top brand link/image container"_,
-carried through four audit passes as FIND-30, and closed in revision 12. It has come back.
+Both red gates trace outside the application:
 
-| #   | Problem                                                               | Severity  |
-| --- | --------------------------------------------------------------------- | --------- |
-| 1   | 320 px overflow on every page for three of four personas — regression | 🟠 High   |
-| 2   | Coverage ratchet breached, third occurrence                           | 🟠 High   |
-| 3   | No dark mode, seventeenth pass                                        | 🟡 Medium |
-| 4   | RPC-semantics parity still unguarded                                  | 🟡 Medium |
-| 5   | `E2E_BUILD` undocumented                                              | 🟢 Low    |
+- **Five E2E failures** come from `submitAndReload` replaying a server-action POST on `page.reload()`, creating each record twice. The specs then fail on strict-mode locators. The product creates one record per click.
+- **One dependency advisory** arrived with the MDX migration, in a build-time-only path, with a fix available.
 
-**Overall project health: 9.3 / 10** (…9.7 → 9.6 → 9.3). The security and database work is
-excellent; the dip is two red gates, one of which is a defect this project has already fixed
-once.
+| #   | Problem                                           | Severity  |
+| --- | ------------------------------------------------- | --------- |
+| 1   | `submitAndReload` duplicates records; 5 specs red | 🟡 Medium |
+| 2   | No dark mode, eighteenth pass                     | 🟡 Medium |
+| 3   | RPC-semantics parity still unguarded              | 🟡 Medium |
+| 4   | `fast-uri` high advisory (build-time, fixable)    | 🟢 Low    |
+| 5   | RLS harness cannot run concurrently               | 🟢 Low    |
+
+**Overall project health: 9.4 / 10** (…9.6 → 9.3 → 9.4).
 
 ---
 
@@ -102,37 +104,30 @@ once.
 
 ### 2.1 Stack
 
-| Concern           | Technology                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework         | Next.js 16.3, App Router, **webpack build** (`next build --webpack`) + a client-manifest check                                                          |
-| Language          | TypeScript 5, `strict: true`                                                                                                                            |
-| UI                | React 19.2, Tailwind CSS v4, design-system tokens                                                                                                       |
-| Edge              | `src/proxy.ts` — host split, session refresh, auth gate, per-request CSP nonce, cookie-preserving redirects                                             |
-| Database          | Supabase Postgres, RLS on every table, chain `0001`–`0089`, `pg_cron` retention + email drain                                                           |
-| Auth              | Supabase Auth, allowlist-first, hardened cookies, session TTL                                                                                           |
-| Deployment safety | `assertNoMockConfigInProduction` at build **and** boot, fail-closed (V-06)                                                                              |
-| Privacy           | Privacy/terms, DPDP minimisation, **guardian consent, note minimisation, erasure**                                                                      |
-| Testing           | Vitest (166 files, **1,265**) + coverage ratchet + **3 parity guards** + Playwright (69 specs) + RLS harness (**86 assertions**) + restore-drill script |
-| CI                | `verify` + `e2e` + `rls`; executable hooks; **least-privilege CI**                                                                                      |
-| Hosting           | Vercel, region `bom1`                                                                                                                                   |
+| Concern       | Technology                                                                                                                                                                                          |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework     | Next.js 16.3, App Router, webpack build + client-manifest check                                                                                                                                     |
+| Language      | TypeScript 5, `strict: true`; **Node pinned via `.nvmrc`**                                                                                                                                          |
+| UI            | React 19.2, Tailwind CSS v4, design tokens with an enforced **contrast gate**                                                                                                                       |
+| Content       | **MDX** — `src/content/blog/*.mdx` behind a `[slug]` route                                                                                                                                          |
+| Edge          | `src/proxy.ts` — host split, session refresh, auth gate, per-request CSP nonce, cookie-preserving redirects                                                                                         |
+| Database      | Supabase Postgres, RLS on every table, chain `0001`–`0095`, `pg_cron` retention + email drain                                                                                                       |
+| Rate limiting | **Durable** (`46ecc45`), with a health service                                                                                                                                                      |
+| Privacy       | DPDP minimisation, guardian consent, note minimisation, erasure                                                                                                                                     |
+| Testing       | Vitest (170 files, **1,350**) + coverage ratchet + 3 parity guards + Playwright (79 specs incl. **a11y**) + **staging Playwright project** + RLS harness (**96 assertions**) + restore-drill script |
+| CI            | `verify` + `e2e` + `rls`, least-privilege permissions; executable hooks                                                                                                                             |
+| Hosting       | Vercel, region `bom1`                                                                                                                                                                               |
 
 ### 2.2 What shipped
 
-| Commit    | Work                                                                |
-| --------- | ------------------------------------------------------------------- |
-| `520211f` | Migrations `0082`–`0089`, regenerated snapshot, RLS/privilege gates |
-| `ac35771` | **Monthly per-tutor teaching hours with class isolation**           |
-| `10df116` | Mentor session-time editing with full validation                    |
-| `47e4980` | **Guardian consent, note minimisation, erasure & consent read**     |
-| `2a454d2` | Auth & authorization hardening — A-04, A-09, A-10, N-10             |
-| `47e9c8d` | Assigned reminders — student mark-done only                         |
-| `30d008c` | Link-scheme guard, mock-var lists, CSP & **least-privilege CI**     |
-| `03b3ad7` | Queue-health RLS list; messaging/notifications/history refinements  |
+Finance now **generates receipts and pay slips from recorded hours** (`fd0e870`, `0095`), with
+a follow-up making the function replacement re-runnable (`0f999c8`) — a good instinct, since a
+non-idempotent `create or replace` is exactly what breaks a replayed migration chain.
 
-`47e4980` is the notable one for compliance posture: guardian consent, **note minimisation**
-and **erasure** are the three DPDP obligations that were still unaddressed after the
-minimisation work in revision 14. Erasure in particular is the hardest to retrofit, and it
-landed alongside the consent read path rather than after it.
+Attendance gained **multiple sessions per day with per-session marking** (`439f306`, `0093`/`0094`),
+an academy class-hours report for admin and sub-admin (`e9fb167`), and `0092` gave `sub_admin`
+the class authority its capability baseline already promised — closing a gap between the
+declared model and the enforced one.
 
 ### 2.3 Bundle profile
 
@@ -141,7 +136,8 @@ First-load shared JS (gzipped): 127.4 KB across 4 chunks
 Budget (firstLoadSharedKb):     133 KB
 ```
 
-Unchanged for eleven passes.
+Unchanged for twelve passes, now with the mock stack explicitly excluded from the production
+bundle.
 
 ---
 
@@ -149,135 +145,139 @@ Unchanged for eleven passes.
 
 ---
 
-### NEW-36 · The portal brand logo overflows at 320 px — regression — 🟠 High
+### NEW-39 · `submitAndReload` replays the POST and duplicates the record — 🟡 Medium
 
-Three specs fail deterministically (tutor, mentor, student; admin passes):
+Five specs fail, all on content-creation journeys:
 
 ```
-tutor: pages that scroll sideways
-  "/dashboard @ 320px  -> +8px  [a.flex.shrink-0.items-center (right=328, w=320)
-                                 |  img.w-auto.object-contain (right=328, w=320)]"
-  … and 8 more: /classroom, /classroom/{id}, …/classwork, …/attendance, …/people,
-    /calendar, /settings, /assignments/{id}
+1) journeys.pw.ts  ADMIN -- create class -> announce -> issue receipt -> add user
+2) journeys.pw.ts  TUTOR -- create assignment + comment on a student submission
+3) personas.pw.ts  TUTOR -- shares a meet link, a resource, and comments on the resource
+4) personas.pw.ts  TUTOR -- creates an assignment, grades homework + comments on it
+5) personas.pw.ts  TUTOR -- marks attendance and adds a reminder
 ```
 
-Every page, same offender, same +8 px.
+The first reports:
 
-**Cause.** [src/app/(prt)/PortalHeader.tsx:27-40](<src/app/(prt)/PortalHeader.tsx#L27-L40>):
-
-```tsx
-<Link href="/dashboard" className="flex shrink-0 items-center">
-  <Image
-    src="/cert-ed-academia-online-tuition-logo.webp"
-    width={320}
-    height={80}
-    className="w-auto object-contain"
-    style={{ height: 'clamp(2.25rem, 4.5vw, 3.75rem)' }}
+```
+strict mode violation: getByRole('heading', { name: 'Welcome to Physics' })
+  resolved to 2 elements
 ```
 
-`w-auto` on an image whose intrinsic width is **320 px** renders it 320 px wide; `shrink-0` on
-the parent link stops the flex row shrinking it; the header's horizontal padding then pushes it
-to `right=328` in a 320 px viewport. Exactly +8 px.
+**Both matches are inside the same section.** The page snapshot shows
+`heading "Announcements" [level=2]` followed by two `heading "Welcome to Physics" [level=3]`
+nodes — so the announcement was created twice, not rendered twice.
 
-**This is a regression, not a new defect.** The original **QA-2026-004** (2026-07-30 QA audit)
-described _"repeated `+8px` overflow, offender points to top brand link/image container."_ It
-was carried as FIND-30 through revisions 8–11, closed in revision 12 when the responsive sweep
-went green, and held green in revisions 13–16. The brand block was last touched by `a617665
-refactor(ui): migrate portal components to shared form/design-system primitives` — the same
-commit window that introduced the design tokens.
+**Mechanism.** `createAnnouncementAction` ends with `revalidatePath('/classroom', 'layout')`
+and **no redirect**:
 
-**Not verified:** why admin passes. Its header renders the same component, so the likely
-explanation is a sibling element forcing a wrap; worth confirming rather than assuming the
-admin path is safe.
-
-**Recommendation — one class:**
-
-```tsx
-className = 'w-auto max-w-full object-contain'
+```ts
+await createAnnouncementFromActionInput(me, {...})
+} catch (error) { … }
+revalidatePath('/classroom', 'layout')
 ```
 
-`max-w-full` caps the image at its container regardless of intrinsic width, and the clamped
-height keeps the aspect ratio. Alternatively drop `shrink-0` from the link and add `min-w-0`,
-but `max-w-full` is the smaller change and matches what `object-contain` already implies.
+The helper then reloads:
 
-Then re-run `responsive.pw.ts`, and consider why a spec suite that covers this exact case did
-not catch it between revision 12 and now — the responsive specs were green in R13–R16, so the
-regression arrived with a UI change that the suite did run against. **Not verified** which pass
-it entered; a bisect over `PortalHeader.tsx` would settle it.
+```ts
+export async function submitAndReload(page: Page, click: () => Promise<void>) {
+  await Promise.all([page.waitForResponse((r) => r.request().method() === 'POST', …), click()])
+  await page.waitForTimeout(300)
+  await page.reload()          // ← replays the action POST
+}
+```
+
+`page.reload()` on a page whose last navigation was the action POST re-issues it, so the record
+is written a second time. Every failing spec uses `submitAndReload` for creation; the specs
+that only read pass.
+
+**The product is not duplicating on a single click** — a user clicking "Post" once gets one
+announcement. **Not verified:** whether a real browser reload reproduces it; Chromium prompts
+before resubmitting a document POST, and Next Server Actions are not classic document POSTs, so
+real-user exposure is likely nil. That question is worth settling because it is the only part
+of this with production relevance.
+
+**Recommendation:**
+
+1. **Fix the helper** — replace `page.reload()` with a fresh GET: `await page.goto(page.url())`. A GET cannot replay an action, and the helper's purpose (see the state after the write) is preserved. One line, removes an entire class of false failure across five specs.
+2. Prefer `.first()` or a scoped locator in the specs regardless — strict-mode matches on list content are brittle.
+3. **Consider POST/Redirect/GET for the create actions.** `revalidatePath` without `redirect` leaves the action result as the current navigation entry. Even if Server Actions make this safe today, redirecting after a successful create is the pattern that is safe by construction.
 
 ---
 
-### NEW-37 · Coverage ratchet breached — third occurrence — 🟠 High
+### NEW-40 · `fast-uri` high advisory via the MDX toolchain — 🟢 Low
 
 ```
-ERROR: Coverage for functions (71.63%) does not meet global threshold (72%)
-ERROR: Coverage for statements (72.83%) does not meet global threshold (73%)
+fast-uri  3.0.0 - 3.1.5   high   fixAvailable: true
+  host confusion via skipped IDN canonicalization on scheme-relative references
 ```
 
-1,265 tests pass — 86 more than last pass — but the feature window added more uncovered code
-than covered.
+Path: `@mdx-js/loader → webpack → schema-utils → ajv → fast-uri@3.1.5`.
 
-**The context matters and is mostly good news.** The floor is far higher than when this last
-happened: lines are at 76.41% against a 72% threshold in revision 13. What broke are the two
-metrics whose thresholds were raised after revision 14's push — functions to 72 and statements
-to 73 — and both are now under by less than half a point.
+This is the first non-zero `npm audit` since revision 3, and it arrived with the MDX migration
+that closed FIND-31 — a reasonable trade, not a regression in judgement.
 
-But the pattern is now three-for-three: coverage erodes during every large feature window
-(R8, R13, R17) and is repaired afterwards. Revision 13 recommended a one-time push for
-headroom; revision 14 delivered it; that headroom has been consumed in three passes.
+**Scope is build-time.** `ajv` here validates _webpack loader configuration schemas_, not user
+input, and `fast-uri` does not reach the server runtime or the client bundle. It surfaces under
+`--omit=dev` only because `@mdx-js/loader` and `@next/mdx` sit in `dependencies` rather than
+`devDependencies` — conventional for Next MDX setups, since `next.config.js` requires them at
+build.
 
-**Recommendation:** add tests for this window's largest uncovered additions — teaching-hours
-reporting, guardian consent/erasure, mentor session-time editing and assigned reminders are the
-candidates (`npx vitest run --coverage` prints per-file numbers). **Do not lower the
-thresholds.** If the erode-repair cycle is to stop, the more durable option is to require
-coverage on _changed files_ in CI rather than only a global floor — a global percentage will
-always drift when a window adds more surface than tests.
+**Recommendation:** `npm audit fix` (a fix is available and the change is transitive), then
+re-run the build. If it does not resolve cleanly, an `overrides` entry pinning `fast-uri` above
+3.1.5 is the fallback. Low urgency given the path, but a clean audit is worth keeping — it has
+been the project's baseline for fifteen passes.
 
 ---
 
-### NEW-38 · The sanctioned local build path is undocumented — 🟢 Low
+### NEW-41 · The RLS harness cannot run concurrently — 🟢 Low
 
-`grep -rn "E2E_BUILD" docs/ playwright.config.ts` returns exactly one hit —
-`playwright.config.ts:36`. Nothing in `docs/mock-mode.md`, `docs/setup-guide.md` or
-`README.md` mentions it.
+`scripts/test-rls.sh` hardcodes `DB=certed_rls_test` and drops it on start. Two runs this pass
+died mid-chain:
 
-The guard is correct and deliberately fail-closed. But with `.env.local` present (the documented
-local setup, carrying `MOCK_MODE=1`), a plain `npm run build` now fails with a message that
-tells the developer to _"Remove them from the Production environment"_ — which is the right
-advice for a real production deploy and the wrong advice locally.
+```
+MIGRATION FAILED: supabase/migrations/0045_document_management.sql
+FATAL: database "certed_rls_test" does not exist — It seems to have just been dropped
+```
 
-**Recommendation:** one line in `docs/mock-mode.md` — _"To build locally with mock mode on, use
-`E2E_BUILD=1 npm run build`; a plain production build refuses mock env vars by design (V-06)."_
-Optionally, detect the local case in the error message and suggest `E2E_BUILD=1` rather than
-env removal.
+A second database (`certed_gen_test`) exists alongside it, so another tool in this workspace is
+touching the same names. Re-running against an isolated name gave a clean **96 passed, 0
+failed**.
+
+I flagged this as a theoretical wrinkle in revision 14. It has now bitten twice, and the CI job
+is the place it would hurt: any future parallelism, or a second RLS-touching job, would produce
+confusing mid-chain failures that look like migration errors.
+
+**Recommendation:** derive the name — `DB="${RLS_TEST_DB:-certed_rls_test_$$}"` — so concurrent
+runs are isolated by default while a fixed name stays available for debugging.
 
 ---
 
 ### Remaining carried findings
 
-| ID                                                              | Finding                                                                                                                                           | Severity  | Note                                                                                                                                                                                                                                      |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **NEW-35 follow-through**                                       | No RPC-semantics parity guard.                                                                                                                    | 🟡 Medium | Three parity tests now exist (`mock-schema-parity`, `rls-coverage-parity`, `rls-required-parity`) — all cover tables and policies. The divergence that cost revision 16 a red gate was a **function**, and that class is still unguarded. |
-| **FIND-29**                                                     | No dark mode — `grep "dark:"` → **0**, seventeenth pass, while `layout.tsx` declares a dark `themeColor`.                                         | 🟡 Medium |                                                                                                                                                                                                                                           |
-| **FIND-35**                                                     | Restore drill rehearsed 5/5; production drill never performed.                                                                                    | 🟢 Low    | `operations.md` still carries the _"Last production drill: **never performed**"_ placeholder.                                                                                                                                             |
-| **NEW-34**                                                      | No written position on data-subject access to pastoral notes.                                                                                     | 🟢 Low    | More pressing now that erasure and consent read exist (`47e4980`) — the access side is the remaining gap in the same obligation set.                                                                                                      |
-| **FIND-32 / NEW-06 / FIND-09 / FIND-10 / FIND-31 / FIND-44–46** | a11y check; matrix-persona batching; `src/features`; mock harness in the production graph; blog JSX; global search; footer mojibake; in-app help. | 🟢 Low    |                                                                                                                                                                                                                                           |
+| ID                                        | Finding                                                                                                        | Severity  | Note                                                                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FIND-29**                               | No dark mode — `grep "dark:"` → **0** across eighteen passes, while `layout.tsx` declares a dark `themeColor`. | 🟡 Medium | The design-token layer now has an enforced contrast gate — the strongest foundation it has ever had for a themed implementation. Or delete the one line. |
+| **NEW-35 follow-through**                 | No RPC-semantics parity guard.                                                                                 | 🟡 Medium | Three parity tests cover tables and policies. The revision-16 red gate was a **function** divergence; that class is still unguarded.                     |
+| **FIND-35**                               | Restore drill rehearsed; production drill never performed.                                                     | 🟢 Low    |                                                                                                                                                          |
+| **NEW-34**                                | No written position on data-subject access to pastoral notes.                                                  | 🟢 Low    |                                                                                                                                                          |
+| **FIND-09 / FIND-44 / FIND-45 / FIND-46** | `src/features` never built; global search; footer mojibake; in-app help.                                       | 🟢 Low    |                                                                                                                                                          |
 
 ---
 
 ## 4. Security Audit (Phase 3)
 
-| Control                                          | State                                                                            |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- |
-| **Dependency vulnerabilities**                   | ✅ **0**.                                                                        |
-| **Database-layer authorization**                 | ✅ **86 assertions** — up 19 this pass, the deepest in the series.               |
-| **Round-4 hardening**                            | ✅ A-04, A-09, A-10, N-10 closed by ID.                                          |
-| **Link-scheme guard**                            | ✅ `30d008c`.                                                                    |
-| **Least-privilege CI**                           | ✅ `30d008c` — CI permissions narrowed.                                          |
-| **Mock config cannot reach production**          | ✅ Fail-closed at build and boot; the guard demonstrably fires (I triggered it). |
-| **Guardian consent, note minimisation, erasure** | ✅ `47e4980` — the three DPDP obligations still outstanding after revision 14.   |
-| **Queue-health RLS list**                        | ✅ `03b3ad7` — the alarm's disabled-RLS check now has an explicit table list.    |
-| **App-layer authorization**                      | ✅ 66/69 E2E; all three failures are responsive layout, not authorization.       |
+| Control                                        | State                                                                                                          |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Database-layer authorization**               | ✅ **96 assertions** — up 10 this pass, three parity guards.                                                   |
+| **`sub_admin` authority matches its baseline** | ✅ `0092` — closed a gap between the declared capability model and enforcement.                                |
+| **Durable rate limiting**                      | ✅ `46ecc45` — no longer per-instance for the authenticated throttles either.                                  |
+| **Write assertions**                           | ✅ `0fe1517` — the data layer now asserts writes matched a row, extending `assertMutated` coverage.            |
+| **Idempotent migration replacement**           | ✅ `0f999c8` made the `0095` function replacement re-runnable.                                                 |
+| **Mock excluded from the production bundle**   | ✅ `44b9ae0`, on top of the fail-closed env guard.                                                             |
+| **Account email change**                       | ✅ `0f4af30` requires the current password.                                                                    |
+| **Dependency vulnerabilities**                 | ⚠️ **1 high, build-time path, fix available** (NEW-40).                                                        |
+| **App-layer authorization**                    | ✅ No authorization spec fails; the five red specs are content-creation journeys failing on duplicate records. |
 
 **No OWASP category carries a confirmed open defect.**
 
@@ -285,137 +285,143 @@ env removal.
 
 ## 5. Performance Audit (Phase 4)
 
-First-load unchanged at 127.4 KB against a 133 KB budget, eleven passes flat.
+**NEW-06 closed after fifteen passes** — matrix persona members now resolve in one union query
+instead of up to five sequential reads (`3142f03`).
 
-New this window: **monthly per-tutor teaching hours with class isolation** (`ac35771`) — an
-aggregate reporting path worth watching as data grows, since per-tutor monthly rollups over
-`class_sessions` are the shape that turns into a slow query first. **Not verified** whether it
-is indexed for that access pattern; worth adding to the index review already on the list.
+Also: `0091` indexes `class_sessions (class_id, actual_start)` for the teaching-hours path —
+which answers the index question I raised in revision 17 about that aggregate. Route-level
+loading skeletons were extended to slow admin pages (`f315751`).
+
+First-load flat at 127.4 KB for a twelfth pass.
 
 ---
 
 ## 6. Maintainability (Phase 5)
 
-| Principle                                  | Assessment                                                                                                                                                                                                |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Mock fidelity fixed at the root**        | ✅ NEW-35 closed by separating the two scopes _and_ writing down why they diverge, so the next person cannot re-collapse them by accident.                                                                |
-| **Compliance obligations landed together** | Consent, minimisation and erasure in one commit rather than erasure deferred — the hardest of the three is usually the one left behind.                                                                   |
-| **Fail-closed guards**                     | The mock-var guard refuses anything not positively sanctioned, and documents the three sanctioned contexts inline.                                                                                        |
-| **Regression discipline**                  | ⚠️ The weak point this pass. A UX defect fixed in revision 12 has returned, and the suite that covers it was green in the four intervening passes — so it re-entered with a change the suite ran against. |
+| Principle                           | Assessment                                                                                                                                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Long-tail closure**               | ✅ Three findings open nine or more passes closed in one window.                                                                                                                                               |
+| **Going beyond the recommendation** | The a11y work was asked for as "add `@axe-core/playwright`". What landed was a gate **plus** a baselined violation set so it could be enabled immediately, AA text tokens, and a contrast gate on the palette. |
+| **Idempotency instinct**            | `0f999c8` fixing a `create or replace` to be re-runnable, unprompted, is the kind of thing that only shows up when someone thinks about replay.                                                                |
+| **Declared vs enforced**            | `0092` closing the `sub_admin` gap is the right direction — the capability table was promising authority the guards did not grant.                                                                             |
 
 ### Module scorecard
 
-| Module                                                                  |   R15   |   R16   |     R17     | Note                                                            |
-| ----------------------------------------------------------------------- | :-----: | :-----: | :---------: | --------------------------------------------------------------- |
-| `src/lib/capabilities` / `permission`                                   |   10    |   10    |   **10**    |                                                                 |
-| `src/lib/security` / `observability`                                    |   10    |   10    |   **10**    |                                                                 |
-| `src/proxy.ts` / `attachments`                                          |   10    |   10    |   **10**    |                                                                 |
-| `src/lib/mock`                                                          |   10    |    6    |   **10**    | +4: NEW-35 fixed with the divergence documented                 |
-| `src/app/(prt)`                                                         |    9    |    9    |    **7**    | −2: the header regression affects every page for three personas |
-| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |   10    |   10    |   **10**    | Consent, erasure, teaching hours                                |
-| `src/lib/ui`                                                            |    9    |    9    |    **9**    |                                                                 |
-| `supabase/migrations` / `rebuild`                                       | 10 / 10 | 10 / 10 | **10 / 10** | Chain `0089`, snapshot current                                  |
-| `scripts/` + `.githooks/`                                               |   10    |   10    |   **10**    |                                                                 |
-| `scripts/test-rls.sh`                                                   |   10    |   10    |   **10**    | 86 assertions                                                   |
-| `tests/unit`                                                            |   10    |    9    |    **8**    | −2: ratchet breached; still no RPC parity guard                 |
-| `tests/e2e`                                                             |   10    |    9    |    **9**    | Caught the regression — working as intended                     |
-| `.github/`                                                              |   10    |   10    |   **10**    | Least-privilege permissions                                     |
-| `docs/`                                                                 |   10    |   10    |    **9**    | −1: `E2E_BUILD` undocumented (NEW-38)                           |
+| Module                                                                  |   R16   |   R17   |     R18     | Note                                                                          |
+| ----------------------------------------------------------------------- | :-----: | :-----: | :---------: | ----------------------------------------------------------------------------- |
+| `src/lib/capabilities` / `permission`                                   |   10    |   10    |   **10**    | `sub_admin` gap closed                                                        |
+| `src/lib/security` / `observability`                                    |   10    |   10    |   **10**    | Durable rate limiting                                                         |
+| `src/proxy.ts` / `attachments`                                          |   10    |   10    |   **10**    |                                                                               |
+| `src/lib/mock`                                                          |    6    |   10    |   **10**    | Now excluded from the production bundle                                       |
+| `src/app/(prt)`                                                         |    9    |    7    |   **10**    | +3: overflow regression closed, a11y tokens, skeletons                        |
+| `src/lib/data` / `services` / `api` / `auth` / `session` / `validation` |   10    |   10    |   **10**    | Write assertions extended                                                     |
+| `src/lib/ui`                                                            |    9    |    9    |   **10**    | Contrast gate on the token palette                                            |
+| `supabase/migrations` / `rebuild`                                       | 10 / 10 | 10 / 10 | **10 / 10** | Chain `0095`, snapshot current                                                |
+| `scripts/`                                                              |   10    |   10    |    **9**    | −1: RLS harness not concurrency-safe (NEW-41)                                 |
+| `scripts/test-rls.sh`                                                   |   10    |   10    |   **10**    | 96 assertions                                                                 |
+| `tests/unit`                                                            |    9    |    8    |    **9**    | 1,350 tests, ratchet clear; −1 still no RPC parity guard                      |
+| `tests/e2e`                                                             |    9    |    9    |    **8**    | −2: the helper duplicates records (NEW-39); +a11y suite and a staging project |
+| `.github/` / `docs/`                                                    | 10 / 9  | 10 / 9  | **10 / 10** |                                                                               |
 
 ---
 
 ## 7. Documentation (Phase 6)
 
-`11f92f1` added three more QA documents — security round 4, production-readiness r15, and a
-feature audit. The documentation set continues to be self-directed and current.
-
-**Two gaps:** `E2E_BUILD` (NEW-38), and the pastoral-notes access position (NEW-34), which is
-now the odd one out in an otherwise complete DPDP obligation set.
+`8c44f9f docs: refresh reference docs and record the E2E UX defect closure` keeps the pattern of
+recording _why_ a defect closed, not just that it did. `docs/qa/` now holds the running series
+of security rounds, production-readiness audits, and defect closures alongside this document.
 
 ---
 
 ## 8. Debugging Experience (Phase 7)
 
-Complete. The queue-health alarm now carries an explicit RLS table list, so the
-disabled-RLS check cannot silently miss a new table.
+Complete, and extended with a **staging Playwright project** (`67c7ba7`) — the first test
+surface that runs against a real deployment rather than the mock. That directly addresses the
+class of problem behind NEW-35 and NEW-39: mock-only verification cannot see divergences from
+production behaviour.
 
 ---
 
 ## 9. Database Review (Phase 8)
 
-**Schema:** chain `0001`–`0089`, RLS on every table, snapshot current, **86 harness
-assertions** with three parity guards.
+**Schema:** chain `0001`–`0095`, RLS on every table, snapshot current, **96 harness assertions**.
 
-Eight migrations this window plus RLS/privilege gates. The assertion count rising 19 in one
-pass, alongside consent and erasure tables, is the right correlation — new sensitive data
-arriving with new assertions rather than after them.
+`0093`/`0094` (multiple sessions per day, per-session marking) is the structurally interesting
+change this window — attendance was uniquely keyed `(class_id, student_id, session_date)`, one
+mark per student per day, which a multi-session class breaks. The migration pair addresses it
+rather than working around it.
 
 ---
 
 ## 10. Frontend Review (Phase 9)
 
-| ID          | Finding                                                            | Severity  |
-| ----------- | ------------------------------------------------------------------ | --------- |
-| **NEW-36**  | Brand logo overflows 320 px on every page for tutor/mentor/student | 🟠 High   |
-| **FIND-29** | No dark mode (seventeenth pass)                                    | 🟡 Medium |
-| **FIND-32** | No automated a11y check                                            | 🟢 Low    |
+The strongest accessibility window in the series: an axe-core gate on serious/critical WCAG 2
+A/AA violations with a baselined starting set, AA-compliant muted-text tokens, a
+`secondary-ink` token with a contrast gate, FullCalendar ARIA fixes, loading-skeleton roles,
+prose link styling, denial-reason text, and a mobile-first calendar default.
+
+| ID          | Finding                        | Severity  |
+| ----------- | ------------------------------ | --------- |
+| **FIND-29** | No dark mode (eighteenth pass) | 🟡 Medium |
 
 ---
 
 ## 11. Backend Review (Phase 10)
 
-Teaching-hours reporting with class isolation, mentor session-time editing with full validation,
-assigned reminders with a student-only mark-done path, guardian consent and erasure, and
-round-4 auth/authorization hardening. All fit the existing service/data layering.
+Finance generated from recorded hours, academy class-hours reporting, multi-session attendance,
+durable rate limiting, a health service, write-assertion coverage across the data layer, and a
+shared attachment view.
 
 ---
 
 ## 12. DevOps Review (Phase 11)
 
-Three CI jobs with **least-privilege permissions** now (`30d008c`), executable hooks,
-queue-health alarm, deploy runbook, and a fail-closed production guard against mock config.
+Three CI jobs with least-privilege permissions, executable hooks, a staging Playwright project,
+and Node pinned via `.nvmrc`.
 
-The insurance item carried from revision 13 remains: a CI assertion that hooks stay mode
-`100755`.
+Carried insurance item: a CI assertion that hooks stay mode `100755`.
 
 ---
 
 ## 13. Testing Review (Phase 12)
 
-| Type               | R15        | R16        | R17                                                  |
-| ------------------ | ---------- | ---------- | ---------------------------------------------------- |
-| Unit / integration | 153, 1,161 | 157, 1,179 | ✅ **166 files, 1,265**                              |
-| Coverage           | 76.96%     | 76.69%     | ❌ **76.41% lines; functions + statements breached** |
-| E2E                | 69/69      | ❌ 1       | ❌ **3 failed / 66 passed**                          |
-| RLS                | 64         | 67         | ✅ **86 passed**                                     |
+| Type               | R16        | R17        | R18                                    |
+| ------------------ | ---------- | ---------- | -------------------------------------- |
+| Unit / integration | 157, 1,179 | 166, 1,265 | ✅ **170 files, 1,350**                |
+| Coverage           | 76.69%     | ❌ 76.41%  | ✅ **77.23% lines**                    |
+| E2E                | ❌ 1       | ❌ 3       | ❌ **5 failed / 74 passed** (79 specs) |
+| a11y               | —          | —          | ✅ **axe-core gate, baselined**        |
+| Staging            | —          | —          | ✅ **project added**                   |
+| RLS                | 67         | 86         | ✅ **96 passed**                       |
 
-**The E2E suite caught the regression**, which is the system working. What is worth
-investigating is _when_ it entered: the responsive specs were green in revisions 13–16, so the
-change that reintroduced the overflow was made while the suite was running and passing. Either
-the regression is very recent (this window) or the spec's viewport/setup changed. A bisect over
-`PortalHeader.tsx` between R16 and now would answer it in minutes.
+The suite grew from 69 to 79 specs with the a11y additions. The five failures are all the same
+helper defect, not five distinct problems — fixing `submitAndReload` should clear them
+together.
 
 ---
 
 ## 14. UX Review (Phase 13)
 
-Guardian consent and erasure, assigned reminders with student mark-done, mentor session-time
-editing, monthly teaching hours.
+Multi-session attendance with per-session marking, an academy class-hours report, finance
+generated from recorded hours, shared status chips and pending affordances, and route-level
+skeletons on slow admin pages.
 
-Offset by NEW-36: three of four personas currently get a sideways-scrolling portal on a 320 px
-device, on every page.
+| ID                | Finding                                     | Severity  |
+| ----------------- | ------------------------------------------- | --------- |
+| **FIND-29**       | No dark mode (eighteenth pass)              | 🟡 Medium |
+| **FIND-44/45/46** | Global search; footer mojibake; in-app help | 🟢 Low    |
 
 ---
 
 ## 15. Scalability Review (Phase 14)
 
-| Dimension                            | Assessment                                                                                                                                                                                |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Concurrency / horizontal scaling** | **Good.**                                                                                                                                                                                 |
-| **Request path**                     | **Good.**                                                                                                                                                                                 |
-| **Large database**                   | Growth tables bounded by retention. Index inventories for `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags` **and now the teaching-hours aggregate path** unexamined. |
-| **Client payload**                   | ✅ 127.4 KB / 133 KB.                                                                                                                                                                     |
-| **Backup/restore**                   | ✅ Scripted and rehearsed; production drill pending.                                                                                                                                      |
+| Dimension          | Assessment                                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Concurrency**    | **Good** — rate limiting now durable rather than per-instance.                                                                     |
+| **Request path**   | **Good** — matrix persona resolution is one query; teaching-hours indexed (`0091`).                                                |
+| **Large database** | Growth tables bounded by retention. Remaining index review: `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags`. |
+| **Client payload** | ✅ 127.4 KB / 133 KB, twelve passes flat.                                                                                          |
+| **Backup/restore** | Scripted and rehearsed; production drill pending.                                                                                  |
 
 ---
 
@@ -425,108 +431,104 @@ device, on every page.
 
 **Under-engineering:**
 
-| Control                               | R16 | R17                             |
-| ------------------------------------- | --- | ------------------------------- |
-| Snapshot / formatting / bundle / lint | ✅  | ✅                              |
-| Mock **table** parity                 | ✅  | ✅                              |
-| RLS assertion parity                  | ✅  | ✅ (86 assertions, 3 guards)    |
-| **Mock RPC parity**                   | ❌  | ❌ **Still unguarded**          |
-| **Coverage durability**               | ✅  | ❌ **Eroded again — 3rd cycle** |
-| Production restore drill              | ⚠️  | ⚠️ Rehearsed, not performed     |
+| Control                                          | R17 | R18                                |
+| ------------------------------------------------ | --- | ---------------------------------- |
+| Snapshot / formatting / bundle / lint / coverage | ✅  | ✅                                 |
+| Table + policy parity                            | ✅  | ✅                                 |
+| **Mock RPC parity**                              | ❌  | ❌ **Still unguarded**             |
+| a11y gate                                        | ❌  | ✅ **axe-core, baselined**         |
+| Staging verification                             | ❌  | ✅ **Playwright staging project**  |
+| Production restore drill                         | ⚠️  | ⚠️ Rehearsed, not performed        |
+| **E2E helper correctness**                       | —   | ❌ **Duplicates records (NEW-39)** |
 
 ---
 
 ## 17. Prioritised Action Plan (Phase 18)
 
-### 🟠 High
-
-**H1 · Fix the brand-logo overflow** — NEW-36 · ~10 min · add `max-w-full` to the logo's
-`className`; re-run `responsive.pw.ts`; bisect `PortalHeader.tsx` to learn which change
-reintroduced it, since the suite was green through four passes.
-
-**H2 · Restore coverage above the ratchet** — NEW-37 · ~3 h · tests for teaching hours,
-guardian consent/erasure, mentor session-time editing and assigned reminders. Consider a
-changed-files coverage requirement so the global floor stops eroding each window.
-
 ### 🟡 Medium
 
-| ID  | Action                                                                                                                                     | Finding               |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
-| M1  | Add an RPC-semantics parity guard — every migration function the app calls via `.rpc(` needs a distinct mock branch or a written exemption | NEW-35 follow-through |
-| M2  | Close dark mode either way — implement on the token layer, or delete the dark `themeColor` (seventeenth pass)                              | FIND-29               |
-| M3  | Index review, now including the monthly teaching-hours aggregate path                                                                      | §15                   |
+**M1 · Fix `submitAndReload`** — NEW-39 · ~15 min · replace `page.reload()` with
+`page.goto(page.url())`; re-run the suite; expect all five to clear together. Then settle
+whether a real browser reload can duplicate a create, and adopt POST/Redirect/GET on the create
+actions if so.
+
+**M2 · Close dark mode either way** — FIND-29 · eighteenth pass · the contrast-gated token
+layer is now the best foundation this has ever had; or delete the dark `themeColor`.
+
+**M3 · Add an RPC-semantics parity guard** — NEW-35 follow-through · every migration function
+the app calls via `.rpc(` needs a distinct mock branch or a written exemption.
 
 ### 🟢 Low
 
-| ID  | Action                                                                                                  | Finding          |
-| --- | ------------------------------------------------------------------------------------------------------- | ---------------- |
-| L1  | Document `E2E_BUILD=1` in `docs/mock-mode.md`; consider detecting the local case in the guard's message | NEW-38           |
-| L2  | Run the production restore drill; fill the placeholder already waiting in `operations.md`               | FIND-35          |
-| L3  | Write the pastoral-notes access position — the last gap in an otherwise complete DPDP set               | NEW-34           |
-| L4  | CI assertion that hooks stay mode `100755`                                                              | R13 carry        |
-| L5  | `@axe-core/playwright` assertions                                                                       | FIND-32          |
-| L6  | Batch the matrix-persona reads                                                                          | NEW-06           |
-| L7  | Mark `src/features` PLANNED or remove it                                                                | FIND-09          |
-| L8  | Blog content → MDX; footer mojibake; global search; in-app help                                         | FIND-31/45/44/46 |
+| ID  | Action                                                                                 | Finding       |
+| --- | -------------------------------------------------------------------------------------- | ------------- |
+| L1  | `npm audit fix`; re-run the build; fall back to an `overrides` pin if needed           | NEW-40        |
+| L2  | Derive the RLS test database name so concurrent runs are isolated                      | NEW-41        |
+| L3  | Run the production restore drill; fill the `operations.md` placeholder                 | FIND-35       |
+| L4  | Write the pastoral-notes access position                                               | NEW-34        |
+| L5  | CI assertion that hooks stay mode `100755`                                             | R13 carry     |
+| L6  | Index review for `guardians`, `subjects`, `mentee_notes`, `attachments`, `entity_tags` | §15           |
+| L7  | Mark `src/features` PLANNED or remove it                                               | FIND-09       |
+| L8  | Global search; footer mojibake; in-app help                                            | FIND-44/45/46 |
 
 ---
 
 ## 18. Quick Wins
 
-1. **`max-w-full` on the portal logo** — 10 min; turns three red specs green and closes a regression. _(H1)_
-2. **One line documenting `E2E_BUILD=1`** — 2 min; the guard is right, the local guidance is missing. _(L1)_
-3. **Delete the dark `themeColor`** if dark mode isn't planned — 5 min; seventeen passes. _(M2)_
-4. **CI hook-mode assertion** — 5 min. _(L4)_
-5. **Pastoral-notes access paragraph** — 30 min; completes the DPDP set now that consent and erasure exist. _(L3)_
+1. **One line in `submitAndReload`** — 15 min; clears five red specs. _(M1)_
+2. **`npm audit fix`** — 5 min; restores a clean audit. _(L1)_
+3. **Derive the RLS test DB name** — 5 min; stops a class of confusing mid-chain failures. _(L2)_
+4. **Delete the dark `themeColor`** if dark mode isn't planned — 5 min; eighteen passes. _(M2)_
+5. **CI hook-mode assertion** — 5 min. _(L5)_
 
 ---
 
 ## 19. Long-Term Improvements
 
-1. **Coverage durability.** Three erode-repair cycles suggests a global floor is the wrong instrument; per-change coverage would hold without the periodic scramble.
-2. **RPC parity.** Tables and policies are guarded three ways; the functions where authorization is actually decided are guarded none.
-3. **Run the production restore drill.** Rehearsed 5/5; never done for real.
-4. **Multi-tenancy readiness.** `org_settings` is still single-row by constraint while consent, guardians, subjects and teaching-hours reporting all widen the model.
+1. **RPC parity.** Tables and policies are guarded three ways; the functions that decide authorization are guarded none.
+2. **Lean on the staging project.** It is the first surface that can catch mock-vs-production divergence directly, which is the root of two of the last three red gates.
+3. **Run the production restore drill.**
+4. **Multi-tenancy readiness.** `org_settings` is still single-row by constraint while the model keeps widening.
 
 ---
 
 ## 20. Overall Scorecard (Phase 16)
 
-| Dimension                  |   R14   |   R15   |   R16   |   R17   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------------------- | :-----: | :-----: | :-----: | :-----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Architecture**           |    9    |    9    |    9    |  **9**  | Consent, erasure and teaching-hours reporting fit the layering cleanly. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Security**               |   10    |   10    |   10    | **10**  | Round-4 findings closed by ID; 86 RLS assertions; least-privilege CI; a fail-closed production guard that demonstrably fires.                                                                                                                                                                                                                                                                                                                                                                                    |
-| **Maintainability**        |   10    |   10    |    9    |  **9**  | NEW-35 fixed at the root with the divergence documented. −1: a revision-12 UX fix regressed.                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Performance**            |   10    |   10    |   10    | **10**  | Bundle flat eleven passes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Scalability**            |    9    |    9    |    9    |  **9**  | Teaching-hours aggregate path unindexed-unknown.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Documentation**          |   10    |   10    |   10    |  **9**  | −1 for the undocumented `E2E_BUILD` path.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Testing**                |   10    |   10    |    9    |  **8**  | 1,265 unit + 86 RLS is excellent depth. −2 for the breached ratchet and the still-unguarded RPC parity.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Developer Experience**   |   10    |   10    |    9    |  **8**  | −2: two red gates, and a plain local `npm run build` now fails with advice aimed at a production deploy.                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **User Experience**        |   10    |    9    |    9    |  **8**  | −2: three of four personas get a sideways-scrolling portal at 320 px, on every page.                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Code Quality**           |   10    |   10    |    9    |  **9**  | Nine of eleven gates green, 0 warnings, 0 vulnerabilities.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **Overall Project Health** | **9.5** | **9.7** | **9.6** | **9.3** | The database and security work is the strongest it has been — 86 RLS assertions, round-4 findings closed by ID, and the three outstanding DPDP obligations landed together. NEW-35 was closed exactly as recommended, with the reasoning written where it prevents a repeat. The dip is two red gates: a coverage ratchet on its third erode cycle, and a 320 px overflow that this project already found, fixed, and has now reintroduced. Both are small fixes; the regression is the one worth a post-mortem. |
+| Dimension                  |   R15   |   R16   |   R17   |   R18   | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------- | :-----: | :-----: | :-----: | :-----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architecture**           |    9    |    9    |    9    |  **9**  | Multi-session attendance addressed structurally rather than worked around. −1 for the unbuilt `src/features`.                                                                                                                                                                                                                                                                                                                                                           |
+| **Security**               |   10    |   10    |   10    |  **9**  | 96 RLS assertions, durable rate limiting, `sub_admin` gap closed, write assertions extended. −1 for the open dependency advisory.                                                                                                                                                                                                                                                                                                                                       |
+| **Maintainability**        |   10    |    9    |    9    | **10**  | Three long-carried findings closed; the a11y work exceeded its brief; an unprompted idempotency fix.                                                                                                                                                                                                                                                                                                                                                                    |
+| **Performance**            |   10    |   10    |   10    | **10**  | NEW-06 closed; teaching-hours indexed; bundle flat.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Scalability**            |    9    |    9    |    9    |  **9**  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Documentation**          |   10    |    9    |    9    | **10**  | Defect closures recorded with reasoning; reference docs refreshed.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Testing**                |   10    |    9    |    8    |  **9**  | 1,350 unit + 96 RLS + a11y gate + staging project. −1: the E2E helper writes twice.                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Developer Experience**   |   10    |    9    |    8    |  **9**  | −1: two red gates, both outside application code.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **User Experience**        |    9    |    9    |    8    | **10**  | Overflow regression closed, WCAG AA gating, contrast-gated tokens, skeletons. Dark mode is the lone gap and it is a decision, not a defect.                                                                                                                                                                                                                                                                                                                             |
+| **Code Quality**           |   10    |    9    |    9    |  **9**  | Nine of eleven gates green, 0 warnings.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|                            |         |         |         |         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Overall Project Health** | **9.7** | **9.6** | **9.3** | **9.4** | A long-tail-clearing window: accessibility gated at WCAG AA with a contrast check on the palette, the fifteen-pass matrix-persona N+1 closed, blog content on MDX, the mock stack out of the production bundle, and RLS assertions at 96. Both red gates sit outside the application — a test helper that replays a POST, and a build-time dependency advisory that arrived with the MDX migration. Neither is a defect in shipped behaviour, and both are short fixes. |
 
 ---
 
 ## 21. Strengths
 
-1. **NEW-35 closed at the root** — the two scopes separated in the mock _and_ the divergence explained, so it cannot be silently re-collapsed.
-2. **86 RLS assertions**, up 19 in one pass, arriving alongside the sensitive tables they cover rather than after them.
-3. **Consent, note minimisation and erasure shipped together** — erasure is the obligation usually deferred, and it was not.
-4. **A fail-closed production guard that actually fires.** I triggered it by accident; it refused the build and explained why.
-5. **Least-privilege CI** — permissions narrowed rather than left at defaults.
-6. **The queue-health alarm gained an explicit RLS table list**, so its disabled-RLS check cannot quietly miss a new table.
-7. **The E2E suite caught the regression** — three specs, every affected page, with the exact offending selector and pixel delta.
-8. **Security findings originate in-house**, now four rounds deep, tracked by ID and referenced in the fixing commits.
-9. **Assigned reminders with a student-only mark-done path** — a narrow permission rather than a broad one, consistent with `manageAttendance` earlier.
-10. **Commits that name their findings**, seventeen passes running.
+1. **Three findings open nine-plus passes closed together** — a11y gating, the matrix-persona N+1, and blog JSX.
+2. **The a11y work exceeded its brief** — a gate, a baselined violation set so it could be switched on immediately, AA text tokens, and a **contrast gate** on the brand palette.
+3. **A staging Playwright project** — the first verification surface that runs against a real deployment, addressing the exact blind spot behind two recent red gates.
+4. **An unprompted idempotency fix** — `0f999c8` making a `create or replace` re-runnable, which only surfaces if someone thinks about migration replay.
+5. **Declared model brought into line with enforcement** — `0092` gave `sub_admin` the authority its capability baseline already promised.
+6. **Multi-session attendance solved structurally** — the `(class_id, student_id, session_date)` key was the real constraint, and it was changed rather than worked around.
+7. **96 RLS assertions**, up 10, with three parity guards.
+8. **Durable rate limiting and write assertions** extended across the data layer.
+9. **Teaching-hours indexed** (`0091`), answering the aggregate-path question raised last pass.
+10. **Commits that name their findings**, eighteen passes running.
 
 ---
 
-_Revision 17 performed 2026-09-02 against `feature/cert-ed-academia-app` @ `11f92f1` with a
-clean working tree, a clean `rm -rf .next` rebuild via the sanctioned `E2E_BUILD=1` path, and
-serial execution of every gate. Not verified: why the admin persona passes the responsive
-check when three others fail, which change reintroduced the overflow, whether the
-teaching-hours aggregate path is indexed, whether Sentry DSNs are configured in Vercel, and
-whether the production restore drill has been run._
+_Revision 18 performed 2026-09-05 against `feature/cert-ed-academia-app` @ `0f999c8`. The
+working tree carried in-progress staging-test work throughout, and changed during the pass;
+those changes are not covered. The RLS harness was run against an isolated database after two
+runs were destroyed by a concurrent process (NEW-41). Not verified: whether a real browser
+reload reproduces NEW-39's duplicate, whether Sentry DSNs are configured in Vercel, and whether
+the production restore drill has been run._

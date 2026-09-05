@@ -42,6 +42,32 @@ Three logs are three different places — a symptom only shows up in one:
 
 The E2E web server runs a full `npm run build` before any spec (`playwright.config.ts`), so a build-time failure — including the client-manifest guard — shows up there **first**, before a cryptic mid-suite error. When several specs fail at once, read the build step at the top of the run before the spec output.
 
+| Symptom                                                                       | Likely cause                                                                       | Fix                                                                                                          |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `E2E reset REFUSED: pid N still holds the mock database`                      | a previous mock server is still running and shares `.mock-db.json`                 | stop that pid (`taskkill /PID N /T /F`). The refusal is the guard working — see below                        |
+| `strict mode violation: resolved to 2 elements` naming the spec's OWN fixture | two mock servers were writing the same `.mock-db.json`, so the row already existed | this is what the lock above prevents; if it still happens, check for a stray server before suspecting the UI |
+
+**Do not chase a duplicate-render bug for that second symptom.** A spec failing on a row it
+created itself is almost always a second writer, not the component. It cost a full
+investigation once: five specs failed that way and the same suite passed 79/79 the moment
+the stale server was killed.
+
+## Database harnesses (`test-rls`, `test-privilege-parity`, `restore-drill`)
+
+These provision a scratch database first. If that reset cannot happen the script now
+**aborts loudly** and says so — nothing below the abort is an assertion result.
+
+| Symptom                                                           | Likely cause                                                                                  | Fix                                                                                                                                                           |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FATAL: could not reset the test database`                        | a connection to the scratch DB is open, or Postgres is unreachable                            | the message names the cause; the harness terminates other backends itself, so this means the server is down or credentials are wrong                          |
+| Dozens of assertion failures blaming a column that clearly exists | **historically**: a silent failed reset, leaving assertions running against an empty database | fixed — the bootstrap now checks its exit status. If you see this on an OLD checkout, verify the scratch DB actually has tables before believing the failures |
+
+The second row is why the check exists. A drop blocked by a lingering connection used to
+fail silently, and the harness then reported dozens of confident failures about missing
+columns — one pass produced 39 blaming a real column in a real migration, which took a
+hand-walk of the whole chain to disprove. A guard that fails dishonestly is worse than no
+guard: it sends the reader hunting a schema bug that was never there.
+
 ## Related
 
 - [operations.md](operations.md) — production incidents (rollback, backups, live outages)

@@ -10,6 +10,12 @@ Work top to bottom before opening the portal to real users. Each item links to t
 - [ ] `npm run check:snapshot` current (rebuild snapshot at the chain head)
 - [ ] `npx playwright test` passes
 - [ ] `npm audit --omit=dev` reports 0 high
+      <br>Note: `fast-uri` reaches the PRODUCTION tree via `@next/mdx` -> `@mdx-js/loader`
+      -> `webpack` -> `schema-utils` -> `ajv`, and it cannot be removed by moving the loader
+      to devDependencies: `@next/mdx` declares it an OPTIONAL PEER, and npm installs a
+      satisfied optional peer of a production dependency. Verified with a real
+      `npm ci --omit=dev` - the loader, webpack and fast-uri are all still present. The
+      `overrides` entry pinning `fast-uri` is therefore the fix, not a workaround.
 - [ ] `npm run check:bundle` within budget
 
 ## Database (Supabase)

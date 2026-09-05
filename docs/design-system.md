@@ -12,11 +12,12 @@ The app is **light-theme only** — there is no `dark:` variant in use. Do not a
 
 Tailwind v4 turns each `--*` in the `@theme` block into a utility. Change a value in one place; every utility follows.
 
-| Token(s)                                                         | Utilities                       | Notes                                                |
-| ---------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------- |
-| `--color-primary`, `--color-primary-strong`, `--color-secondary` | `text-primary`, `bg-primary`, … | Brand blues. Also `--color-background`/`foreground`. |
-| `--font-sans`, `--font-display`, `--font-mono`                   | `font-sans`, `font-display`, …  | Brand sans everywhere today (display == sans).       |
-| `--text-micro` (10px), `--text-meta` (11px)                      | `text-micro`, `text-meta`       | The two steps **below** Tailwind's `text-xs`.        |
+| Token(s)                                                         | Utilities                                | Notes                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--color-primary`, `--color-primary-strong`, `--color-secondary` | `text-primary`, `bg-primary`, …          | Brand blues. Also `--color-background`/`foreground`.                                                                                                                                                                                                                                                                     |
+| `--color-secondary-ink`                                          | `text-secondary-ink`, `bg-secondary-ink` | The brand sky blue darkened to pass WCAG AA. `--color-secondary` (#50b5e1) is 2.32:1 on white, so it fails as TEXT and as a solid button behind white text; `secondary-ink` (#15719b) is the same 199° hue at 5.43:1. Use `secondary` for decorative fills, tints and icons; `secondary-ink` for text and solid buttons. |
+| `--font-sans`, `--font-display`, `--font-mono`                   | `font-sans`, `font-display`, …           | Brand sans everywhere today (display == sans).                                                                                                                                                                                                                                                                           |
+| `--text-micro` (10px), `--text-meta` (11px)                      | `text-micro`, `text-meta`                | The two steps **below** Tailwind's `text-xs`.                                                                                                                                                                                                                                                                            |
 
 Raw brand hexes live on `:root` and are aliased into `@theme` — edit `:root` to re-brand.
 
@@ -65,7 +66,10 @@ Rule of thumb: **anything a user reads is ≥ `text-meta` (11px)**; only `text-m
 3. **Reach for a primitive before a `<div>`.** New surface → `Card`/`Panel`; new list → `ListRow`; new page → `PageHeader`.
 4. **Merge classes with `cx()`**, not string concatenation.
 5. **Responsive:** every page must survive 320px with no horizontal overflow (`html` clips stray overflow; verify at mobile width — see application-standards §12).
-6. **Colours** come from the brand tokens; avoid one-off hexes in `className`.
+6. **Colours** come from the brand tokens; avoid one-off hexes in `className`. Muted text
+   is `text-slate-600`: `slate-400` is 2.56:1 on white and `slate-500` drops to 4.34:1 on
+   `bg-slate-100`, so both fail AA where they carry real text. `tests/e2e/a11y.pw.ts`
+   enforces contrast with an empty baseline — a regression fails CI rather than accruing.
 
 ## 5. Extending the system
 

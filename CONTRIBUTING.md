@@ -15,7 +15,7 @@ the wrong tree — check out the working branch first.
 
 ## Running locally
 
-Requires **Node 20 or newer** (CI builds on 20; `.nvmrc` pins 20 for nvm users). The app runs against a mock database, so no Supabase
+Requires **Node 22** (`.nvmrc` pins it; CI and Vercel both build on 22). `engines` pins the major deliberately - an open range would let the deploy runtime jump to a new Node major on its own. The app runs against a mock database, so no Supabase
 project is required:
 
 ```bash

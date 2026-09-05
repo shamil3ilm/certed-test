@@ -72,6 +72,7 @@ Authorization:
 - `0073` to `0078`: `consents`, assignment `ends_at`, legacy exam-event migration, `guardians`, re-audit feedback + function grants, and `mentee_notes`
 - `0079` to `0085`: splitting `teaches_class_write` (tutor-only content writes) from `teaches_class`, write-scope grant hardening, link-scheme CHECKs, mentor calendar write authority with no hard delete, and attendance-scoped session reads
 - `0086` to `0091`: assigned reminders, a mentee-note length bound, profile erasure, audit metadata, round-5 RLS hardening, and the teaching-hours index
+- `0092` to `0098`: sub-admin class authority, several recorded sessions per day, attendance re-keyed onto the session it belongs to, hourly rates + the billed month behind hours-derived receipts/pay slips, a fail-closed function-EXECUTE sweep (a re-signed function is a NEW object and arrives granted to anon), student session access scoped to the session rather than the date, and real org contact defaults
 
 ## Related
 

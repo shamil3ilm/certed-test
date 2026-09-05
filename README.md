@@ -57,7 +57,7 @@ branch builds the staging site. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Local development
 
-Requires **Node 20 or newer** (CI builds on 20; `.nvmrc` pins 20 for nvm users).
+Requires **Node 22** (`.nvmrc` pins it; CI and Vercel both build on 22). `engines` pins the major deliberately - an open range would let the deploy runtime jump to a new Node major on its own.
 
 The fastest local path is mock mode — a keyless, JSON-backed harness, so you need no
 Supabase project to run the app:

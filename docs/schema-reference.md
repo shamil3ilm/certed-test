@@ -139,6 +139,13 @@ Purpose:
 
 - individual held/scheduled sessions of a class (attendance and session feedback anchor to these)
 
+Notes:
+
+- a class may hold SEVERAL sessions on one date (migration 0093 removed the
+  `(class_id, session_date)` uniqueness); `id` is the session identifier
+- hours come from the recorded window `actual_start` -> `actual_end`; a session with no
+  recorded start contributes nothing to any hours report
+
 ### `mentorships`
 
 Purpose:
@@ -213,6 +220,12 @@ Notes:
 ### `attendance`
 
 - per-class, per-student, per-session attendance records
+- a mark belongs to a SESSION: `session_id` is NOT NULL and unique with `student_id`
+  (migration 0094). `class_id` and `session_date` are retained because the RLS policies and
+  the per-day reads use them, but they no longer identify the mark
+- anything scoping to "the session a student attended" must join on `session_id`. Joining
+  on `(class_id, session_date)` cannot tell two sessions on one date apart, which is how a
+  student came to read a session they never attended (fixed in 0097)
 
 ### `attachments`
 
@@ -278,6 +291,10 @@ Purpose:
 ### `receipts`
 
 - student-side finance documents
+- `billing_period` ('YYYY-MM') records the month the document bills for, distinct from
+  `issue_date` - September's fees are commonly issued in October. Deliberately NOT unique:
+  one month may legitimately span several documents, so the app warns about a duplicate
+  rather than the database refusing one (migration 0095)
 
 ### `receipt_lines`
 
@@ -286,10 +303,21 @@ Purpose:
 ### `payslips`
 
 - tutor and mentor payout documents
+- `billing_period` as for `receipts` above
 
 ### `payslip_lines`
 
 - payslip line items
+
+### `billing_rates`
+
+- one hourly rate per person: `fee_rate` (what a student pays) and `pay_rate` (what a
+  tutor or mentor earns), each with its own `currency` (migration 0095)
+- the input that lets a receipt or pay slip be generated from recorded class hours rather
+  than typed in
+- ADMIN TIER ONLY, in RLS and in the app. A rate is money data, not profile data: it lives
+  in its own table precisely so it never rides along on the profile reads every persona
+  performs, and nobody - including the person it prices - can read their own row
 
 ### `document_counters`
 

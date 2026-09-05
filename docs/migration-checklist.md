@@ -31,7 +31,10 @@ Keep schema, RLS, docs, and tests aligned whenever a database migration changes 
 1. Does the application code need to change for this migration?
 2. Do any guards, persona rules, or capability rules need updates?
 3. Do any page loaders or service commands need updates?
-4. Does mock mode need matching support?
+4. Does mock mode need matching support? A new table needs a `buildSeed()` key (the
+   `mock-schema-parity` gate enforces this). A NOT NULL foreign key the app must resolve
+   and attach also belongs in `src/lib/mock/constraints.ts`, or mock mode will accept a
+   write Postgres rejects and the E2E suite will go green on it.
 
 ## 4. Documentation alignment
 
@@ -42,6 +45,7 @@ Update any affected docs in the same workstream:
 - `docs/fk-cascade-inventory.md` — whenever a migration adds or changes a foreign key
 - `docs/api-reference.md` — whenever a route is added or its guard changes
 - `docs/persona-model.md` — when persona or capability support changes
+- `docs/mock-mode.md` — when the mock's seed, constraints or limitations change
 - `supabase/README.md` — add the migration to the "notable groups" list
 - `README.md` / `docs/setup-guide.md` — if the setup or feature surface changes
 
