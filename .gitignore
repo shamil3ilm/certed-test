@@ -21,6 +21,7 @@ build/
 # mock mode (local dev only)
 .env.local
 .mock-db.json
+.mock-db.lock
 .mock-storage/
 .ck-*
 scratch-*
