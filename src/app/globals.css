@@ -6,6 +6,13 @@
   --primary: #124d7e;
   --primary-strong: #0f365c;
   --secondary: #50b5e1;
+  /* The brand sky blue at 2.32:1 on white fails WCAG AA for any TEXT use and for a
+     solid button carrying white text. `--secondary-ink` is the same hue (199deg),
+     darkened to clear 4.5:1 against white AND to carry white text at 5.43:1 - one
+     token covers both because each needs the same thing: enough contrast vs white.
+     Use `secondary` for decorative fills/tints/icons, `secondary-ink` for text and
+     solid buttons. Do not swap them back; tests/e2e/a11y.pw.ts enforces contrast. */
+  --secondary-ink: #15719b;
 }
 
 @theme inline {
@@ -14,6 +21,7 @@
   --color-primary: var(--primary);
   --color-primary-strong: var(--primary-strong);
   --color-secondary: var(--secondary);
+  --color-secondary-ink: var(--secondary-ink);
   --font-sans: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
   /* Temporary: use Louis George Cafe (brand sans) everywhere, including headings.
      Restore Dagger Square by putting var(--font-brand-display) first again. */

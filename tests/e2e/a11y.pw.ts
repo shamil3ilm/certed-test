@@ -9,17 +9,20 @@ import { loginAs } from './support'
  * failed, so the gate can be introduced without a big-bang cleanup; tighten later.)
  *
  * BASELINED_RULES holds rules with PRE-EXISTING violations that are tracked as a follow-up
- * rather than blocking this gate's introduction. `color-contrast` is the whole theme's
- * muted-text palette (secondary slate text on white across marketing + the dashboard,
- * ~35 nodes) - a design pass, not a code fix. The gate still fails on every OTHER
- * serious/critical rule. Fix the palette, then delete the id here to turn contrast on.
+ * rather than blocking this gate's introduction. It is currently EMPTY: `color-contrast`
+ * used to sit here for the muted-text palette, whose `text-slate-400` (2.56:1 on white)
+ * failed AA everywhere it carried real text. That palette is now `text-slate-600`
+ * (>=6.9:1 on every surface the app paints), so the rule is enforced. Note slate-500 is
+ * NOT a safe substitute: it drops to 4.34:1 on `bg-slate-100` and fails there. Keep
+ * `text-slate-400` for `placeholder:` only - a placeholder that reads as dark as a real
+ * value is its own usability problem, and axe does not treat it as body text.
  */
 
 const MARKETING = 'http://localhost:3101'
 const PORTAL = 'http://localhost:3100'
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 const BLOCKING = new Set(['serious', 'critical'])
-const BASELINED_RULES = ['color-contrast']
+const BASELINED_RULES: string[] = []
 
 async function seriousViolations(page: Page): Promise<string[]> {
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).disableRules(BASELINED_RULES).analyze()

@@ -63,7 +63,7 @@ export default function Classes() {
               key={step.title}
               className="group relative flex h-full flex-col rounded-xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
             >
-              <div className="mb-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-xl font-bold text-white shadow-md">
+              <div className="mb-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-ink text-xl font-bold text-white shadow-md">
                 {index + 1}
               </div>
               <h3 className="mb-3 text-lg font-bold text-gray-900">{step.title.replace(/^Step \d+ - /, '')}</h3>

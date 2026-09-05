@@ -19,8 +19,8 @@ const BlogCard = ({ title, excerpt, image, date, category, slug }: BlogCardProps
         <Image src={image} alt={title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
       </div>
       <div className="p-6 flex flex-col flex-grow">
-        <div className="flex items-center text-xs text-gray-500 mb-3 space-x-2">
-          <span className="font-semibold text-secondary uppercase tracking-wide">{category}</span>
+        <div className="flex items-center text-xs text-gray-600 mb-3 space-x-2">
+          <span className="font-semibold text-secondary-ink uppercase tracking-wide">{category}</span>
           <span>&bull;</span>
           <span>{date}</span>
         </div>

@@ -46,10 +46,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </div>
 
           <header className="mb-12 border-b border-gray-100 pb-8">
-            <div className="flex items-center text-sm text-secondary font-semibold uppercase tracking-wide mb-4">
+            <div className="flex items-center text-sm text-secondary-ink font-semibold uppercase tracking-wide mb-4">
               <span>{post.category}</span>
               <span className="mx-2 text-gray-300">•</span>
-              <span className="text-gray-500">{post.date}</span>
+              <span className="text-gray-600">{post.date}</span>
             </div>
             <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">{post.heading}</h1>
           </header>

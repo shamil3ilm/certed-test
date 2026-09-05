@@ -20,37 +20,37 @@ const Footer = () => {
             <h4 className="text-lg font-semibold text-white mb-6">Quick Links</h4>
             <ul className="space-y-3">
               <li>
-                <Link href="/" className="hover:text-secondary transition-colors">
+                <Link href="/" className="hover:text-white transition-colors">
                   Home
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="hover:text-secondary transition-colors">
+                <Link href="/about" className="hover:text-white transition-colors">
                   About Us
                 </Link>
               </li>
               <li>
-                <Link href="/classes" className="hover:text-secondary transition-colors">
+                <Link href="/classes" className="hover:text-white transition-colors">
                   Classes
                 </Link>
               </li>
               <li>
-                <Link href="/blogs" className="hover:text-secondary transition-colors">
+                <Link href="/blogs" className="hover:text-white transition-colors">
                   Blogs
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="hover:text-secondary transition-colors">
+                <Link href="/contact" className="hover:text-white transition-colors">
                   Contact Us
                 </Link>
               </li>
               <li>
-                <Link href="/privacy" className="hover:text-secondary transition-colors">
+                <Link href="/privacy" className="hover:text-white transition-colors">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-secondary transition-colors">
+                <Link href="/terms" className="hover:text-white transition-colors">
                   Terms of Use
                 </Link>
               </li>
@@ -60,13 +60,13 @@ const Footer = () => {
             <h4 className="text-lg font-semibold text-white mb-6">Contact Info</h4>
             <ul className="space-y-4 text-slate-200/85">
               <li className="flex items-start">
-                <span className="w-20 text-slate-300/75 font-medium">Email:</span>
+                <span className="w-20 text-slate-300 font-medium">Email:</span>
                 <a href="mailto:info@certedacademia.com" className="hover:text-white transition-colors break-all">
                   info@certedacademia.com
                 </a>
               </li>
               <li className="flex items-start">
-                <span className="w-20 text-slate-300/75 font-medium">Phone:</span>
+                <span className="w-20 text-slate-300 font-medium">Phone:</span>
                 <div>
                   <p>+91 7025 237 833</p>
                   <p>+971 56 890 0796</p>
@@ -76,14 +76,14 @@ const Footer = () => {
             <div className="mt-6">
               <Link
                 href="/contact"
-                className="inline-block bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+                className="inline-block bg-secondary-ink hover:bg-secondary-ink/90 text-white font-medium py-2 px-6 rounded-lg transition-colors"
               >
                 Book a Demo
               </Link>
             </div>
           </div>
         </div>
-        <div className="mt-12 border-t border-primary/20 pt-8 text-center text-sm text-slate-300/70">
+        <div className="mt-12 border-t border-primary/20 pt-8 text-center text-sm text-slate-300">
           &copy; {CURRENT_YEAR} Cert-Ed Academia. Serving students across India and GCC. All rights reserved.
         </div>
       </div>

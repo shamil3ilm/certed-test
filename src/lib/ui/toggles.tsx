@@ -5,7 +5,7 @@ type ToggleTone = 'primary' | 'secondary' | 'soft' | 'success' | 'warning' | 'da
 function activeToggleToneClass(tone: ToggleTone): string {
   switch (tone) {
     case 'secondary':
-      return 'border-secondary/20 bg-secondary/10 text-secondary'
+      return 'border-secondary/20 bg-secondary/10 text-secondary-ink'
     case 'soft':
       return 'border-primary/20 bg-primary/5 text-primary'
     case 'success':
