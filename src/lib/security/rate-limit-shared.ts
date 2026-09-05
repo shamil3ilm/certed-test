@@ -1,5 +1,5 @@
 import 'server-only'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { RateLimitRpcError, rateLimitHit } from '@/lib/data/rate-limit'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { logError } from '@/lib/observability/log'
 
@@ -31,35 +31,21 @@ export async function rateLimitShared(
   opts: { limit: number; windowSeconds: number },
 ): Promise<SharedRateLimitResult> {
   try {
-    const admin = createAdminClient()
-    const { data, error } = await admin.rpc('rate_limit_hit', {
-      p_key: key,
-      p_limit: opts.limit,
-      p_window_seconds: opts.windowSeconds,
-    })
-    if (error) {
-      // A MISSING function is a deploy problem (the rate_limit_counters migration
-      // was never applied), not a transient blip - and it silently disables this
-      // control. Flag it distinctly so it's actioned, not lost among network noise.
-      const rpcMissing = error.code === 'PGRST202' || /could not find the function|does not exist/i.test(error.message)
-      // Log the limiter scope ('register' / 'contact'), never the full key - the
-      // key embeds the caller's raw IP, and meta is forwarded to the error tracker.
-      // The scope alone tells which limiter is failing, which is all the diagnostic
-      // value the address carried.
-      logError(rpcMissing ? 'rateLimitShared:rpc-missing' : 'rateLimitShared', new Error(error.message), {
-        scope: key.split(':')[0],
-        ...(rpcMissing ? { action: 'apply the rate_limit_counters migration (rate_limit_hit RPC)' } : {}),
-      })
-      return inProcessFallback(key, opts) // degrade to the per-instance limiter, not unlimited
-    }
-    // The RPC returns a single-row table; supabase-js surfaces it as an array.
-    const row = (Array.isArray(data) ? data[0] : data) as
-      { allowed?: boolean; retry_after_seconds?: number } | null | undefined
+    const row = await rateLimitHit(key, opts.limit, opts.windowSeconds)
     if (!row) return { ok: true, retryAfterSec: 0 }
-    return { ok: row.allowed === true, retryAfterSec: row.retry_after_seconds ?? 0 }
+    return { ok: row.allowed, retryAfterSec: row.retryAfterSeconds }
   } catch (error) {
-    // Scope only, not the IP-bearing key - see the rpc-error branch above.
-    logError('rateLimitShared', error, { scope: key.split(':')[0] })
+    // A MISSING function is a deploy problem (the rate_limit_counters migration was never
+    // applied), not a transient blip - and it silently disables this control. Flag it
+    // distinctly so it's actioned, not lost among network noise.
+    const rpcMissing = error instanceof RateLimitRpcError && error.rpcMissing
+    // Log the limiter scope ('register' / 'contact'), never the full key - the key embeds
+    // the caller's raw IP, and meta is forwarded to the error tracker. The scope alone
+    // tells which limiter is failing, which is all the diagnostic value the address carried.
+    logError(rpcMissing ? 'rateLimitShared:rpc-missing' : 'rateLimitShared', error, {
+      scope: key.split(':')[0],
+      ...(rpcMissing ? { action: 'apply the rate_limit_counters migration (rate_limit_hit RPC)' } : {}),
+    })
     return inProcessFallback(key, opts) // degrade to the per-instance limiter, not unlimited
   }
 }

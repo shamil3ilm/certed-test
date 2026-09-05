@@ -24,6 +24,30 @@ function redirectPreserving(url: URL, base: NextResponse): NextResponse {
   return redirect
 }
 
+/**
+ * The URL of the SAME path on the other host, or null when it cannot be built.
+ *
+ * Locally the two hosts are derived from the request itself (`app.` prefix on/off). In a
+ * real deployment they come from APP_HOSTNAME / MARKETING_HOSTNAME, and if the relevant one
+ * is unset this returns null rather than interpolating `undefined` into the URL - which
+ * would send every cross-host link to a literal `https://undefined/...`. Callers then serve
+ * the request in place: a page on the "wrong" host is a far smaller fault than a dead
+ * redirect, and the misconfiguration stays visible instead of breaking navigation.
+ */
+function crossHostUrl(request: NextRequest, pathname: string, to: 'app' | 'marketing'): URL | null {
+  const hostHeader = request.headers.get('host') ?? ''
+  const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
+  const host = isLocal
+    ? to === 'app'
+      ? `app.${hostHeader}`
+      : hostHeader.replace(/^app\./, '')
+    : to === 'app'
+      ? process.env.APP_HOSTNAME
+      : process.env.MARKETING_HOSTNAME
+  if (!host) return null
+  return new URL(`${isLocal ? 'http' : 'https'}://${host}${pathname}`, request.url)
+}
+
 export async function proxy(request: NextRequest) {
   // Until Supabase is configured, the portal is dormant; let the existing
   // marketing site serve every request untouched (marketing CSP, no nonce).
@@ -63,10 +87,9 @@ export async function proxy(request: NextRequest) {
     const isMarketing =
       MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/') || pathname === '/api/contact'
     if (!isMarketing) {
-      const hostHeader = request.headers.get('host') ?? ''
-      const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
-      const appHost = isLocal ? `app.${hostHeader}` : process.env.APP_HOSTNAME
-      return redirectPreserving(new URL(`${isLocal ? 'http' : 'https'}://${appHost}${pathname}`, request.url), response)
+      const target = crossHostUrl(request, pathname, 'app')
+      // Missing APP_HOSTNAME: serve in place rather than redirect to `https://undefined/...`.
+      if (target) return redirectPreserving(target, response)
     }
     return response
   }
@@ -75,13 +98,9 @@ export async function proxy(request: NextRequest) {
   // This ensures marketing paths are not exposed on the app host.
   const isMarketing = MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/')
   if (!portalOnly && isMarketing && pathname !== '/') {
-    const hostHeader = request.headers.get('host') ?? ''
-    const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1')
-    const marketingHost = isLocal ? hostHeader.replace(/^app\./, '') : process.env.MARKETING_HOSTNAME
-    return redirectPreserving(
-      new URL(`${isLocal ? 'http' : 'https'}://${marketingHost}${pathname}`, request.url),
-      response,
-    )
+    const target = crossHostUrl(request, pathname, 'marketing')
+    // Missing MARKETING_HOSTNAME: serve in place rather than redirect to `https://undefined/...`.
+    if (target) return redirectPreserving(target, response)
   }
 
   // App host: refresh the Supabase session, then gate.

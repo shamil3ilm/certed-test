@@ -1,7 +1,7 @@
 import { authTextFail, notFoundText, tooManyRequestsText, textFail } from '@/lib/api/response'
 import { requireCapabilityApi } from '@/lib/auth/require-role'
 import { rateLimit } from '@/lib/security/rate-limit'
-import { selectReadableActiveAttachment } from '@/lib/data/attachments'
+import { getReadableAttachment } from '@/lib/services/attachments/read'
 import { getDriveStorage } from '@/lib/google/drive-storage'
 import { logError } from '@/lib/observability/log'
 
@@ -54,7 +54,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const { id } = await ctx.params
   let attachment
   try {
-    attachment = await selectReadableActiveAttachment(id)
+    attachment = await getReadableAttachment(id)
   } catch (error) {
     // A real read error (attachments table missing / RLS misconfigured) is a
     // provisioning fault, not "not found" - log it and 502 so it is observable,

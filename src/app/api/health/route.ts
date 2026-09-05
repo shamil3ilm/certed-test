@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { pingDatabase } from '@/lib/data/org-settings'
+import { checkDatabaseLiveness } from '@/lib/services/health'
 
 /**
  * Public, unauthenticated keep-warm target for an external uptime pinger (hit it
@@ -21,7 +21,7 @@ let cachedPing: { db: boolean; at: number } | null = null
 export async function GET() {
   const now = Date.now()
   if (!cachedPing || now - cachedPing.at > PING_TTL_MS) {
-    const db = await pingDatabase().catch(() => false)
+    const db = await checkDatabaseLiveness()
     cachedPing = { db, at: now }
   }
   return NextResponse.json({ ok: true, db: cachedPing.db }, { headers: { 'Cache-Control': 'no-store' } })

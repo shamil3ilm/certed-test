@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { authFail, ok, serverError } from '@/lib/api/response'
-import { pingDatabase } from '@/lib/data/org-settings'
+import { checkDatabaseLiveness } from '@/lib/services/health'
 import { assessQueueHealth } from '@/lib/services/queue-health'
 import { logError } from '@/lib/observability/log'
 
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   if (!secret || !provided || !safeEqual(provided, `Bearer ${secret}`)) {
     return authFail(new Error('unauthorized'))
   }
-  if (!(await pingDatabase())) return serverError()
+  if (!(await checkDatabaseLiveness())) return serverError()
   // Piggy-back the queue-health alarm on the one cron Hobby allows: it logs a
   // structured breach if the email/attachment queues back up or RLS is disabled on a
   // sensitive table. Best-effort - a health-check failure must never fail keepalive,

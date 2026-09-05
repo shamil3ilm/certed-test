@@ -4,11 +4,18 @@ import { recordDownload } from '@/lib/services/resources'
 import { NotFoundError, PermissionError } from '@/lib/errors'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { isAllowedDriveUrl } from '@/lib/drive-link'
-import { selectActiveAttachmentsForOwner } from '@/lib/data/attachments'
+import { listAttachmentRowsForOwner } from '@/lib/services/attachments/read'
 import { getDriveStorage } from '@/lib/google/drive-storage'
 
 // Node runtime: a custodial document streams its bytes from the Drive REST API.
 export const runtime = 'nodejs'
+
+/** A speculative browser fetch (link prefetch / preview) advertises itself in one
+ *  of these headers. Such a request must not count as a real download. */
+function isSpeculativeFetch(req: Request): boolean {
+  const purpose = req.headers.get('sec-purpose') ?? req.headers.get('purpose') ?? req.headers.get('x-purpose') ?? ''
+  return /prefetch|prerender|preview/i.test(purpose)
+}
 
 /**
  * Documents are Google Drive links. This route is an access-checked indirection:
@@ -18,13 +25,6 @@ export const runtime = 'nodejs'
  * authorized click. A denied/missing document returns 404 either way, so the
  * route never reveals which of the two it was.
  */
-/** A speculative browser fetch (link prefetch / preview) advertises itself in one
- *  of these headers. Such a request must not count as a real download. */
-function isSpeculativeFetch(req: Request): boolean {
-  const purpose = req.headers.get('sec-purpose') ?? req.headers.get('purpose') ?? req.headers.get('x-purpose') ?? ''
-  return /prefetch|prerender|preview/i.test(purpose)
-}
-
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   // This GET has a side effect (the download counter + audit), so a prefetch or
   // link-preview must not trigger it - only a real click should. Answer 204 and
@@ -62,7 +62,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   // A CUSTODIAL document has no link: stream its attachment's bytes through the app,
   // private, exactly like the attachment download route. recordDownload above has
   // already run the per-document permission check, so the file may be served.
-  const [attachment] = await selectActiveAttachmentsForOwner({ kind: 'resource', id: doc.id })
+  const [attachment] = await listAttachmentRowsForOwner({ kind: 'resource', id: doc.id })
   if (!attachment || !attachment.drive_file_id) return notFoundText()
   let file
   try {

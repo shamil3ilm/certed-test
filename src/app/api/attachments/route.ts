@@ -1,23 +1,15 @@
 import { requireActiveProfileApi } from '@/lib/auth/require-role'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { created, apiError, authFail, invalidInput, invalidJson, tooManyRequests } from '@/lib/api/response'
-import { NotFoundError, PermissionError, StorageUnavailableError } from '@/lib/errors'
+import { StorageUnavailableError } from '@/lib/errors'
 import type { Profile } from '@/lib/auth/profile'
 import { uploadAttachment } from '@/lib/services/attachments/upload'
 import { driveStorageAvailable } from '@/lib/google/drive-storage'
 import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments/validation'
 import { isUuid } from '@/lib/validation/id'
-import type { AttachmentOwner, AttachmentRow } from '@/lib/data/attachments'
-import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
-import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
-import { canWriteClass } from '@/lib/permission/class-write'
-import {
-  assertSubmissionAcceptsWork,
-  assertMayAttachToResource,
-  assertUnderAttachmentCap,
-} from '@/lib/services/attachments/attach-guards'
-import { supersedePriorResourceAttachments } from '@/lib/data/attachments'
-import { recordResourceAttachmentReplacement } from '@/lib/services/resources'
+import type { AttachmentOwner, AttachmentRow } from '@/lib/services/attachments/read'
+import { assertMayAttach } from '@/lib/services/attachments/attach-guards'
+import { finalizeResourceFileReplacement } from '@/lib/services/resources'
 
 // Node runtime: the upload service streams bytes and talks to the Drive REST API.
 export const runtime = 'nodejs'
@@ -25,48 +17,6 @@ export const runtime = 'nodejs'
 const OWNER_KINDS = new Set<AttachmentOwner['kind']>(['submission', 'resource', 'announcement', 'assignment'])
 function isOwnerKind(value: string): value is AttachmentOwner['kind'] {
   return OWNER_KINDS.has(value as AttachmentOwner['kind'])
-}
-
-/**
- * Gate the write against the SAME rules that govern a first-class write on the owner -
- * not ownership alone. Attaching a file is a state change on the owner, so:
- *  - submission   -> the owning student, and the submission still accepts work
- *                    (active, ungraded, assignment open, deadline not passed)
- *  - resource     -> canDocument for the document's class - 'edit' (own rule) when it
- *                    already has an attachment, 'upload' for the first; class active
- *  - announcement -> canWriteClass for the announcement's class
- *  - assignment   -> canWriteClass for the assignment's class (a manager of the class)
- * Reads are service-role (the row may not be RLS-visible to a caller who can still
- * legitimately attach); a missing owner is a 404, never a hint that it exists.
- */
-async function assertMayAttach(me: Profile, owner: AttachmentOwner): Promise<{ replacedResourceId: string | null }> {
-  if (owner.kind === 'submission') {
-    await assertSubmissionAcceptsWork(me, owner.id)
-    await assertUnderAttachmentCap(owner)
-    return { replacedResourceId: null }
-  }
-  if (owner.kind === 'resource') {
-    // NOT cap-checked: a resource replace supersedes its prior file (below), so its
-    // active count stays at one - capping it would freeze the document after N edits.
-    const isReplacement = await assertMayAttachToResource(me, owner.id)
-    return { replacedResourceId: isReplacement ? owner.id : null }
-  }
-  if (owner.kind === 'assignment') {
-    const assignment = await selectAssignmentClassIdAsService(owner.id)
-    if (!assignment) throw new NotFoundError()
-    if (!(await canWriteClass(me, assignment.class_id))) {
-      throw new PermissionError('Not allowed to attach to this assignment.')
-    }
-    await assertUnderAttachmentCap(owner)
-    return { replacedResourceId: null }
-  }
-  const announcement = await selectAnnouncementClassIdAsService(owner.id)
-  if (!announcement) throw new NotFoundError()
-  if (!(await canWriteClass(me, announcement.class_id))) {
-    throw new PermissionError('Not allowed to attach to this announcement.')
-  }
-  await assertUnderAttachmentCap(owner)
-  return { replacedResourceId: null }
 }
 
 // The attachments table is absent until migrations 0057-0059 are applied to the live
@@ -154,15 +104,7 @@ export async function POST(req: Request) {
     // committed, so a history/supersede failure must not fail the request (and since
     // resources are cap-exempt, a stray extra active row can never freeze the document).
     if (replacedResourceId) {
-      // Best-effort, but NOT silent: a failure here leaves a superseded file with no
-      // version snapshot / resource.edit audit, so log it for follow-up (the upload
-      // itself is already committed, so we still return success).
-      await recordResourceAttachmentReplacement(me, replacedResourceId).catch((e) =>
-        console.error(`attachments: version snapshot/audit failed for resource ${replacedResourceId}`, e),
-      )
-      await supersedePriorResourceAttachments(replacedResourceId, row.id).catch((e) =>
-        console.error(`attachments: superseding prior file failed for resource ${replacedResourceId}`, e),
-      )
+      await finalizeResourceFileReplacement(me, replacedResourceId, row.id)
     }
     return created(toClientAttachment(row))
   } catch (error) {
