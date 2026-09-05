@@ -2,21 +2,12 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { listMenteeSessionTimings } from '@/lib/services/mentor-session-timings'
 import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
-import { todayInZone } from '@/lib/time/format'
+import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
 import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 import { CARD, EmptyState, PageHeader, PaginationBar, cx } from '@/lib/ui'
 import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
-
-/** 'YYYY-MM' -> 'August 2026' (parsed as UTC so the label never drifts a day). */
-function monthLabel(month: string): string {
-  return new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
 
 const PAGE_SIZE = 20
 
@@ -40,12 +31,19 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
         description="Start time, student entry and end time for your mentees' sessions. You can adjust the session start/end and a student's entry time."
       />
 
-      {hours.length > 0 && (
-        <section className={cx(CARD, 'mt-2 p-4')} aria-label="Teaching hours this month">
-          <h2 className="text-sm font-semibold text-slate-800">Teaching hours - {monthLabel(month)}</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            Recorded hours per tutor in your mentees&apos; classes, for this month.
+      <section className={cx(CARD, 'mt-2 p-4')} aria-label="Teaching hours this month">
+        <h2 className="text-sm font-semibold text-slate-800">Teaching hours - {formatMonthLabel(month)}</h2>
+        <p className="mt-0.5 text-xs text-slate-600">
+          Recorded hours per tutor in your mentees&apos; classes, for this month.
+        </p>
+        {/* Render the panel even with nothing to show. Hiding it when the month has no
+            recorded hours makes the section vanish for the first days of every month,
+            which reads as "the feature is missing" rather than "nothing yet". */}
+        {hours.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">
+            No hours recorded yet this month - they appear once a session&apos;s start and end times are saved.
           </p>
+        ) : (
           <ul className="mt-3 space-y-3">
             {hours.map((c) => (
               <li key={c.classId}>
@@ -57,7 +55,7 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                   {c.tutors.map((t) => (
                     <li
                       key={t.tutorId ?? 'unassigned'}
-                      className="flex items-baseline justify-between text-xs text-slate-500"
+                      className="flex items-baseline justify-between text-xs text-slate-600"
                     >
                       <span>{t.tutorName}</span>
                       <span className="tabular-nums">
@@ -69,8 +67,8 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       {rows.length === 0 ? (
         <EmptyState>No session timings yet - they appear once your mentees&apos; classes record sessions.</EmptyState>
@@ -78,7 +76,7 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
         <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
           <table className="data-table w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-400">
+              <tr className="text-left text-slate-600">
                 <th scope="col" className="p-2">
                   Student
                 </th>
@@ -104,25 +102,33 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
             </thead>
             <tbody>
               {paged.map((row) => (
-                <tr key={`${row.classId}:${row.sessionDate}`} className="border-t">
+                <tr key={row.sessionId ?? `${row.classId}:${row.sessionDate}`} className="border-t">
                   <td className="p-2 font-medium text-slate-800">{row.studentName}</td>
                   <td className="p-2 text-slate-600">{row.className}</td>
                   <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-300">-</span>}</td>
                   <td className="p-2 text-slate-600">
-                    {row.tutorName ?? <span className="text-slate-400">Unassigned</span>}
+                    {row.tutorName ?? <span className="text-slate-600">Unassigned</span>}
                   </td>
                   <td className="p-2 text-slate-600">{row.sessionDate}</td>
                   <td className="p-2">
-                    <EditSessionTimes
-                      classId={row.classId}
-                      sessionDate={row.sessionDate}
-                      startAt={row.startAt}
-                      endAt={row.endAt}
-                      updatedAt={row.updatedAt}
-                    />
+                    {row.sessionId ? (
+                      <EditSessionTimes
+                        sessionId={row.sessionId}
+                        classId={row.classId}
+                        sessionDate={row.sessionDate}
+                        startAt={row.startAt}
+                        endAt={row.endAt}
+                        updatedAt={row.updatedAt}
+                      />
+                    ) : (
+                      // Attendance was marked for this day but no session is recorded yet -
+                      // there is no row to edit until the tutor records one.
+                      <span className="text-slate-600">Not recorded</span>
+                    )}
                   </td>
                   <td className="p-2">
                     <EditJoinTime
+                      sessionId={row.sessionId}
                       classId={row.classId}
                       sessionDate={row.sessionDate}
                       studentJoinAt={row.studentEntryAt}

@@ -117,7 +117,7 @@ export default async function ClassStreamPage(props: {
                     initialAttachments={data.attachmentsByAnnouncement.get(a.id) ?? []}
                     canManage={data.canManageContent && (data.isAdmin || a.class_id === course.id)}
                   />
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-xs text-slate-600">
                     <LocalTime iso={a.created_at} />
                     {a.publish_at && Date.parse(a.publish_at) > now && (
                       <>
@@ -184,8 +184,10 @@ export default async function ClassStreamPage(props: {
                       <ConfirmSubmit
                         className="btn btn-sm btn-warning"
                         title="Archive this post?"
-                        message="It's hidden from the class but kept on record; you can restore it."
+                        message={`"${a.title}" is hidden from the class but kept on record; you can restore it.`}
                         confirmLabel="Archive"
+                        pendingLabel="Archiving..."
+                        aria-label={`Archive post ${a.title}`}
                       >
                         Archive
                       </ConfirmSubmit>

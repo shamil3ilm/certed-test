@@ -51,6 +51,18 @@ export function isCalendarDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
 }
 
+/**
+ * 'YYYY-MM' -> "August 2026". A month label is a CALENDAR month, not an instant,
+ * so it is parsed and formatted in UTC: rendering it in a viewer zone behind UTC
+ * would slide "2026-08" back into July. Shared by the teaching-hours and
+ * session-timings pages, which each carried their own identical copy.
+ */
+export function formatMonthLabel(month: string): string {
+  const d = new Date(`${month}-01T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d)
+}
+
 /** "20 Jun 2026". Omit timeZone to format in the runtime zone (the device, on the client). */
 export function formatDate(iso: string, timeZone?: string): string {
   const d = new Date(iso)

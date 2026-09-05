@@ -59,8 +59,10 @@ function MemberRow({
               <ConfirmSubmit
                 className="btn btn-sm btn-danger"
                 title="Remove from class?"
-                message="They lose access now, but the link is kept on record - re-add any time."
+                message={`${m.name} loses access now, but the link is kept on record - re-add any time.`}
                 confirmLabel="Remove"
+                pendingLabel="Removing..."
+                aria-label={`Remove ${m.name} from class`}
               >
                 Remove
               </ConfirmSubmit>
@@ -126,7 +128,7 @@ export default async function ClassPeoplePage(props: {
       {data.canManage && (
         <Card id="tags" className="scroll-mt-20 space-y-3 p-4">
           <SectionLabel>Tags</SectionLabel>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600">
             Organise classes with labels - filter by them on the Classes list. Also available on documents.
           </p>
           <TagEditor type="class" entityId={course.id} tags={classTags} suggestions={allTags} />
@@ -152,18 +154,30 @@ export default async function ClassPeoplePage(props: {
                 <ConfirmSubmit
                   className="btn btn-sm btn-warning"
                   title="Archive this class?"
-                  message="It's hidden from active lists; records are kept and you can restore it."
+                  message={`"${course.name}" is hidden from active lists; records are kept and you can restore it.`}
                   confirmLabel="Archive"
+                  pendingLabel="Archiving..."
+                  aria-label={`Archive class ${course.name}`}
                 >
                   Archive
                 </ConfirmSubmit>
               </form>
             ) : (
+              /* Confirms like its Archive counterpart - the two share a slot, so one
+                 asking and the other firing on a single click is a trap. */
               <form action={restoreClassAction} className="ml-auto">
                 <input type="hidden" name="id" value={course.id} />
-                <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
+                <ConfirmSubmit
+                  className="btn btn-sm btn-success"
+                  title="Restore this class?"
+                  message={`"${course.name}" reappears in active lists and schedules.`}
+                  confirmLabel="Restore"
+                  pendingLabel="Restoring..."
+                  variant="primary"
+                  aria-label={`Restore class ${course.name}`}
+                >
                   Restore
-                </SubmitButton>
+                </ConfirmSubmit>
               </form>
             )}
           </div>
@@ -210,7 +224,7 @@ export default async function ClassPeoplePage(props: {
       <section id="students" className="scroll-mt-20 space-y-3">
         <SectionLabel count={data.students.length}>Students</SectionLabel>
         {data.canManage && data.students.length > 0 && (
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
             A class is one-to-one - it has a single student. To assign this student to another tutor, create a separate
             class; to change the student, remove the current one below first.
           </p>
@@ -254,14 +268,14 @@ export default async function ClassPeoplePage(props: {
                   </SubmitButton>
                 </form>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-600">
                   {data.enrolSearch
                     ? `No students to enrol match "${data.enrolSearch}".`
                     : 'Every listed student is already enrolled - search to find others.'}
                 </p>
               )}
               {data.studentsCapped && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-600">
                   More students exist than are shown here - search by name or email to find them.
                 </p>
               )}

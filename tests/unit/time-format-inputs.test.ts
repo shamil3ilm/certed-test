@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isoToDatetimeLocal, isoToLocalTime, localTimeToIso } from '@/lib/time/format'
+import { isoToDatetimeLocal, isoToLocalTime, localTimeToIso, formatMonthLabel } from '@/lib/time/format'
 
 // Build the fixture from LOCAL components so the round-trip is timezone-independent:
 // the helpers read/emit local time, and toISOString()/parse convert consistently.
@@ -34,5 +34,27 @@ describe('localTimeToIso', () => {
   it('returns "" for a missing or invalid time', () => {
     expect(localTimeToIso('2026-01-15', '')).toBe('')
     expect(localTimeToIso('2026-01-15', 'bad')).toBe('')
+  })
+})
+
+/**
+ * A month label is a CALENDAR month, not an instant. Both the teaching-hours and
+ * session-timings pages previously carried their own identical copy of this, hard-coded
+ * to en-US while the rest of the app formats en-GB.
+ */
+describe('formatMonthLabel', () => {
+  it('renders a YYYY-MM as a month and year', () => {
+    expect(formatMonthLabel('2026-08')).toBe('August 2026')
+  })
+
+  it('does not slide back a month when the runtime zone is behind UTC', () => {
+    // '2026-08-01T00:00:00Z' is 31 July in any negative-offset zone; pinning UTC is
+    // what stops the label reading "July 2026" for those viewers.
+    expect(formatMonthLabel('2026-01')).toBe('January 2026')
+    expect(formatMonthLabel('2026-12')).toBe('December 2026')
+  })
+
+  it('returns an empty string for a malformed month rather than throwing', () => {
+    expect(formatMonthLabel('not-a-month')).toBe('')
   })
 })

@@ -11,11 +11,14 @@ export function EscapableDetails({
   className,
   summary,
   summaryClassName,
+  summaryAriaLabel,
   children,
 }: {
   className?: string
   summary: ReactNode
   summaryClassName?: string
+  /** Names the record this disclosure belongs to, for one repeated per list row. */
+  summaryAriaLabel?: string
   children: ReactNode
 }) {
   const ref = useRef<HTMLDetailsElement>(null)
@@ -39,7 +42,9 @@ export function EscapableDetails({
 
   return (
     <details ref={ref} className={className}>
-      <summary className={summaryClassName}>{summary}</summary>
+      <summary className={summaryClassName} aria-label={summaryAriaLabel}>
+        {summary}
+      </summary>
       {children}
     </details>
   )

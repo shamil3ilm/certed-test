@@ -7,6 +7,11 @@ import { Input, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { EscapableDetails } from '../../EscapableDetails'
 
+/** Map an account status to the shared Badge tone (the canonical status chip). */
+function statusChipTone(status: string): 'success' | 'warning' | 'danger' {
+  return status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'danger'
+}
+
 /**
  * One person in the users list, with their management controls.
  *
@@ -15,11 +20,6 @@ import { EscapableDetails } from '../../EscapableDetails'
  * gets the same row without write affordances, rather than buttons that would
  * redirect on submit.
  */
-/** Map an account status to the shared Badge tone (the canonical status chip). */
-function statusChipTone(status: string): 'success' | 'warning' | 'danger' {
-  return status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'danger'
-}
-
 export function UserRow({
   p,
   self = false,
@@ -41,6 +41,14 @@ export function UserRow({
 }) {
   const isStudent = p.role === 'student'
   const visibleRoleLabel = staffRoleLabel({ role: p.role, teaches, mentors })
+  // Names the account every control acts on. The email is always included because
+  // it is the only unique part: two people can share a full name, and addresses
+  // can differ only by a prefix (a test/import account like
+  // "ef.0803.someone@x.test" reads almost identically to "someone@x.test").
+  // A confirm modal is a detached overlay - once it covers the list, "this
+  // account" points at nothing the reader can still see, which is precisely when
+  // a wrong-row revoke or erase becomes unrecoverable.
+  const who = p.full_name ? `${p.full_name} (${p.email})` : p.email
   return (
     <Card as="li" className="p-3">
       <div className="flex flex-wrap items-end gap-3">
@@ -61,7 +69,7 @@ export function UserRow({
                 </Badge>
               )}
             </p>
-            <p className="truncate text-xs text-slate-400">
+            <p className="truncate text-xs text-slate-600">
               {p.email} - {visibleRoleLabel} - status:{' '}
               <Badge tone={statusChipTone(p.status)}>{statusLabel(p.status)}</Badge>
               {mentorSubtitle ? ` - ${mentorSubtitle}` : ''}
@@ -75,22 +83,23 @@ export function UserRow({
                 className="relative text-xs"
                 summaryClassName="cursor-pointer btn btn-sm btn-ghost"
                 summary="Edit details"
+                summaryAriaLabel={`Edit details for ${who}`}
               >
                 <form
                   action={editUserAction}
                   className="absolute right-0 z-10 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
                 >
                   <input type="hidden" name="id" value={p.id} />
-                  <label className="block text-xs font-medium text-slate-500">
+                  <label className="block text-xs font-medium text-slate-600">
                     Name
                     <Input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1" />
                   </label>
                   {/* Role is a fixed identity - set at account creation, never edited here. */}
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-600">
                     Role: <span className="font-medium text-slate-600">{visibleRoleLabel}</span>
                   </p>
                   {isStudent && (
-                    <label className="block text-xs font-medium text-slate-500">
+                    <label className="block text-xs font-medium text-slate-600">
                       Class
                       <Input name="class_level" defaultValue={p.class_level ?? ''} className="mt-1 min-w-[10rem]" />
                     </label>
@@ -101,20 +110,36 @@ export function UserRow({
                 </form>
               </EscapableDetails>
               {canEditPermissions && !self && (
-                <Link href={`/admin/users/${p.id}/permissions`} className="btn btn-sm btn-ghost">
+                <Link
+                  href={`/admin/users/${p.id}/permissions`}
+                  className="btn btn-sm btn-ghost"
+                  aria-label={`Permissions for ${who}`}
+                >
                   Permissions
                 </Link>
               )}
-              {!self && p.status === 'active' && <MessageUserButton recipientId={p.id} className="btn-sm btn-ghost" />}
+              {!self && p.status === 'active' && (
+                <MessageUserButton recipientId={p.id} className="btn-sm btn-ghost" aria-label={`Message ${who}`} />
+              )}
               {self ? (
-                <span className="text-xs italic text-slate-400">Your own account</span>
+                <span className="text-xs italic text-slate-600">Your own account</span>
               ) : p.status === 'disabled' ? (
                 <>
+                  {/* Restoring re-grants sign-in, so it confirms like its siblings rather
+                      than firing on a single click next to the irreversible Erase. */}
                   <form action={restoreUserAction}>
                     <input type="hidden" name="id" value={p.id} />
-                    <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
+                    <ConfirmSubmit
+                      className="btn btn-sm btn-success"
+                      title="Restore access?"
+                      message={`${who} can sign in again straight away, with the access they had before.`}
+                      confirmLabel="Restore"
+                      pendingLabel="Restoring..."
+                      variant="primary"
+                      aria-label={`Restore access for ${who}`}
+                    >
                       Restore
-                    </SubmitButton>
+                    </ConfirmSubmit>
                   </form>
                   {canErase && (
                     <form action={eraseUserAction}>
@@ -122,8 +147,10 @@ export function UserRow({
                       <ConfirmSubmit
                         className="btn btn-sm btn-danger"
                         title="Erase this account permanently?"
-                        message="Their personal data and login are permanently deleted and CANNOT be restored. Audit and finance records are kept."
+                        message={`${who} - their personal data and login are permanently deleted and CANNOT be restored. Audit and finance records are kept.`}
                         confirmLabel="Erase permanently"
+                        pendingLabel="Erasing..."
+                        aria-label={`Erase ${who} permanently`}
                       >
                         Erase
                       </ConfirmSubmit>
@@ -136,8 +163,10 @@ export function UserRow({
                   <ConfirmSubmit
                     className="btn btn-sm btn-danger"
                     title="Revoke access?"
-                    message="They are signed out and blocked on their next request."
+                    message={`${who} is signed out and blocked on their next request.`}
                     confirmLabel="Revoke"
+                    pendingLabel="Revoking..."
+                    aria-label={`Revoke access for ${who}`}
                   >
                     Revoke
                   </ConfirmSubmit>
@@ -146,7 +175,7 @@ export function UserRow({
             </div>
           </>
         ) : (
-          <span className="ml-auto text-xs italic text-slate-400">Managed by a Super Admin</span>
+          <span className="ml-auto text-xs italic text-slate-600">Managed by a Super Admin</span>
         )}
       </div>
     </Card>

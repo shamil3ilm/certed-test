@@ -2,7 +2,7 @@ import { Card, EmptyState } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 import { SubmitButton } from '../../form'
 import { addMenteeNoteAction } from './note-actions'
-import type { MenteeNoteRow } from '@/lib/data/mentee-notes'
+import type { MenteeNoteRow } from '@/lib/services/mentee-notes'
 
 /**
  * A mentor's pastoral notes about this mentee. Private to the student's mentor(s) and
@@ -20,7 +20,7 @@ export function MenteeNotesPanel({
   return (
     <Card className="mt-6 p-4">
       <h2 className="text-base font-semibold text-slate-900">Pastoral notes</h2>
-      <p className="mt-0.5 text-xs text-slate-400">
+      <p className="mt-0.5 text-xs text-slate-600">
         Private to this student&apos;s mentors and admins - the student never sees these.
       </p>
 
@@ -46,7 +46,7 @@ export function MenteeNotesPanel({
           {notes.map((n) => (
             <li key={n.id} className="py-2 text-sm">
               <p className="whitespace-pre-wrap text-slate-700">{n.body}</p>
-              <p className="mt-0.5 text-xs text-slate-400">
+              <p className="mt-0.5 text-xs text-slate-600">
                 {(n.author_id && authorNames.get(n.author_id)) || 'Staff'} · <LocalTime iso={n.created_at} />
               </p>
             </li>

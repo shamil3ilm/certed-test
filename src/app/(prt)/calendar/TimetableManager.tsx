@@ -61,7 +61,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
             busy={busy}
             onSubmit={(body) => run(() => api('/api/timetable', 'POST', body))}
           />
-          <h3 className="mt-5 text-sm font-medium text-slate-500">Existing slots</h3>
+          <h3 className="mt-5 text-sm font-medium text-slate-600">Existing slots</h3>
           <ul className="mt-2 divide-y">
             {slots.map((slot) => (
               <SlotRow
@@ -74,7 +74,9 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
                 tutorName={tutorName}
                 onSave={(patch) => run(() => api(`/api/timetable/${slot.id}`, 'PATCH', patch))}
                 onToggle={() => run(() => api(`/api/timetable/${slot.id}`, 'PATCH', { active: !slot.active }))}
-                onDelete={confirmDelete('slot', () => api(`/api/timetable/${slot.id}`, 'DELETE'))}
+                onDelete={confirmDelete(`slot for ${classLabel(slot.class_id)}`, () =>
+                  api(`/api/timetable/${slot.id}`, 'DELETE'),
+                )}
               />
             ))}
             {slots.length === 0 && <EmptyState as="li">No slots yet.</EmptyState>}
@@ -89,7 +91,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
             busy={busy}
             onSubmit={(body) => run(() => api('/api/events', 'POST', body))}
           />
-          <h3 className="mt-5 text-sm font-medium text-slate-500">Existing events</h3>
+          <h3 className="mt-5 text-sm font-medium text-slate-600">Existing events</h3>
           <ul className="mt-2 divide-y">
             {events.map((eventRow) => (
               <EventRow
@@ -100,7 +102,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
                 busy={busy}
                 classLabel={classLabel}
                 onSave={(patch) => run(() => api(`/api/events/${eventRow.id}`, 'PATCH', patch))}
-                onDelete={confirmDelete('event', () => api(`/api/events/${eventRow.id}`, 'DELETE'))}
+                onDelete={confirmDelete(`event "${eventRow.title}"`, () => api(`/api/events/${eventRow.id}`, 'DELETE'))}
               />
             ))}
             {events.length === 0 && <EmptyState as="li">No events yet.</EmptyState>}

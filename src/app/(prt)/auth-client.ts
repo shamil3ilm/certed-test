@@ -72,6 +72,18 @@ export async function signInWithPasswordClient(email: string, password: string):
   )
 
   if (error) {
+    // The message shown to the USER stays deliberately generic: naming the cause ("no
+    // such account", "this account is suspended") would let anyone probe which emails
+    // exist, the same reason /register answers every rejection identically.
+    //
+    // But discarding the cause entirely is what made a suspended or never-registered
+    // account indistinguishable from a typo - both read as "you forgot your password",
+    // with nothing recorded anywhere to say otherwise. Record the real reason (status +
+    // code, e.g. 400 invalid_credentials vs 403 user_banned) so a lockout is diagnosable
+    // without weakening what the login form discloses.
+    const { status, message } = error
+    const code = (error as { code?: string }).code
+    console.error('[auth] sign-in refused:', [status, code, message].filter(Boolean).join(' - '))
     throw new Error(INVALID_CREDENTIALS_MESSAGE)
   }
 }

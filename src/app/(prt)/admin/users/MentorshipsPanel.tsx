@@ -24,7 +24,7 @@ export function MentorshipsPanel({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-600">
         A mentor looks after a student across all subjects - like a class tutor, but separate from who teaches their
         classes. A mentor may be a dedicated mentor account or a tutor who also mentors.
       </p>
@@ -37,7 +37,7 @@ export function MentorshipsPanel({
                 <Avatar name={s.full_name ?? s.email} role="student" />
                 <div className="min-w-0">
                   <p className="truncate font-medium text-slate-900">{s.full_name ?? s.email}</p>
-                  <p className="truncate text-xs text-slate-400">
+                  <p className="truncate text-xs text-slate-600">
                     {s.email}
                     {s.class_level ? ` - ${s.class_level}` : ''}
                   </p>
@@ -67,7 +67,7 @@ export function MentorshipsPanel({
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Mentors</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Mentors</span>
               {links.map((l) => (
                 <span
                   key={l.id}
@@ -80,8 +80,9 @@ export function MentorshipsPanel({
                       <ConfirmSubmit
                         className="grid h-6 w-6 -my-1 place-items-center rounded-full text-red-500 hover:bg-red-50 hover:text-red-700"
                         title="Remove mentor?"
-                        message="The mentor will lose access to this student."
+                        message={`${data.mentorNames.get(l.mentor_id) ?? 'This mentor'} will lose access to this student.`}
                         confirmLabel="Remove"
+                        pendingLabel="..."
                         aria-label={`Remove mentor ${data.mentorNames.get(l.mentor_id) ?? ''}`.trim()}
                       >
                         x
@@ -90,7 +91,7 @@ export function MentorshipsPanel({
                   )}
                 </span>
               ))}
-              {links.length === 0 && <span className="text-xs italic text-slate-400">No mentor assigned yet</span>}
+              {links.length === 0 && <span className="text-xs italic text-slate-600">No mentor assigned yet</span>}
             </div>
           </Card>
         )

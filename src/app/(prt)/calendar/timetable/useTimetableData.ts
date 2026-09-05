@@ -66,7 +66,9 @@ export function useTimetableData() {
   )
 
   /** Wraps a destructive write in a confirmation. Returns a handler, so a row
-   *  can hand it straight to onClick. */
+   *  can hand it straight to onClick. `what` should IDENTIFY the record, not just
+   *  its type ("slot for Physics", not "slot") - the modal covers the list, so a
+   *  bare noun leaves nothing on screen saying which row is about to go. */
   const confirmDelete = useCallback(
     (what: string, fn: () => Promise<unknown>) => async () => {
       const confirmed = await confirm({

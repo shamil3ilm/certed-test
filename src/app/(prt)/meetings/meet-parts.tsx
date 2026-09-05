@@ -46,7 +46,7 @@ export function MeetCard({
   async function handleDelete() {
     const confirmed = await confirm({
       title: 'Remove this meeting link?',
-      message: "It's hidden from the class but kept on record.",
+      message: `"${link.title}" is hidden from the class but kept on record.`,
       confirmLabel: 'Remove',
       variant: 'warning',
     })
@@ -96,18 +96,18 @@ export function MeetCard({
               ended ? (
                 <Badge tone="danger">Ended</Badge>
               ) : (
-                <span className="text-xs font-medium text-slate-500">
+                <span className="text-xs font-medium text-slate-600">
                   Starts <LocalTime iso={link.scheduled_at} />
                 </span>
               )
             ) : (
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-600">
                 Posted <LocalTime iso={link.created_at} mode="date" />
               </span>
             )}
           </div>
           <h3 className="mt-2 break-words text-base font-bold text-slate-900">{link.title}</h3>
-          {link.description && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{link.description}</p>}
+          {link.description && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{link.description}</p>}
         </div>
 
         {canManage && !editing && (
@@ -116,7 +116,7 @@ export function MeetCard({
               type="button"
               onClick={() => setEditing(true)}
               aria-label={`Edit meeting link ${link.title}`}
-              className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-primary/5 hover:text-primary"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-primary/5 hover:text-primary"
             >
               Edit
             </button>
@@ -125,7 +125,7 @@ export function MeetCard({
               onClick={handleDelete}
               disabled={isDeleting}
               aria-label={`Remove meeting link ${link.title}`}
-              className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              className="grid h-8 w-8 place-items-center rounded-lg text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
               title="Delete link"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -166,7 +166,7 @@ export function MeetCard({
             aria-label="Meeting description"
             className={inputClass}
           />
-          <label className="block text-xs font-medium text-slate-500">
+          <label className="block text-xs font-medium text-slate-600">
             Scheduled time (optional)
             <input
               name="scheduled_at"
@@ -187,9 +187,9 @@ export function MeetCard({
       ) : (
         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
           {ended ? (
-            <span className="text-sm text-slate-400">This session has ended.</span>
+            <span className="text-sm text-slate-600">This session has ended.</span>
           ) : !safeExternalHref(link.url) ? (
-            <span className="text-sm text-slate-400">Meeting link unavailable.</span>
+            <span className="text-sm text-slate-600">Meeting link unavailable.</span>
           ) : (
             <a
               href={safeExternalHref(link.url) ?? undefined}

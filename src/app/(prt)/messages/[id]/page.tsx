@@ -61,6 +61,7 @@ export default async function ThreadPage(props: {
                 title="Leave conversation?"
                 message="It disappears from your inbox and you can no longer read or reply. Others keep the thread."
                 confirmLabel="Leave"
+                pendingLabel="Leaving..."
               >
                 Leave
               </ConfirmSubmit>
@@ -73,7 +74,7 @@ export default async function ThreadPage(props: {
         <Card className="mt-4 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="warning">Group conversation</Badge>
-            <span className="text-xs text-slate-400">Everyone here can read new replies.</span>
+            <span className="text-xs text-slate-600">Everyone here can read new replies.</span>
           </div>
           <RenameGroupForm conversationId={params.id} initialTitle={data.conversation.title ?? data.title} />
           <div className="mt-3 flex flex-wrap gap-2">
@@ -130,7 +131,7 @@ export default async function ThreadPage(props: {
                 }
               >
                 {!mine && (
-                  <p className="mb-0.5 text-xs font-semibold text-slate-500">
+                  <p className="mb-0.5 text-xs font-semibold text-slate-600">
                     {m.sender_id ? (nameById.get(m.sender_id) ?? 'Unknown') : 'Unknown'}
                   </p>
                 )}
@@ -147,7 +148,7 @@ export default async function ThreadPage(props: {
       {data.isLatestWindow ? (
         <MessageComposer conversationId={params.id} />
       ) : (
-        <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-500">
+        <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-600">
           You&apos;re viewing earlier messages.{' '}
           <Link href={`/messages/${params.id}`} className="font-medium text-primary hover:underline">
             Jump to latest
@@ -160,5 +161,5 @@ export default async function ThreadPage(props: {
 }
 
 function cxTime(mine: boolean): string {
-  return mine ? 'mt-0.5 text-right text-meta text-white/70' : 'mt-0.5 text-right text-meta text-slate-400'
+  return mine ? 'mt-0.5 text-right text-meta text-white/70' : 'mt-0.5 text-right text-meta text-slate-600'
 }

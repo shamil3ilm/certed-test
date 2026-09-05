@@ -32,8 +32,8 @@ export function VersionHistory({
           >
             <span className="font-semibold text-slate-700">v{version.version_no}</span>
             <span className="min-w-0 flex-1 truncate text-slate-600">{version.title}</span>
-            {version.note && <span className="shrink-0 text-slate-400">{version.note}</span>}
-            <span className="shrink-0 text-slate-400">
+            {version.note && <span className="shrink-0 text-slate-600">{version.note}</span>}
+            <span className="shrink-0 text-slate-600">
               <LocalTime iso={version.created_at} mode="date" />
             </span>
             {version.drive_link && (
@@ -49,8 +49,11 @@ export function VersionHistory({
                 <ConfirmSubmit
                   className="btn btn-sm btn-soft"
                   title={`Restore v${version.version_no}?`}
-                  message="This becomes the live document; the current version is kept in history."
+                  message={`v${version.version_no} becomes the live document; the current version is kept in history.`}
                   confirmLabel="Restore"
+                  pendingLabel="Restoring..."
+                  variant="primary"
+                  aria-label={`Restore version ${version.version_no}`}
                 >
                   Restore
                 </ConfirmSubmit>

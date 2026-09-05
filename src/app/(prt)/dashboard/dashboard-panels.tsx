@@ -28,11 +28,11 @@ export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   return (
     <DashboardSection>
       <Panel title="Mentee roster">
-        <p className="mb-3 text-sm text-slate-500">
+        <p className="mb-3 text-sm text-slate-600">
           Students you look after across subjects. Open one to review their overall progress.
         </p>
         {mentees.length === 0 ? (
-          <p className="text-sm text-slate-400">No mentees assigned yet - an admin will assign them.</p>
+          <p className="text-sm text-slate-600">No mentees assigned yet - an admin will assign them.</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {mentees.map((mentee) => (
@@ -104,7 +104,7 @@ export function SubAdminOverview({
       <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 p-5">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-800">User management</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-600">
             {canManageUsers && canManageMentorships
               ? 'Add, edit or revoke students and tutors, and assign mentors.'
               : canManageUsers
@@ -180,7 +180,7 @@ export function AdminOverview({ data, me }: { data: AdminDashboardViewData; me: 
       </StatGrid>
       <DashboardSection>
         <Suspense fallback={<WidgetSkeleton />}>
-          <AdminAnalyticsStats pendingAccess={data.peopleCounts?.pending ?? 0} />
+          <AdminAnalyticsStats pendingAccess={data.peopleCounts?.pending ?? 0} me={me} />
         </Suspense>
       </DashboardSection>
       <DashboardSection className="grid gap-4 lg:grid-cols-3">
@@ -202,13 +202,13 @@ export function CapabilityNotice({ message }: { message: string }) {
   return (
     <Card className="mt-6 p-5">
       <h2 className="text-sm font-semibold text-slate-800">Dashboard access is limited</h2>
-      <p className="mt-1 text-sm text-slate-500">{message}</p>
+      <p className="mt-1 text-sm text-slate-600">{message}</p>
     </Card>
   )
 }
 
 function Upcoming({ events }: { events: CalendarEvent[] }) {
-  if (events.length === 0) return <p className="text-sm text-slate-400">Nothing scheduled.</p>
+  if (events.length === 0) return <p className="text-sm text-slate-600">Nothing scheduled.</p>
 
   return (
     <ul className="space-y-1 text-sm">

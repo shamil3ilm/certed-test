@@ -65,7 +65,7 @@ function DocumentCard({
             {doc.visibility === 'staff' && data.canManage && <Badge tone="warning">Staff only</Badge>}
           </div>
           {doc.description && <p className="mt-1.5 text-sm text-slate-600">{doc.description}</p>}
-          <p className="mt-1.5 text-xs text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-600">
             <LocalTime iso={doc.created_at} mode="date" /> - {doc.download_count} download
             {doc.download_count === 1 ? '' : 's'}
           </p>
@@ -102,8 +102,10 @@ function DocumentCard({
             <ConfirmSubmit
               className="btn btn-sm btn-danger"
               title="Remove this document?"
-              message="It's hidden from the class but kept on record."
+              message={`"${doc.title}" is hidden from the class but kept on record.`}
               confirmLabel="Remove"
+              pendingLabel="Removing..."
+              aria-label={`Remove document ${doc.title}`}
             >
               Remove
             </ConfirmSubmit>
@@ -169,10 +171,10 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
             <div key={category} className="space-y-2">
               <h3 className="text-sm font-semibold text-slate-700">
                 {documentCategoryLabel(category)}{' '}
-                <span className="text-xs font-normal text-slate-400">({views.length})</span>
+                <span className="text-xs font-normal text-slate-600">({views.length})</span>
               </h3>
               {views.length === 0 ? (
-                <p className="text-sm text-slate-400">No materials in this category.</p>
+                <p className="text-sm text-slate-600">No materials in this category.</p>
               ) : (
                 <ul className="space-y-3">
                   {views.map((view) => (
@@ -193,7 +195,7 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
             key: doc.id,
             label: (
               <>
-                {doc.title} <span className="text-slate-400">({documentCategoryLabel(doc.category)})</span>
+                {doc.title} <span className="text-slate-600">({documentCategoryLabel(doc.category)})</span>
               </>
             ),
             action: (

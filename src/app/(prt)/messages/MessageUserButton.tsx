@@ -13,10 +13,13 @@ export function MessageUserButton({
   recipientId,
   className,
   children = 'Message',
+  'aria-label': ariaLabel,
 }: {
   recipientId: string
   className?: string
   children?: ReactNode
+  /** Names the recipient, for one of these repeated per row in a people list. */
+  'aria-label'?: string
 }) {
   const router = useRouter()
   const { toast } = useUI()
@@ -39,7 +42,13 @@ export function MessageUserButton({
   }
 
   return (
-    <button type="button" onClick={onClick} disabled={busy} className={cx('btn', className || 'btn-soft')}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      aria-label={ariaLabel}
+      className={cx('btn', className || 'btn-soft')}
+    >
       {busy ? 'Opening...' : children}
     </button>
   )

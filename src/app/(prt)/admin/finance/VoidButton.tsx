@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { requestJson } from '../../api-client'
 import { useUI } from '../../Providers'
 
-export function VoidButton({ endpoint }: { endpoint: string }) {
+/** `documentLabel` names the row (e.g. "INV-014 - Priya Nair"): voiding cannot be
+ *  undone, and every row's button reads the same "Void" until the modal says which. */
+export function VoidButton({ endpoint, documentLabel }: { endpoint: string; documentLabel: string }) {
   const router = useRouter()
   const { confirm, toast } = useUI()
   const [busy, setBusy] = useState(false)
@@ -14,7 +16,7 @@ export function VoidButton({ endpoint }: { endpoint: string }) {
   async function onClick() {
     const confirmed = await confirm({
       title: 'Void this document?',
-      message: "It stays on record and can't be undone. To correct it, issue a new document with the right details.",
+      message: `${documentLabel} stays on record and can't be undone. To correct it, issue a new document with the right details.`,
       confirmLabel: 'Void',
       variant: 'danger',
     })
@@ -36,8 +38,14 @@ export function VoidButton({ endpoint }: { endpoint: string }) {
   }
 
   return (
-    <button type="button" disabled={busy} onClick={onClick} className="btn btn-sm btn-danger">
-      Void
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onClick}
+      className="btn btn-sm btn-danger"
+      aria-label={`Void ${documentLabel}`}
+    >
+      {busy ? 'Voiding...' : 'Void'}
     </button>
   )
 }

@@ -24,8 +24,8 @@ import { usersUrl } from '@/lib/services/page-data/admin-users'
 /** Admin: academy content totals. Students / tutors / classes / revenue are
  *  already the interactive cards in AdminOverview, so this row adds only the
  *  library + activity figures below them. */
-export async function AdminAnalyticsStats({ pendingAccess }: { pendingAccess: number }) {
-  const { announcements, documentDownloads } = await getAdminAnalytics()
+export async function AdminAnalyticsStats({ pendingAccess, me }: { pendingAccess: number; me: Profile }) {
+  const { announcements, documentDownloads } = await getAdminAnalytics(me)
   return (
     <StatGrid cols={3}>
       <StatCard
@@ -55,8 +55,11 @@ export async function TutorAnalyticsStats({ me }: { me: Profile }) {
   const gradingHref = classIds.length === 1 ? `/classroom/${classIds[0]}/grading` : '/classroom'
   return (
     <StatGrid cols={4}>
+      {/* Sitting beside "This month", a bare "Teaching hours" reads as the monthly figure
+          too - say ALL TIME so the pair is unambiguous (and so a 0.0h month, normal on the
+          1st, is not mistaken for "no hours ever"). */}
       <StatCard
-        label="Teaching hours"
+        label="Teaching hours (all time)"
         value={teachingHours}
         tone="primary"
         sub={`${sessionsHeld} session${sessionsHeld === 1 ? '' : 's'} held`}

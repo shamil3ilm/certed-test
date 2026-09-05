@@ -84,11 +84,16 @@ export function StatModalCard({
           tone === 'primary' ? 'border-primary/20 bg-primary/5' : 'border-slate-200 bg-white'
         }`}
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</p>
         <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-slate-400">{sub ?? ' '}</span>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+        {/* A long `sub` (e.g. the finance tile's "X in - Y out") wraps INSIDE its own
+            column while "View details" sits beside it, so the two read as one interleaved
+            string ("...Y View / out details"). Keep the link on one line and let the sub
+            wrap in its own column: align to the top, let the sub shrink (min-w-0), and stop
+            the link shrinking or wrapping. */}
+        <div className="mt-2 flex items-start justify-between gap-2">
+          <span className="min-w-0 text-xs text-slate-600">{sub ?? ' '}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-primary">
             View details
             <svg
               className="h-3.5 w-3.5 transition group-hover:translate-x-0.5"
@@ -108,18 +113,18 @@ export function StatModalCard({
         onClose={() => setOpen(false)}
         title={
           <>
-            {title} {!isPending && <span className="text-slate-400">({count})</span>}
+            {title} {!isPending && <span className="text-slate-600">({count})</span>}
           </>
         }
       >
-        {showLoading && <p className="py-6 text-center text-sm text-slate-400">Loading...</p>}
+        {showLoading && <p className="py-6 text-center text-sm text-slate-600">Loading...</p>}
         {showError && <p className="py-6 text-center text-sm text-red-500">Couldn&apos;t load this - try again.</p>}
         {!isPending &&
           groups.map((g, gi) => (
             <div key={sectionKey(g, gi)} className="mt-4 first:mt-0">
               {g.heading && (
                 <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{g.heading}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{g.heading}</span>
                   {g.total && <span className="text-sm font-semibold text-slate-700">{g.total}</span>}
                 </div>
               )}
@@ -128,7 +133,7 @@ export function StatModalCard({
                   const row = (
                     <>
                       <span className="min-w-0 truncate text-slate-700">{it.primary}</span>
-                      {it.secondary && <span className="shrink-0 text-xs text-slate-400">{it.secondary}</span>}
+                      {it.secondary && <span className="shrink-0 text-xs text-slate-600">{it.secondary}</span>}
                     </>
                   )
                   return (
@@ -150,7 +155,7 @@ export function StatModalCard({
                   )
                 })}
                 {g.items.length === 0 && !g.total && (
-                  <li className="py-3 text-center text-sm text-slate-400">{empty ?? 'Nothing to show.'}</li>
+                  <li className="py-3 text-center text-sm text-slate-600">{empty ?? 'Nothing to show.'}</li>
                 )}
               </ul>
             </div>

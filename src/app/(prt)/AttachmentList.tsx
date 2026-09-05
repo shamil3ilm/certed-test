@@ -1,7 +1,8 @@
 import { cx } from '@/lib/ui'
 
 /** The browser-facing shape of a custodial attachment (no internal Drive ids). */
-export type AttachmentView = { id: string; filename: string; mimeType: string; size: number }
+export type { AttachmentView } from '@/lib/attachments/view'
+import type { AttachmentView } from '@/lib/attachments/view'
 
 const PREVIEWABLE = /^(application\/pdf|image\/(png|jpeg))$/
 
@@ -30,7 +31,7 @@ export function AttachmentList({ attachments, className }: { attachments: Attach
             {attachment.filename}
           </span>
           <span className="flex shrink-0 items-center gap-3 text-xs">
-            <span className="text-slate-400">{formatSize(attachment.size)}</span>
+            <span className="text-slate-600">{formatSize(attachment.size)}</span>
             {PREVIEWABLE.test(attachment.mimeType) && (
               <a
                 href={`/api/attachments/${attachment.id}/download?inline=1`}

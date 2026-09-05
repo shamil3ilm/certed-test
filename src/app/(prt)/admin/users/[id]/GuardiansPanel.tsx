@@ -2,7 +2,7 @@
 import { Card, EmptyState } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
-import type { GuardianRow } from '@/lib/data/guardians'
+import type { GuardianRow } from '@/lib/services/guardians'
 import { addGuardianAction, makeGuardianPrimaryAction, removeGuardianAction } from './guardian-actions'
 
 /**
@@ -15,7 +15,7 @@ export function GuardiansPanel({ studentId, guardians }: { studentId: string; gu
   return (
     <Card className="p-4">
       <h2 className="text-base font-semibold text-slate-900">Parents &amp; guardians</h2>
-      <p className="mt-0.5 text-xs text-slate-400">
+      <p className="mt-0.5 text-xs text-slate-600">
         Used to contact the guardian and to record consent for a student. Add both parents where relevant.
       </p>
 
@@ -32,8 +32,8 @@ export function GuardiansPanel({ studentId, guardians }: { studentId: string; gu
                     Primary
                   </span>
                 )}
-                {g.relationship && <span className="ml-2 text-xs text-slate-400">{g.relationship}</span>}
-                <div className="mt-0.5 text-xs text-slate-500">
+                {g.relationship && <span className="ml-2 text-xs text-slate-600">{g.relationship}</span>}
+                <div className="mt-0.5 text-xs text-slate-600">
                   {g.phone || <span className="text-slate-300">no phone</span>}
                   {' · '}
                   {g.email || <span className="text-slate-300">no email</span>}
@@ -55,8 +55,10 @@ export function GuardiansPanel({ studentId, guardians }: { studentId: string; gu
                   <ConfirmSubmit
                     className="btn btn-sm btn-danger"
                     title="Remove this guardian?"
-                    message="Their contact details are deleted from this student's record."
+                    message={`${g.name}'s contact details are deleted from this student's record.`}
                     confirmLabel="Remove"
+                    pendingLabel="Removing..."
+                    aria-label={`Remove guardian ${g.name}`}
                   >
                     Remove
                   </ConfirmSubmit>

@@ -42,8 +42,10 @@ export function SubjectsPanel({
                   <ConfirmSubmit
                     className="btn btn-sm btn-danger"
                     title="Remove this subject?"
-                    message="The class is archived (kept on record) and stops appearing in schedules."
+                    message={`${s.subjectName}: the class is archived (kept on record) and stops appearing in schedules.`}
                     confirmLabel="Remove"
+                    pendingLabel="Removing..."
+                    aria-label={`Remove subject ${s.subjectName}`}
                   >
                     Remove
                   </ConfirmSubmit>
@@ -69,7 +71,7 @@ export function SubjectsPanel({
                           type="submit"
                           aria-label={`Remove ${t.name}`}
                           title={`Remove ${t.name}`}
-                          className="text-slate-400 hover:text-red-600"
+                          className="text-slate-600 hover:text-red-600"
                         >
                           ×
                         </button>

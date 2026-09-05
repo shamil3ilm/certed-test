@@ -2,7 +2,7 @@ import { Card, Badge, roleLabel, statusLabel } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../../../form'
 import { EscapableDetails } from '../../../EscapableDetails'
 import { COMMON_COUNTRIES } from '@/lib/geo/countries'
-import type { ProfileDetails } from '@/lib/data/profiles-directory'
+import type { ProfileDetails } from '@/lib/services/users/directory'
 import { editDetailsAction } from './actions'
 
 function statusTone(status: string): 'success' | 'warning' | 'danger' {
@@ -13,7 +13,7 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null
   return (
     <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
+      <dt className="text-xs text-slate-600">{label}</dt>
       <dd className="text-sm text-slate-800">{value}</dd>
     </div>
   )
@@ -33,7 +33,7 @@ export function DetailsCard({ profile }: { profile: ProfileDetails }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold text-slate-900">{profile.full_name ?? profile.email}</h1>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-slate-600">
             {profile.email} - {roleLabel(profile.role)} - status:{' '}
             <Badge tone={statusTone(profile.status)}>{statusLabel(profile.status)}</Badge>
           </p>
