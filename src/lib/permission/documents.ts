@@ -59,7 +59,12 @@ export function documentRoleFor(flags: PersonaFlags): DocumentRole {
   // A sub_admin manages class content academy-wide (manageClassContent), so it takes the
   // full-control row rather than falling through to 'student'. Ranked above tutor because
   // its authority is academy-wide, not limited to classes it is assigned to teach.
-  if (flags.isSubAdmin) return 'admin'
+  //
+  // isClassAdmin, not the raw persona: it is the SAME sub_admin authority resolved against
+  // admin overrides, so an explicit deny actually removes the academy-wide content rights
+  // instead of leaving them working behind a greyed-out UI (C-09). A sub_admin whose
+  // authority was denied falls through to the tutor/student rows like anyone else.
+  if (flags.isSubAdmin && flags.isClassAdmin) return 'admin'
   if (flags.isTutor) return 'tutor'
   if (flags.isMentor) return 'mentor'
   return 'student'

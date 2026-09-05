@@ -21,14 +21,18 @@ import { teachesClass, teachesClassWrite } from '@/lib/auth/class-scope'
  * there; the mock's teaches_class_write is the same tutor-of-class lookup.)
  */
 export async function canWriteClass(profile: Profile, classId: string | null): Promise<boolean> {
-  const { isAdmin, isSubAdmin } = await loadPersonaFlags(profile.id)
+  const { isAdmin, isSubAdmin, isClassAdmin } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
   if (classId == null) return false
-  // A sub_admin manages classes academy-wide. Keyed on the PERSONA, not the capability,
-  // because 0092's teaches_class_write checks the persona too - gating on a capability
-  // that an override could grant to someone else would make this guard looser than RLS
-  // and turn a permitted-looking write into a raw 500.
-  if (isSubAdmin) return true
+  // A sub_admin manages classes academy-wide. Requires BOTH the persona and the RESOLVED
+  // manageClasses capability:
+  //   - the PERSONA, because 0092's teaches_class_write checks the persona too, so keying
+  //     on the capability alone would let an override grant someone authority RLS denies -
+  //     a permitted-looking write that 500s.
+  //   - the CAPABILITY, because a deny override must actually strip academy-wide class
+  //     authority rather than merely grey out the UI while writes keep working (C-09).
+  // Requiring both can only make this guard TIGHTER than RLS, which fails closed.
+  if (isSubAdmin && isClassAdmin) return true
   return teachesClassWrite(classId)
 }
 

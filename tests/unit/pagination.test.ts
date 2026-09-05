@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 
 describe('parsePageParam', () => {
   it('defaults to 1 for missing / empty / non-numeric input', () => {
@@ -56,5 +56,38 @@ describe('pageSlice', () => {
 
   it('returns the whole set when it fits on one page', () => {
     expect(pageSlice(items, 1, 20)).toEqual(items)
+  })
+})
+
+/**
+ * parsePageParam can only clamp the LOWER bound - it never sees a total. clampPage is
+ * the other half: a stale bookmark or hand-edited `?page=999999` used to render an
+ * empty list with the real total printed beside it, and no way back but editing the URL.
+ */
+describe('clampPage', () => {
+  it('folds an out-of-range page back to the last page that exists', () => {
+    expect(clampPage(999999, 45, 20)).toBe(3)
+    expect(clampPage(4, 45, 20)).toBe(3)
+  })
+
+  it('leaves an in-range page alone', () => {
+    expect(clampPage(1, 45, 20)).toBe(1)
+    expect(clampPage(2, 45, 20)).toBe(2)
+    expect(clampPage(3, 45, 20)).toBe(3)
+  })
+
+  it('never returns below 1, including for a zero or negative request', () => {
+    expect(clampPage(0, 45, 20)).toBe(1)
+    expect(clampPage(-7, 45, 20)).toBe(1)
+  })
+
+  it('an empty result set still has exactly one page', () => {
+    expect(clampPage(1, 0, 20)).toBe(1)
+    expect(clampPage(99, 0, 20)).toBe(1)
+  })
+
+  it('agrees with totalPages at the boundary', () => {
+    expect(clampPage(99, 40, 20)).toBe(totalPages(40, 20))
+    expect(clampPage(99, 41, 20)).toBe(totalPages(41, 20))
   })
 })

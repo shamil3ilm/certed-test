@@ -18,7 +18,7 @@ import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
  * carries its authorization. Used when creating/restoring an account to seed the
  * matching global persona.
  */
-export function roleToPersona(role: Profile['role']): string {
+function roleToPersona(role: Profile['role']): string {
   const mapping: Record<Profile['role'], string> = {
     admin: 'admin',
     sub_admin: 'sub_admin',

@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { getClassMembers } from '@/lib/services/classes'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -209,7 +210,7 @@ describe('gradeSubmission', () => {
   it("rejects a tutor who does not manage the assignment's class, without writing/auditing", async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(gradeSubmission(tutor, { submissionId: 'sub-1', score: 10, feedback: null })).rejects.toBeInstanceOf(
       PermissionError,
     )
@@ -220,7 +221,7 @@ describe('gradeSubmission', () => {
   it('rejects a score above the assignment max_marks', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any) // max_marks: 100
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     await expect(gradeSubmission(tutor, { submissionId: 'sub-1', score: 150, feedback: null })).rejects.toBeInstanceOf(
       ValidationError,
     )
@@ -230,7 +231,7 @@ describe('gradeSubmission', () => {
   it('grades, audits submission.grade, and returns the assignmentId', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'sub-1' }], error: null }) as any)
     const result = await gradeSubmission(tutor, { submissionId: 'sub-1', score: 90, feedback: 'Good' })
     expect(result).toEqual({ assignmentId: 'a-1' })
@@ -245,7 +246,7 @@ describe('gradeSubmission', () => {
   it('clearing a mark (null score) also nulls feedback/graded_at/graded_by - no half-state', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: submissionRow, error: null }) as any)
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     const admin = makeClient({ data: [{ id: 'sub-1' }], error: null })
     vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
     // A crafted request could pair an empty score with feedback text; the cleared
@@ -306,7 +307,7 @@ describe('gradeSubmission action-input helpers', () => {
       makeClient({ data: { ...submissionRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
     vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(
       makeClient({ data: [{ id: '550e8400-e29b-41d4-a716-446655440000' }], error: null }) as any,
     )

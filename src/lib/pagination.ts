@@ -16,6 +16,18 @@ export function totalPages(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / pageSize))
 }
 
+/**
+ * Fold a requested page back inside the range that actually exists.
+ *
+ * parsePageParam can only clamp the LOWER bound - it has no idea how many rows there
+ * are. So a hand-edited or stale `?page=999999` sails through, the query returns an empty
+ * slice, and the user gets a blank list with no rows, no explanation, and no way back
+ * except editing the URL. Showing the last real page is what the reader meant.
+ */
+export function clampPage(page: number, total: number, pageSize: number): number {
+  return Math.min(Math.max(1, page), totalPages(total, pageSize))
+}
+
 /** The slice of `items` shown on `page`. For in-memory pagination of a list a
  *  page already holds in full - e.g. one where the totals/filters need the whole
  *  set (own receipts, class list) - so the rendered list is bounded and the pager

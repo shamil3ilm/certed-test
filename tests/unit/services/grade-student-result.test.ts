@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
@@ -11,7 +12,7 @@ vi.mock('@/lib/data/submissions', () => ({
   updateGrade: vi.fn(),
 }))
 
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { getAssignment } from '@/lib/services/assignments'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
@@ -31,7 +32,7 @@ const examAssignment = {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(getAssignment).mockResolvedValue(examAssignment)
-  vi.mocked(canManageClass).mockResolvedValue(true)
+  vi.mocked(canWriteClass).mockResolvedValue(true)
   vi.mocked(selectActiveStudentIdsByClassIds).mockResolvedValue(['stud-1'])
 })
 
@@ -90,7 +91,7 @@ describe('gradeStudentResult', () => {
   })
 
   it("rejects a tutor who doesn't manage the class, without writing", async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(
       gradeStudentResult(tutor, { assignmentId: 'a-1', studentId: 'stud-1', score: 80, feedback: null }),
     ).rejects.toBeInstanceOf(PermissionError)

@@ -1,5 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
-import { parsePageParam } from '@/lib/pagination'
+import { clampPage, parsePageParam } from '@/lib/pagination'
 import { isAdminTier } from '@/lib/capabilities'
 import { activeTeachingProfileIds, activeMentorProfileIds } from '@/lib/services/class-tutors'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
@@ -214,10 +214,30 @@ export async function loadAdminUsersPageData(
     }),
   ])
 
+  // The page number is only checkable once the count is in. An out-of-range request
+  // (a stale bookmark, a hand-edited URL) would otherwise render an empty list with the
+  // real total beside it - so fall back to the last page that exists. The extra query
+  // runs ONLY in that case, never on a normal request.
+  const requestedPage = filters.page
+  const effectivePage = clampPage(requestedPage, tabTotal, USERS_PAGE_SIZE)
+  const pageProfiles =
+    effectivePage === requestedPage
+      ? tabProfiles
+      : (
+          await listProfilesByRole(rolesToLoad, {
+            page: effectivePage,
+            pageSize: USERS_PAGE_SIZE,
+            search: filters.q,
+            status: filters.status,
+            sortBy: filters.sortBy,
+            sortOrder: filters.sortOrder,
+          })
+        ).items
+
   const mentorProfiles = await getProfilesByIds([...new Set(links.map((l) => l.mentor_id))])
   const mentorNames = new Map([...mentorProfiles].map(([id, p]: [string, ProfileLite]) => [id, displayName(p)]))
   const mentorsByStudent = groupMentorsByStudent(links as UsersHubMentorLink[])
-  const staffIds = tabProfiles.map((profile) => profile.id)
+  const staffIds = pageProfiles.map((profile) => profile.id)
   const [teachingStaffIds, mentoringStaffIds] = await Promise.all([
     activeTeachingProfileIds(staffIds).then((r) => new Set(r)),
     activeMentorProfileIds(staffIds).then((r) => new Set(r)),
@@ -226,10 +246,10 @@ export async function loadAdminUsersPageData(
   return {
     isSuper,
     roleOptions,
-    filters,
+    filters: { ...filters, page: effectivePage },
     stats,
     mentorCandidates,
-    tabProfiles,
+    tabProfiles: pageProfiles,
     tabTotal,
     assignedStudents: new Set(links.map((l) => l.student_id)).size,
     mentorNames,

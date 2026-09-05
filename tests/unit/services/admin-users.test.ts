@@ -68,7 +68,7 @@ describe('loadAdminUsersPageData', () => {
       { id: 'm1', mentor_id: 't1', student_id: 's1' },
       { id: 'm2', mentor_id: 't1', student_id: 's2' },
     ] as any)
-    vi.mocked(listProfilesByRole).mockResolvedValueOnce({
+    const onlyPage = {
       items: [
         {
           id: 's1',
@@ -80,7 +80,9 @@ describe('loadAdminUsersPageData', () => {
         },
       ],
       total: 1,
-    } as any)
+    }
+    // Asked for page 2 of a single-page result: the loader re-reads the last real page.
+    vi.mocked(listProfilesByRole).mockResolvedValue(onlyPage as any)
     vi.mocked(getProfilesByIds).mockResolvedValueOnce(
       new Map([['t1', { id: 't1', full_name: 'Maya Mentor', email: 'maya@test.com', role: 'tutor' }]]) as any,
     )
@@ -96,10 +98,12 @@ describe('loadAdminUsersPageData', () => {
       sortOrder: 'asc',
     })
 
+    // page 2 does not exist for a 1-row result, so the view reports the page it actually
+    // shows - otherwise the pager reads "Page 2" above an empty list.
     expect(result.filters).toEqual({
       tab: 'people',
       role: 'student',
-      page: 2,
+      page: 1,
       q: 'sara',
       status: 'active',
       sortBy: 'name',
@@ -113,6 +117,16 @@ describe('loadAdminUsersPageData', () => {
       sortBy: 'name',
       sortOrder: 'asc',
     })
+    // ...and re-read at the clamped page, so the rows shown are that page's rows.
+    expect(listProfilesByRole).toHaveBeenLastCalledWith('student', {
+      page: 1,
+      pageSize: 20,
+      search: 'sara',
+      status: 'active',
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+    expect(result.tabProfiles).toHaveLength(1)
     expect(result.roleOptions).toEqual(['student', 'tutor', 'mentor', 'sub_admin', 'admin'])
     expect(result.assignedStudents).toBe(2)
     expect(result.mentorNames.get('t1')).toBe('Maya Mentor')

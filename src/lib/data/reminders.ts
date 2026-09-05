@@ -25,13 +25,6 @@ export type ReminderRow = {
   created_at: string
 }
 
-export async function selectReminderOwner(id: string): Promise<string | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('reminders').select('user_id').eq('id', id).maybeSingle()
-  if (error) throw new Error(`reminders.owner: ${error.message}`)
-  return (data as { user_id?: string } | null)?.user_id ?? null
-}
-
 /** Both parties of a reminder: the assignee (user_id) and the creator (created_by).
  *  Equal for a personal reminder. Used to gate assigned-reminder edit/delete/complete. */
 export async function selectReminderParties(id: string): Promise<{ userId: string; createdBy: string } | null> {

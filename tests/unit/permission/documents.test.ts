@@ -10,11 +10,17 @@ import { canWriteClass } from '@/lib/permission/class-write'
 import { canDocument, documentRoleFor } from '@/lib/permission/documents'
 
 const FLAGS = (
-  o: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isMentor' | 'hasMentorAuthority' | 'isStudent', boolean>>,
+  o: Partial<
+    Record<
+      'isAdmin' | 'isSubAdmin' | 'isClassAdmin' | 'isTutor' | 'isMentor' | 'hasMentorAuthority' | 'isStudent',
+      boolean
+    >
+  >,
 ) =>
   ({
     isAdmin: false,
     isSubAdmin: false,
+    isClassAdmin: false,
     isTutor: false,
     isMentor: false,
     hasMentorAuthority: false,
@@ -43,8 +49,11 @@ describe('documentRoleFor - role resolution (mentoring never upgrades a tutor)',
     expect(documentRoleFor(FLAGS({ isStudent: true }))).toBe('student')
     // A sub_admin manages class content academy-wide, so it takes the full-control row
     // rather than falling through to 'student' (which would deny it every write AND hide
-    // staff-only documents from it).
-    expect(documentRoleFor(FLAGS({ isSubAdmin: true }))).toBe('admin')
+    // staff-only documents from it). It needs the RESOLVED capability as well as the
+    // persona, so a deny override genuinely removes the authority (C-09).
+    expect(documentRoleFor(FLAGS({ isSubAdmin: true, isClassAdmin: true }))).toBe('admin')
+    // Denied by an override: falls through rather than keeping academy-wide content rights.
+    expect(documentRoleFor(FLAGS({ isSubAdmin: true, isClassAdmin: false }))).toBe('student')
   })
 })
 

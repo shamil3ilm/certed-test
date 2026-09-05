@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { getAssignment } from '@/lib/services/assignments'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
@@ -68,7 +68,11 @@ export async function gradeSubmission(actor: Profile, input: GradeSubmissionInpu
     throw new ValidationError('This submission was replaced by a newer one - reload to grade the latest.')
   }
   const assignment = await getAssignment(submission.assignment_id)
-  if (!assignment || !(await canManageClass(actor, assignment.class_id))) {
+  // canWriteClass, not canManageClass: the latter admits a MENTOR (pastoral oversight),
+  // but this is a staff WRITE and the table's RLS excludes mentors for this verb. The
+  // write goes through the service-role client, so RLS never runs and this gate is the
+  // only control - a mismatch here is the whole exposure, not a second line of defence (C-08).
+  if (!assignment || !(await canWriteClass(actor, assignment.class_id))) {
     throw new PermissionError('Not allowed to grade this submission.')
   }
   if (input.score != null && assignment.max_marks != null && input.score > Number(assignment.max_marks)) {
@@ -159,7 +163,11 @@ export async function gradeStudentResult(
   input: GradeStudentResultInput,
 ): Promise<{ assignmentId: string }> {
   const assignment = await getAssignment(input.assignmentId)
-  if (!assignment || !(await canManageClass(actor, assignment.class_id))) {
+  // canWriteClass, not canManageClass: the latter admits a MENTOR (pastoral oversight),
+  // but this is a staff WRITE and the table's RLS excludes mentors for this verb. The
+  // write goes through the service-role client, so RLS never runs and this gate is the
+  // only control - a mismatch here is the whole exposure, not a second line of defence (C-08).
+  if (!assignment || !(await canWriteClass(actor, assignment.class_id))) {
     throw new PermissionError('Not allowed to grade this.')
   }
   // Only an actively-enrolled student of THIS class may be marked - never an

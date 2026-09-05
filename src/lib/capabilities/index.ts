@@ -49,6 +49,11 @@ export const REASON_REQUIRED_CAPABILITIES: ReadonlySet<Capability> = new Set<Cap
   'viewUsers',
   'manageUsers',
   'manageMentorships',
+  // Academy-wide: /admin/teaching-hours lists every student's name, classes and hours,
+  // and the same capability confers canManageClass on EVERY class. That is
+  // institution-wide data and class authority, so granting it needs a written,
+  // audited reason like the rest of this set (C-11).
+  'manageClasses',
 ])
 
 const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {

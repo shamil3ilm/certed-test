@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { getProfileById } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -29,7 +30,7 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('enrolStudent', () => {
   it('rejects a caller who cannot manage the class, without touching the DB', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
       PermissionError,
     )
@@ -38,7 +39,7 @@ describe('enrolStudent', () => {
   })
 
   it('rejects a target that is not an active student (crafted POST pairing an arbitrary id)', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'tutor-2', role: 'tutor', status: 'active' } as any)
     await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'tutor-2' })).rejects.toBeInstanceOf(
       ValidationError,
@@ -47,7 +48,7 @@ describe('enrolStudent', () => {
   })
 
   it('enrolls and audits class.enroll for a manager + active student', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
     // One client per data-layer call: class-status read, active-students check, upsert.
     vi.mocked(createAdminClient)
@@ -64,7 +65,7 @@ describe('enrolStudent', () => {
   })
 
   it('rejects a SECOND student - a class is one-to-one', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
@@ -78,7 +79,7 @@ describe('enrolStudent', () => {
   })
 
   it('allows re-enrolling the SAME student (idempotent)', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
@@ -89,7 +90,7 @@ describe('enrolStudent', () => {
   })
 
   it('allows a PENDING student (onboarding before they claim their account)', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'stud-2', role: 'student', status: 'pending' } as any)
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
@@ -100,7 +101,7 @@ describe('enrolStudent', () => {
   })
 
   it('still rejects a DISABLED (revoked) student', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce({ id: 'stud-3', role: 'student', status: 'disabled' } as any)
     await expect(enrolStudent(tutor, { classId: 'class-1', studentId: 'stud-3' })).rejects.toBeInstanceOf(
       ValidationError,
@@ -111,7 +112,7 @@ describe('enrolStudent', () => {
 
 describe('removeStudent', () => {
   it('rejects a caller who cannot manage the class', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
       PermissionError,
     )
@@ -119,7 +120,7 @@ describe('removeStudent', () => {
   })
 
   it('unenrolls and audits class.unenroll for a manager', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'e-1' }], error: null }) as any)
     await removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
@@ -133,7 +134,7 @@ describe('removeStudent', () => {
   it('removing a non-enrolled pair throws NotFound and does not audit (no phantom unenroll)', async () => {
     // The soft-remove matches 0 rows (student was never enrolled here): the data
     // layer fails loud instead of returning success and auditing class.unenroll.
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
     await expect(removeStudent(tutor, { classId: 'class-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
       NotFoundError,
@@ -177,7 +178,7 @@ describe('enrollment action-input helpers', () => {
   })
 
   it('delegates enrol/remove student after validation', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent)
     // One client per data-layer call: class-status read, active-students check, upsert.
     vi.mocked(createAdminClient)
@@ -195,7 +196,7 @@ describe('enrollment action-input helpers', () => {
       entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'e-1' }], error: null }) as any)
     await removeStudentFromActionInput(tutor, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',

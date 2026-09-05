@@ -3,14 +3,8 @@ import type { Profile } from '@/lib/auth/profile'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { parseOrThrow } from '@/lib/validation/parse'
-import { createSubjectSchema, subjectIdSchema } from '@/lib/validation/subject'
-import {
-  insertSubject,
-  selectActiveSubjects,
-  selectSubjectByName,
-  updateSubjectActive,
-  type SubjectRow,
-} from '@/lib/data/subjects'
+import { createSubjectSchema } from '@/lib/validation/subject'
+import { insertSubject, selectActiveSubjects, selectSubjectByName, type SubjectRow } from '@/lib/data/subjects'
 
 /**
  * The academy's subject list. Reads are open to any active user (the pickers);
@@ -49,9 +43,3 @@ export async function createOrReuseSubject(actor: Profile, input: unknown): Prom
 }
 
 /** Hide a subject from future pickers (existing classes keep their subject). */
-export async function deactivateSubject(actor: Profile, input: unknown): Promise<void> {
-  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage subjects.')
-  const id = parseOrThrow(subjectIdSchema, input, 'Invalid subject id')
-  await updateSubjectActive(id, false)
-  await auditPrivilegedAction(actor, 'subject.deactivate', 'subject', id)
-}

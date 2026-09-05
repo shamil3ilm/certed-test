@@ -172,21 +172,6 @@ export function rateFromStatuses(statuses: AttendanceStatus[]): number | null {
   return summary.rate
 }
 
-export function buildComparison<T>(
-  rows: T[],
-  previousRows: T[],
-  selector: (row: T) => number | null,
-): { current: number | null; previous: number | null; delta: number | null } {
-  const current = roundMetric(average(rows.map(selector).filter((value): value is number => value != null)))
-  const previous = roundMetric(average(previousRows.map(selector).filter((value): value is number => value != null)))
-
-  return {
-    current,
-    previous,
-    delta: current == null && previous == null ? null : roundMetric((current ?? 0) - (previous ?? 0)),
-  }
-}
-
 export function sortGradeRows(rows: RawGradeRow[], sort: EvaluationSort): RawGradeRow[] {
   return [...rows].sort((left, right) => {
     if (sort === 'oldest') return left.gradedAt < right.gradedAt ? -1 : 1

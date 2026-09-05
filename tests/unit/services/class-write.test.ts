@@ -20,16 +20,34 @@ describe('canWriteClass - mirrors teaches_class_write (tutor-only WRITE scope)',
   })
 
   it('a sub_admin may write any class, matching 0092 teaches_class_write', async () => {
-    // sub_admin manages classes academy-wide. The guard keys on the PERSONA because the
-    // widened RLS function does too - gating on a capability an override could grant to
-    // someone else would make the app looser than the DB and turn a write into a 500.
-    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: true } as never)
+    // sub_admin manages classes academy-wide. The guard requires the PERSONA (because the
+    // widened RLS function checks it too, so a capability-only gate could be looser than
+    // the DB and turn a write into a 500) AND the resolved capability (so a deny override
+    // actually strips the authority - C-09).
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: true,
+      isClassAdmin: true,
+    } as never)
     expect(await canWriteClass(profile, 'class-sub-admin')).toBe(true)
     expect(teachesClassWrite).not.toHaveBeenCalled()
   })
 
+  it('a sub_admin with a DENY override on manageClasses falls back to the tutor scope (C-09)', async () => {
+    // The override must remove real authority, not merely grey out the UI while the write
+    // still lands. Falling through to teaches_class_write is the fail-closed direction.
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: true,
+      isClassAdmin: false,
+    } as never)
+    vi.mocked(teachesClassWrite).mockResolvedValue(false)
+    expect(await canWriteClass(profile, 'class-sub-admin')).toBe(false)
+    expect(teachesClassWrite).toHaveBeenCalledWith('class-sub-admin')
+  })
+
   it('a sub_admin still cannot make a GLOBAL (null class) write', async () => {
-    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: true } as never)
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: true, isClassAdmin: true } as never)
     expect(await canWriteClass(profile, null)).toBe(false)
   })
 

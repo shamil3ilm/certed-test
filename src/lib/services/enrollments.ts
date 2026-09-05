@@ -6,7 +6,7 @@ import {
   upsertEnrollment,
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
-import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { getProfileById, getProfileNamesByIds } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
@@ -49,7 +49,11 @@ export function validateEnrollmentParams(input: EnrollmentActionInput): Enrollme
  * enrolling them.
  */
 export async function enrolStudent(actor: Profile, params: EnrollmentParams): Promise<void> {
-  if (!(await canManageClass(actor, params.classId))) {
+  // canWriteClass, not canManageClass: the latter admits a MENTOR (pastoral oversight),
+  // but this is a staff WRITE and the table's RLS excludes mentors for this verb. The
+  // write goes through the service-role client, so RLS never runs and this gate is the
+  // only control - a mismatch here is the whole exposure, not a second line of defence (C-08).
+  if (!(await canWriteClass(actor, params.classId))) {
     throw new PermissionError('Not authorized for this class.')
   }
   const student = await getProfileById(params.studentId)
@@ -82,7 +86,11 @@ export async function enrolStudentFromActionInput(actor: Profile, input: Enrollm
 
 /** Soft-remove (scoped by class + student) - keeps the row for later re-enrol. */
 export async function removeStudent(actor: Profile, params: EnrollmentParams): Promise<void> {
-  if (!(await canManageClass(actor, params.classId))) {
+  // canWriteClass, not canManageClass: the latter admits a MENTOR (pastoral oversight),
+  // but this is a staff WRITE and the table's RLS excludes mentors for this verb. The
+  // write goes through the service-role client, so RLS never runs and this gate is the
+  // only control - a mismatch here is the whole exposure, not a second line of defence (C-08).
+  if (!(await canWriteClass(actor, params.classId))) {
     throw new PermissionError('Not authorized for this class.')
   }
   await deactivateEnrollment(params.classId, params.studentId)

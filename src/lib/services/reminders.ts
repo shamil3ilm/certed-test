@@ -3,7 +3,6 @@ import {
   insertAssignedReminder,
   insertReminder,
   markSent,
-  selectAssignedByCreator,
   selectReminderParties,
   selectPendingForUser,
   selectSentForUser,
@@ -20,10 +19,6 @@ import { throttleWrite } from '@/lib/security/throttle'
 export type Reminder = ReminderRow
 
 /** True when the reminder was assigned by someone other than its owner. */
-export function isAssignedReminder(r: Reminder): boolean {
-  return r.created_by !== r.user_id
-}
-
 type CreateReminderActionInput = {
   title?: FormDataEntryValue | null
   description?: FormDataEntryValue | null
@@ -79,7 +74,7 @@ export async function createReminderFromActionInput(
   return createReminder(userId, parsed.title, parsed.description ?? null, parsed.remind_at)
 }
 
-export function validateEditReminderInput(input: EditReminderActionInput) {
+function validateEditReminderInput(input: EditReminderActionInput) {
   const parsed = editReminderSchema.safeParse({
     id: input.id,
     title: input.title,
@@ -180,6 +175,3 @@ export async function assignReminderFromActionInput(actor: Profile, input: Assig
 }
 
 /** Reminders the actor has assigned to students (their management list). */
-export async function listRemindersIAssigned(actorId: string): Promise<Reminder[]> {
-  return selectAssignedByCreator(actorId)
-}

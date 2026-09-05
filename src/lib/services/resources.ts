@@ -17,7 +17,6 @@ import {
 import {
   insertVersion,
   selectVersionByIdAsService,
-  selectVersionsForResource,
   selectVersionsForResources,
   type ResourceVersionRow,
 } from '@/lib/data/resource-versions'
@@ -294,7 +293,7 @@ const createCustodialDocumentSchema = z.object({
   visibility: visibilityField,
 })
 
-export function validateCreateCustodialDocumentInput(input: DocumentActionInput): CreateCustodialDocumentInput {
+function validateCreateCustodialDocumentInput(input: DocumentActionInput): CreateCustodialDocumentInput {
   const parsed = createCustodialDocumentSchema.safeParse({
     class_id: input.classId,
     title: input.title,
@@ -312,7 +311,7 @@ export function validateCreateCustodialDocumentInput(input: DocumentActionInput)
 
 /** Create a custodial document row (no Drive link) and return it, so the caller can
  *  attach the uploaded file to it. Same RBAC/scope/active/audit as createDocument. */
-export async function createCustodialDocument(actor: Profile, input: CreateCustodialDocumentInput): Promise<Document> {
+async function createCustodialDocument(actor: Profile, input: CreateCustodialDocumentInput): Promise<Document> {
   throttleWrite('resource', actor.id, 'document')
   await assertCanDocument(actor, 'upload', { class_id: input.class_id, visibility: input.visibility })
   await assertClassActive(input.class_id)
@@ -378,7 +377,7 @@ export async function editDocumentFromActionInput(actor: Profile, input: Documen
  * of its caller: the upload is already committed, so a history/audit hiccup must never
  * fail the request.
  */
-export async function recordResourceAttachmentReplacement(actor: Profile, resourceId: string): Promise<void> {
+async function recordResourceAttachmentReplacement(actor: Profile, resourceId: string): Promise<void> {
   const doc = await getResource(resourceId)
   if (!doc) return
   await snapshotDocument(doc, 'File replaced')
@@ -463,13 +462,6 @@ export async function listVersionsForDocuments(resourceIds: string[]): Promise<M
 
 /** A document's version history, newest first. canDocument('view', doc) - anyone
  *  who may read the document may read its history (RLS enforces this too). */
-export async function listDocumentVersions(actor: Profile, resourceId: string): Promise<DocumentVersion[]> {
-  const doc = await getResource(resourceId)
-  if (!doc) throw new NotFoundError('Document not found')
-  await assertCanDocument(actor, 'view', doc)
-  return selectVersionsForResource(resourceId)
-}
-
 /**
  * Restore a superseded version as the live document. Snapshots the CURRENT state
  * first (so restoring is itself reversible and nothing is lost), then applies the

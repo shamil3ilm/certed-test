@@ -7,8 +7,7 @@ import { selectSubjectById } from '@/lib/data/subjects'
 import { createClass, archiveClass } from '@/lib/services/classes/lifecycle'
 import { enrolStudent } from '@/lib/services/enrollments'
 import { addTutor } from '@/lib/services/class-tutors'
-import { parseOrThrow } from '@/lib/validation/parse'
-import { addSubjectSchema, type AddSubjectInput } from '@/lib/validation/class-subject'
+import type { AddSubjectInput } from '@/lib/validation/class-subject'
 import { ValidationError } from '@/lib/errors'
 
 /**
@@ -21,21 +20,6 @@ import { ValidationError } from '@/lib/errors'
  * Admin/sub-admin only (manageClasses) - all class/subject assignment lives with the
  * user managers, per the product decision.
  */
-
-type AddSubjectActionInput = {
-  student_id?: FormDataEntryValue | null
-  subject_id?: FormDataEntryValue | null
-  tutor_id?: FormDataEntryValue | null
-}
-
-export function validateAddSubjectInput(input: AddSubjectActionInput): AddSubjectInput {
-  const tutorId = String(input.tutor_id ?? '').trim()
-  return parseOrThrow(addSubjectSchema, {
-    studentId: String(input.student_id ?? ''),
-    subjectId: String(input.subject_id ?? ''),
-    tutorId: tutorId || undefined,
-  })
-}
 
 export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput): Promise<ClassRow> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to assign subjects.')
@@ -66,11 +50,4 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
     throw error
   }
   return created
-}
-
-export async function addSubjectToStudentFromActionInput(
-  actor: Profile,
-  input: AddSubjectActionInput,
-): Promise<ClassRow> {
-  return addSubjectToStudent(actor, validateAddSubjectInput(input))
 }
