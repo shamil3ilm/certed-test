@@ -41,7 +41,7 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                 <Avatar name={entry.studentName} role="student" />
                 <div>
                   <p className="font-medium text-slate-900">{entry.studentName}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-600">
                     {entry.submission?.score != null
                       ? `Marked${data.assignment.max_marks != null ? ` - ${Number(entry.submission.score)}/${Number(data.assignment.max_marks)}` : ''}`
                       : 'Not yet marked'}
@@ -72,12 +72,22 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                   <p className="font-medium text-slate-900">
                     {data.names.get(submission.student_id) ?? submission.student_id}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-600">
                     Submitted <LocalTime iso={submission.submitted_at} />
                     {' - '}
                     <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
                       {statusLabel(submission.status)}
                     </Badge>
+                    {/* The delivery status (on time / late) does not change when a mark is
+                        recorded, so on its own it leaves a graded submission still reading
+                        "Submitted". Add the marking state alongside it - keeping the late
+                        signal, which stays relevant after grading. */}
+                    {submission.score != null && submission.graded_at != null && (
+                      <>
+                        {' '}
+                        <Badge tone="primary">Graded</Badge>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -103,14 +113,14 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
 
             {(data.historyByStudent.get(submission.student_id)?.length ?? 0) > 0 && (
               <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-xs">
-                <summary className="cursor-pointer font-medium text-slate-500">
+                <summary className="cursor-pointer font-medium text-slate-600">
                   {data.historyByStudent.get(submission.student_id)!.length} previous version
                   {data.historyByStudent.get(submission.student_id)!.length > 1 ? 's' : ''} (replaced)
                 </summary>
                 <ul className="mt-2 space-y-1">
                   {data.historyByStudent.get(submission.student_id)!.map((prior) => (
                     <li key={prior.id} className="flex items-center justify-between gap-2">
-                      <span className="text-slate-400">
+                      <span className="text-slate-600">
                         Submitted <LocalTime iso={prior.submitted_at} /> - {statusLabel(prior.status)}
                       </span>
                       {safeExternalHref(prior.drive_link) && (

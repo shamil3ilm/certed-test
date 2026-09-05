@@ -26,7 +26,10 @@ function hasAllowedPersona(allowed: Profile['role'][], personas: Array<{ persona
 export async function requireRole(allowed: Profile['role'][]): Promise<Profile> {
   const actor = await getActorContext()
   if (!actor.profile || actor.accessState !== 'active') redirectForAccessState(actor)
-  if (!hasAllowedPersona(allowed, actor.personas)) redirect('/dashboard')
+  // Flag WHY, exactly as requireCapability does: a persona-gated page (e.g. Organization
+  // settings) otherwise bounces to the dashboard with no explanation at all, which reads as
+  // a broken link rather than a permission boundary.
+  if (!hasAllowedPersona(allowed, actor.personas)) redirect('/dashboard?denied=1')
   return actor.profile
 }
 

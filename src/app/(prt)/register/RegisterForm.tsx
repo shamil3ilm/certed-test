@@ -88,11 +88,11 @@ export function RegisterForm() {
         />
         <span>
           If the account holder is under 18, I confirm a parent or guardian has read and agrees to the{' '}
-          <a href="/terms" className="text-primary hover:underline">
+          <a href="/terms" className="text-primary underline hover:no-underline">
             Terms of Use
           </a>{' '}
           and{' '}
-          <a href="/privacy" className="text-primary hover:underline">
+          <a href="/privacy" className="text-primary underline hover:no-underline">
             Privacy Policy
           </a>{' '}
           on their behalf.
