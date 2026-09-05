@@ -22,23 +22,50 @@ set -euo pipefail
 OUT="supabase/rebuild/0000_full_rebuild.sql"
 TMP="$(mktemp)"
 EPI="$(mktemp)"
-trap 'rm -f "$TMP" "$EPI"' EXIT
+# The new snapshot is assembled in BUILD and only moved over OUT once it has been
+# verified below. Writing OUT directly (as this script used to) meant a run that failed
+# its checks still left the broken file on disk - strictly worse than the committed
+# snapshot it replaced, and silently committed by anyone who did not read stderr.
+BUILD="$(mktemp)"
+trap 'rm -f "$TMP" "$EPI" "$BUILD"' EXIT
 
-if ! command -v supabase >/dev/null 2>&1; then
-  echo "Error: the Supabase CLI is not on PATH. Install it, then re-run." >&2
-  exit 1
+# TWO WAYS TO PRODUCE THE DUMP.
+#
+# 1. SNAPSHOT_DB_URL - dump straight from a fully-migrated database with the local pg_dump.
+#    Use this when Docker is unavailable: `supabase db dump` shells out to pg_dump INSIDE A
+#    CONTAINER, so it needs Docker even with its own --db-url, while pg_dump against a plain
+#    Postgres needs nothing. The flags below are the equivalent of what the CLI runs, and the
+#    verification block further down proves the artifact either way.
+#    pg_dump must MATCH THE SERVER MAJOR VERSION, or it refuses (and a mismatch would in any
+#    case churn the diff with unrelated formatting changes).
+#      SNAPSHOT_DB_URL=postgresql://postgres@127.0.0.1:5432/certed_scratch bash scripts/rebuild-snapshot.sh
+#
+# 2. The Supabase CLI against the linked/local project (the original path).
+if [ -n "${SNAPSHOT_DB_URL:-}" ]; then
+  if ! command -v pg_dump >/dev/null 2>&1; then
+    echo "Error: SNAPSHOT_DB_URL is set but pg_dump is not on PATH." >&2
+    exit 1
+  fi
+  echo "Dumping the public schema from SNAPSHOT_DB_URL with $(pg_dump --version)..."
+  # Schema only (roles + data excluded) - this is a provisioning snapshot, not a backup.
+  # --no-owner: the snapshot must apply as whatever role provisions it.
+  pg_dump --dbname="$SNAPSHOT_DB_URL" --schema=public --schema-only --no-owner -f "$TMP"
+else
+  if ! command -v supabase >/dev/null 2>&1; then
+    echo "Error: the Supabase CLI is not on PATH (and SNAPSHOT_DB_URL is unset)." >&2
+    echo "Either install it, or point SNAPSHOT_DB_URL at a fully-migrated database." >&2
+    exit 1
+  fi
+  echo "Dumping the public schema from the linked database..."
+  supabase db dump --schema public -f "$TMP"
 fi
-
-echo "Dumping the public schema from the linked database..."
-# Schema only (roles + data excluded) - this is a provisioning snapshot, not a backup.
-supabase db dump --schema public -f "$TMP"
 
 # Highest migration this snapshot reflects. Emitted as a machine-readable
 # 0001..NNNN marker in the header so a freshness check (CI) can compare it to the
 # migration chain and flag a stale snapshot. Keep the marker's format stable.
 LATEST="$(ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/_.*//' | sort | tail -1)"
 
-# Table privilege epilogue (R-01). A schema-only dump keeps each table's column GRANTs
+# Table + FUNCTION privilege epilogue (R-01 / C-01). A schema-only dump keeps each table's column GRANTs
 # but DROPS the migration chain's table-wide REVOKEs of Supabase's default grants (they
 # were no-ops in the migrated-only dump source). Re-emit them - see the comment block
 # below for why order and qualification are both load-bearing. This is injected BEFORE
@@ -67,10 +94,13 @@ cat >"$EPI" <<'EPILOGUE'
 -- ============================================================================
 REVOKE INSERT, UPDATE ON TABLE public.submissions FROM authenticated;
 REVOKE SELECT ON TABLE public.class_sessions FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.class_sessions FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.attendance FROM anon, authenticated;
 REVOKE UPDATE ON TABLE public.notifications FROM anon, authenticated;
 REVOKE UPDATE ON TABLE public.profiles FROM authenticated;
 REVOKE ALL ON TABLE public.reminders FROM authenticated;
 REVOKE ALL ON TABLE public.billing_rates FROM anon, authenticated;
+
 
 EPILOGUE
 
@@ -93,8 +123,16 @@ HEADER
   # Splice the epilogue in immediately before the first ACL entry (pg_dump marks the
   # section with "; Type: ACL;"). One-line lookahead so it lands before that block's
   # opening "--" comment rather than inside it.
-  awk -v epifile="$EPI" '
-    BEGIN { while ((getline l < epifile) > 0) epi = epi l "\n" }
+  EPI_TEXT="$(cat "$EPI")" awk '
+    BEGIN {
+      # ENVIRON is read verbatim - unlike -v, which applies escape processing and so
+      # mangles any path containing backslashes. The epilogue TEXT is passed here rather
+      # than a path to read, removing the failure mode entirely: there is nothing left to
+      # open, so nothing that can silently fail and leave the dump unspliced.
+      epi = ENVIRON["EPI_TEXT"]
+      if (epi == "") { print "awk: the R-01 epilogue text is empty - refusing to splice nothing" > "/dev/stderr"; exit 1 }
+      epi = epi "\n"
+    }
     {
       if (!done && $0 ~ /; Type: ACL;/) { printf "%s", epi; done = 1 }
       if (havePrev) print prev
@@ -102,13 +140,117 @@ HEADER
     }
     END { if (havePrev) print prev }
   ' "$TMP"
-} >"$OUT"
+} >"$BUILD"
 
-if ! grep -q '; Type: ACL;' "$TMP"; then
-  echo "Error: no ACL section found in the dump - the R-01 epilogue was NOT spliced in." >&2
-  echo "The rebuild snapshot would provision a DB that regains the revoked table grants." >&2
-  exit 1
-fi
+# Singleton data epilogue. `supabase db dump --schema public` is SCHEMA-only, so it drops
+# the one row 0001 inserts into org_settings - and that row is not optional: it is the
+# institute name/timezone/currency/bank details every branded document reads, and
+# selectOrgSettings() fetches it with .single(), which ERRORS on zero rows. Without this,
+# a snapshot-provisioned database 500s the calendar feed, receipts, pay slips, report
+# cards and the portal footer until someone inserts the row by hand. Appended AFTER the
+# ACL section so the table exists (and its grants are settled) before the insert.
+# Idempotent, so re-running the snapshot over a provisioned database is a no-op.
+# tests/unit/snapshot-singleton-seed.test.ts asserts this block survives regeneration.
+
+cat >>"$BUILD" <<'SEED'
+
+--
+-- Singleton data epilogue
+-- ============================================================================
+-- org_settings holds exactly one row (its `id boolean primary key default true` +
+-- org_settings_single_row check enforce that). Migration 0001 inserts it; a schema-only
+-- dump cannot carry it, so re-create it here. Column defaults supply the institute name,
+-- contact details, timezone, currency and document prefixes - an admin edits the rest in
+-- Settings. Without this row every org_settings read fails with PGRST116.
+-- ============================================================================
+INSERT INTO public.org_settings (id) VALUES (true) ON CONFLICT DO NOTHING;
+SEED
+
+cat >>"$BUILD" <<'FUNCEPI'
+--
+-- Function privilege epilogue (C-01)
+-- ============================================================================
+-- The same problem as the tables above, one object class over, and it was missed
+-- because both this epilogue and its CI gate only ever looked at TABLES.
+--
+-- pg_dump writes function ACLs relative to POSTGRES defaults (EXECUTE to PUBLIC), so it
+-- emits `REVOKE ALL ON FUNCTION x FROM PUBLIC`. A real Supabase project ALSO grants
+-- EXECUTE to anon and authenticated as NAMED roles via default privileges, and revoking
+-- from PUBLIC does not remove a named-role grant. So a snapshot-provisioned database
+-- silently hands every SECURITY DEFINER function to the publishable key - including
+-- issue_receipt_doc / issue_payslip_doc, which do not self-authorize (C-01), plus
+-- revoke_profile_guarded, claim_pending_emails and next_document_number.
+--
+-- Deny by default, allow by name - the same sweep migration 0096 runs, so a
+-- chain-provisioned and a snapshot-provisioned database end up identical. Placed BEFORE
+-- the ACL section so the GRANTs pg_dump emits below still apply.
+-- ============================================================================
+DO $EPI$
+DECLARE
+  fn record;
+  keeps_authenticated CONSTANT text[] := ARRAY[
+    'current_app_role', 'current_profile_id', 'current_status',
+    'finance_totals', 'finance_totals_base',
+    'is_active_admin', 'is_active_sub_admin', 'is_conversation_member',
+    'is_app_link', 'is_enrolled', 'is_http_link', 'is_self_active',
+    'mentors_class', 'mentors_student', 'replace_own_submission',
+    'teaches_class', 'teaches_class_write',
+    'user_has_persona', 'user_is_admin', 'user_is_mentor_for_student'
+  ];
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure AS sig, p.proname AS name
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.objid = p.oid AND d.classid = 'pg_proc'::regclass AND d.deptype = 'e'
+      )
+  LOOP
+    EXECUTE format('revoke execute on function %s from public, anon, authenticated', fn.sig);
+    IF fn.name = ANY (keeps_authenticated) THEN
+      EXECUTE format('grant execute on function %s to authenticated', fn.sig);
+    ELSE
+      EXECUTE format('grant execute on function %s to service_role', fn.sig);
+    END IF;
+  END LOOP;
+END
+$EPI$;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM public, anon, authenticated;
+FUNCEPI
+
+# ── Verify the BUILT ARTIFACT, not the ingredients ────────────────────────────
+# The old check asked whether the DUMP had an ACL section. That is the wrong question:
+# the dump can be perfect while the splice still produces nothing (see the awk guard
+# above), and a snapshot missing its epilogue passes every other gate - the unit test
+# only compares this script's list against the migrations, and privilege parity can
+# agree for unrelated reasons. So assert on what will actually be committed.
+fail() { echo "::error::rebuild-snapshot: $1" >&2; echo "Kept the existing $OUT unchanged." >&2; exit 1; }
+
+grep -q '; Type: ACL;' "$TMP" || fail "no ACL section in the dump - nothing to splice the R-01 epilogue before."
+
+# Every REVOKE this script intends to emit must be in the output, verbatim.
+missing=0
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  grep -Fqx "$line" "$BUILD" || { echo "  missing: $line" >&2; missing=1; }
+done < <(grep '^REVOKE' "$EPI")
+[ "$missing" -eq 0 ] || fail "the table privilege epilogue (R-01) did not reach the snapshot."
+
+# The table REVOKEs must precede the first ACL entry: a table-level REVOKE cascades to
+# that table's COLUMN privileges, so landing after the column GRANTs wipes them.
+first_revoke=$(grep -n '^REVOKE .* ON TABLE public\.' "$BUILD" | head -1 | cut -d: -f1)
+first_acl=$(grep -n '; Type: ACL;' "$BUILD" | head -1 | cut -d: -f1)
+[ -n "$first_revoke" ] && [ -n "$first_acl" ] && [ "$first_revoke" -lt "$first_acl" ]   || fail "the table privilege epilogue is not before the first ACL entry (revoke=$first_revoke acl=$first_acl)."
+
+# The two appended epilogues must be present too.
+grep -Fq 'INSERT INTO public.org_settings (id) VALUES (true)' "$BUILD"   || fail "the org_settings singleton seed did not reach the snapshot."
+grep -Fq 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS' "$BUILD"   || fail "the function privilege epilogue (C-01) did not reach the snapshot."
+
+# Verified - only now does it replace the committed snapshot.
+mv "$BUILD" "$OUT"
 
 echo "Wrote $OUT"
 echo "Review the diff (git diff $OUT) and commit alongside the migrations it reflects."
