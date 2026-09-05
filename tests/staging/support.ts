@@ -45,8 +45,14 @@ export async function loginAs(page: Page, persona: Persona): Promise<void> {
     .or(page.locator('input[type="password"]'))
     .first()
   await email.waitFor({ state: 'visible' })
+  // The form is a CONTROLLED React component: fill() writes the DOM value, but until the
+  // island hydrates, React's own state is still empty and submitting posts an empty email
+  // (the provider answers 400 validation_failed "missing email or phone", which the UI then
+  // shows as "Wrong email or password."). Wait for hydration, then verify the value stuck.
+  await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => null)
   await email.fill(emailFor(persona))
   await password.fill(stagingPassword())
+  await expect(email).toHaveValue(emailFor(persona), { timeout: 10_000 })
 
   await page.getByRole('button', { name: /sign in/i }).click()
   // A failed sign-in keeps us on /login with an error banner - surface that as the
