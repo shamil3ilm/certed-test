@@ -1,5 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
+import { supersedePriorResourceAttachments } from '@/lib/data/attachments'
+import { logError } from '@/lib/observability/log'
 import {
   incrementResourceDownloadCount,
   insertResource,
@@ -381,6 +383,29 @@ export async function recordResourceAttachmentReplacement(actor: Profile, resour
   if (!doc) return
   await snapshotDocument(doc, 'File replaced')
   await auditPrivilegedAction(actor, 'resource.edit', 'resource', resourceId)
+}
+
+/**
+ * Settle a resource's file REPLACEMENT after the new attachment is committed: snapshot the
+ * outgoing version, audit the edit, then supersede the prior attachment row so the document
+ * keeps exactly one active file.
+ *
+ * Best-effort but NOT silent, and deliberately so: the upload itself is already committed,
+ * so a failure here must not fail the request - but it leaves a superseded file with no
+ * version snapshot, which has to be findable afterwards. Each step is logged on failure and
+ * the second runs even if the first fails.
+ */
+export async function finalizeResourceFileReplacement(
+  actor: Profile,
+  resourceId: string,
+  newAttachmentId: string,
+): Promise<void> {
+  await recordResourceAttachmentReplacement(actor, resourceId).catch((error) =>
+    logError('resources.replacement.snapshot', error, { resourceId }),
+  )
+  await supersedePriorResourceAttachments(resourceId, newAttachmentId).catch((error) =>
+    logError('resources.replacement.supersede', error, { resourceId }),
+  )
 }
 
 /** Soft-remove (archive). canDocument('delete', doc) - tutors delete only their own. */

@@ -12,7 +12,7 @@ vi.mock('@/lib/data/class-sessions', () => ({
   selectSession: vi.fn(),
   selectSessionAsService: vi.fn(),
   selectTutorOverlappingSessions: vi.fn(),
-  upsertSession: vi.fn(),
+  insertSession: vi.fn(),
   writeStudentSessionFeedback: vi.fn(),
 }))
 vi.mock('@/lib/data/attendance', () => ({ studentHasAttendance: vi.fn() }))
@@ -20,7 +20,7 @@ vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn(
 
 import { canManageClass } from '@/lib/permission'
 import { selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
-import { upsertSession, selectTutorOverlappingSessions } from '@/lib/data/class-sessions'
+import { insertSession, selectTutorOverlappingSessions } from '@/lib/data/class-sessions'
 import { saveSessionTimes } from '@/lib/services/attendance/sessions'
 
 const ACTOR = 'a0000000-0000-4000-8000-000000000001'
@@ -30,7 +30,7 @@ const base = { classId: 'class-1', sessionDate: '2026-08-05' }
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(canManageClass).mockResolvedValue(true)
-  vi.mocked(upsertSession).mockResolvedValue({ id: 's1' } as never)
+  vi.mocked(insertSession).mockResolvedValue({ id: 's1' } as never)
   vi.mocked(selectActiveTutorRowsForClass).mockResolvedValue([{ id: 'ct1', tutor_id: ACTOR }] as never)
   vi.mocked(selectTutorOverlappingSessions).mockResolvedValue([])
 })
@@ -45,7 +45,7 @@ describe('saveSessionTimes - staff note (only manageClassContent may write it)',
       staff_note: 'Parent asked to watch attendance',
       canEditStaffNote: true,
     })
-    expect(upsertSession).toHaveBeenCalledWith(
+    expect(insertSession).toHaveBeenCalledWith(
       expect.objectContaining({
         actual_start: '2026-08-05T10:00:00Z',
         actual_end: '2026-08-05T11:00:00Z',
@@ -55,14 +55,14 @@ describe('saveSessionTimes - staff note (only manageClassContent may write it)',
     )
     // Retired fields are no longer written (so they are preserved on the row); student
     // entry is a roster fact set on the mark form, not part of the session payload.
-    const payload = vi.mocked(upsertSession).mock.calls[0][0]
+    const payload = vi.mocked(insertSession).mock.calls[0][0]
     expect(payload).not.toHaveProperty('scheduled_start')
     expect(payload).not.toHaveProperty('tutor_join_at')
   })
 
   it('clears staff_note when blank (and allowed)', async () => {
     await saveSessionTimes(actor, { ...base, staff_note: '', canEditStaffNote: true })
-    expect(upsertSession).toHaveBeenCalledWith(expect.objectContaining({ staff_note: null }))
+    expect(insertSession).toHaveBeenCalledWith(expect.objectContaining({ staff_note: null }))
   })
 
   it('OMITS staff_note entirely when NOT allowed (a mentor editing times/summary preserves it)', async () => {
@@ -72,7 +72,7 @@ describe('saveSessionTimes - staff note (only manageClassContent may write it)',
       staff_note: 'sneaky attempt',
       canEditStaffNote: false,
     })
-    const payload = vi.mocked(upsertSession).mock.calls[0][0]
+    const payload = vi.mocked(insertSession).mock.calls[0][0]
     expect(payload).toMatchObject({ summary: 'Mentor note in the summary' })
     expect(payload).not.toHaveProperty('staff_note')
   })

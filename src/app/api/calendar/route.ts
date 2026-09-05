@@ -6,8 +6,7 @@ import { listSlots } from '@/lib/services/timetable-slots'
 import { listEvents } from '@/lib/services/calendar-events'
 import { listAssignments } from '@/lib/services/assignments'
 import { listMeetLinks } from '@/lib/services/meet-links'
-import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getClassStudentLabels } from '@/lib/services/enrollments'
 import { expandSlots, zonedDayStartMs, nextCalendarDate, type ExpandableSlot } from '@/lib/time/expand-slots'
 import { mergeCalendar } from '@/lib/calendar/merge'
 
@@ -107,15 +106,7 @@ export async function GET(request: Request) {
         ),
       ]
       if (labelClassIds.length > 0) {
-        const refs = await selectActiveEnrollmentRefsByClassIds(labelClassIds)
-        const names = await getProfileNamesByIds([...new Set(refs.map((ref) => ref.student_id))])
-        const byClass: Record<string, string> = {}
-        for (const ref of refs) {
-          const name = names.get(ref.student_id)
-          // One active student per class in the 1:1 model; keep the first if ever more.
-          if (name && !byClass[ref.class_id]) byClass[ref.class_id] = name
-        }
-        classLabels = byClass
+        classLabels = await getClassStudentLabels(labelClassIds)
       }
     }
 

@@ -4,6 +4,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { ValidationError } from '@/lib/errors'
 import { validateUuidField } from '@/lib/validation/id'
 import { requireManageableTarget } from '@/lib/services/users/admin-lifecycle'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import {
   clearPrimaryForStudent,
   deleteGuardian,
@@ -47,7 +48,7 @@ export async function addGuardian(actor: Profile, studentId: string, raw: unknow
 
   // Only one primary per student: clear the others before marking this one.
   if (g.is_primary) await clearPrimaryForStudent(studentId)
-  await insertGuardian({
+  const guardianId = await insertGuardian({
     student_id: studentId,
     name: g.name,
     phone: g.phone || null,
@@ -55,12 +56,14 @@ export async function addGuardian(actor: Profile, studentId: string, raw: unknow
     relationship: g.relationship || null,
     is_primary: g.is_primary,
   })
+  await auditGuardianChange(actor, 'guardian.add', guardianId, studentId)
 }
 
 export async function removeGuardian(actor: Profile, studentId: string, guardianId: string): Promise<void> {
   await requireManageableTarget(actor, studentId)
   const id = validateUuidField(guardianId, 'Invalid guardian id.')
   await deleteGuardian(id, studentId)
+  await auditGuardianChange(actor, 'guardian.remove', id, studentId)
 }
 
 export async function makeGuardianPrimary(actor: Profile, studentId: string, guardianId: string): Promise<void> {
@@ -68,4 +71,26 @@ export async function makeGuardianPrimary(actor: Profile, studentId: string, gua
   const id = validateUuidField(guardianId, 'Invalid guardian id.')
   await clearPrimaryForStudent(studentId)
   await setGuardianPrimary(id, studentId)
+  await auditGuardianChange(actor, 'guardian.make_primary', id, studentId)
 }
+
+/**
+ * Records WHO changed WHICH guardian record, and for which student - and nothing
+ * else. Guardian rows are a minor's contact PII, so the name/phone/email are
+ * deliberately NOT copied into the audit table: the point of the trail is
+ * accountability for the change, and duplicating the PII into a second table
+ * would widen its footprint for no added accountability.
+ *
+ * Every other privileged service audits its writes; guardians did not, which left
+ * the one surface holding minors' contact details with no record of who touched it.
+ */
+async function auditGuardianChange(
+  actor: Profile,
+  action: 'guardian.add' | 'guardian.remove' | 'guardian.make_primary',
+  guardianId: string,
+  studentId: string,
+): Promise<void> {
+  await auditPrivilegedAction(actor, action, 'guardian', guardianId, { student_id: studentId })
+}
+
+export type { GuardianRow } from '@/lib/data/guardians'

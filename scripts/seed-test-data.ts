@@ -129,10 +129,23 @@ async function ensureGlobalPersona(profileId: string, user: TestUser) {
   }
 }
 
-async function ensureClass(name: string): Promise<string | null> {
+/** The managed subject a class teaches, by name. A class is one (student, subject, tutor)
+ *  pairing, and the Subject column on the session lists reads it from the CLASS - so a class
+ *  seeded without one renders blank there. */
+async function subjectIdByName(subjectName: string): Promise<string | null> {
+  const { data, error } = await supabase.from('subjects').select('id').eq('name', subjectName).maybeSingle()
+  if (error || !data?.id) {
+    console.log(`  WARN subject "${subjectName}" not found - class will have no subject`)
+    return null
+  }
+  return data.id as string
+}
+
+async function ensureClass(name: string, subjectName: string): Promise<string | null> {
+  const subjectId = await subjectIdByName(subjectName)
   const { data: existing, error: fetchError } = await supabase
     .from('classes')
-    .select('id')
+    .select('id, subject_id')
     .eq('name', name)
     .maybeSingle()
   if (fetchError) {
@@ -140,17 +153,36 @@ async function ensureClass(name: string): Promise<string | null> {
     return null
   }
   if (existing?.id) {
+    // BACKFILL: earlier runs of this script created classes with no subject_id, which is
+    // why the Subject column was blank for every session. Repair them in place so a
+    // re-run fixes an existing environment instead of only new rows.
+    if (!existing.subject_id && subjectId) {
+      const { error: patchError } = await supabase
+        .from('classes')
+        .update({ subject_id: subjectId })
+        .eq('id', existing.id)
+      console.log(
+        patchError
+          ? `  FAIL class subject backfill ${name}: ${patchError.message}`
+          : `  OK   class ${name} (existing, subject backfilled -> ${subjectName})`,
+      )
+      return existing.id as string
+    }
     console.log(`  OK   class ${name} (existing)`)
     return existing.id as string
   }
 
-  const { data, error } = await supabase.from('classes').insert({ name, status: 'active' }).select('id').single()
+  const { data, error } = await supabase
+    .from('classes')
+    .insert({ name, status: 'active', subject_id: subjectId })
+    .select('id')
+    .single()
   if (error) {
     console.log(`  FAIL class insert ${name}: ${error.message}`)
     return null
   }
 
-  console.log(`  OK   class ${name}`)
+  console.log(`  OK   class ${name} (subject ${subjectName})`)
   return data.id as string
 }
 
@@ -169,7 +201,15 @@ async function main() {
 
   console.log()
   const classIds = (
-    await Promise.all(['Mathematics 101', 'Physics 101', 'Chemistry 101'].map((name) => ensureClass(name)))
+    await Promise.all(
+      (
+        [
+          ['Mathematics 101', 'Mathematics'],
+          ['Physics 101', 'Physics'],
+          ['Chemistry 101', 'Chemistry'],
+        ] as const
+      ).map(([name, subject]) => ensureClass(name, subject)),
+    )
   ).filter((value): value is string => Boolean(value))
 
   console.log()

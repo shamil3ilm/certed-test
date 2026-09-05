@@ -98,7 +98,7 @@ describe('editDocument', () => {
 
   it('enforces canDocument("edit", doc), snapshots the replaced link, and audits', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any) // update
     await editDocument(actor, patch) // patch.drive_link !== docRow.drive_link
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
     // The prior link is kept in history before the row is overwritten.
@@ -115,7 +115,7 @@ describe('editDocument', () => {
 
   it('does NOT snapshot a metadata-only edit (link unchanged)', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any) // update
     await editDocument(actor, { ...patch, drive_link: docRow.drive_link, title: 'Renamed' })
     expect(insertVersion).not.toHaveBeenCalled()
   })
@@ -148,7 +148,7 @@ describe('restoreDocumentVersion', () => {
   it('snapshots the current state, applies the version, and audits restore_version', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
     vi.mocked(selectVersionByIdAsService).mockResolvedValueOnce(version as any)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // update
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any) // update
     await restoreDocumentVersion(actor, 'res-1', 'ver-1')
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
     // Current live state is archived to history before the rollback overwrites it.
@@ -175,7 +175,7 @@ describe('restoreDocumentVersion', () => {
 describe('archiveDocument / restoreDocument', () => {
   it('archive enforces canDocument("delete") and audits resource.delete', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any)
     await archiveDocument(actor, 'res-1')
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'delete', docRow)
     expect(writeAudit).toHaveBeenCalledWith({
@@ -188,7 +188,7 @@ describe('archiveDocument / restoreDocument', () => {
 
   it('restore checks class-active and audits resource.restore', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any)
     await restoreDocument(actor, 'res-1')
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
     expect(assertClassActive).toHaveBeenCalledWith('class-1')

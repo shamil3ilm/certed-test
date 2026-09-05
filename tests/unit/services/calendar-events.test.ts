@@ -211,7 +211,7 @@ describe('deleteEvent', () => {
     // deleteEvent gates on canWriteClass (tutor-only), not canWriteCalendar - DELETE is
     // destructive, so a mentor's calendar-write authority does not extend to it (Vuln 2).
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'evt-1' }], error: null }) as any)
     await deleteEvent(tutor, 'evt-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -274,7 +274,7 @@ describe('calendar event API-input helpers', () => {
       makeClient({ data: { ...eventRow, id: '550e8400-e29b-41d4-a716-446655440000' }, error: null }) as any,
     )
     vi.mocked(canWriteClass).mockResolvedValueOnce(true) // delete gates on canWriteClass (tutor-only)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'evt-1' }], error: null }) as any)
     await deleteEventFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000')
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'tutor-1',

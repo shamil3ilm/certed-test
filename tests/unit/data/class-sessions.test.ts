@@ -7,8 +7,10 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
-  selectSession,
-  upsertSession,
+  selectSessionsForDate,
+  insertSession,
+  updateSessionById,
+  deleteSessionById,
   writeStudentSessionFeedback,
   selectSessionsForClassesAsService,
   selectRecentSessions,
@@ -19,27 +21,47 @@ const session = { id: 'ses1', class_id: 'c1', session_date: '2026-06-20' }
 beforeEach(() => vi.resetAllMocks())
 
 describe('class-sessions data layer', () => {
-  it('selectSession returns the row (RLS client) or null', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: session, error: null }) as any)
-    expect(await selectSession('c1', '2026-06-20')).toEqual(session)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    expect(await selectSession('c1', '2026-06-21')).toBeNull()
+  it('selectSessionsForDate returns EVERY session that day (a class may hold several)', async () => {
+    const two = [session, { id: 'ses2', class_id: 'c1', session_date: '2026-06-20' }]
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: two, error: null }) as any)
+    expect(await selectSessionsForDate('c1', '2026-06-20')).toEqual(two)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [], error: null }) as any)
+    expect(await selectSessionsForDate('c1', '2026-06-21')).toEqual([])
   })
 
-  it('upsertSession stamps updated_at, keys on class_id+session_date, returns the row', async () => {
+  it('insertSession ALWAYS inserts - a second session that day must not replace the first', async () => {
     const client = makeClient({ data: session, error: null })
     vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
-    expect(await upsertSession({ class_id: 'c1', session_date: '2026-06-20', tutor_id: 't1' } as any)).toEqual(session)
+    expect(await insertSession({ class_id: 'c1', session_date: '2026-06-20', tutor_id: 't1' } as any)).toEqual(session)
     const builder = client.from.mock.results[0].value
-    expect(builder.upsert).toHaveBeenCalledWith(
+    expect(builder.insert).toHaveBeenCalledWith(
       expect.objectContaining({ class_id: 'c1', updated_at: expect.any(String) }),
-      { onConflict: 'class_id,session_date' },
     )
+    // The old upsert-on-(class,date) is what silently overwrote the day's earlier session.
+    expect(builder.upsert).not.toHaveBeenCalled()
   })
 
-  it('upsertSession throws on error', async () => {
+  it('insertSession throws on error', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(upsertSession({ class_id: 'c1', session_date: 'd' } as any)).rejects.toThrow(/classSessions.upsert: e/)
+    await expect(insertSession({ class_id: 'c1', session_date: 'd' } as any)).rejects.toThrow(/classSessions.insert: e/)
+  })
+
+  it('updateSessionById targets the session id and stamps updated_at', async () => {
+    const client = makeClient({ data: session, error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+    expect(await updateSessionById('ses1', { summary: 'done' })).toEqual(session)
+    const builder = client.from.mock.results[0].value
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: 'done', updated_at: expect.any(String) }),
+    )
+    expect(builder.eq).toHaveBeenCalledWith('id', 'ses1')
+  })
+
+  it('deleteSessionById reports whether a row was actually removed', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'ses1' }], error: null }) as any)
+    expect(await deleteSessionById('ses1')).toBe(true)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    expect(await deleteSessionById('gone')).toBe(false)
   })
 
   it('writeStudentSessionFeedback updates via the RLS client, no insert when the row exists', async () => {

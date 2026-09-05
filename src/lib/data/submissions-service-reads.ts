@@ -28,7 +28,8 @@ export async function selectSubmissionOwnerAsService(
   id: string,
 ): Promise<{ student_id: string; assignment_id: string } | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('submissions').select('student_id, assignment_id').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('submissions').select('student_id, assignment_id').eq('id', id).maybeSingle()
+  if (error) throw new Error(`submissions.selectOwner: ${error.message}`)
   return (data as { student_id: string; assignment_id: string }) ?? null
 }
 

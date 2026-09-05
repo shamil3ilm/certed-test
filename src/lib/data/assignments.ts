@@ -150,7 +150,8 @@ export async function selectActiveAssignmentsByClassIdsAsService(classIds: strin
 /** An assignment's class, SERVICE-ROLE, for the comment authorization check. */
 export async function selectAssignmentClassIdAsService(id: string): Promise<{ class_id: string } | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('assignments').select('class_id').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('assignments').select('class_id').eq('id', id).maybeSingle()
+  if (error) throw new Error(`assignments.selectClassId: ${error.message}`)
   return (data as { class_id: string }) ?? null
 }
 

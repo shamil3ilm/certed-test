@@ -202,7 +202,7 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
   it('archive writes announcement.archive after checking manageability', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'ann-1' }], error: null }) as any)
     await archiveAnnouncement(actor, 'ann-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -215,7 +215,7 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
   it('restore writes announcement.restore', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'ann-1' }], error: null }) as any)
     await restoreAnnouncement(actor, 'ann-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -228,7 +228,7 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
   it('edit writes announcement.edit', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'ann-1' }], error: null }) as any)
     await editAnnouncement(actor, 'ann-1', { title: 'New', message: 'New msg', ...extras })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -241,7 +241,7 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
   it('editAnnouncementFromActionInput validates and delegates to the edit flow', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'ann-1' }], error: null }) as any)
     await editAnnouncementFromActionInput(actor, {
       id: '550e8400-e29b-41d4-a716-446655440000',
       title: ' Updated ',

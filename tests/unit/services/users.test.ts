@@ -382,6 +382,28 @@ describe('restoreUser', () => {
     })
   })
 
+  it('a restore that cannot LIFT the auth ban fails loudly and leaves the account revoked', async () => {
+    // Swallowing this leaves the profile, personas and audit all reporting "Active"
+    // while the person can never sign in - a silent permanent lockout that reaches them
+    // only as "Wrong email or password". It must surface, not be logged away.
+    vi.mocked(setAuthUserBanned).mockRejectedValueOnce(new Error('gotrue unavailable'))
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
+      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt
+      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status -> active
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
+      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds
+      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: 'auth-xyz' }, error: null }) as any) // getProfileById: registered
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback status -> disabled
+
+    await expect(restoreUser(superAdmin, targetTutor.id)).rejects.toThrow(/could not re-enable sign-in/)
+    expect(setAuthUserBanned).toHaveBeenCalledWith('auth-xyz', false)
+    // Never claim a restore that did not restore access.
+    expect(writeAudit).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'user.restore' }))
+  })
+
   it('reverts the profile status if persona restore fails', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
@@ -400,7 +422,7 @@ describe('restoreUser', () => {
 
 describe('editUser', () => {
   it('edits profile details and audits user.edit — role is a fixed identity and never touched', async () => {
-    const updateClient = makeClient({ data: null, error: null })
+    const updateClient = makeClient({ data: [{ id: 'p1' }], error: null })
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget -> getProfileById
       .mockReturnValueOnce(updateClient as any) // profiles update
@@ -542,7 +564,7 @@ describe('listProfilesByRole', () => {
 
 describe('self-service settings writes', () => {
   it('updateOwnProfile writes through the RLS-scoped server client and audits', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'self-1' }], error: null }) as any)
     await updateOwnProfile(selfActor, { full_name: 'New Name' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'self-1',

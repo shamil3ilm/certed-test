@@ -22,5 +22,8 @@ export async function POST(request: Request) {
 }
 
 export function GET(request: Request) {
+  // Gate the GET the same way as the POST: outside mock mode this route does not exist,
+  // and answering with a redirect would confirm it does.
+  if (!isMock()) return new NextResponse('Not found', { status: 404 })
   return NextResponse.redirect(new URL('/login', request.url))
 }

@@ -52,11 +52,18 @@ describe('resources data layer', () => {
   })
 
   it('updateResourceStatus names its error by the target status (archive vs restore)', async () => {
-    rls({ data: null, error: null })
+    rls({ data: [{ id: 'r1' }], error: null })
     await expect(updateResourceStatus('r1', 'active')).resolves.toBeUndefined()
     rls({ data: null, error: { message: 'e' } })
     await expect(updateResourceStatus('r1', 'archived')).rejects.toThrow(/resources.archive: e/)
     rls({ data: null, error: { message: 'e' } })
     await expect(updateResourceStatus('r1', 'active')).rejects.toThrow(/resources.restore: e/)
+  })
+
+  it('updateResourceStatus rejects when RLS matched no row (0 rows, no error)', async () => {
+    // A USING-clause denial is not an error - it silently matches nothing. Without
+    // the guard the caller would report success and archive nothing.
+    rls({ data: [], error: null })
+    await expect(updateResourceStatus('r1', 'archived')).rejects.toThrow(/Document not found/)
   })
 })

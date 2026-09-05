@@ -9,6 +9,7 @@ import {
   selectSessionsForClasses,
   selectTimedAttendanceForStudent,
 } from '@/lib/data/analytics'
+import { requireAdminPersona } from '@/lib/permission/personas'
 import { listAssignments } from '@/lib/services/assignments'
 import { myClassIds } from '@/lib/services/classes'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
@@ -30,7 +31,11 @@ export type AdminAnalytics = {
   documentDownloads: number
 }
 
-export async function getAdminAnalytics(): Promise<AdminAnalytics> {
+/** Academy-wide, and read with the service role, so it carries its OWN authorization
+ *  rather than relying on being rendered inside the admin dashboard - UI placement is not
+ *  a permission (a future caller would silently inherit an unguarded academy-wide read). */
+export async function getAdminAnalytics(actor: Profile): Promise<AdminAnalytics> {
+  await requireAdminPersona(actor)
   const [announcements, documentDownloads] = await Promise.all([countActiveAnnouncements(), sumResourceDownloads()])
   return { announcements, documentDownloads }
 }

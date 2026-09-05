@@ -7,7 +7,7 @@ import {
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
 import { canManageClass } from '@/lib/permission'
-import { getProfileById } from '@/lib/services/users'
+import { getProfileById, getProfileNamesByIds } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
@@ -91,4 +91,24 @@ export async function removeStudent(actor: Profile, params: EnrollmentParams): P
 
 export async function removeStudentFromActionInput(actor: Profile, input: EnrollmentActionInput): Promise<void> {
   await removeStudent(actor, validateEnrollmentParams(input))
+}
+
+/**
+ * The enrolled student's display name for each of the given classes, for labelling calendar
+ * rows. Callers pass ids they have ALREADY scoped (the calendar derives them from feeds the
+ * caller may read), so this adds no authority of its own - it only resolves the label.
+ *
+ * One active student per class in the 1:1 model; if a class ever carried more, the first is
+ * kept so a label is still produced.
+ */
+export async function getClassStudentLabels(classIds: string[]): Promise<Record<string, string>> {
+  if (classIds.length === 0) return {}
+  const refs = await selectActiveEnrollmentRefsByClassIds(classIds)
+  const names = await getProfileNamesByIds([...new Set(refs.map((ref) => ref.student_id))])
+  const byClass: Record<string, string> = {}
+  for (const ref of refs) {
+    const name = names.get(ref.student_id)
+    if (name && !byClass[ref.class_id]) byClass[ref.class_id] = name
+  }
+  return byClass
 }

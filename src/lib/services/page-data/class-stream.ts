@@ -5,7 +5,7 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAnnouncementsForClassPage, type Announcement } from '@/lib/services/announcements'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
 import { listAttachmentsForOwners } from '@/lib/services/attachments/read'
-import type { AttachmentView } from '@/app/(prt)/AttachmentList'
+import type { AttachmentView } from '@/lib/attachments/view'
 
 const STREAM_PAGE_SIZE = 10
 const ARCHIVED_PAGE_SIZE = 20

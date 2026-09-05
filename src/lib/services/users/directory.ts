@@ -5,10 +5,13 @@ import {
   selectActiveProfilesByRoles,
   selectProfileByEmail,
   selectProfileById,
+  selectProfileDetailsById,
   selectProfileIdsBySearch,
+  selectProfileRole,
   selectProfilesByFilter,
   selectProfilePage,
   selectProfilesLiteByIds,
+  type ProfileDetails,
   type ProfileLiteRow,
   type ProfilePageOptions,
 } from '@/lib/data/profiles'
@@ -123,3 +126,26 @@ export async function listActiveTeacherCandidates(): Promise<{ id: string; name:
 export async function getProfileByEmail(email: string): Promise<Profile | null> {
   return selectProfileByEmail(email)
 }
+
+/** The extended detail record behind the admin user page and the user's own settings.
+ *  Thin, like getProfileById: the caller supplies the authority (manageUsers + a
+ *  manageable-target check on the admin page; self-scope in settings). */
+export async function getProfileDetails(id: string): Promise<ProfileDetails | null> {
+  return selectProfileDetailsById(id)
+}
+
+/** A profile's fixed-identity role, used to pick the right detail view. */
+export async function getProfileRole(id: string): Promise<Profile['role'] | null> {
+  return selectProfileRole(id)
+}
+
+/** Active profiles for the given roles - the assignable-staff pickers. Returns the
+ *  name-only projection the pickers render, not full profiles. */
+export async function listActiveProfilesByRoles(
+  roles: string[],
+  opts?: { search?: string; limit?: number },
+): Promise<{ id: string; full_name: string | null; email: string }[]> {
+  return selectActiveProfilesByRoles(roles, opts)
+}
+
+export type { ProfileDetails } from '@/lib/data/profiles-directory'

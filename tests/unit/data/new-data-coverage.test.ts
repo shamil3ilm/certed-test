@@ -36,9 +36,9 @@ describe('new data-layer functions', () => {
 
   it('updateSessionActualTimesAsService returns whether a row matched', async () => {
     vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: { id: 's1' }, error: null }) as never)
-    expect(await updateSessionActualTimesAsService('c1', 'd', 's', 'e', 'v1')).toBe(true)
+    expect(await updateSessionActualTimesAsService('ses1', 's', 'e', 'v1')).toBe(true)
     vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: null }) as never)
-    expect(await updateSessionActualTimesAsService('c1', 'd', 's', 'e')).toBe(false)
+    expect(await updateSessionActualTimesAsService('ses1', 's', 'e')).toBe(false)
   })
 
   it('selectSessionsForClassesInRange short-circuits on empty class ids', async () => {

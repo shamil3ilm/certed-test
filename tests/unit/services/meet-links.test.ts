@@ -147,7 +147,7 @@ describe('deleteMeetLink', () => {
   it('deactivates and audits meet.delete for a manager (previously unaudited)', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any)
     await deleteMeetLink(actor, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -176,7 +176,7 @@ describe('restoreMeetLink', () => {
   it('reactivates and audits meet.restore for a manager', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any)
     await restoreMeetLink(actor, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
@@ -201,7 +201,7 @@ describe('editMeetLinkFromActionInput', () => {
       makeClient({ data: { ...linkRow, id: VALID_ID }, error: null }) as any,
     ) // getMeetLink
     vi.mocked(canManageScope).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any) // updateMeetLink
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any) // updateMeetLink
     await editMeetLinkFromActionInput(actor, {
       id: VALID_ID,
       title: 'New title',

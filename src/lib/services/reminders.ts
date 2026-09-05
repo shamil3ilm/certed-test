@@ -15,6 +15,7 @@ import { canManageClass } from '@/lib/permission'
 import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { assignReminderSchema, createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
+import { throttleWrite } from '@/lib/security/throttle'
 
 export type Reminder = ReminderRow
 
@@ -73,6 +74,7 @@ export async function createReminderFromActionInput(
   userId: string,
   input: CreateReminderActionInput,
 ): Promise<Reminder> {
+  throttleWrite('reminder', userId, 'reminder')
   const parsed = validateCreateReminderInput(input)
   return createReminder(userId, parsed.title, parsed.description ?? null, parsed.remind_at)
 }
@@ -114,6 +116,7 @@ async function assertReminderParty(actorId: string, reminderId: string): Promise
 /** Edit a reminder's title / note / time - CREATOR only (a student can never edit a
  *  reminder assigned to them, only mark it done). */
 export async function editReminderFromActionInput(actorId: string, input: EditReminderActionInput): Promise<void> {
+  throttleWrite('reminder', actorId, 'reminder')
   const parsed = validateEditReminderInput(input)
   await assertReminderCreator(actorId, parsed.id)
   await updateReminderRow(parsed.id, {
@@ -125,6 +128,7 @@ export async function editReminderFromActionInput(actorId: string, input: EditRe
 
 /** Delete a reminder by id - CREATOR only. */
 export async function deleteReminder(actorId: string, id: string): Promise<void> {
+  throttleWrite('reminder', actorId, 'reminder')
   await assertReminderCreator(actorId, id)
   await deleteReminderRow(id)
 }
@@ -147,6 +151,7 @@ type AssignReminderActionInput = CreateReminderActionInput & {
  * is the production backstop.
  */
 export async function assignReminderFromActionInput(actor: Profile, input: AssignReminderActionInput): Promise<void> {
+  throttleWrite('reminder', actor.id, 'reminder')
   const parsed = assignReminderSchema.safeParse({
     title: input.title,
     description: String(input.description ?? '').trim() || undefined,

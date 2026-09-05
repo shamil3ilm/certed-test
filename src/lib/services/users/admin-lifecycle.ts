@@ -189,12 +189,28 @@ export async function restoreUser(actor: Profile, id: string): Promise<void> {
     throw error
   }
   // Lift the auth ban applied on revoke so the restored user can sign in again.
+  //
+  // Unlike the ban on revoke, this is NOT best-effort. A ban that fails to apply merely
+  // fails open, and access is already cut by status + personas + RLS. A ban that fails to
+  // LIFT fails closed: the profile, its personas and the audit all report the account
+  // restored while the person can never sign in - and the login form can only tell them
+  // "Wrong email or password", so the lockout is silent and looks like a forgotten
+  // password. Roll the status back so the account stays visibly revoked (a state an admin
+  // can act on) and surface the failure instead of logging it away.
   const restored = await getProfileById(id)
   if (restored?.auth_user_id) {
     try {
       await setAuthUserBanned(restored.auth_user_id, false)
     } catch (error) {
       logError('user.restore.unbanSession', error)
+      await updateProfile(id, { status: 'disabled' })
+      // An admin is a trusted actor, so say exactly what failed and what state the
+      // account is in - a generic "couldn't restore" would send them hunting for a
+      // password problem that isn't there. The raw provider error stays in the log.
+      throw new ValidationError(
+        'Restored the profile but could not re-enable sign-in with the identity provider, ' +
+          'so the account has been left revoked rather than active-but-unable-to-sign-in. Try again.',
+      )
     }
   }
   await auditPrivilegedAction(actor, 'user.restore', 'profile', id)

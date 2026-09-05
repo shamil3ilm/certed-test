@@ -52,3 +52,5 @@ export async function addMenteeNote(actor: Profile, studentId: string, rawBody: 
   await insertMenteeNote(studentId, actor.id, parsed.data)
   await auditPrivilegedAction(actor, 'mentee.note_add', 'profile', studentId)
 }
+
+export type { MenteeNoteRow } from '@/lib/data/mentee-notes'

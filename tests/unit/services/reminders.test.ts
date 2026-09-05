@@ -43,7 +43,7 @@ describe('listMyPastReminders', () => {
 describe('markReminderSent', () => {
   it('updates is_sent + completed_at for the given id (owner of a personal reminder)', async () => {
     const partiesClient = makeClient({ data: { user_id: 'user-1', created_by: 'user-1' }, error: null })
-    const updateClient = makeClient({ data: null, error: null })
+    const updateClient = makeClient({ data: [{ id: 'rem-1' }], error: null })
     vi.mocked(createClient)
       .mockResolvedValueOnce(partiesClient as any)
       .mockResolvedValueOnce(updateClient as any)
@@ -56,7 +56,7 @@ describe('markReminderSent', () => {
   it('lets the ASSIGNEE (user_id) mark an assigned reminder done', async () => {
     // assigned: created_by is the tutor, user_id is the student marking it done
     const partiesClient = makeClient({ data: { user_id: 'student', created_by: 'tutor' }, error: null })
-    const updateClient = makeClient({ data: null, error: null })
+    const updateClient = makeClient({ data: [{ id: 'rem-1' }], error: null })
     vi.mocked(createClient)
       .mockResolvedValueOnce(partiesClient as any)
       .mockResolvedValueOnce(updateClient as any)
@@ -128,7 +128,7 @@ describe('editReminderFromActionInput', () => {
 
   it('updates title/note/time after a CREATOR check (personal: owner is creator)', async () => {
     const partiesClient = makeClient({ data: { user_id: 'user-1', created_by: 'user-1' }, error: null })
-    const updateClient = makeClient({ data: null, error: null })
+    const updateClient = makeClient({ data: [{ id: 'rem-1' }], error: null })
     vi.mocked(createClient)
       .mockResolvedValueOnce(partiesClient as any)
       .mockResolvedValueOnce(updateClient as any)
@@ -149,7 +149,7 @@ describe('editReminderFromActionInput', () => {
 
   it('lets the CREATOR edit an assigned reminder', async () => {
     const partiesClient = makeClient({ data: { user_id: 'student', created_by: 'tutor' }, error: null })
-    const updateClient = makeClient({ data: null, error: null })
+    const updateClient = makeClient({ data: [{ id: 'rem-1' }], error: null })
     vi.mocked(createClient)
       .mockResolvedValueOnce(partiesClient as any)
       .mockResolvedValueOnce(updateClient as any)

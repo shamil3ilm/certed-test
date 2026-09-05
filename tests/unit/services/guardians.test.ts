@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/users/admin-lifecycle', () => ({ requireManageableTarget: vi.fn() }))
+vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 vi.mock('@/lib/data/guardians', () => ({
   selectGuardiansByStudent: vi.fn(),
   insertGuardian: vi.fn(),
@@ -9,6 +10,7 @@ vi.mock('@/lib/data/guardians', () => ({
   setGuardianPrimary: vi.fn(),
 }))
 
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireManageableTarget } from '@/lib/services/users/admin-lifecycle'
 import { insertGuardian, deleteGuardian, clearPrimaryForStudent, setGuardianPrimary } from '@/lib/data/guardians'
 import { addGuardian, removeGuardian, makeGuardianPrimary } from '@/lib/services/guardians'
@@ -26,6 +28,7 @@ const valid = {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(requireManageableTarget).mockResolvedValue({ id: STUDENT, role: 'student' } as any)
+  vi.mocked(insertGuardian).mockResolvedValue('g-new' as any)
 })
 
 describe('addGuardian', () => {
@@ -90,5 +93,47 @@ describe('makeGuardianPrimary', () => {
     await makeGuardianPrimary(actor, STUDENT, G2)
     expect(clearPrimaryForStudent).toHaveBeenCalledWith(STUDENT)
     expect(setGuardianPrimary).toHaveBeenCalledWith(G2, STUDENT)
+  })
+})
+
+/**
+ * Guardian rows are a minor's contact PII and were the one privileged surface
+ * with no audit trail at all - every comparable service (mentee notes, user
+ * lifecycle, enrolments) records who changed what.
+ */
+describe('guardian changes are audited', () => {
+  it('records guardian.add against the new guardian, carrying the student', async () => {
+    await addGuardian(actor, STUDENT, valid)
+    expect(auditPrivilegedAction).toHaveBeenCalledWith(actor, 'guardian.add', 'guardian', 'g-new', {
+      student_id: STUDENT,
+    })
+  })
+
+  it('records guardian.remove', async () => {
+    await removeGuardian(actor, STUDENT, G1)
+    expect(auditPrivilegedAction).toHaveBeenCalledWith(actor, 'guardian.remove', 'guardian', G1, {
+      student_id: STUDENT,
+    })
+  })
+
+  it('records guardian.make_primary', async () => {
+    await makeGuardianPrimary(actor, STUDENT, G2)
+    expect(auditPrivilegedAction).toHaveBeenCalledWith(actor, 'guardian.make_primary', 'guardian', G2, {
+      student_id: STUDENT,
+    })
+  })
+
+  it('never copies the guardian contact PII into the audit record', async () => {
+    await addGuardian(actor, STUDENT, valid)
+    const metadata = vi.mocked(auditPrivilegedAction).mock.calls[0][4]
+    expect(JSON.stringify(metadata)).not.toContain(valid.email)
+    expect(JSON.stringify(metadata)).not.toContain(valid.phone)
+    expect(JSON.stringify(metadata)).not.toContain(valid.name)
+  })
+
+  it('does not audit when the tier check refuses the target', async () => {
+    vi.mocked(requireManageableTarget).mockRejectedValueOnce(new Error('nope'))
+    await expect(removeGuardian(actor, STUDENT, G1)).rejects.toThrow()
+    expect(auditPrivilegedAction).not.toHaveBeenCalled()
   })
 })

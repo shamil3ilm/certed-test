@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/classes', () => ({ myClassIds: vi.fn() }))
+vi.mock('@/lib/permission/personas', () => ({ requireAdminPersona: vi.fn() }))
 vi.mock('@/lib/services/attendance', () => ({ summarizeAttendanceForStudent: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
 vi.mock('@/lib/services/submissions', () => ({
@@ -16,6 +17,7 @@ vi.mock('@/lib/data/analytics', () => ({
 }))
 
 import { myClassIds } from '@/lib/services/classes'
+import { requireAdminPersona } from '@/lib/permission/personas'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { listAssignments } from '@/lib/services/assignments'
 import { listActiveSubmissions, listMyActiveSubmissions } from '@/lib/services/submissions'
@@ -36,7 +38,15 @@ describe('getAdminAnalytics', () => {
   it('surfaces the academy announcement total and document-download count', async () => {
     vi.mocked(countActiveAnnouncements).mockResolvedValueOnce(4)
     vi.mocked(sumResourceDownloads).mockResolvedValueOnce(37)
-    await expect(getAdminAnalytics()).resolves.toEqual({ announcements: 4, documentDownloads: 37 })
+    await expect(getAdminAnalytics(me)).resolves.toEqual({ announcements: 4, documentDownloads: 37 })
+    expect(requireAdminPersona).toHaveBeenCalledWith(me)
+  })
+
+  it('refuses a non-admin before reading anything academy-wide', async () => {
+    vi.mocked(requireAdminPersona).mockRejectedValueOnce(new Error('Admin only.'))
+    await expect(getAdminAnalytics(me)).rejects.toThrow('Admin only.')
+    expect(countActiveAnnouncements).not.toHaveBeenCalled()
+    expect(sumResourceDownloads).not.toHaveBeenCalled()
   })
 })
 

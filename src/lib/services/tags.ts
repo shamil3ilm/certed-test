@@ -42,9 +42,13 @@ const colorSchema = z
 
 export const TAG_TONES = TAG_COLORS
 
+/** Who may create an entry in the SHARED tag vocabulary. Tutor or admin only - a mentor is
+ *  excluded for the same reason they cannot author documents: the vocabulary is content, and
+ *  a mentor holds no manageClassContent. (Attaching a tag is gated separately, per entity,
+ *  by assertCanTagEntity below.) */
 async function assertIsStaff(actor: Profile): Promise<void> {
   const flags = await loadPersonaFlags(actor.id)
-  if (!flags.isAdmin && !flags.isTutor && !flags.hasMentorAuthority) {
+  if (!flags.isAdmin && !flags.isSubAdmin && !flags.isTutor) {
     throw new PermissionError('Only staff can manage tags.')
   }
 }

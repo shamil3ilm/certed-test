@@ -82,11 +82,6 @@ export function hasScopedPersona(
 }
 
 /**
- * Load a profile's personas and return common permission flags.
- * Consolidates the pattern of loading personas + checking admin/tutor/student.
- * Used by page loaders (classwork, stream, attendance) to avoid repeating the same checks.
- */
-/**
  * Whether the profile effectively holds manageClasses, honouring admin OVERRIDES -
  * not the persona baseline alone. A deny override on manageClasses must actually strip
  * the academy-wide class authority, not merely grey out the UI while operations keep
@@ -105,6 +100,11 @@ async function resolvedHasManageClasses(profileId: string, personas: PersonaAssi
   return getBaseCapabilities(personas).has('manageClasses')
 }
 
+/**
+ * Load a profile's personas and return common permission flags.
+ * Consolidates the pattern of loading personas + checking admin/tutor/student.
+ * Used by page loaders (classwork, stream, attendance) to avoid repeating the same checks.
+ */
 export async function loadPersonaFlags(profileId: string) {
   const personas = await loadActivePersonas(profileId)
   const isAdmin = hasPersona(personas, 'admin')
