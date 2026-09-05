@@ -75,11 +75,16 @@ export function CalendarView({
   const [composerState, setComposerState] = useState<{ date: string; initialTab?: ComposerTab } | null>(null)
   const [eventInfo, setEventInfo] = useState<EventDetail | null>(null)
   const [hiddenSources, setHiddenSources] = useState<ReadonlySet<CalendarItem['source']>>(new Set())
-  const [mode, setMode] = useState<CalendarMode>(isMobile ? 'agenda' : 'normal')
-  const [span, setSpan] = useState<CalendarSpan>(isMobile ? 'week' : 'month')
-  const [currentView, setCurrentView] = useState(
-    VIEW_CONFIG[isMobile ? 'agenda' : 'normal'][isMobile ? 'week' : 'month'],
-  )
+  // The layout the user explicitly picked; null = follow the responsive default below.
+  const [modeChoice, setModeChoice] = useState<CalendarMode | null>(null)
+  const [spanChoice, setSpanChoice] = useState<CalendarSpan | null>(null)
+  // DERIVED, never stored: useMediaQuery reports false during SSR/first render, so a stored
+  // initial value leaves a phone on the month grid - where 7 columns in ~390px wrap event
+  // titles one character per line and the calendar is unreadable. Deriving lets the layout
+  // settle as soon as the query resolves (and on rotate/resize), while an explicit pick wins.
+  const mode: CalendarMode = modeChoice ?? (isMobile ? 'agenda' : 'normal')
+  const span: CalendarSpan = spanChoice ?? (isMobile ? 'week' : 'month')
+  const [currentView, setCurrentView] = useState(VIEW_CONFIG.normal.month)
   const calRef = useRef<FullCalendar | null>(null)
   const hiddenRef = useRef(hiddenSources)
   const didMountRef = useRef(false)
@@ -157,8 +162,8 @@ export function CalendarView({
         span={span}
         currentView={currentView || resolvedView}
         deviceTz={deviceTz}
-        onModeChange={setMode}
-        onSpanChange={setSpan}
+        onModeChange={setModeChoice}
+        onSpanChange={setSpanChoice}
         onToggleSource={toggleSource}
         onResetFilters={resetFilters}
         onQuickAdd={openComposer}
@@ -168,7 +173,7 @@ export function CalendarView({
 
       <div className={cx(CARD, 'p-2 sm:p-3')}>
         {!deviceTz ? (
-          <div className="flex h-64 items-center justify-center text-sm text-slate-400">Loading calendar...</div>
+          <div className="flex h-64 items-center justify-center text-sm text-slate-600">Loading calendar...</div>
         ) : (
           <FullCalendar
             ref={calRef}
@@ -184,6 +189,23 @@ export function CalendarView({
             }
             dayMaxEventRows={3}
             height="auto"
+            // FullCalendar renders the "+N more" link with an EMPTY aria-controls, which is
+            // invalid ARIA (it must reference a real id) and fails axe's aria-allowed-attr at
+            // CRITICAL. The link is already named by its text and title, so drop the attribute.
+            moreLinkDidMount={({ el }) => {
+              if (el.getAttribute('aria-controls') === '') el.removeAttribute('aria-controls')
+            }}
+            // The prev/next chevrons are <span role="img"> with no accessible name. They are
+            // decorative - the enclosing button carries the name via buttonHints - so hide them
+            // from assistive tech rather than inventing a label.
+            viewDidMount={({ el }) => {
+              el.closest('.fc')
+                ?.querySelectorAll('.fc-icon[role="img"]')
+                .forEach((icon) => {
+                  icon.setAttribute('aria-hidden', 'true')
+                  icon.removeAttribute('role')
+                })
+            }}
             events={fetchEvents}
             dateClick={canOpenComposer ? (info) => openComposer(undefined, info.dateStr) : undefined}
             eventClick={(info) => {
