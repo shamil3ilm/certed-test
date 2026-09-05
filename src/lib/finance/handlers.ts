@@ -14,7 +14,7 @@ import { requireActiveProfileApi, requireCapabilityApi, requireRoleApi } from '@
 import { ValidationError } from '@/lib/errors'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
 import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
-import { resolveDocForViewer, renderResolvedDocPdf } from '@/lib/finance/render'
+import { resolveDocForViewer, renderResolvedDocPdf, letterheadDigest } from '@/lib/finance/render'
 import { validateFinanceDocId, voidDoc, listAllDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { rateLimit } from '@/lib/security/rate-limit'
@@ -90,7 +90,7 @@ export function draftHandler(kind: FinanceKind) {
     if (!MONTH_RE.test(month)) return invalidInput('Choose a month in YYYY-MM form.')
 
     try {
-      return ok(await buildBillingDraft(kind, party, month))
+      return ok(await buildBillingDraft(me.id, kind, party, month))
     } catch {
       // Same rule as the issue handler: never hand the client raw repo/Postgres text.
       return fail('Could not build the draft. Please try again in a moment.', 500)
@@ -154,8 +154,18 @@ export function pdfHandler(kind: FinanceKind) {
     // answer 304 WITHOUT re-rendering, and a void flips the ETag so the next fetch
     // re-renders exactly once. `private`: per-user authorized document, never a
     // shared/CDN cache.
-    const etag = `"${kind}-${doc.id}-${doc.voided ? 'void' : 'live'}"`
-    const cacheControl = doc.voided ? 'private, max-age=31536000, immutable' : 'private, no-cache'
+    // The letterhead (institute name, contact, bank, signatory, terms) is read from
+    // org_settings at RENDER time, not stored on the document - so it must be part of the
+    // validator, or an admin correcting the bank account leaves every already-fetched PDF
+    // answering 304 with the old details. getOrgSettings is request-memoised and the
+    // render below reads it anyway, so this costs nothing extra.
+    const etag = `"${kind}-${doc.id}-${doc.voided ? 'void' : 'live'}-${await letterheadDigest()}"`
+    // `no-cache` for BOTH states (not `immutable` for voided): voiding is terminal for the
+    // document record, but the letterhead can still change afterwards, and `immutable`
+    // told the browser not to revalidate for a year. `no-cache` still stores the body and
+    // still answers from cache on a 304 - which costs no Chromium render - so this buys
+    // correctness for one conditional request.
+    const cacheControl = 'private, no-cache'
     if (req.headers.get('if-none-match') === etag) {
       return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cacheControl } })
     }

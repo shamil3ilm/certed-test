@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { getOrgSettings, type OrgSettings } from '@/lib/services/finance/org-settings'
 import { buildReceiptHtml, buildPayslipHtml, type OrgInfo } from '@/lib/pdf/template'
 import { brandAssets } from '@/lib/pdf/brand-assets'
@@ -11,6 +12,25 @@ import { getDoc, getDocLines, type FinanceKind } from '@/lib/services/finance/fi
  * stored - the DB record + line items are the source of truth, so the document
  * is always reproducible and there's nothing to keep in sync.
  */
+
+/**
+ * Short digest of exactly the org_settings fields that get BAKED INTO a rendered
+ * document, for the PDF cache validator.
+ *
+ * The ETag used to encode only the document id and its void flag, on the reasoning that
+ * an issued document is immutable. But the letterhead is not part of the document record -
+ * it is read from org_settings at render time - so correcting a bank account or signatory
+ * left every already-fetched PDF revalidating to a 304 and showing the OLD details
+ * indefinitely (and, for a voided document, `immutable` meant not even revalidating for a
+ * year). Folding this digest into the ETag makes the letterhead part of the cache key.
+ *
+ * Derived from orgInfo() itself, so a field added to the letterhead is covered
+ * automatically rather than needing to be remembered here.
+ */
+export async function letterheadDigest(): Promise<string> {
+  const info = orgInfo(await getOrgSettings())
+  return createHash('sha1').update(JSON.stringify(info)).digest('hex').slice(0, 12)
+}
 
 function orgInfo(org: OrgSettings): OrgInfo {
   return {
