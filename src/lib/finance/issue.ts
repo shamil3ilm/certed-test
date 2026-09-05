@@ -6,6 +6,7 @@ import { issueDocRecord, type FinanceKind, type FinanceLine } from '@/lib/servic
 import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
 import { writeAudit } from '@/lib/data/audit'
 import { ValidationError } from '@/lib/errors'
+import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
 import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
 
 /**
@@ -31,13 +32,53 @@ async function issueDoc(
     throw new ValidationError(`No ${kind === 'receipt' ? 'active student' : 'active payee'} found for that selection.`)
   }
 
+  // ── C-05: the POST body was the sole source of truth ────────────────────────
+  // buildBillingDraft only ever FILLED the browser form; nothing on the way back in was
+  // checked against the server's own numbers. The rate was never compared to
+  // billing_rates, the currency came from the body rather than the party's stored rate,
+  // and the hours were free numbers - so a crafted POST could bill any rate, in any
+  // currency, for any number of hours. Finance write is admin-only, so this is an
+  // integrity control rather than an escalation, but it is the difference between "an
+  // admin can mistype" and "the document need not resemble anything that happened".
+  //
+  // Checked, not overridden: a request naming a billing period is reconciled against the
+  // recorded month, and anything it cannot justify is refused. Billing FEWER hours than
+  // recorded stays allowed - waiving part of a month is a real thing an academy does, and
+  // silently rewriting the admin's figures would be worse than refusing them.
+  const derived = input.billing_period ? await buildBillingDraft(actorId, kind, party.id, input.billing_period) : null
+  if (derived?.blocked) throw new ValidationError(derived.blocked)
+
+  const currency = derived ? derived.currency : input.currency
+  if (derived && input.currency !== derived.currency) {
+    throw new ValidationError(
+      `This ${kind === 'receipt' ? 'student' : 'payee'} is billed in ${derived.currency}, not ${input.currency}.`,
+    )
+  }
+
+  if (derived) {
+    const expectedRate = derived.lines[0]?.rate
+    const recordedHours = derived.lines.reduce((sum, l) => sum + l.hours, 0)
+    const requestedHours = input.lines.reduce((sum, l) => sum + l.hours, 0)
+    const wrongRate = expectedRate != null && input.lines.some((l) => l.rate !== expectedRate)
+    if (wrongRate) {
+      throw new ValidationError(`The rate must match this ${kind === 'receipt' ? 'student' : 'payee'}'s stored rate.`)
+    }
+    // Rounded to the hundredth before comparing: hours are derived from minutes, so an
+    // exact float equality would reject a figure the UI itself produced.
+    if (Math.round(requestedHours * 100) > Math.round(recordedHours * 100)) {
+      throw new ValidationError(
+        `Billing ${requestedHours}h exceeds the ${recordedHours}h recorded for ${input.billing_period}.`,
+      )
+    }
+  }
+
   const lines: FinanceLine[] = input.lines.map((l) => ({
     label: l.subject,
     hours: l.hours,
     rate: l.rate,
-    amount: lineAmount(l.hours, l.rate, input.currency),
+    amount: lineAmount(l.hours, l.rate, currency),
   }))
-  const { subtotal, discount: roundedDiscount, total } = computeTotals(input.lines, input.discount ?? 0, input.currency)
+  const { subtotal, discount: roundedDiscount, total } = computeTotals(input.lines, input.discount ?? 0, currency)
   const org = await getOrgSettings()
   const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix
 
@@ -46,7 +87,7 @@ async function issueDoc(
     party_name: party.full_name ?? party.email,
     class_level: kind === 'receipt' ? party.class_level : null,
     issue_date: input.issue_date,
-    currency: input.currency,
+    currency,
     note: input.note ?? null,
     subtotal,
     // Store the rounded discount (null only when none was given) so the stored

@@ -74,7 +74,12 @@ function empty(kind: FinanceKind, party: Profile, period: string, currency: stri
  * `actor` is not consulted here - the caller is already admin-gated (issuing is
  * structurally admin-only) and every read below runs under the service role.
  */
-export async function buildBillingDraft(kind: FinanceKind, partyId: string, period: string): Promise<BillingDraft> {
+export async function buildBillingDraft(
+  actorId: string,
+  kind: FinanceKind,
+  partyId: string,
+  period: string,
+): Promise<BillingDraft> {
   const party = await getProfileById(partyId)
   const allowedRoles = kind === 'receipt' ? ['student'] : ['tutor', 'mentor']
   if (!party || !allowedRoles.includes(party.role) || party.status !== 'active') {
@@ -96,7 +101,7 @@ export async function buildBillingDraft(kind: FinanceKind, partyId: string, peri
     return empty(kind, party, period, 'INR', `${currency} is not a currency this system can issue.`)
   }
 
-  const { tutorClasses, studentClasses } = await getAcademyClassHours(period)
+  const { tutorClasses, studentClasses } = await getAcademyClassHours(actorId, period)
 
   // One line per class, from whichever side of the report this kind bills.
   const perClass: Array<{ subject: string; minutes: number }> =

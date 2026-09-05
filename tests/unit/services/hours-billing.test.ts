@@ -64,9 +64,11 @@ beforeEach(() => {
   )
 })
 
+const ACTOR = 'admin-1'
+
 describe('buildBillingDraft - receipt (student)', () => {
   it('bills the hours the student received at their fee rate', async () => {
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.blocked).toBeNull()
     expect(draft.currency).toBe('INR')
@@ -81,7 +83,7 @@ describe('buildBillingDraft - receipt (student)', () => {
   it('blocks when the student has no fee rate rather than billing zero', async () => {
     vi.mocked(selectBillingRatesFor).mockResolvedValue(new Map())
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.lines).toEqual([])
     expect(draft.blocked).toMatch(/no fee rate/i)
@@ -92,7 +94,7 @@ describe('buildBillingDraft - receipt (student)', () => {
       new Map([[STUDENT, { profile_id: STUDENT, fee_rate: null, pay_rate: 500, currency: 'INR' }]]),
     )
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.blocked).toMatch(/no fee rate/i)
   })
@@ -100,7 +102,7 @@ describe('buildBillingDraft - receipt (student)', () => {
   it('blocks when the student attended nothing that month', async () => {
     vi.mocked(getAcademyClassHours).mockResolvedValue(hours({ studentClasses: [] }))
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.lines).toEqual([])
     expect(draft.blocked).toMatch(/attended no recorded sessions/i)
@@ -126,7 +128,7 @@ describe('buildBillingDraft - receipt (student)', () => {
       }),
     )
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.lines.map((l) => l.subject)).toEqual(['Maths'])
   })
@@ -148,7 +150,7 @@ describe('buildBillingDraft - receipt (student)', () => {
       }),
     )
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.lines).toEqual([{ subject: 'Maths', hours: 1.5, rate: 400, amount: 600 }])
   })
@@ -156,7 +158,7 @@ describe('buildBillingDraft - receipt (student)', () => {
   it('warns, but still fills, when a live receipt already covers the month', async () => {
     vi.mocked(selectPartiesWithDocForPeriod).mockResolvedValue(new Set([STUDENT]))
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.blocked).toBeNull()
     expect(draft.lines).toHaveLength(2)
@@ -166,7 +168,7 @@ describe('buildBillingDraft - receipt (student)', () => {
   it('refuses a party who is not an active student', async () => {
     vi.mocked(getProfileById).mockResolvedValue(profile({ status: 'disabled' }))
 
-    await expect(buildBillingDraft('receipt', STUDENT, '2026-09')).rejects.toThrow(/no active student/i)
+    await expect(buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')).rejects.toThrow(/no active student/i)
   })
 
   it('refuses to issue in a currency the system cannot render', async () => {
@@ -174,7 +176,7 @@ describe('buildBillingDraft - receipt (student)', () => {
       new Map([[STUDENT, { profile_id: STUDENT, fee_rate: 400, pay_rate: null, currency: 'ZWL' }]]),
     )
 
-    const draft = await buildBillingDraft('receipt', STUDENT, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
 
     expect(draft.blocked).toMatch(/not a currency/i)
   })
@@ -189,7 +191,7 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
   })
 
   it('pays the hours the tutor taught at their pay rate', async () => {
-    const draft = await buildBillingDraft('payslip', TUTOR, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(draft.blocked).toBeNull()
     expect(draft.lines).toEqual([
@@ -202,7 +204,7 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
   it('accepts a mentor as a payee', async () => {
     vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, full_name: 'Maya Mentor', role: 'mentor' }))
 
-    const draft = await buildBillingDraft('payslip', TUTOR, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(draft.blocked).toBeNull()
     expect(draft.partyName).toBe('Maya Mentor')
@@ -211,19 +213,19 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
   it('refuses a student as a payee', async () => {
     vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'student' }))
 
-    await expect(buildBillingDraft('payslip', TUTOR, '2026-09')).rejects.toThrow(/no active payee/i)
+    await expect(buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')).rejects.toThrow(/no active payee/i)
   })
 
   it('blocks when the tutor taught nothing that month', async () => {
     vi.mocked(getAcademyClassHours).mockResolvedValue(hours({ tutorClasses: [] }))
 
-    const draft = await buildBillingDraft('payslip', TUTOR, '2026-09')
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(draft.blocked).toMatch(/taught no recorded sessions/i)
   })
 
   it('checks the pay-slip ledger, not the receipt ledger, for a duplicate', async () => {
-    await buildBillingDraft('payslip', TUTOR, '2026-09')
+    await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(selectPartiesWithDocForPeriod).toHaveBeenCalledWith('payslip', '2026-09')
   })

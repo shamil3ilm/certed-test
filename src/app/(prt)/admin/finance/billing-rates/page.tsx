@@ -20,7 +20,7 @@ import { RateRows } from './RateRows'
 export default async function BillingRatesPage() {
   const me = await requireCapability('viewFinance')
   if (!isAdminTier(me)) redirect('/dashboard?denied=1')
-  const { students, payees, baseCurrency } = await loadBillingRatesPageData()
+  const { students, payees, baseCurrency } = await loadBillingRatesPageData(me.id)
 
   const missing = [...students, ...payees].filter((p) => p.rate == null).length
 

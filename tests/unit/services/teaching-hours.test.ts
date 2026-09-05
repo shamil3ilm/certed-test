@@ -1,3 +1,5 @@
+vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/permission/class', () => ({ mentorAuthorityClassIds: vi.fn() }))
@@ -32,7 +34,6 @@ import {
   getAcademyClassHours,
   getClassTutorHours,
   getTutorPersonalHours,
-  getAllClassTutorHours,
   rollUpPersonHours,
   type ClassTutorHours,
 } from '@/lib/services/teaching-hours'
@@ -47,6 +48,10 @@ const row = (over: Partial<SessionHoursRow>): SessionHoursRow => ({
 })
 
 const actor = { id: 'M1' } as never
+
+// Academy-wide hours are capability-gated in the service now; the authorization module
+// is mocked below, so this is just the actor the guard is called with.
+const ACTOR = 'admin-1'
 
 describe('aggregateClassTutorHours (pure)', () => {
   it('groups by (class, tutor) and sums minutes', () => {
@@ -192,30 +197,6 @@ describe('getTutorPersonalHours', () => {
   })
 })
 
-describe('getAllClassTutorHours (admin scope)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(getInstituteTimeZone).mockResolvedValue('Asia/Kolkata')
-    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['T1', 'Tutor One']]))
-  })
-
-  it('spans every class and splits hours per class x tutor', async () => {
-    vi.mocked(selectActiveClassIds).mockResolvedValue(['C1', 'C2'])
-    vi.mocked(selectClassesByIds).mockResolvedValue([
-      { id: 'C1', name: 'Maths' },
-      { id: 'C2', name: 'Science' },
-    ] as never)
-    vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([
-      row({ class_id: 'C1', tutor_id: 'T1', actual_end: '2026-08-02T11:00:00.000Z' }), // 60
-      row({ class_id: 'C2', tutor_id: 'T1', actual_end: '2026-08-02T10:30:00.000Z' }), // 30
-    ])
-    const result = await getAllClassTutorHours('2026-08')
-    expect(result.map((c) => c.className)).toEqual(['Maths', 'Science'])
-    expect(result.find((c) => c.classId === 'C1')?.totalMinutes).toBe(60)
-    expect(result.find((c) => c.classId === 'C2')?.totalMinutes).toBe(30)
-  })
-})
-
 const mark = (over: Partial<AttendedRow>): AttendedRow => ({
   session_id: 'SESS1',
   student_id: 'S1',
@@ -352,7 +333,7 @@ describe('getAcademyClassHours', () => {
     vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([row({})])
     vi.mocked(selectAttendedForSessions).mockResolvedValue([mark({})])
 
-    const report = await getAcademyClassHours('2026-08')
+    const report = await getAcademyClassHours(ACTOR, '2026-08')
 
     expect(selectSessionsForClassesInRange).toHaveBeenCalledTimes(1)
     expect(report.personTotals).toEqual([
@@ -372,7 +353,7 @@ describe('getAcademyClassHours', () => {
     ])
     vi.mocked(selectAttendedForSessions).mockResolvedValue([])
 
-    await getAcademyClassHours('2026-08')
+    await getAcademyClassHours(ACTOR, '2026-08')
 
     expect(selectAttendedForSessions).toHaveBeenCalledWith(['S1', 'S2', 'S3'])
   })
@@ -380,7 +361,7 @@ describe('getAcademyClassHours', () => {
   it('skips the attendance read entirely when the month has no sessions', async () => {
     vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([])
 
-    const report = await getAcademyClassHours('2026-08')
+    const report = await getAcademyClassHours(ACTOR, '2026-08')
 
     expect(selectAttendedForSessions).not.toHaveBeenCalled()
     expect(report).toEqual({ personTotals: [], tutorClasses: [], studentClasses: [] })
@@ -389,7 +370,7 @@ describe('getAcademyClassHours', () => {
   it('returns empty when the academy has no active classes', async () => {
     vi.mocked(selectActiveClassIds).mockResolvedValue([])
 
-    const report = await getAcademyClassHours('2026-08')
+    const report = await getAcademyClassHours(ACTOR, '2026-08')
 
     expect(selectSessionsForClassesInRange).not.toHaveBeenCalled()
     expect(report).toEqual({ personTotals: [], tutorClasses: [], studentClasses: [] })

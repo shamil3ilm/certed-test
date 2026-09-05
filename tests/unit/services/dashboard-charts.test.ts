@@ -9,6 +9,7 @@ vi.mock('@/lib/data/analytics', () => ({
 }))
 vi.mock('@/lib/services/attendance', () => ({ summarizeAttendanceForStudent: vi.fn() }))
 vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotalsBase: vi.fn() }))
+vi.mock('@/lib/services/authorization', () => ({ actorHasCapability: vi.fn() }))
 
 import { selectSessionsForClasses, selectAttendanceStatusesForClasses } from '@/lib/data/analytics'
 import { selectAllClassIds } from '@/lib/data/classes'
@@ -16,11 +17,16 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { myClassIds } from '@/lib/services/classes'
 import { financeTotalsBase } from '@/lib/services/finance/finance-docs'
+import { actorHasCapability } from '@/lib/services/authorization'
 import { loadDashboardChartSeries } from '@/lib/services/page-data/dashboard-charts'
 
 const me = { id: 'u1' } as any
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  // Default: the admin holds viewFinance. The deny case is asserted explicitly below.
+  vi.mocked(actorHasCapability).mockResolvedValue(true)
+})
 
 describe('loadDashboardChartSeries', () => {
   it('admin: revenue vs payout (no Net bar - the Net card owns it) and weekly sessions (8 buckets)', async () => {
@@ -47,7 +53,9 @@ describe('loadDashboardChartSeries', () => {
 
     const revenue = series[0]
     expect(revenue.unit).toBe('money')
-    expect(revenue.moneyPrefix).toBe('₹')
+    // The series carries the CURRENCY CODE; the client renders it with formatMoney, which
+    // owns the grouping locale and the minor units (a hardcoded symbol map had neither).
+    expect(revenue.currency).toBe('INR')
     // Net is the Net card's headline, so it is not repeated as a bar - only the
     // revenue-vs-payout comparison the card can't show.
     expect(revenue.data).toEqual([
@@ -99,5 +107,23 @@ describe('loadDashboardChartSeries', () => {
       { label: 'Late', value: 1 },
       { label: 'Absent', value: 1 },
     ])
+  })
+})
+
+describe('loadDashboardChartSeries - viewFinance is a capability, not a persona', () => {
+  it('omits the money series when viewFinance is DENIED, but keeps the operational one', async () => {
+    // A deny override on viewFinance is an audited, reason-required act whose whole point
+    // is removing finance visibility. This chart used to gate on the admin persona alone,
+    // so a denied admin still saw academy revenue and payout here while /admin/finance and
+    // the dashboard money cards correctly hid them.
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: true } as any)
+    vi.mocked(actorHasCapability).mockResolvedValue(false)
+    vi.mocked(selectAllClassIds).mockResolvedValue(['c1'] as any)
+    vi.mocked(selectSessionsForClasses).mockResolvedValue([] as any)
+
+    const series = await loadDashboardChartSeries(me)
+
+    expect(series.map((s) => s.key)).toEqual(['sessions'])
+    expect(financeTotalsBase).not.toHaveBeenCalled()
   })
 })

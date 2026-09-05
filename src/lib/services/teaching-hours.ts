@@ -1,4 +1,5 @@
 import 'server-only'
+import { requireActorCapability } from '@/lib/services/authorization'
 import type { Profile } from '@/lib/auth/profile'
 import { minutesBetween } from '@/lib/attendance/hours'
 import { monthWindow } from '@/lib/time/month-window'
@@ -22,10 +23,9 @@ import { getProfileNamesByIds } from '@/lib/services/users'
  * (see monthWindow). The class SCOPE is the only thing that differs between roles:
  *   - a tutor sees their own classes' total (getTutorPersonalHours),
  *   - a mentor sees ONLY the classes their mentees are enrolled in, per tutor (getClassTutorHours),
- *   - an admin sees every class, per tutor (getAllClassTutorHours).
- *
- * getAcademyClassHours adds the admin/sub-admin STUDENT side from the very same session
- * rows, so the two halves of that report can never disagree about which sessions exist.
+ *   - an admin/sub-admin sees every class from BOTH sides (getAcademyClassHours): hours
+ *     taught, per tutor, and hours received, per student, from the very same session rows,
+ *     so the two halves of that report can never disagree about which sessions exist.
  *
  * Isolation is enforced SERVER-SIDE by which class ids enter the query - never by filtering
  * a global tutor total in the UI. Grouping by class_sessions.tutor_id keeps a tutor's Class-1
@@ -116,15 +116,6 @@ async function windowFor(month: string): Promise<{ startIso: string; endIso: str
 export async function getClassTutorHours(actor: Profile, month: string): Promise<ClassTutorHours[]> {
   // Archived classes drop out of the hour report (Q7): trim the authority set to active ones.
   const classIds = await selectActiveClassIdsAmong([...(await mentorAuthorityClassIds(actor.id))])
-  if (classIds.length === 0) return []
-  const { startIso, endIso } = await windowFor(month)
-  const rows = await selectSessionsForClassesInRange(classIds, startIso, endIso)
-  return shapeClassTutorHours(aggregateClassTutorHours(rows))
-}
-
-/** ADMIN view: per-tutor teaching hours for EVERY class, for `month` (class x tutor rows). */
-export async function getAllClassTutorHours(month: string): Promise<ClassTutorHours[]> {
-  const classIds = await selectActiveClassIds()
   if (classIds.length === 0) return []
   const { startIso, endIso } = await windowFor(month)
   const rows = await selectSessionsForClassesInRange(classIds, startIso, endIso)
@@ -318,7 +309,12 @@ export interface AcademyClassHours {
  * Sub-admins see the same academy-wide figures as admins: 0092 gave that persona
  * academy-wide authority over class-scoped tables, with no per-class subset to respect.
  */
-export async function getAcademyClassHours(month: string): Promise<AcademyClassHours> {
+export async function getAcademyClassHours(actorId: string, month: string): Promise<AcademyClassHours> {
+  // Actor-scoped like its two siblings (getClassTutorHours, getTutorPersonalHours), which
+  // both narrow to the caller's classes. This one is academy-wide, so it re-checks the
+  // capability instead - manageClasses is reason-required precisely because this report
+  // spans every tutor and student.
+  await requireActorCapability(actorId, 'manageClasses', 'You are not allowed to view academy-wide hours.')
   const classIds = await selectActiveClassIds()
   if (classIds.length === 0) return { personTotals: [], tutorClasses: [], studentClasses: [] }
   const { startIso, endIso } = await windowFor(month)

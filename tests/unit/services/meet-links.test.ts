@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
-vi.mock('@/lib/permission', () => ({ canManageScope: vi.fn(), assertClassActive: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
+// The tutor-only write scope, mirroring the teaches_class_write RLS behind these
+// writes. It replaced canManageScope, which admitted a mentor the DB then refused.
+vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/notifications', () => ({ notifyClassRoleBestEffort: vi.fn() }))
 
-import { canManageScope, assertClassActive } from '@/lib/permission'
+import { assertClassActive } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
@@ -40,7 +44,7 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('createMeetLink', () => {
   it('rejects a caller who cannot manage the scope, without a DB write or audit', async () => {
-    vi.mocked(canManageScope).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(createMeetLink(actor, { class_id: 'class-1', title: 'x', url: 'https://y' })).rejects.toBeInstanceOf(
       PermissionError,
     )
@@ -49,7 +53,7 @@ describe('createMeetLink', () => {
   })
 
   it('creates and audits meet.create for a manager (previously unaudited)', async () => {
-    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
     const created = await createMeetLink(actor, {
       class_id: 'class-1',
@@ -105,7 +109,7 @@ describe('validateCreateMeetLinkInput', () => {
 
 describe('createMeetLinkFromActionInput', () => {
   it('creates a global meet link after normalizing the action payload', async () => {
-    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...linkRow, class_id: null, id: 'global-1' }, error: null }) as any,
     )
@@ -133,20 +137,20 @@ describe('deleteMeetLink', () => {
   it('throws NotFoundError for a missing id, without a permission check or audit', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await expect(deleteMeetLink(actor, 'missing')).rejects.toBeInstanceOf(NotFoundError)
-    expect(canManageScope).not.toHaveBeenCalled()
+    expect(canWriteClass).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('rejects a non-manager without deactivating or auditing', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
-    vi.mocked(canManageScope).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(deleteMeetLink(actor, 'link-1')).rejects.toBeInstanceOf(PermissionError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('deactivates and audits meet.delete for a manager (previously unaudited)', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
-    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any)
     await deleteMeetLink(actor, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -162,20 +166,20 @@ describe('restoreMeetLink', () => {
   it('throws NotFoundError for a missing id, without a permission check or audit', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     await expect(restoreMeetLink(actor, 'missing')).rejects.toBeInstanceOf(NotFoundError)
-    expect(canManageScope).not.toHaveBeenCalled()
+    expect(canWriteClass).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('rejects a non-manager without reactivating or auditing', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
-    vi.mocked(canManageScope).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(restoreMeetLink(actor, 'link-1')).rejects.toBeInstanceOf(PermissionError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('reactivates and audits meet.restore for a manager', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
-    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any)
     await restoreMeetLink(actor, 'link-1')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -188,7 +192,7 @@ describe('restoreMeetLink', () => {
 
   it('refuses to restore a link onto an archived class, without reactivating', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
-    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))
     await expect(restoreMeetLink(actor, 'link-1')).rejects.toBeInstanceOf(ValidationError)
     expect(writeAudit).not.toHaveBeenCalled()
@@ -200,7 +204,7 @@ describe('editMeetLinkFromActionInput', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...linkRow, id: VALID_ID }, error: null }) as any,
     ) // getMeetLink
-    vi.mocked(canManageScope).mockResolvedValueOnce(true)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any) // updateMeetLink
     await editMeetLinkFromActionInput(actor, {
       id: VALID_ID,
@@ -221,7 +225,7 @@ describe('editMeetLinkFromActionInput', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...linkRow, id: VALID_ID }, error: null }) as any,
     )
-    vi.mocked(canManageScope).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(
       editMeetLinkFromActionInput(actor, {
         id: VALID_ID,

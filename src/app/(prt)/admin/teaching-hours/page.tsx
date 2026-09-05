@@ -182,10 +182,10 @@ function ClassStudentTable({ classes, month }: { classes: AcademyClassHours['stu
  */
 export default async function ClassHoursReportPage(props: { searchParams: Promise<{ month?: string }> }) {
   const { month: monthParam } = await props.searchParams
-  await requireCapability('manageClasses')
+  const me = await requireCapability('manageClasses')
   const tz = await getInstituteTimeZone()
   const month = monthParam && isMonth(monthParam) ? monthParam : todayInZone(tz).slice(0, 7)
-  const { personTotals, tutorClasses, studentClasses } = await getAcademyClassHours(month)
+  const { personTotals, tutorClasses, studentClasses } = await getAcademyClassHours(me.id, month)
   const hasSessions = tutorClasses.length > 0
 
   return (

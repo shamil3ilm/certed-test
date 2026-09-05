@@ -9,7 +9,8 @@ import {
   updateMeetLink,
   type MeetLinkRow,
 } from '@/lib/data/meet-links'
-import { canManageScope, assertClassActive } from '@/lib/permission'
+import { assertClassActive } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
@@ -54,7 +55,7 @@ type CreateMeetLinkInput = {
   scheduled_at?: string | null
 }
 
-// The client (MeetForm) converts its datetime-local value to a strict ISO instant
+// The meet-link form converts its datetime-local value to a strict ISO instant
 // before submitting; an empty field arrives as null (an always-available link).
 const scheduledAtField = z.string().datetime().nullable()
 
@@ -111,11 +112,17 @@ async function notifyClassOfMeet(meet: MeetLink): Promise<void> {
 
 /**
  * A class meet requires managing that class; a global meet (null) is
- * admin-only. Enforces canManageScope and writes a `meet.create` audit entry.
+ * admin-only. Enforces canWriteClass and writes a `meet.create` audit entry.
  */
 export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput): Promise<MeetLink> {
   throttleWrite('meet', actor.id, 'meeting link')
-  if (!(await canManageScope(actor, input.class_id))) {
+  // canWriteClass, NOT canManageScope: the latter resolves to canManageClass, which admits
+  // a MENTOR over a mentee's class - but the RLS policies behind these writes are the
+  // TUTOR-ONLY teaches_class_write (0079/0092), so the app said yes and Postgres said no,
+  // surfacing as a raw RLS error instead of a clean PermissionError (and passing outright
+  // in mock mode, which has no RLS). canWriteClass treats a null class the same way -
+  // academy-wide is admin-only - so the academy-wide path is unchanged.
+  if (!(await canWriteClass(actor, input.class_id))) {
     throw new PermissionError('Not allowed to post a meet link to this class')
   }
   if (input.class_id) await assertClassActive(input.class_id)
@@ -165,7 +172,7 @@ export async function editMeetLinkFromActionInput(actor: Profile, input: EditMee
   }
   const link = await getMeetLink(parsed.data.id)
   if (!link) throw new NotFoundError('Meet link not found')
-  if (!(await canManageScope(actor, link.class_id))) {
+  if (!(await canWriteClass(actor, link.class_id))) {
     throw new PermissionError('Not authorized for this meet link')
   }
   await updateMeetLink(parsed.data.id, {
@@ -186,14 +193,14 @@ export async function createMeetLinkFromActionInput(
 
 /**
  * Soft-remove: deactivate the link (kept on record) rather than deleting it.
- * Enforces canManageScope on the link's own class and writes the audit entry
+ * Enforces canWriteClass on the link's own class and writes the audit entry
  * (also a new behavior addition - see createMeetLink).
  */
 export async function deleteMeetLink(actor: Profile, id: string): Promise<void> {
   throttleWrite('meet', actor.id, 'meeting link')
   const link = await getMeetLink(id)
   if (!link) throw new NotFoundError('Meet link not found')
-  if (!(await canManageScope(actor, link.class_id))) {
+  if (!(await canWriteClass(actor, link.class_id))) {
     throw new PermissionError('Not authorized for this meet link')
   }
   await setMeetLinkActive(id, false)
@@ -206,7 +213,7 @@ export async function restoreMeetLink(actor: Profile, id: string): Promise<void>
   throttleWrite('meet', actor.id, 'meeting link')
   const link = await getMeetLink(id)
   if (!link) throw new NotFoundError('Meet link not found')
-  if (!(await canManageScope(actor, link.class_id))) {
+  if (!(await canWriteClass(actor, link.class_id))) {
     throw new PermissionError('Not authorized for this meet link')
   }
   // Re-activating is placing content back on the class - hold it to the same rule

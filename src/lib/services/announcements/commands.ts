@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { canManageScope, assertClassActive } from '@/lib/permission'
+import { assertClassActive } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError } from '@/lib/errors'
@@ -17,7 +18,7 @@ import {
 } from './validation'
 
 /** Posting, editing and archiving announcements. Every write is gated on
- *  canManageScope - the post's own class, or academy-wide for an admin. */
+ *  canWriteClass - the post's own class, or academy-wide for an admin. */
 
 /** Loads the announcement and checks the caller may manage its scope (its own
  *  class, or academy-wide if admin) - throws instead of returning a boolean
@@ -25,7 +26,13 @@ import {
 async function requireManageable(actor: Profile, id: string): Promise<Announcement> {
   const announcement = await getAnnouncement(id)
   if (!announcement) throw new NotFoundError('Announcement not found')
-  if (!(await canManageScope(actor, announcement.class_id))) {
+  // canWriteClass, NOT canManageScope: the latter resolves to canManageClass, which admits
+  // a MENTOR over a mentee's class - but the RLS policies behind these writes are the
+  // TUTOR-ONLY teaches_class_write (0079/0092), so the app said yes and Postgres said no,
+  // surfacing as a raw RLS error instead of a clean PermissionError (and passing outright
+  // in mock mode, which has no RLS). canWriteClass treats a null class the same way -
+  // academy-wide is admin-only - so the academy-wide path is unchanged.
+  if (!(await canWriteClass(actor, announcement.class_id))) {
     throw new PermissionError('Not authorized for this announcement')
   }
   return announcement
@@ -54,7 +61,7 @@ async function notifyClassOfPost(announcement: Announcement): Promise<void> {
 
 export async function createAnnouncement(actor: Profile, input: CreateAnnouncementInput): Promise<Announcement> {
   throttleWrite('announcement', actor.id, 'announcement')
-  if (!(await canManageScope(actor, input.class_id))) {
+  if (!(await canWriteClass(actor, input.class_id))) {
     throw new PermissionError('Not authorized for this class')
   }
   if (input.class_id) await assertClassActive(input.class_id)

@@ -2,6 +2,7 @@ import 'server-only'
 import { z } from 'zod'
 import { SUPPORTED_CURRENCIES } from '@/lib/money'
 import { ValidationError } from '@/lib/errors'
+import { requireActorCapability } from '@/lib/services/authorization'
 import { listActiveByRole, listActiveMentorCandidates } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
@@ -39,7 +40,14 @@ export interface BillingRatesPageData {
  * That is a deliberate trade - it is admin-tier only, the same tier that already reads
  * every name in the finance ledger.
  */
-export async function loadBillingRatesPageData(): Promise<BillingRatesPageData> {
+const RATES_DENIED = 'Only an admin can manage billing rates.'
+
+export async function loadBillingRatesPageData(actorId: string): Promise<BillingRatesPageData> {
+  // Guarded in the SERVICE, like every fx-admin sibling on this same page. This returns
+  // the full roster of active students and payees with their rates, and an hourly rate
+  // sets what every future receipt and pay slip charges - too much to leave resting only
+  // on the action and page each remembering to check.
+  await requireActorCapability(actorId, 'manageAdminTier', RATES_DENIED)
   const [students, payees, stored, org] = await Promise.all([
     listActiveByRole('student'),
     listActiveMentorCandidates(),
@@ -96,6 +104,7 @@ export interface SetBillingRateInput {
  * that was not being edited.
  */
 export async function setBillingRate(actorId: string, input: SetBillingRateInput): Promise<void> {
+  await requireActorCapability(actorId, 'manageAdminTier', RATES_DENIED)
   const parsed = rateInputSchema.safeParse(input)
   if (!parsed.success) throw new ValidationError('Enter a valid rate and currency.')
   const { profile_id, side, rate, currency } = parsed.data

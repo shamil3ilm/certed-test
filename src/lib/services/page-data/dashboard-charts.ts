@@ -8,6 +8,7 @@ import { selectSessionsForClasses, selectAttendanceStatusesForClasses } from '@/
 import { summarizeAttendance, type AttendanceStatus } from '@/lib/attendance/summary'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { financeTotalsBase } from '@/lib/services/finance/finance-docs'
+import { actorHasCapability } from '@/lib/services/authorization'
 
 /**
  * Chart data for the dashboard's dynamic chart panel. Each persona gets a few
@@ -32,7 +33,9 @@ export type ChartSeries = {
   data: ChartPoint[]
   unit?: 'count' | 'hours' | 'money'
   styles?: ChartStyle[]
-  moneyPrefix?: string
+  /** ISO code for a money series, so the client formats it with formatMoney (correct
+   *  grouping locale and minor units) instead of a prefix plus bare toLocaleString. */
+  currency?: string
   /** A caveat shown under the chart, e.g. that some amounts are not yet converted
    *  into the base currency, so the figures understate. */
   note?: string
@@ -40,8 +43,6 @@ export type ChartSeries = {
   defaultPeriod?: ChartPeriod
   defaultGroupBy?: ChartGroupBy
 }
-
-const CURRENCY_PREFIX: Record<string, string> = { INR: '\u20B9', USD: '$', AED: 'AED ', SAR: 'SAR ', QAR: 'QAR ' }
 
 function startOfUtcMonth(year: number, monthIndex: number): number {
   return Date.UTC(year, monthIndex, 1)
@@ -118,36 +119,49 @@ export async function loadDashboardChartSeries(me: Profile): Promise<ChartSeries
   const flags = await loadPersonaFlags(me.id)
   const series: ChartSeries[] = []
 
+  // viewFinance, NOT the admin persona: the capability is override-grantable AND
+  // override-DENIABLE (it is not in HARD_CAPABILITIES, and deny beats the baseline), and
+  // denying it is an audited, reason-required act meant to remove finance visibility.
+  // Gating on the persona let a denied admin keep seeing academy revenue and payout here
+  // while every sibling surface - /admin/finance and the dashboard's own money cards -
+  // correctly hid them.
   if (flags.isAdmin) {
-    const [receiptBase, payslipBase, classIds] = await Promise.all([
-      financeTotalsBase('receipt'),
-      financeTotalsBase('payslip'),
-      selectAllClassIds(),
-    ])
-    const base = receiptBase.base_currency || payslipBase.base_currency || 'INR'
-    const rev = receiptBase.base_total
-    const pay = payslipBase.base_total
-    // If any document isn't yet priced into the base currency, the figures
-    // understate - say so, same as the Net card, rather than implying a total.
-    const unconverted = receiptBase.unconverted_count + payslipBase.unconverted_count
-    // Net is the admin Net card's headline, so it is NOT repeated as a bar here -
-    // the chart adds the revenue-vs-payout COMPARISON the card can only state as
-    // text (both sum the same per-document base amounts, so they always agree).
-    series.push({
-      key: 'revenue',
-      label: 'Revenue',
-      unit: 'money',
-      moneyPrefix: CURRENCY_PREFIX[base] ?? `${base} `,
-      styles: ['column', 'bar'],
-      data: [
-        { label: 'Revenue', value: rev },
-        { label: 'Payout', value: pay },
-      ],
-      note:
-        unconverted > 0
-          ? `${unconverted} document${unconverted === 1 ? '' : 's'} not yet converted to ${base} - add a rate to include ${unconverted === 1 ? 'it' : 'them'}.`
-          : undefined,
-    })
+    // The finance series is gated on viewFinance, NOT the admin persona. That capability
+    // is override-DENIABLE (it is absent from HARD_CAPABILITIES, and deny beats the
+    // baseline), and denying it is an audited, reason-required act meant to remove
+    // finance visibility. Gating the series on the persona let a denied admin keep seeing
+    // academy revenue and payout here while every sibling surface - /admin/finance and
+    // the dashboard's own money cards - correctly hid them. The operational series below
+    // is NOT finance, so a denied admin still gets their cross-academy sessions chart.
+    const canViewFinance = await actorHasCapability(me.id, 'viewFinance')
+    const classIds = await selectAllClassIds()
+    if (canViewFinance) {
+      const [receiptBase, payslipBase] = await Promise.all([financeTotalsBase('receipt'), financeTotalsBase('payslip')])
+      const base = receiptBase.base_currency || payslipBase.base_currency || 'INR'
+      const rev = receiptBase.base_total
+      const pay = payslipBase.base_total
+      // If any document isn't yet priced into the base currency, the figures
+      // understate - say so, same as the Net card, rather than implying a total.
+      const unconverted = receiptBase.unconverted_count + payslipBase.unconverted_count
+      // Net is the admin Net card's headline, so it is NOT repeated as a bar here -
+      // the chart adds the revenue-vs-payout COMPARISON the card can only state as
+      // text (both sum the same per-document base amounts, so they always agree).
+      series.push({
+        key: 'revenue',
+        label: 'Revenue',
+        unit: 'money',
+        currency: base,
+        styles: ['column', 'bar'],
+        data: [
+          { label: 'Revenue', value: rev },
+          { label: 'Payout', value: pay },
+        ],
+        note:
+          unconverted > 0
+            ? `${unconverted} document${unconverted === 1 ? '' : 's'} not yet converted to ${base} - add a rate to include ${unconverted === 1 ? 'it' : 'them'}.`
+            : undefined,
+      })
+    }
     series.push(await weeklySessionsSeries(classIds))
     // Admin dashboards should stay operational and cross-academy. Raw attendance
     // mix is more useful in class / mentor / student contexts than as a global

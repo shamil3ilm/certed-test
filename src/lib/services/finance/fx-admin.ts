@@ -95,5 +95,9 @@ export async function setBaseCurrency(actorId: string, currency: unknown): Promi
 }
 
 export async function recomputeFx(actorId: string): Promise<RecomputeResult> {
+  // Re-checked here like every other mutation in this module (the header promises it).
+  // The sole caller gates too, but this one re-prices every finance document, so it must
+  // not depend on a future caller remembering.
+  await requireActorCapability(actorId, 'manageAdminTier', FX_DENIED)
   return recomputeConversions(actorId)
 }

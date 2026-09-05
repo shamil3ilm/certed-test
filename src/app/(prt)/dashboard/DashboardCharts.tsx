@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ColumnChart, LineChart, MiniBars, Panel, cx } from '@/lib/ui'
+import { formatMoney } from '@/lib/money'
 import type {
   ChartGroupBy,
   ChartPeriod,
@@ -21,7 +22,11 @@ const GROUP_BY_LABEL: Record<ChartGroupBy, string> = { week: 'Week', month: 'Mon
 
 function formatterFor(series: ChartSeries): ((n: number) => string) | undefined {
   if (series.unit === 'hours') return (n) => `${(n / 60).toFixed(1)}h`
-  if (series.unit === 'money') return (n) => `${series.moneyPrefix ?? ''}${n.toLocaleString()}`
+  // formatMoney, not a prefix + bare toLocaleString: the latter grouped by the VIEWER'S
+  // browser locale (a de-DE browser rendered 100000 as "100.000", which reads as one
+  // hundred), dropped INR lakh/crore grouping, and had no entry for the 3-decimal Gulf
+  // currencies. This formatter also feeds the chart's aria-label and title.
+  if (series.unit === 'money') return (n) => (series.currency ? formatMoney(n, series.currency) : String(n))
   return undefined
 }
 
