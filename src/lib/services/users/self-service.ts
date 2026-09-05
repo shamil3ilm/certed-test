@@ -53,11 +53,23 @@ export async function updateOwnProfileDetails(
 
 /** Self-service password change. Real mode updates the auth account; mock mode
  * mirrors the password onto the seeded profile row used by the local auth shim. */
-export async function changeOwnPassword(actor: Pick<Profile, 'id'>, password: string): Promise<void> {
+export async function changeOwnPassword(
+  actor: Pick<Profile, 'id' | 'email'>,
+  password: string,
+  currentPassword: string,
+): Promise<void> {
   // Throttle this sensitive account-mutation path like every other write in the
   // app - a hijacked session shouldn't be able to hammer or lock the account.
   if (!rateLimit(`password-change:${actor.id}`, { limit: 5, windowMs: 10 * 60 * 1000 }).ok) {
     throw new RateLimitError('Too many password changes. Please wait a few minutes and try again.')
+  }
+  // Re-authenticate before re-keying the account. Without this a stolen COOKIE is a
+  // full account takeover in one step: set a new password, and signOutOwnOtherSessions
+  // below then evicts the real owner while scope:'others' preserves the attacker's
+  // session. The email door has verified the current password since A-04's first half;
+  // this is the same door, and it was the simpler way in.
+  if (!(await verifyOwnPassword(actor.email ?? '', currentPassword))) {
+    throw new ValidationError('Current password is incorrect.')
   }
   if (isMock()) {
     await updateProfile(actor.id, { password })

@@ -140,5 +140,9 @@ export const changePasswordSchema = z
   .object({
     password: passwordField,
     confirm: z.string(),
+    // Re-authentication for a self-service re-key (A-04). Not a passwordField: it is an
+    // EXISTING secret being checked, so applying today's strength rules to it would
+    // reject a legitimate older password before it is ever verified.
+    current_password: z.string().min(1, 'Enter your current password'),
   })
   .refine((v) => v.password === v.confirm, { message: 'Passwords do not match', path: ['confirm'] })

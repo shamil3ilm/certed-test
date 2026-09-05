@@ -15,6 +15,7 @@ const CONSENT = {
   acceptedAt: '2026-08-25T00:00:00.000Z',
   currentTermsVersion: '2026-08-25',
   currentPrivacyVersion: '2026-08-25',
+  withdrawnAt: null,
   upToDate: true,
 }
 

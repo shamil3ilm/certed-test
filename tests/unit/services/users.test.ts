@@ -8,6 +8,7 @@ vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/data/auth-accounts', async (importActual) => ({
   ...(await importActual()),
   setAuthUserBanned: vi.fn(),
+  verifyOwnPassword: vi.fn(),
 }))
 vi.mock('@/lib/permission/personas', () => ({
   loadActivePersonas: vi.fn(),
@@ -27,7 +28,7 @@ import { ERROR_CODES } from '@/lib/api/error-codes'
 import { setupCodeValid } from '@/lib/auth/setup-code'
 import { isMock } from '@/lib/mock/env'
 import { writeAudit } from '@/lib/data/audit'
-import { setAuthUserBanned } from '@/lib/data/auth-accounts'
+import { setAuthUserBanned, verifyOwnPassword } from '@/lib/data/auth-accounts'
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import {
   addUser,
@@ -60,6 +61,9 @@ const targetTutorId = '550e8400-e29b-41d4-a716-446655440000'
 
 beforeEach(() => {
   vi.resetAllMocks()
+  // Re-authentication succeeds by default so each case exercises the change itself;
+  // the A-04 test overrides it to false.
+  vi.mocked(verifyOwnPassword).mockResolvedValue(true)
   vi.mocked(loadActivePersonas).mockImplementation(async (profileId: string) => {
     if (profileId === 'admin-1' || profileId === 'admin-2') {
       return [
@@ -582,7 +586,7 @@ describe('self-service settings writes', () => {
     vi.mocked(createClient)
       .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
       .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
-    await changeOwnPassword(selfActor, 'new-password-123')
+    await changeOwnPassword(selfActor, 'new-password-123', 'current-pw')
     expect(updateUser).toHaveBeenCalledWith({ password: 'new-password-123' })
     // The change must not leave a captured session on another device alive.
     expect(signOut).toHaveBeenCalledWith({ scope: 'others' })
@@ -601,7 +605,7 @@ describe('self-service settings writes', () => {
     vi.mocked(createClient)
       .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
       .mockResolvedValueOnce({ auth: { updateUser, signOut } } as any)
-    await changeOwnPassword(selfActor, 'new-password-123')
+    await changeOwnPassword(selfActor, 'new-password-123', 'current-pw')
     // The password IS changed and the action is audited even though the sign-out errored.
     expect(updateUser).toHaveBeenCalledWith({ password: 'new-password-123' })
     expect(writeAudit).toHaveBeenCalledWith({
@@ -612,10 +616,35 @@ describe('self-service settings writes', () => {
     })
   })
 
+  it('changeOwnPassword REFUSES a wrong current password, and changes nothing (A-04)', async () => {
+    // A stolen cookie must not be enough to re-key the account: without this check the
+    // attacker sets a new password and the sign-out of "other" sessions evicts the owner.
+    vi.mocked(verifyOwnPassword).mockResolvedValueOnce(false)
+    const updateUser = vi.fn(async () => ({ data: {}, error: null }))
+    vi.mocked(createClient).mockResolvedValue({ auth: { updateUser, signOut: vi.fn() } } as any)
+    await expect(changeOwnPassword(selfActor, 'new-password-123', 'wrong-pw')).rejects.toThrow(
+      /current password is incorrect/i,
+    )
+    expect(updateUser, 'the password must not be changed').not.toHaveBeenCalled()
+    expect(writeAudit, 'a refused change must not be audited as one').not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'profile.password' }),
+    )
+  })
+
+  it('changeOwnPassword verifies the current password against the actor own email', async () => {
+    // Own email, not a caller-supplied one: the re-auth must be tied to THIS account.
+    const actorWithEmail = { id: 'self-1', email: 'self@certed.test' } as any
+    vi.mocked(verifyOwnPassword).mockResolvedValueOnce(true)
+    vi.mocked(isMock).mockReturnValueOnce(true as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'self-1' }], error: null }) as any)
+    await changeOwnPassword(actorWithEmail, 'mock-password', 'current-pw')
+    expect(verifyOwnPassword).toHaveBeenCalledWith('self@certed.test', 'current-pw')
+  })
+
   it('changeOwnPassword uses the profile row in mock mode and audits', async () => {
     vi.mocked(isMock).mockReturnValueOnce(true as any)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-    await changeOwnPassword(selfActor, 'mock-password')
+    await changeOwnPassword(selfActor, 'mock-password', 'current-pw')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'self-1',
       action: 'profile.password',

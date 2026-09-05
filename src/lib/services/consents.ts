@@ -1,5 +1,5 @@
 import 'server-only'
-import { insertConsent, selectLatestConsent } from '@/lib/data/consents'
+import { insertConsent, markLatestConsentWithdrawn, selectLatestConsent } from '@/lib/data/consents'
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/policy/versions'
 
 /**
@@ -42,7 +42,11 @@ export type ConsentStatus = {
   acceptedAt: string | null
   currentTermsVersion: string
   currentPrivacyVersion: string
-  /** True only when a consent exists AND both accepted versions match the current ones. */
+  /** When the standing acceptance was withdrawn, or null while it stands (N-07). */
+  withdrawnAt: string | null
+  /** True only when a consent exists, is NOT withdrawn, and both accepted versions match
+   *  the current ones. A withdrawal makes this false, so the same UI that prompts after a
+   *  policy update also prompts after a withdrawal. */
   upToDate: boolean
 }
 
@@ -54,25 +58,41 @@ export type ConsentStatus = {
 export async function getConsentStatus(profileId: string): Promise<ConsentStatus> {
   const latest = await selectLatestConsent(profileId)
   const upToDate =
-    latest != null && latest.terms_version === TERMS_VERSION && latest.privacy_version === PRIVACY_VERSION
+    latest != null &&
+    latest.withdrawn_at == null &&
+    latest.terms_version === TERMS_VERSION &&
+    latest.privacy_version === PRIVACY_VERSION
   return {
     acceptedTermsVersion: latest?.terms_version ?? null,
     acceptedPrivacyVersion: latest?.privacy_version ?? null,
     acceptedAt: latest?.accepted_at ?? null,
+    withdrawnAt: latest?.withdrawn_at ?? null,
     currentTermsVersion: TERMS_VERSION,
     currentPrivacyVersion: PRIVACY_VERSION,
     upToDate,
   }
 }
 
-/** True when the person needs to (re-)accept: no consent on record, or the policy has been
- *  published in a newer version than they last accepted. */
-export async function needsPolicyReacceptance(profileId: string): Promise<boolean> {
-  return !(await getConsentStatus(profileId)).upToDate
-}
+// needsPolicyReacceptance() lived here and had no callers in any round it was reported.
+// It was a one-line negation of getConsentStatus().upToDate, which the settings page
+// already reads directly to decide whether to show the re-acceptance form. Keeping a
+// duplicate entry point that nothing calls is how the two drift; the live path is
+// getConsentStatus, and `upToDate` now also accounts for withdrawal (N-07).
 
 /** Record a fresh acceptance of the CURRENT policy versions. The log is append-only,
  *  so re-affirming simply adds the current-version row - the prior acceptances stay on record. */
 export async function reaffirmCurrentConsent(profileId: string): Promise<void> {
   await recordConsentAcceptance(profileId)
+}
+
+/**
+ * Withdraw the standing consent. The privacy policy offers withdrawal, and until now the
+ * schema had no way to express it - the log could only ever say "accepted" (N-07).
+ *
+ * Withdrawal does NOT erase: the acceptance stays on the append-only log as the historical
+ * fact that it was given, and a marker records that it was later revoked. Erasure is a
+ * separate, heavier request with its own path.
+ */
+export async function withdrawConsent(profileId: string): Promise<void> {
+  await markLatestConsentWithdrawn(profileId, new Date().toISOString())
 }

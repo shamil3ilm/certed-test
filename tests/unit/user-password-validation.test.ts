@@ -48,8 +48,19 @@ describe('registerSchema password policy', () => {
 
 describe('changePasswordSchema', () => {
   it('enforces the policy and the confirm match', () => {
-    expect(changePasswordSchema.safeParse({ password: 'short', confirm: 'short' }).success).toBe(false)
-    expect(changePasswordSchema.safeParse({ password: 'Long-enough-1', confirm: 'nope' }).success).toBe(false)
-    expect(changePasswordSchema.safeParse({ password: 'Long-enough-1', confirm: 'Long-enough-1' }).success).toBe(true)
+    expect(
+      changePasswordSchema.safeParse({ password: 'short', confirm: 'short', current_password: 'current-pw' }).success,
+    ).toBe(false)
+    expect(
+      changePasswordSchema.safeParse({ password: 'Long-enough-1', confirm: 'nope', current_password: 'current-pw' })
+        .success,
+    ).toBe(false)
+    expect(
+      changePasswordSchema.safeParse({
+        password: 'Long-enough-1',
+        confirm: 'Long-enough-1',
+        current_password: 'current-pw',
+      }).success,
+    ).toBe(true)
   })
 })

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { RateLimitError, ValidationError } from '@/lib/errors'
 import { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwnEmail } from '@/lib/services/users'
-import { reaffirmCurrentConsent } from '@/lib/services/consents'
+import { reaffirmCurrentConsent, withdrawConsent } from '@/lib/services/consents'
 import {
   updateProfileSchema,
   selfProfileDetailsSchema,
@@ -44,14 +44,18 @@ export async function changePasswordAction(formData: FormData) {
   const parsed = changePasswordSchema.safeParse({
     password: formData.get('password'),
     confirm: formData.get('confirm'),
+    current_password: formData.get('current_password'),
   })
   if (!parsed.success) redirect('/settings?error=password')
 
   try {
-    await changeOwnPassword(me, parsed.data.password)
+    await changeOwnPassword(me, parsed.data.password, parsed.data.current_password)
   } catch (error) {
     // redirect() throws NEXT_REDIRECT, so it must stay outside this catch.
     if (error instanceof RateLimitError) redirect('/settings?error=password_limit')
+    // A wrong current password is the user's mistake, not a fault - say which one it was
+    // instead of the generic "check the form" that a validation failure produces.
+    if (error instanceof ValidationError) redirect('/settings?error=password_current')
     throw error
   }
   revalidatePath('/settings')
@@ -90,4 +94,16 @@ export async function reaffirmConsentAction() {
   await reaffirmCurrentConsent(me.id)
   revalidatePath('/settings')
   redirect('/settings?saved=consent')
+}
+
+/**
+ * Withdraw the standing consent (N-07). The privacy policy offers withdrawal and there was
+ * no way to exercise it. This records the withdrawal against the append-only log; it does
+ * NOT erase the account, which is a separate and heavier request.
+ */
+export async function withdrawConsentAction() {
+  const me = await requireActiveProfile()
+  await withdrawConsent(me.id)
+  revalidatePath('/settings')
+  redirect('/settings?saved=consent_withdrawn')
 }

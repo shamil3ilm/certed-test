@@ -64,6 +64,18 @@ export async function loadSettingsPageData(
       message: 'Too many password changes. Please wait a few minutes and try again.',
     })
   }
+  if (searchParams.saved === 'consent_withdrawn') {
+    alerts.push({
+      tone: 'success',
+      message: 'Consent withdrawn. Your acceptance stays on record as history, marked as withdrawn.',
+    })
+  }
+  if (searchParams.error === 'password_current') {
+    alerts.push({
+      tone: 'error',
+      message: 'Current password is incorrect. Your password has not been changed.',
+    })
+  }
   if (searchParams.saved === 'email') {
     alerts.push({ tone: 'success', message: 'Email updated.' })
   }

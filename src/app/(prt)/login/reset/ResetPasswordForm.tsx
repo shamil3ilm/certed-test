@@ -10,13 +10,18 @@ import { changePasswordSchema } from '@/lib/validation/user'
 export function ResetPasswordForm() {
   const router = useRouter()
   const authAvailability = getBrowserAuthAvailability()
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // Read from the form, not from state: a value autofilled before this island
+    // hydrated never reaches React state (see PasswordLoginForm for the full note).
+    // Captured BEFORE any await - React nulls currentTarget once the handler yields.
+    const fields = new FormData(event.currentTarget)
+    const password = String(fields.get('password') ?? '')
+    const confirm = String(fields.get('confirm') ?? '')
+
     if (!authAvailability.ok) {
       setError(authAvailability.message)
       return
@@ -45,22 +50,10 @@ export function ResetPasswordForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <Field label="New password">
-        <PasswordInput
-          required
-          placeholder="At least 8 characters"
-          autoComplete="new-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
+        <PasswordInput name="password" required placeholder="At least 8 characters" autoComplete="new-password" />
       </Field>
       <Field label="Confirm password">
-        <PasswordInput
-          required
-          placeholder="Re-enter your new password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(event) => setConfirm(event.target.value)}
-        />
+        <PasswordInput name="confirm" required placeholder="Re-enter your new password" autoComplete="new-password" />
       </Field>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}

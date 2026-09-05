@@ -7,13 +7,18 @@ import { AlertBanner } from '@/lib/ui'
 
 export function ForgotPasswordForm() {
   const authAvailability = getBrowserAuthAvailability()
+  // Holds the address that was actually SUBMITTED, for the confirmation copy below -
+  // not a mirror of the input, which is uncontrolled (see PasswordLoginForm for why).
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // Captured BEFORE any await: React nulls currentTarget once the handler yields.
+    const submitted = String(new FormData(event.currentTarget).get('email') ?? '')
+
     if (!authAvailability.ok) {
       setError(authAvailability.message)
       return
@@ -23,7 +28,8 @@ export function ForgotPasswordForm() {
     setError(null)
 
     try {
-      await requestPasswordResetClient(email)
+      await requestPasswordResetClient(submitted)
+      setEmail(submitted)
       setSent(true)
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : 'Could not send the reset email.')
@@ -51,14 +57,7 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <Field label="Email">
-        <Input
-          type="email"
-          required
-          placeholder="you@example.com"
-          autoComplete="username"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
+        <Input name="email" type="email" required placeholder="you@example.com" autoComplete="username" />
       </Field>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
