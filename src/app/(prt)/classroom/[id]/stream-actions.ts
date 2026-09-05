@@ -42,7 +42,7 @@ export async function createAnnouncementReturningId(input: {
       publish_at: input.publishAt,
       expires_at: input.expiresAt,
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return { ok: true, announcementId: created.id }
   } catch (error) {
     return postError(error, 'Could not post the announcement.')
@@ -69,7 +69,7 @@ export async function createMeetPost(input: {
       description: input.message,
       scheduled_at: '',
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return { ok: true }
   } catch (error) {
     return postError(error, 'Could not create the meeting.')

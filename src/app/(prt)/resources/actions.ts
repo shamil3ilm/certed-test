@@ -30,7 +30,7 @@ export async function createDocumentAction(formData: FormData): Promise<ActionSt
   const me = await requireCapability('manageClassContent')
   try {
     await createDocumentFromActionInput(me, documentFields(formData))
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -48,7 +48,7 @@ export async function createCustodialDocumentAction(
   const me = await requireCapability('manageClassContent')
   try {
     const doc = await createCustodialDocumentFromActionInput(me, documentFields(formData))
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return { ok: true, resourceId: doc.id }
   } catch (error) {
     return { ok: false, error: error instanceof ServiceError ? error.message : 'Could not create the document.' }
@@ -59,7 +59,7 @@ export async function editDocumentAction(formData: FormData): Promise<ActionStat
   const me = await requireCapability('manageClassContent')
   try {
     await editDocumentFromActionInput(me, documentFields(formData))
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)

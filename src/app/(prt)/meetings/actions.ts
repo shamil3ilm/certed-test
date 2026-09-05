@@ -22,7 +22,7 @@ export async function createMeetLinkAction(formData: FormData): Promise<ActionSt
       description: formData.get('description'),
       scheduled_at: formData.get('scheduled_at'),
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -39,7 +39,7 @@ export async function editMeetLinkAction(formData: FormData): Promise<ActionStat
       description: formData.get('description'),
       scheduled_at: formData.get('scheduled_at'),
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -50,7 +50,7 @@ export async function deleteMeetLinkAction(id: string): Promise<ActionStatusResu
   const me = await requireCapability('manageClassContent')
   try {
     await deleteMeetLink(me, id)
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -71,5 +71,5 @@ export async function restoreMeetLinkAction(id: string, streamClassId: string): 
     if (error instanceof ServiceError) redirect(`/classroom/${streamClassId}?error=meet`)
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }

@@ -12,7 +12,7 @@ export async function addTagAction(formData: FormData): Promise<ActionStatusResu
   const entityId = String(formData.get('entity_id') ?? '')
   try {
     await applyTagByName(me, type, entityId, String(formData.get('name') ?? ''))
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (e) {
     return toActionError(e)
@@ -25,7 +25,7 @@ export async function removeTagAction(formData: FormData): Promise<ActionStatusR
   const entityId = String(formData.get('entity_id') ?? '')
   try {
     await untagEntity(me, type, entityId, String(formData.get('tag_id') ?? ''))
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (e) {
     return toActionError(e)

@@ -34,7 +34,7 @@ export async function archiveAssignmentAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }
 
 /** `due_date` arrives already converted to an ISO instant by the client. */
@@ -58,7 +58,7 @@ export async function editAssignmentAction(formData: FormData): Promise<ActionSt
       expects_submission: formData.get('expects_submission'),
       ends_at: formData.get('ends_at'),
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (e) {
     return toActionError(e)
@@ -78,7 +78,7 @@ export async function gradeSubmissionAction(formData: FormData): Promise<ActionS
       score: formData.get('score'),
       feedback: formData.get('feedback'),
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     revalidatePath(`/assignments/${assignmentId}`)
     return actionDone()
   } catch (e) {
@@ -97,7 +97,7 @@ export async function recordResultAction(formData: FormData): Promise<ActionStat
       score: formData.get('score'),
       feedback: formData.get('feedback'),
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     revalidatePath(`/assignments/${assignmentId}`)
     return actionDone()
   } catch (e) {
@@ -114,7 +114,7 @@ export async function deleteResourceAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }
 
 export async function restoreResourceAction(formData: FormData) {
@@ -125,7 +125,7 @@ export async function restoreResourceAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }
 
 /** Roll a document back to one of its superseded versions. */
@@ -140,5 +140,5 @@ export async function restoreVersionAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(classworkErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }

@@ -15,8 +15,8 @@ export async function addCommentAction(formData: FormData): Promise<ActionStatus
       entity_id: formData.get('entity_id'),
       content: formData.get('content'),
     })
-    revalidatePath('/classroom', 'layout')
-    revalidatePath('/assignments', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
+    revalidatePath('/(prt)/assignments', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -29,8 +29,8 @@ export async function deleteCommentAction(formData: FormData): Promise<ActionSta
   await requireCapability('viewClasses')
   try {
     await deleteCommentFromActionInput({ id: formData.get('id') })
-    revalidatePath('/classroom', 'layout')
-    revalidatePath('/assignments', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
+    revalidatePath('/(prt)/assignments', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)

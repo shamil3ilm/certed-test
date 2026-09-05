@@ -12,7 +12,13 @@ import { enrolStudentFromActionInput, removeStudentFromActionInput } from '@/lib
 import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/services/class-tutors'
 import { classErrorUrl } from '../action-redirect'
 
-const refresh = () => revalidatePath('/classroom', 'layout')
+// The '(prt)' route GROUP is part of the tag Next derives: a built page is identified as
+// '/(prt)/classroom/[id]/page', so its layout tags are '/(prt)/classroom/layout' and so on.
+// A bare '/classroom' produces '/classroom/layout', which matches nothing. That looked
+// harmless only because these pages are force-dynamic (no page cache to miss) and the CALL
+// still triggers a client re-render either way - but the data-cache invalidation was a
+// no-op, so the first cached read added here would have gone silently stale.
+const refresh = () => revalidatePath('/(prt)/classroom', 'layout')
 
 // These are native `<form action>` submissions on /classroom/[id]/people, so a
 // reachable service error (rename to a duplicate name, enrol a student already at

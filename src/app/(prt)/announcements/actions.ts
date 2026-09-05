@@ -38,7 +38,7 @@ export async function createAnnouncementAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }
 
 export async function createAnnouncementStatusAction(formData: FormData): Promise<ActionStatusResult> {
@@ -49,7 +49,7 @@ export async function createAnnouncementStatusAction(formData: FormData): Promis
       title: formData.get('title'),
       message: formData.get('message'),
     })
-    revalidatePath('/classroom', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -66,7 +66,7 @@ export async function archiveAnnouncementAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }
 
 export async function restoreAnnouncementAction(formData: FormData) {
@@ -79,7 +79,7 @@ export async function restoreAnnouncementAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }
 
 export async function editAnnouncementAction(formData: FormData) {
@@ -94,5 +94,5 @@ export async function editAnnouncementAction(formData: FormData) {
     if (error instanceof ServiceError) redirect(announcementErrorUrl(formData))
     throw error
   }
-  revalidatePath('/classroom', 'layout')
+  revalidatePath('/(prt)/classroom', 'layout')
 }

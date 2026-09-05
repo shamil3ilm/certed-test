@@ -26,8 +26,8 @@ export async function submitLinkAction(formData: FormData): Promise<ActionStatus
       url: formData.get('url'),
       file_name: formData.get('file_name'),
     })
-    revalidatePath('/classroom', 'layout')
-    revalidatePath('/assignments', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
+    revalidatePath('/(prt)/assignments', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -46,8 +46,8 @@ export async function startSubmissionAction(
   const me = await requireRole(['student'])
   try {
     const submissionId = await ensureActiveSubmissionId(me, assignmentId)
-    revalidatePath('/classroom', 'layout')
-    revalidatePath('/assignments', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
+    revalidatePath('/(prt)/assignments', 'layout')
     return { ok: true, submissionId }
   } catch (error) {
     // ServiceError messages are already user-safe (deadline closed / not enrolled);
@@ -62,8 +62,8 @@ export async function withdrawSubmissionAction(formData: FormData): Promise<Acti
   const me = await requireRole(['student'])
   try {
     await withdrawSubmissionFromActionInput(me, { submission_id: formData.get('submission_id') })
-    revalidatePath('/classroom', 'layout')
-    revalidatePath('/assignments', 'layout')
+    revalidatePath('/(prt)/classroom', 'layout')
+    revalidatePath('/(prt)/assignments', 'layout')
     return actionDone()
   } catch (error) {
     return toActionError(error)
