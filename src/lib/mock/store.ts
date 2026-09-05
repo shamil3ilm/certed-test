@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildSeed, type MockDb } from './seed'
+import { claimMockDb, releaseMockDb } from './exclusive'
 
 /**
  * JSON-file-backed database for MOCK MODE. The data lives in `.mock-db.json` at
@@ -17,6 +18,11 @@ const holder = globalThis as unknown as Holder
 
 function load(): MockDb {
   if (holder[KEY]) return holder[KEY]!
+  // First touch in this process: take the single-writer claim before reading, so a second
+  // mock server fails HERE with a message naming the holder rather than silently sharing
+  // the file and corrupting whatever the first one is doing.
+  claimMockDb()
+  process.once('exit', releaseMockDb)
   if (existsSync(FILE)) {
     try {
       const persisted = JSON.parse(readFileSync(FILE, 'utf8')) as MockDb

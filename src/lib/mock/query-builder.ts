@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { persist } from './store'
+import { missingRequiredColumn, nulledRequiredColumn } from './constraints'
 
 type Row = Record<string, unknown>
 type Result<T = unknown> = { data: T; error: { message: string } | null; count?: number | null }
@@ -13,6 +14,20 @@ type Op = 'select' | 'insert' | 'update' | 'delete' | 'upsert'
  *
  * No RLS: rows are filtered only by the explicit predicates a caller chains.
  */
+/** PostgREST-shaped NOT NULL rejection, so a caller sees the error path it would see
+ *  against the real database instead of an exception the app has no handler for. */
+function notNullViolation(table: string, column: string) {
+  return {
+    data: null,
+    error: {
+      code: '23502',
+      message: `null value in column "${column}" of relation "${table}" violates not-null constraint`,
+      details: null,
+      hint: null,
+    },
+  }
+}
+
 export class MockQueryBuilder implements PromiseLike<Result> {
   private filters: Array<(r: Row) => boolean> = []
   private orderBy: { col: string; asc: boolean } | null = null
@@ -221,6 +236,10 @@ export class MockQueryBuilder implements PromiseLike<Result> {
 
     if (this.op === 'insert') {
       const incoming = Array.isArray(this.payload) ? this.payload : [this.payload as Row]
+      for (const item of incoming) {
+        const missing = missingRequiredColumn(this.tableName, item)
+        if (missing) return notNullViolation(this.tableName, missing)
+      }
       const created = incoming.map((r) => this.withDefaults(r))
       this.rows.push(...created)
       persist()
@@ -229,6 +248,10 @@ export class MockQueryBuilder implements PromiseLike<Result> {
 
     if (this.op === 'update') {
       const patch = this.payload as Row
+      // A patch may legitimately omit a required column; setting one to NULL is the
+      // write Postgres refuses, so only explicit nulls are rejected here.
+      const nulled = nulledRequiredColumn(this.tableName, patch)
+      if (nulled) return notNullViolation(this.tableName, nulled)
       const matched = this.match()
       matched.forEach((r) => Object.assign(r, patch))
       persist()
@@ -251,6 +274,10 @@ export class MockQueryBuilder implements PromiseLike<Result> {
 
     // upsert
     const incoming = Array.isArray(this.payload) ? this.payload : [this.payload as Row]
+    for (const item of incoming) {
+      const missing = missingRequiredColumn(this.tableName, item)
+      if (missing) return notNullViolation(this.tableName, missing)
+    }
     const keys = (this.onConflict ?? 'id').split(',').map((k) => k.trim())
     const affected: Row[] = []
     for (const item of incoming) {

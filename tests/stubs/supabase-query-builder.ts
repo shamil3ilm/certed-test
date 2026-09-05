@@ -81,3 +81,32 @@ export function makeClient(result: QueryResult, rpcResult?: RpcResult) {
     ),
   }
 }
+
+/**
+ * Like `makeClient`, but every `.from(...)` returns the SAME builder and hands it back, so
+ * a test can assert WHICH COLUMN a query filtered on - not merely that it returned rows.
+ *
+ * That distinction is not academic. A read keyed on the wrong column still returns
+ * plausible data and still passes a returns-the-rows test: the bug that let a student read
+ * a session they never attended was exactly `.eq('session_date', ...)` where
+ * `.eq('session_id', ...)` was meant, and it was invisible to the whole unit suite because
+ * nothing asserted the key. Use this wherever the key carries a correctness or security
+ * meaning rather than being incidental.
+ *
+ * CAVEAT: every `.from(...)` returns the SAME builder, so a function issuing more than one
+ * query mixes their calls together and an assertion about "the" key becomes meaningless.
+ * The returned `client.from` is a spy - assert its call count is 1 before trusting a key
+ * assertion, which is what makes the test honest rather than merely green.
+ */
+export function makeClientCapturing(result: QueryResult, rpcResult?: RpcResult) {
+  const builder = queryBuilder(result)
+  return {
+    builder,
+    client: {
+      from: vi.fn(() => builder),
+      rpc: vi.fn(
+        async () => (rpcResult ?? { data: null, error: { message: 'mock rpc not configured' } }) satisfies RpcResult,
+      ),
+    },
+  }
+}
