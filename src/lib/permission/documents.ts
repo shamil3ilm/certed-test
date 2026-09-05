@@ -1,6 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import { PermissionError } from '@/lib/errors'
-import { canAccessClass, canManageClass } from '@/lib/permission/class'
+import { canAccessClass } from '@/lib/permission/class'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import type { DocumentVisibility } from '@/lib/documents/categories'
 
@@ -11,10 +12,10 @@ import type { DocumentVisibility } from '@/lib/documents/categories'
  *  1. This MATRIX - what each role may do in principle (configurable: it is the
  *     single source of truth; swap it for a DB-backed table later without
  *     touching callers).
- *  2. Class scope + ownership - a manage action still requires canManageClass
- *     (admin / tutor-of-class / mentor-of-an-enrolled-student, per 0043), a view
- *     action requires canAccessClass, and a `own` matrix entry requires the
- *     caller to be the uploader.
+ *  2. Class scope + ownership - a manage action still requires canWriteClass
+ *     (admin / tutor-of-class, mirroring the tutor-only `teaches_class_write` the
+ *     content RLS policies use), a view action requires canAccessClass, and an
+ *     `own` matrix entry requires the caller to be the uploader.
  *
  * Never gate a document write on the matrix alone - always through canDocument.
  */
@@ -55,6 +56,10 @@ type PersonaFlags = Awaited<ReturnType<typeof loadPersonaFlags>>
  *  student must never widen a tutor's authorship rights. */
 export function documentRoleFor(flags: PersonaFlags): DocumentRole {
   if (flags.isAdmin) return 'admin'
+  // A sub_admin manages class content academy-wide (manageClassContent), so it takes the
+  // full-control row rather than falling through to 'student'. Ranked above tutor because
+  // its authority is academy-wide, not limited to classes it is assigned to teach.
+  if (flags.isSubAdmin) return 'admin'
   if (flags.isTutor) return 'tutor'
   if (flags.isMentor) return 'mentor'
   return 'student'
@@ -76,9 +81,14 @@ export async function canDocument(actor: Profile, action: DocumentAction, target
   const entry = DOCUMENT_PERMISSION_MATRIX[role][action]
   if (entry === 'no') return false
 
-  // A manage action needs class-management authority; a read needs class access.
+  // A manage action needs class WRITE authority, a read needs class access. Writing is
+  // gated on canWriteClass (tutor-of-class or admin), NOT canManageClass: canManageClass
+  // also admits a mentor of an enrolled student, which is looser than the tutor-only
+  // `teaches_class_write` the resource/assignment/announcement RLS policies use. A caller
+  // who passed the looser guard would reach the DB and be refused there - surfacing as a
+  // raw 500 instead of a clean denial. Mirroring the RLS scope keeps app and DB in step.
   const scoped = MANAGE_ACTIONS.has(action)
-    ? await canManageClass(actor, target.class_id)
+    ? await canWriteClass(actor, target.class_id)
     : await canAccessClass(actor, target.class_id)
   if (!scoped) return false
 

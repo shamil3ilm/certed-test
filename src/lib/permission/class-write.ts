@@ -21,9 +21,14 @@ import { teachesClass, teachesClassWrite } from '@/lib/auth/class-scope'
  * there; the mock's teaches_class_write is the same tutor-of-class lookup.)
  */
 export async function canWriteClass(profile: Profile, classId: string | null): Promise<boolean> {
-  const { isAdmin } = await loadPersonaFlags(profile.id)
+  const { isAdmin, isSubAdmin } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
   if (classId == null) return false
+  // A sub_admin manages classes academy-wide. Keyed on the PERSONA, not the capability,
+  // because 0092's teaches_class_write checks the persona too - gating on a capability
+  // that an override could grant to someone else would make this guard looser than RLS
+  // and turn a permitted-looking write into a raw 500.
+  if (isSubAdmin) return true
   return teachesClassWrite(classId)
 }
 
@@ -37,8 +42,9 @@ export async function canWriteClass(profile: Profile, classId: string | null): P
  * write is admin-only. App guard and RLS agree by calling the same SECURITY DEFINER RPC.
  */
 export async function canWriteCalendar(profile: Profile, classId: string | null): Promise<boolean> {
-  const { isAdmin } = await loadPersonaFlags(profile.id)
+  const { isAdmin, isSubAdmin } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
   if (classId == null) return false
+  if (isSubAdmin) return true // mirrors 0092's teaches_class, which admits sub_admin
   return teachesClass(classId)
 }

@@ -64,9 +64,19 @@ Reserved for future expansion:
 
 - an operational admin: manages users, classes, and mentorships across the academy
 - **users** - add, edit, and revoke users (`manageUsers`)
-- **classes** - create, rename, and archive classes, assign teaching staff, manage the timetable, post class content, and work the grading queue, academy-wide (`manageClasses`, `manageCalendar`, `manageClassContent`, `viewGrading`, `viewClasses`)
+- **classes** - create, rename, and archive classes, assign teaching staff, manage the timetable, post class content, mark attendance, and work the grading queue, academy-wide (`manageClasses`, `manageCalendar`, `manageClassContent`, `manageAttendance`, `viewGrading`, `viewClasses`)
 - **mentorships** - assign and remove a student's mentor and view mentees (`manageMentorships`, `viewMentees`)
 - deliberately WITHOUT the admin-tier structural power (`manageAdminTier`), the finance ledger (`viewFinance`), and the audit history (`viewHistory`) - those stay admin-only, grantable per user via an audited capability override
+
+How the class authority is enforced: migration `0092` widens the two class-scope RLS
+functions - `teaches_class_write` (content writes) and `teaches_class` (reads, attendance,
+calendar/timetable) - to admit an active `sub_admin` persona, and the app guards
+(`canAccessClass`, `canWriteClass`, `canWriteCalendar`, `documentRoleFor`) admit it in step
+so a permitted write is never refused by the database. It deliberately does **not** widen
+`is_active_admin()`: that gates finance, the audit log, capability overrides and persona
+assignment, which stay admin-only. The guards key on the **persona** rather than the
+capability precisely because RLS does - gating on a capability an override could grant to
+someone else would make the app looser than the database.
 
 ### `tutor`
 
@@ -80,6 +90,30 @@ Reserved for future expansion:
 - mentor access is relationship-based for mentee visibility
 - mentor access is not implied for every tutor
 - dedicated mentor accounts use the same fixed identity and persona labels throughout the app
+- **operational scope** - a mentor holds `manageCalendar`, `manageAttendance`, and
+  `viewGrading` in addition to the read capabilities, so a mentor can schedule, mark
+  attendance, and see the grading queue for a mentee's class
+
+#### Content authoring is tutor-only
+
+A mentor is a **read-only overseer of content**. This is load-bearing and easy to
+reintroduce as a bug, so it is stated here explicitly:
+
+- a mentor holds **no `manageClassContent`** capability
+- `DOCUMENT_PERMISSION_MATRIX.mentor` is `view`/`download` only — `upload`, `edit`,
+  `delete`, and `share` are `'no'` (`src/lib/permission/documents.ts`), and a `'no'`
+  entry short-circuits **before** the class-scope check, so a broader class relationship
+  cannot rescue it
+- tagging follows the same rule: a class tag is gated on `canWriteClass` (tutor-of-class
+  or admin), and a resource tag flows through the document matrix
+  (`src/lib/services/tags.ts`)
+- the database agrees: content writes are gated on `teaches_class_write`, which is
+  tutor-only, as distinct from `teaches_class` (tutor **or** mentor-of-an-enrollee) used
+  for calendar and attendance
+
+A person who both teaches and mentors gets write access through their **tutor** persona,
+never through the mentor one. `documentRoleFor` therefore matches `isTutor` before
+`isMentor`, so mentoring a student never widens a tutor's authoring rights.
 
 ### `student`
 

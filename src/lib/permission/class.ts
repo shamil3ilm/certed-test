@@ -81,8 +81,10 @@ export async function canManageScope(profile: Pick<Profile, 'id'>, classId: stri
  * membership check runs once.
  */
 export const canAccessClass = cache(async (profile: Pick<Profile, 'id'>, classId: string): Promise<boolean> => {
-  const { isAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profile.id)
+  const { isAdmin, isSubAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profile.id)
   if (isAdmin) return true
+  // A sub_admin oversees every class (0092 widens the DB class scope to match).
+  if (isSubAdmin) return true
   const [teaches, enrolled, mentors] = await Promise.all([
     isTutor ? isActiveClassTutor(profile.id, classId) : Promise.resolve(false),
     isStudent ? isActiveEnrollee(profile.id, classId) : Promise.resolve(false),

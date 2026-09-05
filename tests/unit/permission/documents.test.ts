@@ -1,21 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
-vi.mock('@/lib/permission/class', () => ({ canManageClass: vi.fn(), canAccessClass: vi.fn() }))
+vi.mock('@/lib/permission/class', () => ({ canAccessClass: vi.fn() }))
+vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { canManageClass, canAccessClass } from '@/lib/permission/class'
+import { canAccessClass } from '@/lib/permission/class'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { canDocument, documentRoleFor } from '@/lib/permission/documents'
 
-const FLAGS = (o: Partial<Record<'isAdmin' | 'isTutor' | 'isMentor' | 'hasMentorAuthority' | 'isStudent', boolean>>) =>
-  ({ isAdmin: false, isTutor: false, isMentor: false, hasMentorAuthority: false, isStudent: false, ...o }) as any
+const FLAGS = (
+  o: Partial<Record<'isAdmin' | 'isSubAdmin' | 'isTutor' | 'isMentor' | 'hasMentorAuthority' | 'isStudent', boolean>>,
+) =>
+  ({
+    isAdmin: false,
+    isSubAdmin: false,
+    isTutor: false,
+    isMentor: false,
+    hasMentorAuthority: false,
+    isStudent: false,
+    ...o,
+  }) as any
 
 const actor = { id: 'u-1' } as any
 const doc = { class_id: 'c-1', uploaded_by: 'u-1', visibility: 'class' as const }
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.mocked(canManageClass).mockResolvedValue(true)
+  vi.mocked(canWriteClass).mockResolvedValue(true)
   vi.mocked(canAccessClass).mockResolvedValue(true)
 })
 
@@ -29,6 +41,10 @@ describe('documentRoleFor - role resolution (mentoring never upgrades a tutor)',
     expect(documentRoleFor(FLAGS({ isMentor: true, hasMentorAuthority: true }))).toBe('mentor')
     expect(documentRoleFor(FLAGS({ isTutor: true }))).toBe('tutor')
     expect(documentRoleFor(FLAGS({ isStudent: true }))).toBe('student')
+    // A sub_admin manages class content academy-wide, so it takes the full-control row
+    // rather than falling through to 'student' (which would deny it every write AND hide
+    // staff-only documents from it).
+    expect(documentRoleFor(FLAGS({ isSubAdmin: true }))).toBe('admin')
   })
 })
 
@@ -45,7 +61,7 @@ describe('canDocument - student', () => {
       expect(await canDocument(actor, action, doc)).toBe(false)
     }
     // A denied matrix entry short-circuits before any class-scope query.
-    expect(canManageClass).not.toHaveBeenCalled()
+    expect(canWriteClass).not.toHaveBeenCalled()
   })
 
   it('may NOT view or download a staff-only document', async () => {
@@ -70,9 +86,20 @@ describe('canDocument - tutor (own-only edit/delete)', () => {
   })
 
   it('is denied any manage action outside their class scope', async () => {
-    vi.mocked(canManageClass).mockResolvedValue(false)
+    vi.mocked(canWriteClass).mockResolvedValue(false)
     expect(await canDocument(actor, 'upload', doc)).toBe(false)
     expect(await canDocument(actor, 'edit', doc)).toBe(false)
+  })
+
+  it('gates writes on the tutor-only write scope, not the broader manage scope', async () => {
+    // A tutor who ALSO mentors gets canManageClass on a mentee's class they do not teach,
+    // but the content RLS policies are tutor-only (teaches_class_write). Gating on the
+    // write scope denies cleanly here instead of passing the app guard and hitting an RLS
+    // refusal as a raw 500.
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isTutor: true, hasMentorAuthority: true }))
+    vi.mocked(canWriteClass).mockResolvedValue(false)
+    expect(await canDocument(actor, 'upload', doc)).toBe(false)
+    expect(canWriteClass).toHaveBeenCalledWith(actor, doc.class_id)
   })
 })
 
@@ -92,7 +119,7 @@ describe('canDocument - mentor: read-only pastoral oversight', () => {
     }
     // A denied matrix entry short-circuits before any class-scope query - a mentor
     // holds no manageClassContent, so authoring never reaches the scope check.
-    expect(canManageClass).not.toHaveBeenCalled()
+    expect(canWriteClass).not.toHaveBeenCalled()
   })
 })
 

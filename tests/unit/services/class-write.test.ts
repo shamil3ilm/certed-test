@@ -19,6 +19,20 @@ describe('canWriteClass - mirrors teaches_class_write (tutor-only WRITE scope)',
     expect(teachesClassWrite).not.toHaveBeenCalled()
   })
 
+  it('a sub_admin may write any class, matching 0092 teaches_class_write', async () => {
+    // sub_admin manages classes academy-wide. The guard keys on the PERSONA because the
+    // widened RLS function does too - gating on a capability an override could grant to
+    // someone else would make the app looser than the DB and turn a write into a 500.
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: true } as never)
+    expect(await canWriteClass(profile, 'class-sub-admin')).toBe(true)
+    expect(teachesClassWrite).not.toHaveBeenCalled()
+  })
+
+  it('a sub_admin still cannot make a GLOBAL (null class) write', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: true } as never)
+    expect(await canWriteClass(profile, null)).toBe(false)
+  })
+
   it('a non-admin global (null class) write is refused', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false } as never)
     expect(await canWriteClass(profile, null)).toBe(false)

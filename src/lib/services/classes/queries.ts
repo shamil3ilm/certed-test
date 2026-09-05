@@ -71,8 +71,10 @@ export const getClass = selectClassById
  * inferred from the absence of another persona.
  */
 const myClassIdsByProfileId = cache(async (profileId: string): Promise<string[]> => {
-  const { isAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profileId)
-  if (isAdmin) return selectAllClassIds()
+  const { isAdmin, isSubAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profileId)
+  // Admin and sub_admin both manage classes academy-wide, so the Classes list is every
+  // class - matching canAccessClass, which lets them open any of them.
+  if (isAdmin || isSubAdmin) return selectAllClassIds()
 
   // A mentor's visible classes are the classes their mentees are enrolled in -
   // the same scoping the class guards use - so the Classes list matches what a

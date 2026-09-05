@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Profile } from '@/lib/auth/profile'
 import { requireCapability } from '@/lib/auth/require-role'
-import { selectProfileDetailsById, selectActiveProfilesByRoles, selectProfileRole } from '@/lib/data/profiles-directory'
+import { getProfileDetails, getProfileRole, listActiveProfilesByRoles } from '@/lib/services/users/directory'
 import { loadStudentSubjects, loadTutorRoster } from '@/lib/services/page-data/user-detail'
 import { canManageTarget } from '@/lib/services/users/admin-lifecycle'
 import { listSubjects } from '@/lib/services/subjects'
@@ -23,10 +23,10 @@ export default async function UserDetailPage(props: {
   // sub_admin may read tutor/mentor/student profiles (the tier they manage), never the
   // ADMIN tier (the same boundary revoke/edit enforce). Fetch the role alone first, so a
   // disallowed target's PII row is never read - treat it as absent.
-  const role = await selectProfileRole(id)
+  const role = await getProfileRole(id)
   if (!role || !(await canManageTarget(me, role))) notFound()
 
-  const profile = await selectProfileDetailsById(id)
+  const profile = await getProfileDetails(id)
   if (!profile) notFound()
 
   const isStudent = profile.role === 'student'
@@ -56,7 +56,7 @@ async function StudentGuardians({ studentId, actor }: { studentId: string; actor
 async function StudentSubjects({ studentId }: { studentId: string }) {
   const [subjects, tutors, subjectList] = await Promise.all([
     loadStudentSubjects(studentId),
-    selectActiveProfilesByRoles(['tutor', 'mentor']),
+    listActiveProfilesByRoles(['tutor', 'mentor']),
     listSubjects(),
   ])
   return (
@@ -74,7 +74,7 @@ async function TutorRoster({ tutorId }: { tutorId: string }) {
   return (
     <Card className="p-4">
       <h2 className="text-base font-semibold text-slate-900">Students &amp; subjects</h2>
-      <p className="mt-0.5 text-xs text-slate-400">
+      <p className="mt-0.5 text-xs text-slate-600">
         Assigned from each student&apos;s page. To change these, open the student and edit their subjects.
       </p>
       {roster.length === 0 ? (
@@ -84,7 +84,7 @@ async function TutorRoster({ tutorId }: { tutorId: string }) {
           {roster.map((r) => (
             <li key={r.classId} className="py-2 text-sm">
               <span className="font-medium text-slate-900">{r.studentName ?? 'Student'}</span>
-              <span className="text-slate-500"> - {r.subjectName}</span>
+              <span className="text-slate-600"> - {r.subjectName}</span>
             </li>
           ))}
         </ul>
