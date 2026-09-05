@@ -53,7 +53,7 @@ export function SlotRow({
   if (!editing) {
     return (
       <li className="flex items-center justify-between gap-3 py-2 text-sm">
-        <span className={slot.active ? '' : 'text-slate-400 line-through'}>
+        <span className={slot.active ? '' : 'text-slate-600 line-through'}>
           <span className="font-medium">{formatWeeklySlotInZone(slot, viewerTz)}</span>
           {' - '}
           {slot.subject}
@@ -107,7 +107,7 @@ export function SlotRow({
         />
       </label>
       {slot.timezone && slot.timezone !== viewerTz && (
-        <p className="text-meta text-slate-500 sm:col-span-2">
+        <p className="text-meta text-slate-600 sm:col-span-2">
           This slot is anchored to {slot.timezone}; the times below are in that zone.
         </p>
       )}

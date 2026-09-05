@@ -14,7 +14,7 @@ export function DashboardSection({ className = '', children }: { className?: str
  */
 export function DashboardScopeHeader({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mt-8 border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <h2 className="mt-8 border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
       {children}
     </h2>
   )

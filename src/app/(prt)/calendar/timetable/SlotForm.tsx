@@ -90,7 +90,7 @@ export function SlotForm({
           onChange={(event) => setEnd(event.target.value)}
         />
       </label>
-      <p className="text-meta text-slate-500 sm:col-span-2">
+      <p className="text-meta text-slate-600 sm:col-span-2">
         Times are in your time zone ({viewerTz}). Everyone else sees them converted to their own.
       </p>
       <label className="text-sm">

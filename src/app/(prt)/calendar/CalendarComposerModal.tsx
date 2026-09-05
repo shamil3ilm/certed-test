@@ -104,14 +104,14 @@ export function CalendarComposerModal({
       {loadError && <p className="mt-2 text-sm text-red-600">{loadError}</p>}
 
       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
-        <p className="font-medium text-slate-500">On this day</p>
+        <p className="font-medium text-slate-600">On this day</p>
         {dayItems.length === 0 ? (
-          <p className="mt-1 text-slate-400">Nothing scheduled yet.</p>
+          <p className="mt-1 text-slate-600">Nothing scheduled yet.</p>
         ) : (
           <ul className="mt-1 space-y-0.5">
             {dayItems.map((item, index) => (
               <li key={dayItemKey(item, index)} className="text-slate-600">
-                - {item.title} <span className="text-slate-400">({item.kind})</span>
+                - {item.title} <span className="text-slate-600">({item.kind})</span>
               </li>
             ))}
           </ul>
@@ -134,7 +134,7 @@ export function CalendarComposerModal({
 
       <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
         <p className="text-sm font-semibold text-slate-700">{tabMeta.title}</p>
-        <p className="mt-1 text-sm text-slate-500">{tabMeta.description}</p>
+        <p className="mt-1 text-sm text-slate-600">{tabMeta.description}</p>
       </div>
 
       {resolvedTab === 'class' && canManageCalendar && (

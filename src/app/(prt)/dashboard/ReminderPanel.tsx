@@ -206,7 +206,7 @@ function ReminderPanelBody({
       )}
 
       {sorted.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">No upcoming reminders.</p>
+        <p className="mt-3 text-sm text-slate-600">No upcoming reminders.</p>
       ) : (
         <ReminderItems
           reminders={sorted}

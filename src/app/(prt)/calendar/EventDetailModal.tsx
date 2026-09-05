@@ -44,11 +44,11 @@ export function EventDetailModal({ info, onClose }: { info: EventDetail; onClose
     >
       <dl className="space-y-2 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-slate-400">Type</dt>
+          <dt className="text-slate-600">Type</dt>
           <dd className="capitalize text-slate-700">{typeLabel}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="shrink-0 text-slate-400">When</dt>
+          <dt className="shrink-0 text-slate-600">When</dt>
           <dd className="text-right text-slate-700">{when}</dd>
         </div>
       </dl>

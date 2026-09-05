@@ -33,9 +33,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <PortalHeader />
           <div className="flex-1">{children}</div>
           <footer className="mt-8 border-t border-slate-200">
-            <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs leading-relaxed text-slate-400 sm:flex-row">
+            <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs leading-relaxed text-slate-600 sm:flex-row">
               <div className="text-center sm:text-left">
-                <p className="font-semibold text-slate-500">Cert-Ed Academia</p>
+                <p className="font-semibold text-slate-600">Cert-Ed Academia</p>
                 <p className="mt-0.5">&copy; 2026 Cert-Ed Academia - v1.0.0</p>
               </div>
               <div className="text-center sm:text-right">

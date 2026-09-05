@@ -42,14 +42,14 @@ export async function PortalHeader() {
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
-            <span className="hidden text-right text-xs leading-tight text-gray-500 sm:block">
+            <span className="hidden text-right text-xs leading-tight text-slate-600 sm:block">
               {profile.full_name ?? profile.email}
-              <span className="block text-gray-400">{label}</span>
+              <span className="block text-slate-600">{label}</span>
             </span>
             <Link
               href="/notifications"
               aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-              className="relative grid min-h-10 min-w-10 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+              className="relative grid min-h-10 min-w-10 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-700"
             >
               <svg
                 width="18"

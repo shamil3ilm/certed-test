@@ -19,7 +19,7 @@ export function NeedsAttentionPanel({ overdue }: { overdue: Overview['overdue'] 
             >
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-800">{item.assignmentTitle}</p>
-                <p className="text-xs text-slate-500">{item.classLabel}</p>
+                <p className="text-xs text-slate-600">{item.classLabel}</p>
               </div>
               <Badge tone="danger">
                 overdue - <LocalTime iso={item.dueDate} mode="date" />
@@ -47,7 +47,7 @@ export function EvaluationPanels({ evaluations }: { evaluations: Overview['evalu
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-slate-800">{row.assignmentTitle}</p>
-                  <p className="truncate text-xs text-slate-400">
+                  <p className="truncate text-xs text-slate-600">
                     {row.classLabel} - graded <LocalTime iso={row.gradedAt} />
                   </p>
                 </div>
@@ -77,7 +77,7 @@ export function EvaluationPanels({ evaluations }: { evaluations: Overview['evalu
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-slate-800">{row.classLabel}</p>
-                  <p className="text-xs text-slate-400">{row.sessionDate}</p>
+                  <p className="text-xs text-slate-600">{row.sessionDate}</p>
                 </div>
                 <Badge tone={row.status === 'present' ? 'success' : row.status === 'late' ? 'warning' : 'danger'}>
                   {statusLabel(row.status)}
@@ -106,7 +106,7 @@ export function RecentSubmissionsPanel({ submissions }: { submissions: Overview[
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-slate-800">{submission.assignmentTitle}</p>
-                  <p className="truncate text-xs text-slate-400">
+                  <p className="truncate text-xs text-slate-600">
                     {submission.classLabel} - <LocalTime iso={submission.submittedAt} />
                   </p>
                 </div>

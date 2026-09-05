@@ -38,7 +38,7 @@ export default async function AdminAccessManagementPage() {
       {isAdmin && (
         <section className="mt-8 space-y-3">
           <SectionLabel>Messaging rules</SectionLabel>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             Everyone can always message their <span className="font-medium text-slate-700">direct contacts</span> -
             students and their class tutors, and mentors with their mentees and those mentees&apos; tutors. Tick a pair
             below to <span className="font-medium text-slate-700">additionally</span> let everyone of one role message

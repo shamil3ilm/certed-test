@@ -73,8 +73,8 @@ export default async function NotificationsPage(props: { searchParams: Promise<{
                   <span role="img" aria-label="Unread" className="h-2 w-2 shrink-0 rounded-full bg-primary" />
                 )}
               </div>
-              {n.body && <p className="mt-1 line-clamp-2 text-sm text-slate-500">{n.body}</p>}
-              <p className="mt-1 text-xs text-slate-400">
+              {n.body && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{n.body}</p>}
+              <p className="mt-1 text-xs text-slate-600">
                 <LocalTime iso={n.created_at} />
               </p>
             </>

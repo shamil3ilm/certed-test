@@ -14,7 +14,7 @@ export function NewChatLauncher({ contacts }: { contacts: Contact[] }) {
     return (
       <Card className="mb-5 p-4">
         <h2 className="text-sm font-semibold text-slate-700">New chat</h2>
-        <p className="mt-2 text-sm text-slate-400">You have no contacts you can message yet.</p>
+        <p className="mt-2 text-sm text-slate-600">You have no contacts you can message yet.</p>
       </Card>
     )
   }
@@ -38,7 +38,7 @@ export function NewChatLauncher({ contacts }: { contacts: Contact[] }) {
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="New chat" size="lg">
-        <p className="mb-3 text-sm text-slate-500">
+        <p className="mb-3 text-sm text-slate-600">
           Start a new conversation with anyone you&apos;re allowed to contact.
         </p>
         <NewMessageForm contacts={contacts} />

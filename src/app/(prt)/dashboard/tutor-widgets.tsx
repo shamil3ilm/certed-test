@@ -39,7 +39,7 @@ export async function UpcomingClassesWidget({
   return (
     <Panel title={title}>
       {upcoming.length === 0 ? (
-        <p className="text-sm text-slate-400">No upcoming classes scheduled.</p>
+        <p className="text-sm text-slate-600">No upcoming classes scheduled.</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {upcoming.map((slot) => (
@@ -78,9 +78,9 @@ export async function PendingAttendanceWidget({ me, data }: { me: Profile; data?
   return (
     <Panel title="Pending attendance">
       {todaySlots.length === 0 ? (
-        <p className="text-sm text-slate-400">No classes today.</p>
+        <p className="text-sm text-slate-600">No classes today.</p>
       ) : pending.length === 0 ? (
-        <p className="text-sm text-slate-400">All marked for today.</p>
+        <p className="text-sm text-slate-600">All marked for today.</p>
       ) : (
         <ul className="space-y-2 text-sm">
           {pending.map((slot) => (
@@ -110,7 +110,7 @@ export async function RecentUploadsWidget({
   return (
     <Panel title="Recent uploads">
       {resources.length === 0 ? (
-        <p className="text-sm text-slate-400">No materials uploaded yet.</p>
+        <p className="text-sm text-slate-600">No materials uploaded yet.</p>
       ) : (
         <ul className="space-y-2 text-sm">
           {resources.map((resource) => (
@@ -159,7 +159,7 @@ export async function SubmissionsToReviewWidget({
   return (
     <Panel title="Submissions to review">
       {ungraded.length === 0 ? (
-        <p className="text-sm text-slate-400">Nothing waiting to be marked.</p>
+        <p className="text-sm text-slate-600">Nothing waiting to be marked.</p>
       ) : (
         <>
           <ul className="space-y-1 text-sm">

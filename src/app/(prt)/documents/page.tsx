@@ -80,7 +80,7 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
                     {document.subject && <Badge>{document.subject}</Badge>}
                     {document.file_type && <Badge>{document.file_type}</Badge>}
                   </div>
-                  <p className="mt-1.5 text-xs text-slate-400">
+                  <p className="mt-1.5 text-xs text-slate-600">
                     <LocalTime iso={document.created_at} mode="date" /> - {document.download_count} download
                     {document.download_count === 1 ? '' : 's'}
                   </p>

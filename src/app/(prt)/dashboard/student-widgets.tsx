@@ -24,7 +24,7 @@ export async function GradeTrajectoryWidget({ studentId }: { studentId: string }
   return (
     <Panel title="Grades">
       {t.average == null ? (
-        <p className="text-sm text-slate-400">No grades yet.</p>
+        <p className="text-sm text-slate-600">No grades yet.</p>
       ) : (
         <>
           <div className="flex items-baseline gap-2">
@@ -35,9 +35,9 @@ export async function GradeTrajectoryWidget({ studentId }: { studentId: string }
             {t.direction === 'down' && (
               <span className="text-xs font-medium text-red-600">&#9660; {Math.abs(t.delta ?? 0)} pts</span>
             )}
-            {t.direction === 'flat' && <span className="text-xs font-medium text-slate-400">steady</span>}
+            {t.direction === 'flat' && <span className="text-xs font-medium text-slate-600">steady</span>}
           </div>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-slate-600">
             weighted average across {t.gradedCount} graded {t.gradedCount === 1 ? 'item' : 'items'}
           </p>
           {t.points.length >= 2 && (
@@ -47,13 +47,13 @@ export async function GradeTrajectoryWidget({ studentId }: { studentId: string }
           )}
           {latest && (
             <Link href={feedbackHref} className="group mt-3 block border-t border-slate-100 pt-2">
-              <p className="text-xs text-slate-400">Latest mark</p>
+              <p className="text-xs text-slate-600">Latest mark</p>
               <p className="text-sm font-medium text-slate-700 transition group-hover:text-primary">
                 {formatMark(
                   Number(latest.score),
                   latestAssignment?.max_marks != null ? Number(latestAssignment.max_marks) : null,
                 )}
-                <span className="font-normal text-slate-400"> &middot; {latestAssignment?.title ?? 'Assignment'}</span>
+                <span className="font-normal text-slate-600"> &middot; {latestAssignment?.title ?? 'Assignment'}</span>
               </p>
               <span className={WIDGET_CTA_LINK}>View feedback &rarr;</span>
             </Link>
@@ -80,17 +80,17 @@ export async function LatestAnnouncementWidget({
   return (
     <Panel title="Latest announcement">
       {!announcement ? (
-        <p className="text-sm text-slate-400">Nothing posted yet.</p>
+        <p className="text-sm text-slate-600">Nothing posted yet.</p>
       ) : announcement.class_id ? (
         <Link href={`/classroom/${announcement.class_id}`} className="group block">
           <p className="font-medium text-slate-800 transition group-hover:text-primary">{announcement.title}</p>
-          <p className="mt-1 line-clamp-2 text-sm text-slate-500">{announcement.message}</p>
+          <p className="mt-1 line-clamp-2 text-sm text-slate-600">{announcement.message}</p>
           <span className={WIDGET_CTA_LINK}>Open class stream &rarr;</span>
         </Link>
       ) : (
         <>
           <p className="font-medium text-slate-800">{announcement.title}</p>
-          <p className="mt-1 line-clamp-2 text-sm text-slate-500">{announcement.message}</p>
+          <p className="mt-1 line-clamp-2 text-sm text-slate-600">{announcement.message}</p>
           <Link href="/classroom" className={WIDGET_CTA_LINK}>
             Open classes &rarr;
           </Link>
@@ -122,7 +122,7 @@ export async function DueWorkWidget({
   return (
     <Panel title="Due work">
       {due.length === 0 ? (
-        <p className="text-sm text-slate-400">You&apos;re all caught up.</p>
+        <p className="text-sm text-slate-600">You&apos;re all caught up.</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {due.slice(0, 4).map((assignment) => {
@@ -139,7 +139,7 @@ export async function DueWorkWidget({
                   <span
                     className={cx(
                       'shrink-0 text-xs transition group-hover:text-inherit',
-                      overdue ? 'font-medium text-red-500' : 'text-slate-400',
+                      overdue ? 'font-medium text-red-500' : 'text-slate-600',
                     )}
                   >
                     {overdue ? (

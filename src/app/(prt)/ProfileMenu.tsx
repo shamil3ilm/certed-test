@@ -48,7 +48,7 @@ export function ProfileMenu({ name, email, roleLabel }: { name: string; email: s
         <div className="absolute right-0 z-50 mt-2 w-60 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="truncate text-sm font-medium text-slate-900">{name}</p>
-            <p className="truncate text-xs text-slate-400">
+            <p className="truncate text-xs text-slate-600">
               {email} - {roleLabel}
             </p>
           </div>

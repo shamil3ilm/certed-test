@@ -36,7 +36,7 @@ export async function UpcomingExamsWidget() {
   if (exams.length === 0) {
     return (
       <Panel title="Upcoming exams">
-        <p className="text-sm text-slate-400">No upcoming exams.</p>
+        <p className="text-sm text-slate-600">No upcoming exams.</p>
       </Panel>
     )
   }
@@ -55,9 +55,9 @@ export async function UpcomingExamsWidget() {
               <span className="w-full truncate font-medium" title={exam.title}>
                 {exam.title}
               </span>
-              <span className="shrink-0 text-xs text-slate-400">{formatExamWhen(exam.due_date, tz)}</span>
+              <span className="shrink-0 text-xs text-slate-600">{formatExamWhen(exam.due_date, tz)}</span>
             </Link>
-            <p className="mt-0.5 truncate text-xs text-slate-400">
+            <p className="mt-0.5 truncate text-xs text-slate-600">
               {classNameById.get(exam.class_id) ?? ACADEMY_WIDE_LABEL}
             </p>
           </li>

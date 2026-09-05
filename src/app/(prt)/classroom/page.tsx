@@ -79,11 +79,11 @@ function ClassCard({
         </span>
       </div>
       <div className="px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-4 text-xs text-slate-500">
+        <div className="flex items-center gap-4 text-xs text-slate-600">
           {!grouped && (
             <span className="inline-flex min-w-0 items-center gap-1.5">
               <svg
-                className="h-4 w-4 shrink-0 text-slate-400"
+                className="h-4 w-4 shrink-0 text-slate-600"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -101,7 +101,7 @@ function ClassCard({
           {!viewerIsStudent && (!viewerIsTutor || c.tutorCount > 1) && (
             <span className="inline-flex shrink-0 items-center gap-1.5">
               <svg
-                className="h-4 w-4 text-slate-400"
+                className="h-4 w-4 text-slate-600"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"

@@ -92,7 +92,7 @@ function PermissionRowItem({ profileId, row }: { profileId: string; row: Permiss
           <SourceBadge effect={effect} baselineAllowed={row.baselineAllowed} isHard={row.isHard} />
           <AccessDot effective={row.isHard ? row.effective : effective} />
         </div>
-        <p className="mt-0.5 text-xs text-slate-500">{row.description}</p>
+        <p className="mt-0.5 text-xs text-slate-600">{row.description}</p>
       </div>
 
       {row.isHard || row.isOverrideBlocked ? (
@@ -107,7 +107,7 @@ function PermissionRowItem({ profileId, row }: { profileId: string; row: Permiss
 
       {reasonFor && (
         <div className="w-full sm:mt-2 sm:basis-full">
-          <label className="block text-xs font-medium text-slate-500">
+          <label className="block text-xs font-medium text-slate-600">
             Reason for {reasonFor === 'allow' ? 'granting' : 'revoking'} &quot;{row.label}&quot; (required, audited)
             <Input
               autoFocus
@@ -190,7 +190,7 @@ function SourceBadge({
 
 function AccessDot({ effective }: { effective: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1 text-meta font-medium text-slate-400">
+    <span className="inline-flex items-center gap-1 text-meta font-medium text-slate-600">
       <span className={`h-1.5 w-1.5 rounded-full ${effective ? 'bg-emerald-500' : 'bg-slate-300'}`} />
       {effective ? 'has access' : 'no access'}
     </span>

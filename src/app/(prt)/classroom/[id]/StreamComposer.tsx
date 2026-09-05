@@ -160,7 +160,7 @@ export function StreamComposer({ courseId, isAdmin }: { courseId: string; isAdmi
         </summary>
         <div className="mt-2 space-y-2">
           <div className="space-y-1">
-            <span className="text-xs font-medium text-slate-500">Files</span>
+            <span className="text-xs font-medium text-slate-600">Files</span>
             <input
               ref={fileRef}
               type="file"
@@ -171,7 +171,7 @@ export function StreamComposer({ courseId, isAdmin }: { courseId: string; isAdmi
               onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
               className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
             />
-            <span className="block text-xs text-slate-400">
+            <span className="block text-xs text-slate-600">
               {url.trim()
                 ? 'A meeting post carries a join link, not files.'
                 : 'Kept by the academy - PDF, Office docs, images or zip, up to 25 MB each.'}

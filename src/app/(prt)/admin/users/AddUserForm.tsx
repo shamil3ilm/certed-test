@@ -63,7 +63,7 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
               <Field
                 label={
                   <>
-                    Mentor <span className="text-slate-400">(students)</span>
+                    Mentor <span className="text-slate-600">(students)</span>
                   </>
                 }
                 className="w-full sm:w-40"
@@ -130,7 +130,7 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
           <p className="mt-1 text-xs text-emerald-700">Valid 7 days - shown once.</p>
         </div>
       )}
-      <p className="mt-3 text-xs text-slate-400">
+      <p className="mt-3 text-xs text-slate-600">
         Use the exact email they&apos;ll sign in with. They can sign in with Google, or self-register a password with
         the setup code.
       </p>

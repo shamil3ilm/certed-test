@@ -50,7 +50,7 @@ export function EventRow({
           {' - '}
           {ev.title}
           {' - '}
-          <span className="text-slate-500">{KIND_LABELS[ev.kind] ?? ev.kind}</span>
+          <span className="text-slate-600">{KIND_LABELS[ev.kind] ?? ev.kind}</span>
           {' - '}
           {classLabel(ev.class_id)}
         </span>

@@ -36,9 +36,9 @@ export function MenteeHeader({ data, hasMentorAuthority }: { data: MenteePageDat
             <h1 className="truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{data.name}</h1>
             <p className="mt-0.5 truncate text-sm">
               <span className="text-slate-600">{student.email}</span>
-              {student.class_level && <span className="text-slate-400"> - {student.class_level}</span>}
+              {student.class_level && <span className="text-slate-600"> - {student.class_level}</span>}
             </p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-600">
               {hasMentorAuthority
                 ? 'Your mentee - progress across all their classes.'
                 : 'Overview of progress across all classes.'}
@@ -54,7 +54,7 @@ export function MenteeHeader({ data, hasMentorAuthority }: { data: MenteePageDat
       <div className="mt-5 border-t border-slate-100 pt-4">
         <SectionLabel className="mb-2">Classes</SectionLabel>
         {classes.length === 0 ? (
-          <p className="text-sm text-slate-400">Not enrolled in any classes yet.</p>
+          <p className="text-sm text-slate-600">Not enrolled in any classes yet.</p>
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
@@ -84,7 +84,7 @@ export function MenteeHeader({ data, hasMentorAuthority }: { data: MenteePageDat
                 ),
               )}
             </div>
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-slate-600">
               {openable.size > 0
                 ? 'Linked classes are ones you can open; the rest are shown for context.'
                 : 'For context only - open a class from your own Classes tab if you teach it.'}
@@ -111,7 +111,7 @@ export function EvaluationOverview({
     <section className="mt-6 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Evaluation progress</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Grades, attendance and period comparison for this student.</p>
+        <p className="mt-0.5 text-sm text-slate-600">Grades, attendance and period comparison for this student.</p>
       </div>
 
       <FilterBar

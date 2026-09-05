@@ -34,7 +34,7 @@ export function AnnouncementAttachments({
       {attachments.length > 0 && <AttachmentList attachments={attachments} />}
       {canManage && attachments.length < MAX_ATTACHMENTS_PER_OWNER && (
         <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">Add Attachment</p>
+          <p className="mb-1 text-xs font-medium text-slate-600">Add Attachment</p>
           <AttachmentUploader owner="announcement" ownerId={announcementId} onUploaded={onUploaded} />
         </div>
       )}

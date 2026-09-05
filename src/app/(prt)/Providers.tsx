@@ -105,7 +105,7 @@ export function PortalProviders({ children }: { children: ReactNode }) {
 
       {/* Confirm / warning dialog - reuses the one shared Modal shell */}
       <Modal open={!!confirmState} onClose={() => close(false)} size="sm" title={confirmState?.title}>
-        {confirmState?.message && <p className="text-sm text-slate-500">{confirmState.message}</p>}
+        {confirmState?.message && <p className="text-sm text-slate-600">{confirmState.message}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn btn-ghost" onClick={() => close(false)}>
             {confirmState?.cancelLabel ?? 'Cancel'}

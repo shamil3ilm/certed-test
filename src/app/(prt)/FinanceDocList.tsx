@@ -49,8 +49,8 @@ export async function FinanceDocList({
       </section>
 
       {docs.some((d) => d.voided) && (
-        <p className="mt-3 text-xs text-slate-400">
-          Documents marked <span className="font-medium text-slate-500">void</span> are kept for your records but are
+        <p className="mt-3 text-xs text-slate-600">
+          Documents marked <span className="font-medium text-slate-600">void</span> are kept for your records but are
           not included in your {totalLabel.toLowerCase()}.
         </p>
       )}

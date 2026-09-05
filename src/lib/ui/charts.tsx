@@ -4,7 +4,7 @@ import { cx } from './core'
 /** Coloured dot + label, e.g. a calendar/legend key. */
 export function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
       <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} aria-hidden />
       {label}
     </span>
@@ -19,7 +19,7 @@ const fmt = (v: number, f?: Fmt) => (f ? f(v) : String(v))
 function AxisTickLabels({ data, ticks }: { data: ChartPoint[]; ticks: Set<number> }) {
   return (
     <div
-      className="mt-1 grid gap-2 text-meta text-slate-400"
+      className="mt-1 grid gap-2 text-meta text-slate-600"
       style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}
       aria-hidden
     >
@@ -60,7 +60,7 @@ export function tickIndices(n: number, max: number): number[] {
 }
 
 function NoData() {
-  return <p className="text-sm text-slate-400">No data yet.</p>
+  return <p className="text-sm text-slate-600">No data yet.</p>
 }
 
 /**
@@ -88,7 +88,7 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
           const magPct = d.value === 0 ? 0 : Math.max(1.5, (Math.abs(d.value) / total) * 100)
           return (
             <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate text-center text-meta tabular-nums text-slate-500">{fmt(d.value, format)}</span>
+              <span className="truncate text-center text-meta tabular-nums text-slate-600">{fmt(d.value, format)}</span>
               <div className="relative flex-1">
                 {negMax > 0 && (
                   <div
@@ -180,7 +180,7 @@ export function MiniBars({ data, format }: { data: ChartPoint[]; format?: Fmt })
     >
       {data.map((d, i) => (
         <div key={`${d.label}-${i}`} className="flex items-center gap-2 text-sm">
-          <span className="w-28 shrink-0 truncate text-slate-500 sm:w-32" title={d.label}>
+          <span className="w-28 shrink-0 truncate text-slate-600 sm:w-32" title={d.label}>
             {d.label}
           </span>
           <div className="h-3 flex-1 rounded-full bg-slate-100">

@@ -58,7 +58,7 @@ export function TagEditor({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        {tags.length === 0 && <span className="text-xs text-slate-400">No tags yet.</span>}
+        {tags.length === 0 && <span className="text-xs text-slate-600">No tags yet.</span>}
         {tags.map((tag) => (
           <span
             key={tag.id}

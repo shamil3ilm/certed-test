@@ -42,7 +42,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="grid min-h-10 min-w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="grid min-h-10 min-w-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
               aria-label="Close"
             >
               <X className="h-4 w-4" aria-hidden="true" />

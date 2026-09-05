@@ -101,10 +101,10 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
     <form onSubmit={onSubmit} className="flex max-h-[min(70vh,40rem)] flex-col gap-3">
       <div className="space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <label htmlFor="message-recipient-search" className="block text-xs font-medium text-slate-500">
-            To <span className="text-slate-400">(pick one for a direct message, or several for a group)</span>
+          <label htmlFor="message-recipient-search" className="block text-xs font-medium text-slate-600">
+            To <span className="text-slate-600">(pick one for a direct message, or several for a group)</span>
           </label>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-600">
             {selected.length === 0 ? 'No recipients selected' : `${selected.length} selected`}
           </span>
         </div>
@@ -143,7 +143,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
             <div key={groupKey} className="space-y-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-slate-700">{CONTACT_GROUP_LABELS[groupKey]}</h3>
-                <span className="text-xs text-slate-400">{groupContacts.length}</span>
+                <span className="text-xs text-slate-600">{groupContacts.length}</span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {groupContacts.map((contact) => {
@@ -173,7 +173,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-slate-900">{contact.name}</span>
                         {contact.relationLabel && (
-                          <span className="block truncate text-xs text-slate-400">{contact.relationLabel}</span>
+                          <span className="block truncate text-xs text-slate-600">{contact.relationLabel}</span>
                         )}
                         {incompatible && (
                           <span className="block truncate text-xs text-red-500">Not related to the current group</span>
@@ -187,7 +187,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
             </div>
           ))}
           {visibleContacts.length === 0 && (
-            <Card className="p-3 text-sm text-slate-400">No contacts match that search.</Card>
+            <Card className="p-3 text-sm text-slate-600">No contacts match that search.</Card>
           )}
         </div>
       </div>
@@ -198,7 +198,7 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
 
       <div className="border-t border-slate-100 pt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             {selected.length > 1
               ? 'This will open a group conversation. Send the first message from the thread.'
               : 'This will open a direct conversation. Send the first message from the thread.'}

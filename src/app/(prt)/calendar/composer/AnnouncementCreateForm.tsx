@@ -50,7 +50,7 @@ export function AnnouncementCreateForm({
   return (
     <form onSubmit={submit} className="mt-4 grid gap-3">
       {error && <p className="text-sm text-red-600">{error}</p>}
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-600">
         This posts immediately to the selected class stream. The chosen calendar date is contextual only: {date}.
       </p>
       <label className="text-sm">

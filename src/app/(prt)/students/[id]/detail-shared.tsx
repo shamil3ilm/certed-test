@@ -21,7 +21,7 @@ export function DriveLink({ href }: { href?: string | null }) {
 }
 
 export function EmptyLine({ children }: { children: ReactNode }) {
-  return <p className="py-2 text-sm text-slate-400">{children}</p>
+  return <p className="py-2 text-sm text-slate-600">{children}</p>
 }
 
 export function comparisonLabel(previous: number | null, delta: number | null): string {

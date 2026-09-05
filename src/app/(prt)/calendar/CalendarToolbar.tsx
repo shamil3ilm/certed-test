@@ -6,7 +6,7 @@ import { COLORS, SOURCES, VIEW_LABELS, VIEW_MODES, VIEW_SPANS } from './calendar
 import type { CalendarItem, CalendarMode, CalendarSpan, ComposerTab } from './calendar-types'
 
 function ToolbarLabel({ children }: { children: React.ReactNode }) {
-  return <span className="text-xs font-medium text-slate-500">{children}</span>
+  return <span className="text-xs font-medium text-slate-600">{children}</span>
 }
 
 type CalendarToolbarProps = {
@@ -92,7 +92,7 @@ export function CalendarToolbar({
                   title={isVisible ? `Hide ${label}` : `Show ${label}`}
                   className={cx(
                     'inline-flex min-h-8 items-center gap-2 transition',
-                    isVisible ? 'text-slate-700' : 'text-slate-400',
+                    isVisible ? 'text-slate-700' : 'text-slate-600',
                   )}
                 >
                   <span
@@ -108,7 +108,7 @@ export function CalendarToolbar({
               <button
                 type="button"
                 onClick={onResetFilters}
-                className="text-xs font-medium text-slate-500 transition hover:text-primary"
+                className="text-xs font-medium text-slate-600 transition hover:text-primary"
               >
                 Reset
               </button>
@@ -123,7 +123,7 @@ export function CalendarToolbar({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
         <span data-tz={deviceTz ?? undefined}>
           Times shown in your timezone: <span className="font-medium">{deviceTz ?? '...'}</span>
         </span>

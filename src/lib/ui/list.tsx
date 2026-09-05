@@ -50,7 +50,7 @@ export function ListRow({
       {leading}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-900">{title}</p>
-        {subtitle != null && <p className="truncate text-xs text-slate-400">{subtitle}</p>}
+        {subtitle != null && <p className="truncate text-xs text-slate-600">{subtitle}</p>}
       </div>
       {end}
     </>

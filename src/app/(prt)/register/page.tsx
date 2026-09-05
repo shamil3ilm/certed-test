@@ -15,13 +15,13 @@ export default async function RegisterPage() {
       subtitle="Enter your email, the setup code from your admin, and a new password."
     >
       <RegisterForm />
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="mt-6 text-center text-xs text-slate-600">
         Already set up?{' '}
         <a href="/login" className="font-medium text-primary hover:underline">
           Sign in
         </a>
       </p>
-      <p className="mt-2 text-center text-xs text-slate-400">
+      <p className="mt-2 text-center text-xs text-slate-600">
         By setting up your account you agree to the{' '}
         <a href="/terms" className="hover:underline">
           Terms of Use

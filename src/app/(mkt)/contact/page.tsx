@@ -126,7 +126,7 @@ export default function Contact() {
           {/* Contact Form */}
           <div className="p-8 md:p-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a Message</h2>
-            <p className="mb-6 text-sm leading-relaxed text-gray-500">
+            <p className="mb-6 text-sm leading-relaxed text-gray-600">
               We use your details only to respond to your enquiry. Please don&rsquo;t include sensitive personal
               information in your message. See our{' '}
               <Link href="/privacy" className="text-primary underline hover:no-underline">

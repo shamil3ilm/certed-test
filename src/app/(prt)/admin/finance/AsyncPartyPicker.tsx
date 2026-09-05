@@ -149,9 +149,9 @@ export function AsyncPartyPicker({
           role="listbox"
           className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
-          {searching && <p className="px-3 py-2 text-xs text-slate-400">Searching...</p>}
+          {searching && <p className="px-3 py-2 text-xs text-slate-600">Searching...</p>}
           {!searching && results.length === 0 && (
-            <p className="px-3 py-2 text-xs text-slate-400">No students match that search.</p>
+            <p className="px-3 py-2 text-xs text-slate-600">No students match that search.</p>
           )}
           {results.map((party) => (
             <button

@@ -34,7 +34,7 @@ export default function PrivacyPolicy() {
         </div>
 
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-gray-500">Last updated: {POLICY_EFFECTIVE_DATE}</p>
+        <p className="mt-2 text-sm text-gray-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
         <p className="mt-6 text-gray-700 leading-relaxed">
           Cert-Ed Academia (&ldquo;we&rdquo;, &ldquo;us&rdquo;), operated by <strong>[legal entity name]</strong>,
@@ -141,7 +141,7 @@ export default function PrivacyPolicy() {
           <p>We will post updates here and, for material changes, ask you to re-accept.</p>
         </Section>
 
-        <p className="mt-10 text-sm text-gray-500">
+        <p className="mt-10 text-sm text-gray-600">
           See also our{' '}
           <Link href="/terms" className="text-primary underline hover:no-underline">
             Terms of Use

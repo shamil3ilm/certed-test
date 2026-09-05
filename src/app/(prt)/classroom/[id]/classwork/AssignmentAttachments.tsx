@@ -33,7 +33,7 @@ export function AssignmentAttachments({
     <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
       {attachments.length > 0 && (
         <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">Assignment PDF{attachments.length > 1 ? 's' : ''}</p>
+          <p className="mb-1 text-xs font-medium text-slate-600">Assignment PDF{attachments.length > 1 ? 's' : ''}</p>
           <AttachmentList attachments={attachments} />
         </div>
       )}
@@ -41,7 +41,7 @@ export function AssignmentAttachments({
           hides once the assignment is at the limit. Attachments are never deleted here. */}
       {canManage && attachments.length < MAX_ATTACHMENTS_PER_OWNER && (
         <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">Add Attachment</p>
+          <p className="mb-1 text-xs font-medium text-slate-600">Add Attachment</p>
           <AttachmentUploader owner="assignment" ownerId={assignmentId} onUploaded={onUploaded} accept=".pdf" />
         </div>
       )}

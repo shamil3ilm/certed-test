@@ -107,7 +107,7 @@ export function SectionLabel({
   children: ReactNode
 }) {
   return (
-    <h2 className={cx('text-sm font-semibold uppercase tracking-wide text-slate-400', className)}>
+    <h2 className={cx('text-sm font-semibold uppercase tracking-wide text-slate-600', className)}>
       {children}
       {count != null && <span className="text-slate-300"> - {count}</span>}
     </h2>

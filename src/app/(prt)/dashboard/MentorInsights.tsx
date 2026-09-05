@@ -104,7 +104,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
       <DashboardSection className="grid gap-4 lg:grid-cols-2">
         <Panel title="Recent results">
           {data.recentResults.length === 0 ? (
-            <p className="text-sm text-slate-400">No graded work yet.</p>
+            <p className="text-sm text-slate-600">No graded work yet.</p>
           ) : (
             <ul className="space-y-0.5 text-sm">
               {data.recentResults.map((row) => (
@@ -112,7 +112,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
                   <Link href={menteeHref(row.menteeId)} className={rowLink}>
                     <span className="min-w-0 truncate">
                       <span className="font-medium text-slate-700">{row.menteeName}</span>
-                      <span className="text-slate-400"> - {row.assignmentTitle}</span>
+                      <span className="text-slate-600"> - {row.assignmentTitle}</span>
                     </span>
                     <span className="shrink-0 text-xs font-semibold text-slate-600">
                       {formatMark(row.score, row.maxMarks)}
@@ -126,7 +126,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
 
         <Panel title="Overdue & due soon">
           {data.work.length === 0 ? (
-            <p className="text-sm text-slate-400">Nothing outstanding.</p>
+            <p className="text-sm text-slate-600">Nothing outstanding.</p>
           ) : (
             <ul className="space-y-0.5 text-sm">
               {data.work.map((row) => (
@@ -134,10 +134,10 @@ export async function MentorInsights({ me }: { me: Profile }) {
                   <Link href={menteeHref(row.menteeId)} className={rowLink}>
                     <span className="min-w-0 truncate">
                       <span className="font-medium text-slate-700">{row.menteeName}</span>
-                      <span className="text-slate-400"> - {row.assignmentTitle}</span>
+                      <span className="text-slate-600"> - {row.assignmentTitle}</span>
                     </span>
                     <span
-                      className={`shrink-0 text-xs font-semibold ${row.overdue ? 'text-red-600' : 'text-slate-500'}`}
+                      className={`shrink-0 text-xs font-semibold ${row.overdue ? 'text-red-600' : 'text-slate-600'}`}
                     >
                       {row.overdue ? 'overdue - ' : 'due '}
                       <LocalTime iso={row.dueDate} mode="date" />

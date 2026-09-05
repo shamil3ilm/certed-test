@@ -127,10 +127,10 @@ export function ReminderItems({
                   </span>
                 )}
               </p>
-              {reminder.description && <p className="mt-0.5 truncate text-xs text-slate-500">{reminder.description}</p>}
+              {reminder.description && <p className="mt-0.5 truncate text-xs text-slate-600">{reminder.description}</p>}
               <p
                 suppressHydrationWarning
-                className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-400'}`}
+                className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-600'}`}
               >
                 {label}
               </p>
@@ -141,7 +141,7 @@ export function ReminderItems({
                 onClick={() => onEdit(reminder)}
                 disabled={isPending}
                 aria-label="Edit reminder"
-                className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
               >
                 Edit
               </button>
@@ -151,7 +151,7 @@ export function ReminderItems({
               onClick={() => onMarkDone(reminder)}
               disabled={isPending}
               aria-label="Mark reminder done"
-              className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-50"
+              className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-50"
             >
               Done
             </button>
@@ -161,7 +161,7 @@ export function ReminderItems({
                 onClick={() => onDelete(reminder.id)}
                 disabled={isPending}
                 aria-label="Delete reminder"
-                className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
+                className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
               >
                 Delete
               </button>

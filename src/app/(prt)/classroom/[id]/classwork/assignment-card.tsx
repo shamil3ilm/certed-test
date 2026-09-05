@@ -52,13 +52,13 @@ export async function AssignmentCard({
             {assignment.type !== 'assignment' && <Badge tone="success">{classworkTypeLabel(assignment.type)}</Badge>}
             {assignment.topic && <Badge tone="primary">{assignment.topic}</Badge>}
             {assignment.max_marks != null ? (
-              <span className="text-xs text-slate-400">/ {Number(assignment.max_marks)} marks</span>
+              <span className="text-xs text-slate-600">/ {Number(assignment.max_marks)} marks</span>
             ) : (
               data.canManageContent && <Badge tone="warning">No max marks - Edit to set</Badge>
             )}
           </div>
           {assignment.description && <p className="mt-1 text-sm text-slate-600">{assignment.description}</p>}
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
             <span>
               due <LocalTime iso={assignment.due_date} />
             </span>
@@ -159,18 +159,18 @@ export async function AssignmentCard({
               )}
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Not submitted yet.</p>
+            <p className="text-sm text-slate-600">Not submitted yet.</p>
           )}
 
           {submissionHistory.length > 0 && (
             <details className="mt-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-xs">
-              <summary className="cursor-pointer font-medium text-slate-500">
+              <summary className="cursor-pointer font-medium text-slate-600">
                 {submissionHistory.length} earlier submission{submissionHistory.length > 1 ? 's' : ''}
               </summary>
               <ul className="mt-2 space-y-1">
                 {submissionHistory.map((prior) => (
                   <li key={prior.id} className="flex items-center justify-between gap-2">
-                    <span className="text-slate-400">
+                    <span className="text-slate-600">
                       <LocalTime iso={prior.submitted_at} /> - {statusLabel(prior.status)}
                     </span>
                     {safeExternalHref(prior.drive_link) && (
@@ -191,16 +191,16 @@ export async function AssignmentCard({
           )}
 
           {assignment.status !== 'active' ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-600">
               This assignment has been archived by your tutor - your submission and mark above are read-only.
             </p>
           ) : submission && submission.score != null ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-600">
               Graded. Need to submit again? Ask your tutor in the comments below - only they can reopen it for
               resubmission.
             </p>
           ) : deadlineClosed ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-600">
               Submissions are closed - the deadline for this assignment has passed.
             </p>
           ) : (

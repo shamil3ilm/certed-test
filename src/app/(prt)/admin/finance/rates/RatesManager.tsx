@@ -8,7 +8,7 @@ import { addRateAction, deleteRateAction, recomputeAction, setBaseCurrencyAction
 
 const INPUT =
   'h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
-const LABEL = 'text-xs font-medium uppercase tracking-wide text-slate-400'
+const LABEL = 'text-xs font-medium uppercase tracking-wide text-slate-600'
 
 type Note = { tone: 'ok' | 'error'; text: string } | null
 
@@ -48,7 +48,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
       {/* Base currency */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-800">Base currency</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-600">
           Every academy figure (the dashboard Net and revenue chart) reports in this currency. Changing it re-prices
           every document.
         </p>
@@ -95,7 +95,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
       {/* Add a rate */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-800">Add a rate</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-600">
           One unit of the currency in {data.baseCurrency}, effective from a date. A document uses the newest rate on or
           before its issue date.
         </p>
@@ -138,12 +138,12 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-800">Rates</h2>
         {data.rates.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-400">No rates yet.</p>
+          <p className="mt-2 text-sm text-slate-600">No rates yet.</p>
         ) : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[32rem] text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-600">
                   <th className="py-1.5 pr-3 font-medium">Currency</th>
                   <th className="py-1.5 pr-3 font-medium">Rate</th>
                   <th className="py-1.5 pr-3 font-medium">Effective from</th>
@@ -159,7 +159,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
                       1 {r.currency} = {r.rate} {r.base_currency}
                     </td>
                     <td className="py-1.5 pr-3 tabular-nums text-slate-600">{r.effective_from}</td>
-                    <td className="py-1.5 pr-3 text-slate-400">{r.note ?? '-'}</td>
+                    <td className="py-1.5 pr-3 text-slate-600">{r.note ?? '-'}</td>
                     <td className="py-1.5 text-right">
                       <button
                         type="button"

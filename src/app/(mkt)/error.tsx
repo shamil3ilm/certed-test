@@ -8,7 +8,7 @@ export default function MarketingError({ reset }: { error: Error & { digest?: st
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 py-16 text-center">
       <h1 className="text-2xl font-bold text-slate-900">Something went wrong</h1>
-      <p className="mt-2 text-sm text-slate-500">
+      <p className="mt-2 text-sm text-slate-600">
         This page couldn&apos;t load right now. Please try again in a moment.
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">

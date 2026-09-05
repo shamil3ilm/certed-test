@@ -111,7 +111,7 @@ export function IssueLineItems({
           className="grid gap-2 rounded-xl border border-slate-200 p-3 sm:grid-cols-[minmax(0,1fr)_7rem_8rem_auto_auto] sm:items-end"
         >
           <label className="w-full min-w-0">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Subject</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Subject</span>
             <Input
               aria-label={`Subject for line ${index + 1}`}
               value={line.subject}
@@ -120,7 +120,7 @@ export function IssueLineItems({
             />
           </label>
           <label>
-            <span className="mb-1 block text-xs font-medium text-slate-500">Hours</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Hours</span>
             <Input
               aria-label={`Hours for line ${index + 1}`}
               type="number"
@@ -131,7 +131,7 @@ export function IssueLineItems({
             />
           </label>
           <label>
-            <span className="mb-1 block text-xs font-medium text-slate-500">Rate per hour</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Rate per hour</span>
             <Input
               aria-label={`Rate per hour for line ${index + 1}`}
               type="number"
@@ -142,8 +142,8 @@ export function IssueLineItems({
             />
           </label>
           <div className="text-sm">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Amount</span>
-            <span className="inline-flex min-h-11 items-center text-sm text-slate-500">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Amount</span>
+            <span className="inline-flex min-h-11 items-center text-sm text-slate-600">
               {safeMoney(lineAmount(Number(line.hours) || 0, Number(line.rate) || 0, currency), currency)}
             </span>
           </div>
@@ -152,7 +152,7 @@ export function IssueLineItems({
               type="button"
               onClick={() => onRemoveLine(index)}
               aria-label={`Remove line ${index + 1}`}
-              className="min-h-11 min-w-11 rounded-md px-3 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+              className="min-h-11 min-w-11 rounded-md px-3 text-slate-600 transition hover:bg-red-50 hover:text-red-600"
             >
               Remove
             </button>

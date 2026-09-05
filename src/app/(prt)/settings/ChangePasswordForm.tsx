@@ -44,7 +44,7 @@ export function ChangePasswordForm({ action, helpText }: { action: (formData: Fo
         <button type="submit" disabled={mismatch} className="btn btn-primary">
           Change password
         </button>
-        <p className="mt-2 text-xs text-slate-400">{helpText}</p>
+        <p className="mt-2 text-xs text-slate-600">{helpText}</p>
       </div>
     </form>
   )

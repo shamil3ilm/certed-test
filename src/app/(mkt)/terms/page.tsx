@@ -61,7 +61,7 @@ export default function TermsOfUse() {
         </div>
 
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Terms of Use</h1>
-        <p className="mt-2 text-sm text-gray-500">Last updated: {POLICY_EFFECTIVE_DATE}</p>
+        <p className="mt-2 text-sm text-gray-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
         <div className="mt-6 space-y-6">
           {TERMS.map((t) => (
@@ -72,7 +72,7 @@ export default function TermsOfUse() {
           ))}
         </div>
 
-        <p className="mt-10 text-sm text-gray-500">
+        <p className="mt-10 text-sm text-gray-600">
           See also our{' '}
           <Link href="/privacy" className="text-primary underline hover:no-underline">
             Privacy Policy

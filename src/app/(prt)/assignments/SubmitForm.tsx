@@ -77,23 +77,23 @@ export function SubmitForm({
       {attachments.length > 0 && <AttachmentList attachments={attachments} />}
 
       <div>
-        <p className="mb-1 text-xs font-medium text-slate-500">Upload your work</p>
+        <p className="mb-1 text-xs font-medium text-slate-600">Upload your work</p>
         {attachments.length < MAX_ATTACHMENTS_PER_OWNER ? (
           <>
             <AttachmentUploader owner="submission" resolveOwnerId={resolveSubmissionId} onUploaded={onUploaded} />
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-600">
               Kept by the academy - PDF, Office documents, images or zip, up to 25 MB.
             </p>
           </>
         ) : (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             You&apos;ve attached the maximum of {MAX_ATTACHMENTS_PER_OWNER} files.
           </p>
         )}
       </div>
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-slate-500">or submit a Google Drive link instead</summary>
+        <summary className="cursor-pointer text-slate-600">or submit a Google Drive link instead</summary>
         <form onSubmit={onSubmitLink} className="mt-1.5 space-y-1.5">
           <input
             type="url"
@@ -119,7 +119,7 @@ export function SubmitForm({
               That does not look like a Google Drive link. Make sure it opens for your tutor, not only for you.
             </p>
           )}
-          <p className="text-slate-400">
+          <p className="text-slate-600">
             A link is stored outside the academy - if you can, upload the file above instead so we keep a copy.
           </p>
         </form>

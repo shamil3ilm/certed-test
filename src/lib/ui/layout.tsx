@@ -11,7 +11,7 @@ export function BackLink({ href, children }: { href: string; children: ReactNode
   return (
     <Link
       href={href}
-      className="mb-3 inline-flex min-h-10 items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:-translate-x-0.5 hover:text-primary"
+      className="mb-3 inline-flex min-h-10 items-center gap-1.5 text-xs font-medium text-slate-600 transition hover:-translate-x-0.5 hover:text-primary"
     >
       {/* A stroked SVG arrow, not the thin `←` glyph, so it stays crisp and clearly
           visible at this small size (the glyph rendered faint in muted grey). */}
@@ -97,7 +97,7 @@ export function EmptyState({
   return (
     <As
       className={cx(
-        'rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400',
+        'rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-600',
         className,
       )}
     >
@@ -126,7 +126,7 @@ export function PageHeader({
           />
           <span className="truncate">{title}</span>
         </h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+        {description && <p className="mt-1 text-sm text-slate-600">{description}</p>}
       </div>
       {action}
     </div>
@@ -193,7 +193,7 @@ export function StatCard({
   const inner = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</p>
         {href && (
           <svg
             className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-primary"
@@ -208,7 +208,7 @@ export function StatCard({
         )}
       </div>
       <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}
     </>
   )
   if (!href) return <div className={base}>{inner}</div>
@@ -245,7 +245,7 @@ export function PaginationBar({
 }) {
   if (totalPages <= 1) return null
   return (
-    <div className={cx('mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500', className)}>
+    <div className={cx('mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600', className)}>
       <span>
         Page {page} of {totalPages} {separator} {total} total
       </span>

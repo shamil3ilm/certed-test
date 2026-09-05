@@ -51,7 +51,7 @@ export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record
       <div className="overflow-x-auto rounded-2xl border border-slate-200">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="text-slate-500">
+            <tr className="text-slate-600">
               <th scope="col" className="p-2 text-left font-medium">
                 Role
               </th>

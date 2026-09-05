@@ -15,7 +15,7 @@ export default function PortalError({ reset }: { error: Error & { digest?: strin
         </svg>
       </span>
       <h1 className="mt-4 text-lg font-semibold text-slate-900">Something went wrong</h1>
-      <p className="mt-1 text-sm text-slate-500">This section couldn&apos;t load. Please try again.</p>
+      <p className="mt-1 text-sm text-slate-600">This section couldn&apos;t load. Please try again.</p>
       <button type="button" onClick={reset} className="btn btn-primary mt-5">
         Try again
       </button>

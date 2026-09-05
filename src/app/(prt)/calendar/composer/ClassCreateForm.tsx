@@ -116,7 +116,7 @@ export function ClassCreateForm({
         ))}
       </div>
 
-      <p className="text-xs text-slate-500 sm:col-span-2">
+      <p className="text-xs text-slate-600 sm:col-span-2">
         {recurring
           ? 'Repeats every week on the chosen day - shows on the calendar and timetable.'
           : `A single class on ${date}.`}

@@ -56,20 +56,20 @@ export default async function HistoryPage(props: {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td className="whitespace-nowrap text-slate-500">
+                  <td className="whitespace-nowrap text-slate-600">
                     <LocalTime iso={row.created_at} mode="datetime" />
                   </td>
                   <td className="whitespace-nowrap text-slate-700">
-                    {row.actorLabel ?? <span className="italic text-slate-400">System</span>}
+                    {row.actorLabel ?? <span className="italic text-slate-600">System</span>}
                   </td>
                   <td className="whitespace-nowrap">
-                    {row.actionScope && <span className="text-slate-400">{row.actionScope} - </span>}
+                    {row.actionScope && <span className="text-slate-600">{row.actionScope} - </span>}
                     <span className={`font-semibold ${row.actionVerbTone}`}>{row.actionVerb}</span>
                   </td>
-                  <td className="whitespace-nowrap text-slate-500">
+                  <td className="whitespace-nowrap text-slate-600">
                     {row.entity_type}
                     {row.entityShortId && (
-                      <span className="ml-1.5 font-mono text-xs text-slate-400">{row.entityShortId}</span>
+                      <span className="ml-1.5 font-mono text-xs text-slate-600">{row.entityShortId}</span>
                     )}
                   </td>
                 </tr>

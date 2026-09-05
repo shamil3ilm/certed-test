@@ -77,7 +77,7 @@ export default async function AdminUsersPage(props: {
               'shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition',
               data.filters.tab === t.key
                 ? 'border-primary text-primary'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800',
+                : 'border-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800',
             )}
           >
             {t.label}

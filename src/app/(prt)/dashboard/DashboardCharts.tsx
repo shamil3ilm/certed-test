@@ -108,7 +108,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
                   'min-h-8 rounded-md px-2.5 text-xs font-medium transition',
                   option === effectivePeriod
                     ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700',
+                    : 'text-slate-600 hover:text-slate-700',
                 )}
               >
                 {PERIOD_LABEL[option]}
@@ -128,7 +128,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
                   'min-h-8 rounded-md px-2.5 text-xs font-medium transition',
                   option === effectiveGroupBy
                     ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700',
+                    : 'text-slate-600 hover:text-slate-700',
                 )}
               >
                 {GROUP_BY_LABEL[option]}
@@ -147,7 +147,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
                 aria-pressed={t === effectiveStyle}
                 className={cx(
                   'min-h-8 rounded-md px-2.5 text-xs font-medium transition',
-                  t === effectiveStyle ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                  t === effectiveStyle ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-700',
                 )}
               >
                 {STYLE_LABEL[t]}
@@ -159,7 +159,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
 
       <div className="mt-4">
         {chartData.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400">No data for this metric yet.</p>
+          <p className="py-8 text-center text-sm text-slate-600">No data for this metric yet.</p>
         ) : effectiveStyle === 'column' ? (
           <ColumnChart data={chartData} format={format} />
         ) : effectiveStyle === 'line' ? (

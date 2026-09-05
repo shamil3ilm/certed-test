@@ -65,7 +65,7 @@ export function ForgotPasswordForm() {
       <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">
         {busy ? 'Sending...' : 'Send reset link'}
       </button>
-      <a href="/login" className="block text-center text-xs font-medium text-slate-500 hover:underline">
+      <a href="/login" className="block text-center text-xs font-medium text-slate-600 hover:underline">
         Back to sign in
       </a>
     </form>

@@ -23,10 +23,10 @@ export function AuthShell({
             priority
           />
           <h1 className="mt-6 text-lg font-semibold text-slate-900">{title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
         </div>
         <div className="mt-6">{children}</div>
-        <p className="mt-6 text-center text-xs text-slate-400">Cert-Ed Academia</p>
+        <p className="mt-6 text-center text-xs text-slate-600">Cert-Ed Academia</p>
       </div>
     </main>
   )

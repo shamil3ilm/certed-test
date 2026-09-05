@@ -97,7 +97,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
     <form onSubmit={onSubmit} className={cx(CARD, 'space-y-4 p-5')}>
       <div className="border-b border-slate-100 pb-3">
         <h2 className="text-base font-semibold text-slate-900">Upload a document</h2>
-        <p className="mt-0.5 text-xs text-slate-500">Upload a file the academy keeps, and categorise it.</p>
+        <p className="mt-0.5 text-xs text-slate-600">Upload a file the academy keeps, and categorise it.</p>
       </div>
 
       {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</div>}
@@ -172,7 +172,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
       </Field>
 
       <div className="space-y-1">
-        <label htmlFor="document-file" className="text-xs font-medium text-slate-500">
+        <label htmlFor="document-file" className="text-xs font-medium text-slate-600">
           File
         </label>
         <input
@@ -184,14 +184,14 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
         />
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-600">
           Kept by the academy - PDF, Office documents, images or zip, up to 25 MB.{' '}
-          <span className="font-medium text-slate-500">Staff only</span> visibility hides it from students.
+          <span className="font-medium text-slate-600">Staff only</span> visibility hides it from students.
         </p>
       </div>
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-slate-500">or link a Google Drive file instead</summary>
+        <summary className="cursor-pointer text-slate-600">or link a Google Drive file instead</summary>
         <div className="mt-1.5 space-y-1">
           <Input
             id="document-drive-link"
@@ -212,7 +212,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
               in as you.
             </p>
           )}
-          <p className="text-slate-400">
+          <p className="text-slate-600">
             A linked file is stored outside the academy - upload it above to keep a copy.
           </p>
         </div>

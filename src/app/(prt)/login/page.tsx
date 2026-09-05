@@ -12,7 +12,7 @@ function DevLogin({ error, demoEmails }: { error: boolean; demoEmails: string[] 
     <AuthShell title="Welcome back" subtitle="Sign in to your account.">
       <DevLoginForm error={error} />
 
-      <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3.5 text-xs text-slate-500">
+      <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3.5 text-xs text-slate-600">
         <p className="font-medium text-slate-600">Demo accounts (mock mode)</p>
         <p className="mt-1">
           Password for all:{' '}
@@ -48,13 +48,13 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
       )}
       <PasswordLoginForm />
       <GoogleSignInGate />
-      <p className="mt-4 text-center text-xs text-slate-500">
+      <p className="mt-4 text-center text-xs text-slate-600">
         First time?{' '}
         <a href="/register" className="font-medium text-primary hover:underline">
           Set up your account
         </a>
       </p>
-      <p className="mt-2 text-center text-xs text-slate-400">
+      <p className="mt-2 text-center text-xs text-slate-600">
         <a href="/terms" className="hover:underline">
           Terms of Use
         </a>

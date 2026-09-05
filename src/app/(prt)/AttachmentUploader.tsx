@@ -96,7 +96,7 @@ export function AttachmentUploader({
         }}
         className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
       />
-      {state === 'uploading' && <p className="text-xs text-slate-500">Uploading...</p>}
+      {state === 'uploading' && <p className="text-xs text-slate-600">Uploading...</p>}
       {state === 'failed' && error && (
         <p role="alert" className="text-sm text-red-600">
           {error}{' '}

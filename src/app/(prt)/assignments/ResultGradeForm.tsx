@@ -60,8 +60,8 @@ export function ResultGradeForm({
 
   return (
     <form onSubmit={onSubmit} className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-      <label className="text-xs font-medium text-slate-500">
-        Mark {maxMarks != null && <span className="text-slate-400">/ {Number(maxMarks)}</span>}
+      <label className="text-xs font-medium text-slate-600">
+        Mark {maxMarks != null && <span className="text-slate-600">/ {Number(maxMarks)}</span>}
         <input
           type="number"
           step="0.5"
@@ -73,7 +73,7 @@ export function ResultGradeForm({
           className="mt-1 block w-24 rounded border px-2 py-1 text-sm"
         />
       </label>
-      <label className="min-w-[12rem] flex-1 text-xs font-medium text-slate-500">
+      <label className="min-w-[12rem] flex-1 text-xs font-medium text-slate-600">
         Feedback (optional)
         <input
           value={feedbackValue}

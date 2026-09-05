@@ -33,7 +33,7 @@ export function RenameGroupForm({ conversationId, initialTitle }: { conversation
   return (
     <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
       <label className="flex-1">
-        <span className="mb-1 block text-xs font-medium text-slate-500">Group name</span>
+        <span className="mb-1 block text-xs font-medium text-slate-600">Group name</span>
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}

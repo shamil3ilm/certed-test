@@ -143,7 +143,7 @@ function CommentThreadBody({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex min-h-10 items-center gap-1.5 rounded text-xs font-semibold text-slate-500 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        className="flex min-h-10 items-center gap-1.5 rounded text-xs font-semibold text-slate-600 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         aria-expanded={open}
       >
         <svg
@@ -170,7 +170,7 @@ function CommentThreadBody({
                   {(comment.author_name ?? '?').slice(0, 1).toUpperCase()}
                 </span>
                 <div className={`flex max-w-[80%] flex-col gap-0.5 ${isMine ? 'items-end' : 'items-start'}`}>
-                  <span className="text-meta text-slate-400">
+                  <span className="text-meta text-slate-600">
                     {isMine ? 'You' : (comment.author_name ?? 'Unknown')} - {roleLabel(comment.author_role)} -{' '}
                     <LocalTime iso={comment.created_at} />
                   </span>
@@ -184,7 +184,7 @@ function CommentThreadBody({
                       type="button"
                       onClick={() => handleDelete(comment)}
                       disabled={isPending}
-                      className="mt-0.5 text-meta text-slate-400 transition-colors hover:text-red-600 hover:underline disabled:opacity-50"
+                      className="mt-0.5 text-meta text-slate-600 transition-colors hover:text-red-600 hover:underline disabled:opacity-50"
                     >
                       Delete
                     </button>
@@ -197,7 +197,7 @@ function CommentThreadBody({
 
           <form onSubmit={handleSubmit} className="flex items-end gap-2 pt-1">
             <label className="min-w-0 flex-1">
-              <span className="mb-1 block text-xs font-medium text-slate-500">Comment</span>
+              <span className="mb-1 block text-xs font-medium text-slate-600">Comment</span>
               <textarea
                 ref={textRef}
                 value={text}

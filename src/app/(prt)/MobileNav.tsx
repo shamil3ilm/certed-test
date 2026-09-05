@@ -48,7 +48,7 @@ export function MobileNav({ links }: { links: NavItem[] }) {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="-mr-1 grid h-11 w-11 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
+                className="-mr-1 grid h-11 w-11 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 <svg
                   className="h-6 w-6"
@@ -71,7 +71,7 @@ export function MobileNav({ links }: { links: NavItem[] }) {
                 return (
                   <Fragment key={l.href}>
                     {startsGroup && (
-                      <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-400 first:pt-0">
+                      <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-600 first:pt-0">
                         {NAV_GROUP_LABELS[l.group]}
                       </p>
                     )}

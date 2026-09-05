@@ -116,10 +116,10 @@ export function Gradecard({ marks }: { marks: GradecardMark[] }) {
                     <td className="whitespace-nowrap text-slate-600">{m.className}</td>
                     <td className="text-slate-800">
                       {m.title}
-                      {m.topic && <span className="ml-1 text-xs text-slate-400">- {m.topic}</span>}
+                      {m.topic && <span className="ml-1 text-xs text-slate-600">- {m.topic}</span>}
                     </td>
                     <td className="whitespace-nowrap tabular-nums text-slate-700">{formatMark(m.score, m.maxMarks)}</td>
-                    <td className="whitespace-nowrap tabular-nums text-slate-500">{pct == null ? '-' : `${pct}%`}</td>
+                    <td className="whitespace-nowrap tabular-nums text-slate-600">{pct == null ? '-' : `${pct}%`}</td>
                   </tr>
                 )
               })}

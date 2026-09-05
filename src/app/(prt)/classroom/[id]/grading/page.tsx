@@ -36,7 +36,7 @@ export default async function ClassGradingPage(props: {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionLabel>Grading</SectionLabel>
-        <span className="text-xs text-slate-400">{data.filteredCount} awaiting a mark</span>
+        <span className="text-xs text-slate-600">{data.filteredCount} awaiting a mark</span>
       </div>
 
       <FilterBar clearHref={`/classroom/${course.id}/grading`} showClear={Boolean(searchParams?.q)}>

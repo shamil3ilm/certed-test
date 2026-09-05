@@ -119,7 +119,7 @@ export function CalendarEventForm({
             </option>
           ))}
         </Select>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-slate-600">
           Setting an exam? Create it from Classwork as an assignment with type Exam - it&apos;s graded and feeds the
           report card.
         </p>

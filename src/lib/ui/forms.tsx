@@ -22,7 +22,7 @@ export function FilterField({
   children: ReactNode
 }) {
   return (
-    <label className={cx('text-xs font-medium text-slate-500', className)}>
+    <label className={cx('text-xs font-medium text-slate-600', className)}>
       {label}
       {children}
     </label>
@@ -111,7 +111,7 @@ export function FilterBar({
         {applyLabel}
       </button>
       {showClear && clearHref && (
-        <a href={clearHref} className="text-xs font-medium text-slate-400 hover:text-primary">
+        <a href={clearHref} className="text-xs font-medium text-slate-600 hover:text-primary">
           Clear
         </a>
       )}
