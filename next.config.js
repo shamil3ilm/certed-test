@@ -73,6 +73,11 @@ const buildUsesMock =
   process.env.VERCEL !== '1' &&
   (process.env.MOCK_MODE === '1' || process.env.NEXT_PUBLIC_MOCK_MODE === '1' || isEnabling(process.env.E2E_BUILD))
 
+// The shipped version, read from package.json at BUILD time and inlined into the client
+// bundle below as NEXT_PUBLIC_APP_VERSION.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- next.config.js is CommonJS (module.exports + __dirname); require is the idiomatic load here.
+const APP_VERSION = require('./package.json').version
+
 const MOCK_CLIENT_STUB = `${__dirname}/src/lib/mock/client-stub.ts`
 
 /** @type {import('next').NextConfig} */
@@ -110,6 +115,9 @@ const nextConfig = {
     // bundle entirely when it is unset (an unset NEXT_PUBLIC_* var is not inlined,
     // so gating on the DSN itself would not fold).
     NEXT_PUBLIC_SENTRY_ENABLED: process.env.NEXT_PUBLIC_SENTRY_DSN ? '1' : '0',
+    // The real shipped version, so the portal footer can't drift from package.json
+    // (it used to hard-code "v1.0.0" while the package said 0.1.0).
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
   },
   // Keep the headless-Chromium PDF deps out of the server bundle - they load from
   // node_modules at runtime rather than being bundled.

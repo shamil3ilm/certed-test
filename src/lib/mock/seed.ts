@@ -31,8 +31,8 @@ export function buildSeed(): MockDb {
       {
         id: true,
         institute_name: 'Cert-Ed Academia',
-        contact_email: 'hello@certedacademia.com',
-        contact_phone: '+91 98765 43210',
+        contact_email: 'info@certedacademia.com',
+        contact_phone: '+91 7025 237 833',
         bank_account: '1234567890',
         bank_ifsc: 'HDFC0001234',
         bank_branch: 'MG Road, Bengaluru',
