@@ -20,9 +20,15 @@ import type { Opt } from './timetable/types'
  * stay readable as "which endpoint does each control call".
  */
 
-type Props = { classes: Opt[]; tutors: Opt[]; isAdmin: boolean }
+type Props = {
+  classes: Opt[]
+  tutors: Opt[]
+  isAdmin: boolean
+  /** Configured org_settings.timezone - the anchor for a slot with no zone of its own. */
+  academyTz: string
+}
 
-export function TimetableManager({ classes, tutors, isAdmin }: Props) {
+export function TimetableManager({ classes, tutors, isAdmin, academyTz }: Props) {
   const [tab, setTab] = useState<'slot' | 'event'>('slot')
   const { slots, events, error, busy, run, confirmDelete } = useTimetableData()
 
@@ -65,6 +71,7 @@ export function TimetableManager({ classes, tutors, isAdmin }: Props) {
           <ul className="mt-2 divide-y">
             {slots.map((slot) => (
               <SlotRow
+                academyTz={academyTz}
                 key={slot.id}
                 slot={slot}
                 classes={classes}

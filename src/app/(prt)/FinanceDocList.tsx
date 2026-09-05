@@ -2,6 +2,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import type { Capability } from '@/lib/capabilities'
 import { listMyDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
+import { formatDate } from '@/lib/time/format'
 import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 import { PageHeader, PaginationBar, StatCard, ListRow, Badge, EmptyState, ExternalActionLink } from '@/lib/ui'
 
@@ -73,7 +74,11 @@ export async function FinanceDocList({
                   {d.voided && <Badge tone="danger">void</Badge>}
                 </span>
               }
-              subtitle={`${d.issue_date} - ${formatMoney(d.total, d.currency)}`}
+              // issue_date is a calendar `date`, not an instant, so it is formatted in UTC
+              // rather than converted to a viewer zone (which would shift it a day west of
+              // UTC). Same call the PDF makes, so the list and the downloaded document now
+              // agree - this line used to print the raw "2026-09-05" beside a formatted total.
+              subtitle={`${formatDate(d.issue_date, 'UTC')} - ${formatMoney(d.total, d.currency)}`}
               trailing={
                 <ExternalActionLink href={`/api/${kind}s/${d.id}/pdf`} className="min-h-11">
                   Download

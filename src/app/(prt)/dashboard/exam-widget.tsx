@@ -5,21 +5,10 @@ import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { todayInZone } from '@/lib/time/format'
 import { zonedDayStartMs } from '@/lib/time/expand-slots'
 import { ACADEMY_WIDE_LABEL, Panel } from '@/lib/ui'
+import { LocalTime } from '../LocalTime'
 import { WIDGET_CTA_LINK, WIDGET_ROW_STACK } from './widget-shared'
 
 const EXAM_LIMIT = 5
-
-/** Formats an absolute instant as a short date + time in the institute timezone. */
-function formatExamWhen(iso: string, tz: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: tz,
-  }).format(new Date(iso))
-}
 
 /**
  * Upcoming exams on the dashboard: assignments of type 'exam' dated today or later,
@@ -55,7 +44,13 @@ export async function UpcomingExamsWidget() {
               <span className="w-full truncate font-medium" title={exam.title}>
                 {exam.title}
               </span>
-              <span className="shrink-0 text-xs text-slate-600">{formatExamWhen(exam.due_date, tz)}</span>
+              <span className="shrink-0 text-xs text-slate-600">
+                {/* Viewer zone, via the shared component - this tile sits beside "Due work",
+                    which renders the same kind of instant through LocalTime. Formatting one
+                    in the institute zone and the other in the viewer's showed the same exam
+                    at two times, and a different DAY for a GCC viewer near midnight. */}
+                <LocalTime iso={exam.due_date} />
+              </span>
             </Link>
             <p className="mt-0.5 truncate text-xs text-slate-600">
               {classNameById.get(exam.class_id) ?? ACADEMY_WIDE_LABEL}

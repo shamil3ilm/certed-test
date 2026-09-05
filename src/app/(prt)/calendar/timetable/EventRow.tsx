@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { formatDate } from '@/lib/time/format'
 import { KINDS, KIND_LABELS, hhmm, type Ev, type Opt } from './types'
 import { Input, Select } from '../../form'
 import { ClassSelect } from './pickers'
@@ -46,7 +47,10 @@ export function EventRow({
     return (
       <li className="flex items-center justify-between gap-3 py-2 text-sm">
         <span>
-          <span className="font-medium">{ev.event_date}</span>
+          {/* event_date is a calendar date, not an instant, so it is formatted in UTC
+              rather than converted (which would shift it a day west of UTC). Its sibling
+              SlotRow already renders through a formatter; this printed "2026-09-05". */}
+          <span className="font-medium">{formatDate(ev.event_date, 'UTC')}</span>
           {' - '}
           {ev.title}
           {' - '}

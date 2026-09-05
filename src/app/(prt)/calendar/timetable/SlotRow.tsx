@@ -9,6 +9,7 @@ import { useViewerTimeZone } from '../../ViewerTimeZone'
 
 export function SlotRow({
   slot,
+  academyTz,
   classes,
   tutors,
   busy,
@@ -19,6 +20,8 @@ export function SlotRow({
   onDelete,
 }: {
   slot: Slot
+  /** Configured org_settings.timezone - the anchor for a slot with no zone of its own. */
+  academyTz: string
   classes: Opt[]
   tutors: Opt[]
   busy: boolean
@@ -54,7 +57,7 @@ export function SlotRow({
     return (
       <li className="flex items-center justify-between gap-3 py-2 text-sm">
         <span className={slot.active ? '' : 'text-slate-600 line-through'}>
-          <span className="font-medium">{formatWeeklySlotInZone(slot, viewerTz)}</span>
+          <span className="font-medium">{formatWeeklySlotInZone(slot, viewerTz, academyTz)}</span>
           {' - '}
           {slot.subject}
           {' - '}

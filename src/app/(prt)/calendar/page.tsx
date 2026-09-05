@@ -1,5 +1,6 @@
 import dynamic from 'next/dynamic'
 import { requireCapability } from '@/lib/auth/require-role'
+import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'
 import { CalendarView } from './CalendarView'
@@ -18,7 +19,10 @@ export default async function CalendarPage() {
   // Resolved capabilities (persona baseline + overrides) drive the management
   // options, so an override honoured by the route is honoured in the view too.
   const actor = await getActorContext() // request-cached; already loaded by the header
-  const data = await loadCalendarPageData(me, actor.capabilities.allowed)
+  const [data, academyTz] = await Promise.all([
+    loadCalendarPageData(me, actor.capabilities.allowed),
+    getInstituteTimeZone(),
+  ])
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6">
@@ -31,7 +35,9 @@ export default async function CalendarPage() {
         tutors={data.tutors}
         isAdmin={data.isAdmin}
       />
-      {data.canManage && <TimetableManager classes={data.classes} tutors={data.tutors} isAdmin={data.isAdmin} />}
+      {data.canManage && (
+        <TimetableManager classes={data.classes} tutors={data.tutors} isAdmin={data.isAdmin} academyTz={academyTz} />
+      )}
     </main>
   )
 }
