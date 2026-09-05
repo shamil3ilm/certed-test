@@ -14,7 +14,7 @@ import {
   countStatusesForStudent,
   selectRecentForClass,
   upsertMarks,
-  deleteSession,
+  deleteSessionMarks,
   selectStatusesForStudentAsService,
 } from '@/lib/data/attendance'
 
@@ -72,13 +72,13 @@ describe('attendance data layer', () => {
     await expect(upsertMarks([mark as any])).rejects.toThrow(/attendance.markMany: e/)
   })
 
-  it('deleteSession returns the number removed and throws on error', async () => {
+  it('deleteSessionMarks removes ONE session’s marks by session id, and throws on error', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(
       makeClient({ data: [{ id: 'a1' }, { id: 'a2' }], error: null }) as any,
     )
-    expect(await deleteSession('c1', '2026-06-20')).toBe(2)
+    expect(await deleteSessionMarks('sess-1')).toBe(2)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(deleteSession('c1', 'd')).rejects.toThrow(/attendance.clearSession: e/)
+    await expect(deleteSessionMarks('sess-1')).rejects.toThrow(/attendance.clearSession: e/)
   })
 
   it('selectStatusesForStudentAsService returns statuses and throws on error', async () => {

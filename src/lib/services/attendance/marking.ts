@@ -1,14 +1,14 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { getClassMembers } from '@/lib/services/classes'
 import { attendanceMarkSchema } from '@/lib/validation/attendance'
-import { isCalendarDate } from '@/lib/time/format'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyBestEffort } from '@/lib/services/notifications'
-import { PermissionError, ValidationError } from '@/lib/errors'
-import { deleteSession, upsertMarks, type AttendanceMark } from '@/lib/data/attendance'
-import { insertSession, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
+import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
+import { deleteSessionMarks, upsertMarks, type AttendanceMark } from '@/lib/data/attendance'
+import { insertSession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 
 /** Recording and correcting a session's attendance. Both paths are gated on
  *  canManageClass (a tutor of THIS class, or an admin) and audited. */
@@ -112,15 +112,25 @@ export async function markAttendance(
 export async function clearAttendanceSession(
   actor: Profile,
   classId: string,
-  sessionDate: string,
+  sessionId: string,
 ): Promise<{ cleared: number }> {
-  if (!(await canManageClass(actor, classId))) {
+  // canWriteClass, not canManageClass: the latter admits a MENTOR (pastoral oversight),
+  // but this is a staff WRITE and the table's RLS excludes mentors for this verb. The
+  // write goes through the service-role client, so RLS never runs and this gate is the
+  // only control - a mismatch here is the whole exposure, not a second line of defence (C-08).
+  if (!(await canWriteClass(actor, classId))) {
     throw new PermissionError('Not allowed to mark attendance for this class.')
   }
-  if (!isCalendarDate(sessionDate)) {
-    throw new ValidationError('Invalid session date.')
+  // Confirm the session really belongs to this class before deleting anything by its id:
+  // the class is what the permission check above authorised, and a session id arrives from
+  // the client.
+  const session = await selectSessionById(sessionId)
+  if (!session || session.class_id !== classId) {
+    throw new NotFoundError('That session does not belong to this class.')
   }
-  const cleared = await deleteSession(classId, sessionDate)
-  await auditPrivilegedAction(actor, 'attendance.clear', 'class', classId)
+  const cleared = await deleteSessionMarks(sessionId)
+  // Audit the SESSION, not the class: two sessions a day are otherwise indistinguishable
+  // in the log, which is the whole point of clearing one and not the other.
+  await auditPrivilegedAction(actor, 'attendance.clear', 'class_session', sessionId)
   return { cleared }
 }

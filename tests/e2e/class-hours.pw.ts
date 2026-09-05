@@ -38,8 +38,9 @@ test('records a session and attendance, then reports the hours on both sides', a
   await submitAndReload(page, () => page.getByRole('button', { name: 'Save session' }).first().click())
   await expect(page.getByText('1h 30m').first()).toBeVisible()
 
-  await page.getByRole('button', { name: 'Mark all present' }).click()
-  await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).click())
+  // .first(): one roster per recorded session, and this spec bills the first one.
+  await page.getByRole('button', { name: 'Mark all present' }).first().click()
+  await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).first().click())
 
   await loginAs(page, 'admin@mock.test', { clearCookies: true })
   await page.goto(REPORT)

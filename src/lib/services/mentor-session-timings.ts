@@ -124,8 +124,8 @@ export async function listMenteeSessionTimings(actor: Profile): Promise<MenteeSe
       tutorName: tutorId ? (names.get(tutorId) ?? null) : null,
       sessionDate,
       startAt: session?.actual_start ?? null,
-      // Attendance is per (class, student, DATE), so every session that day shares the
-      // student's one recorded entry time.
+      // The entry time of THIS session's mark (joinBySession above). Before 0094 one
+      // mark covered the whole day and every session repeated the same time.
       studentEntryAt: join?.join_at ?? null,
       endAt: session?.actual_end ?? null,
       updatedAt: session?.updated_at ?? null,
@@ -150,8 +150,9 @@ export type UpdateStudentJoinInput = {
   classId: string
   sessionDate: string
   joinAt: string | null
-  /** The session whose window bounds the join time. Attendance stays per (class, student,
-   *  date), so this only selects WHICH session's window to validate against. */
+  /** The session whose mark is being edited. Since 0094 a mark belongs to a session, so
+   *  this names the ROW to update as well as the window to validate against. Optional for
+   *  callers that predate the per-session list; those fall back to the day's first. */
   sessionId?: string | null
 }
 
@@ -191,10 +192,10 @@ export async function updateStudentJoinTime(actor: Profile, input: UpdateStudent
     const parsed = new Date(input.joinAt)
     if (Number.isNaN(parsed.getTime())) throw new ValidationError('Enter a valid joined time.')
     joinAt = parsed.toISOString()
-    // Which window must the entry fall inside? A named session when the caller gives one,
-    // otherwise the DAY's overall window (earliest start -> latest end) across that class's
-    // sessions - attendance is per day, so with several sessions the guard has to admit an
-    // entry belonging to any of them while still rejecting a time from elsewhere in the day.
+    // Which window must the entry fall inside? The named session when the caller gives
+    // one. Without a name the session is unknown, so the guard widens to the DAY's overall
+    // window (earliest start -> latest end) - loose enough to admit an entry belonging to
+    // any of that day's sessions, still tight enough to reject a time from elsewhere.
     const session = input.sessionId
       ? (daySessions.find((x) => x.id === input.sessionId) ?? null)
       : dayWindowOf(daySessions)
@@ -221,7 +222,9 @@ export async function updateStudentJoinTime(actor: Profile, input: UpdateStudent
   if (!updated) {
     throw new NotFoundError('No attendance record exists for this session yet - mark attendance first.')
   }
-  await auditPrivilegedAction(actor, 'attendance.student_join', 'attendance', rowKey(input.classId, input.sessionDate))
+  // The SESSION whose mark changed. A (class, date) key cannot distinguish two edits on
+  // a two-session day, which is exactly what the log is asked afterwards.
+  await auditPrivilegedAction(actor, 'attendance.student_join', 'class_session', markSessionId)
 }
 
 export type UpdateSessionTimesInput = {

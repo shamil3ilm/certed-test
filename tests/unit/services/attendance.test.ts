@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -10,16 +11,18 @@ vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionsForDateAsService: vi.fn(),
   insertSession: vi.fn(),
+  selectSessionById: vi.fn(),
 }))
 vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { getClassMembers } from '@/lib/services/classes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
-import { insertSession, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
+import { insertSession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 import {
   markAttendance,
   clearAttendanceSession,
@@ -27,7 +30,7 @@ import {
   listAttendanceForStudentPage,
   summarizeAttendanceForStudent,
 } from '@/lib/services/attendance'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 
 const actor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 // attendanceMarkSchema requires real (RFC4122 v4-shaped) UUIDs for class_id/student_id.
@@ -150,29 +153,42 @@ describe('markAttendance', () => {
 
 describe('clearAttendanceSession', () => {
   it('rejects a non-manager without deleting or auditing', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(false)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(false)
     await expect(clearAttendanceSession(actor, classId, '2026-07-15')).rejects.toBeInstanceOf(PermissionError)
     expect(createAdminClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
-  it('rejects a malformed session date', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
-    await expect(clearAttendanceSession(actor, classId, 'not-a-date')).rejects.toBeInstanceOf(ValidationError)
+  it('refuses a session id belonging to a DIFFERENT class', async () => {
+    // The permission check authorises a CLASS; the session id arrives from the client, so
+    // clearing must confirm the two agree or one class could wipe another's marks.
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(selectSessionById).mockResolvedValueOnce({ id: SESSION_ID, class_id: 'some-other-class' } as never)
+    await expect(clearAttendanceSession(actor, classId, SESSION_ID)).rejects.toBeInstanceOf(NotFoundError)
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
-  it('deletes the class+date marks and audits attendance.clear', async () => {
-    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+  it('refuses an unknown session id', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(selectSessionById).mockResolvedValueOnce(null)
+    await expect(clearAttendanceSession(actor, classId, SESSION_ID)).rejects.toBeInstanceOf(NotFoundError)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('clears ONE session\u2019s marks and audits that session, not the class', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(selectSessionById).mockResolvedValueOnce({ id: SESSION_ID, class_id: classId } as never)
     vi.mocked(createAdminClient).mockReturnValueOnce(
       makeClient({ data: [{ id: 'm1' }, { id: 'm2' }], error: null }) as any,
     )
-    await expect(clearAttendanceSession(actor, classId, '2026-07-15')).resolves.toEqual({ cleared: 2 })
+    await expect(clearAttendanceSession(actor, classId, SESSION_ID)).resolves.toEqual({ cleared: 2 })
+    // entity_id is the SESSION: a class-level entry cannot say WHICH of a day's sessions
+    // was cleared, which is the only thing worth knowing about this action.
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'attendance.clear',
-      entity_type: 'class',
-      entity_id: classId,
+      entity_type: 'class_session',
+      entity_id: SESSION_ID,
     })
   })
 })

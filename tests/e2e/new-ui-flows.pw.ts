@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs, submitAndReload, SEED } from './support'
+import { loginAs, submitAndReload, ensureRecordedSession, sessionForm, SEED } from './support'
 
 /**
  * E2E for the UI added this cycle: the private session note (must NEVER reach the
@@ -19,18 +19,23 @@ test('a tutor records a session summary + private note; the student sees the sum
   await loginAs(page, 'tutor@mock.test')
   await page.goto(`/classroom/${SEED.math}/attendance`)
 
+  await ensureRecordedSession(page)
+  // Every control below is scoped to the FIRST recorded session: the page also renders a
+  // blank "Record another session" form, so an unscoped locator matches twice.
+  const session = sessionForm(page)
+
   // Mark attendance so the student has a record for today (their attendance page only
   // lists dates they attended, which is where the shared summary surfaces).
-  await page.getByRole('button', { name: 'Mark all present' }).click()
-  await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).click())
+  await page.getByRole('button', { name: 'Mark all present' }).first().click()
+  await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).first().click())
 
   // Record a shared summary + a staff-private note on the session.
-  await page.getByPlaceholder(SUMMARY_PLACEHOLDER).fill(SHARED_SUMMARY)
-  await page.getByPlaceholder(STAFF_NOTE_PLACEHOLDER).fill(STAFF_NOTE)
-  await submitAndReload(page, () => page.getByRole('button', { name: 'Save session' }).click())
+  await session.getByPlaceholder(SUMMARY_PLACEHOLDER).fill(SHARED_SUMMARY)
+  await session.getByPlaceholder(STAFF_NOTE_PLACEHOLDER).fill(STAFF_NOTE)
+  await submitAndReload(page, () => session.getByRole('button', { name: 'Save session' }).click())
 
   // The private note round-trips for the tutor (read back via the manager path).
-  await expect(page.getByPlaceholder(STAFF_NOTE_PLACEHOLDER)).toHaveValue(STAFF_NOTE)
+  await expect(session.getByPlaceholder(STAFF_NOTE_PLACEHOLDER)).toHaveValue(STAFF_NOTE)
 
   // Now the enrolled student: they see the shared summary, never the private note.
   await loginAs(page, 'student@mock.test', { clearCookies: true })

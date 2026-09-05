@@ -117,10 +117,13 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
   const me = await requireCapability('manageClassContent')
   const classId = String(formData.get('class_id') ?? '')
   const date = String(formData.get('session_date') ?? '')
-  if (!classId || !date) return
+  // The SESSION being cleared. A class may hold several a day (0093) and each carries its
+  // own marks (0094), so clearing has to name one - the old day key wiped them all.
+  const sessionId = String(formData.get('session_id') ?? '')
+  if (!classId || !date || !sessionId) return
 
   try {
-    await clearAttendanceSession(me, classId, date)
+    await clearAttendanceSession(me, classId, sessionId)
     revalidatePath(`/classroom/${classId}/attendance`)
   } catch (e) {
     // A permission denial leaves the marks intact silently - the control isn't

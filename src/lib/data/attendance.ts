@@ -174,15 +174,15 @@ export async function upsertMarks(rows: ReadonlyArray<AttendanceMark>): Promise<
   if (error) throw new Error(`attendance.markMany: ${error.message}`)
 }
 
-/** Deletes every mark for a class on one session date, returning how many went. */
-export async function deleteSession(classId: string, sessionDate: string): Promise<number> {
+/** Deletes every mark for ONE session, returning how many went.
+ *
+ *  Keyed on session_id, not (class, date): since 0093 a class may hold several sessions a
+ *  day, and the control that calls this is labelled "Clear this session". Deleting by date
+ *  wiped every session's marks for that date - the other sessions' rosters vanished with
+ *  no mention of it, and their recorded hours silently stopped counting attendance. */
+export async function deleteSessionMarks(sessionId: string): Promise<number> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('attendance')
-    .delete()
-    .eq('class_id', classId)
-    .eq('session_date', sessionDate)
-    .select('id')
+  const { data, error } = await admin.from('attendance').delete().eq('session_id', sessionId).select('id')
   if (error) throw new Error(`attendance.clearSession: ${error.message}`)
   return (data ?? []).length
 }
@@ -268,8 +268,14 @@ export async function updateJoinAtAsService(
   return (data?.length ?? 0) > 0
 }
 
-/** Whether a student has an attendance row for (class, date) - used to scope student
- *  session feedback to sessions they actually attended (service role). */
+/** Whether a student has an attendance row anywhere on (class, date).
+ *
+ *  A COARSE pre-check only. Since 0094 a mark belongs to a session, so "attended that day"
+ *  no longer means "attended that session" - the precise scoping is done by RLS (0097),
+ *  which admits the feedback write only on sessions the student was actually marked for.
+ *  This stays day-keyed on purpose: it matches the feedback UI, which offers one box per
+ *  attended DAY, and it cheaply rejects a crafted post for a date the student never
+ *  attended at all before any write is attempted. */
 export async function studentHasAttendance(classId: string, studentId: string, date: string): Promise<boolean> {
   const admin = createAdminClient()
   const { count, error } = await admin

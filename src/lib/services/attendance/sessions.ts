@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
+import { canWriteClass } from '@/lib/permission/class-write'
 import { isCalendarDate } from '@/lib/time/format'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
@@ -178,7 +179,11 @@ export async function deleteSessionTimes(actor: Profile, sessionId: string): Pro
   validateUuidField(sessionId, 'Invalid session id.')
   const session = await selectSessionByIdAsService(sessionId)
   if (!session) throw new NotFoundError('That session no longer exists.')
-  if (!(await canManageClass(actor, session.class_id))) {
+  // canWriteClass, not canManageClass: the latter admits a MENTOR (pastoral oversight),
+  // but this is a staff WRITE and the table's RLS excludes mentors for this verb. The
+  // write goes through the service-role client, so RLS never runs and this gate is the
+  // only control - a mismatch here is the whole exposure, not a second line of defence (C-08).
+  if (!(await canWriteClass(actor, session.class_id))) {
     throw new PermissionError('Not allowed to remove this session.')
   }
   await deleteSessionById(sessionId)

@@ -39,22 +39,6 @@ const ATTENDANCE_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent']
 const asStatus = (v: string | undefined): AttendanceStatus | '' =>
   ATTENDANCE_STATUSES.includes(v as AttendanceStatus) ? (v as AttendanceStatus) : ''
 
-/** Builds an attendance URL preserving the current Details filters, changing only
- *  the keys in `patch`. Keeps the marking `date` param untouched. */
-export function attendanceHistoryUrl(
-  current: AttendanceHistoryFilterState & { date?: string },
-  patch: Partial<AttendanceHistoryFilterState>,
-): string {
-  const next = { ...current, ...patch }
-  const sp = new URLSearchParams()
-  if (current.date) sp.set('date', current.date)
-  if (next.status) sp.set('aStatus', next.status)
-  if (next.from) sp.set('aFrom', next.from)
-  if (next.to) sp.set('aTo', next.to)
-  const q = sp.toString()
-  return q ? `?${q}` : '?'
-}
-
 type StudentAttendancePageData = {
   kind: 'student'
   recPage: number
