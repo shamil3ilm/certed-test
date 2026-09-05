@@ -3,6 +3,8 @@ import type { Profile } from '@/lib/auth/profile'
 import { formatMark } from '@/lib/grades'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
 import { Badge, Card, statusLabel } from '@/lib/ui'
+import { ConfirmSubmit } from '../../../ConfirmSubmit'
+import { SubmitButton } from '../../../form'
 import { EditAssignment } from '../../../assignments/EditAssignment'
 import { classworkTypeLabel } from '../../../assignments/classwork-types'
 import { SubmitForm } from '../../../assignments/SubmitForm'
@@ -97,12 +99,26 @@ export async function AssignmentCard({
             <input type="hidden" name="id" value={assignment.id} />
             <input type="hidden" name="class_id" value={courseId} />
             <input type="hidden" name="status" value={assignment.status === 'archived' ? 'active' : 'archived'} />
-            <button
-              type="submit"
-              className={`btn btn-sm ${assignment.status === 'archived' ? 'btn-success' : 'btn-warning'}`}
-            >
-              {assignment.status === 'archived' ? 'Restore' : 'Archive'}
-            </button>
+            {/* Archiving removes the item from every student's classwork list, so it is
+                confirmed like the lighter "hide a document" control rendered on this same
+                page (materials-section). Restore is additive, so it just gets a pending
+                state - the same split materials-section uses. */}
+            {assignment.status === 'archived' ? (
+              <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
+                Restore
+              </SubmitButton>
+            ) : (
+              <ConfirmSubmit
+                className="btn btn-sm btn-warning"
+                variant="danger"
+                title="Archive this classwork?"
+                message={`"${assignment.title}" stops appearing in every student's classwork list. You can restore it later.`}
+                confirmLabel="Archive"
+                pendingLabel="Archiving..."
+              >
+                Archive
+              </ConfirmSubmit>
+            )}
           </form>
         </div>
       )}

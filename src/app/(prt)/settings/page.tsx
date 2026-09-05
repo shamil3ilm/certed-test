@@ -4,12 +4,14 @@ import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/
 import { getProfileDetails } from '@/lib/services/users/directory'
 import { AlertBanner, PageHeader, Panel } from '@/lib/ui'
 import { ChangePasswordForm } from './ChangePasswordForm'
-import { Field, Input } from '../form'
+import { Field, Input, SubmitButton } from '../form'
 import { LocalTime } from '../LocalTime'
+import { ConfirmSubmit } from '../ConfirmSubmit'
 import {
   changeEmailAction,
   changePasswordAction,
   reaffirmConsentAction,
+  withdrawConsentAction,
   updateProfileAction,
   updateProfileDetailsAction,
 } from './actions'
@@ -79,9 +81,13 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
               />
             </Field>
             <div className="sm:col-span-2">
-              <button type="submit" className="btn btn-primary">
+              {/* SubmitButton, like the admin equivalent in DetailsCard: this re-authenticates
+                  and changes the sign-in email, so a double click ran it twice and the second
+                  run hit the rate limit - reporting "too many attempts" for a change that had
+                  already succeeded. */}
+              <SubmitButton className="btn btn-primary" pendingLabel="Changing...">
                 Change email
-              </button>
+              </SubmitButton>
               <p className="mt-2 text-xs text-slate-600">
                 Confirm your current password to change your sign-in email. It takes effect immediately.
               </p>
@@ -148,15 +154,40 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
           ) : (
             <p className="text-sm text-slate-600">We have no record of your policy acceptance yet.</p>
           )}
+          {data.consent.withdrawnAt && (
+            <p className="mt-2 text-sm text-amber-700">
+              You withdrew this consent on <LocalTime iso={data.consent.withdrawnAt} mode="date" />. Your acceptance
+              stays on record as history; accepting again below restores it.
+            </p>
+          )}
+          {/* N-07: the policy offers withdrawal, and until now there was no way to exercise
+              it. Withdrawing records the fact against the append-only log - it does not
+              erase the account, which is a separate and heavier request. */}
+          {data.consent.acceptedAt && !data.consent.withdrawnAt && (
+            <form action={withdrawConsentAction} className="mt-3">
+              <ConfirmSubmit
+                className="btn btn-sm btn-soft"
+                title="Withdraw your consent?"
+                message="Your acceptance stays on record as history, marked as withdrawn. You will be asked to accept again to keep using the academy."
+                confirmLabel="Withdraw consent"
+                pendingLabel="Withdrawing..."
+                variant="warning"
+              >
+                Withdraw consent
+              </ConfirmSubmit>
+            </form>
+          )}
           {!data.consent.upToDate && (
             <form action={reaffirmConsentAction} className="mt-3 border-t border-slate-100 pt-4">
               <p className="text-sm text-slate-600">
                 Our policies have been updated since you last accepted them (current version{' '}
                 {data.consent.currentTermsVersion}). Please review and accept the current versions.
               </p>
-              <button type="submit" className="btn btn-sm btn-soft mt-3">
+              {/* The consents table is an append-only legal history with no dedupe, so a
+                  double click wrote two identical acceptance rows for the same version. */}
+              <SubmitButton className="btn btn-sm btn-soft mt-3" pendingLabel="Recording...">
                 I accept the current Terms &amp; Privacy Policy
-              </button>
+              </SubmitButton>
             </form>
           )}
         </Panel>

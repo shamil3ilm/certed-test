@@ -175,5 +175,10 @@ test('Dashboard reminder controls are interactive', async ({ page }) => {
   await expect(page.getByRole('paragraph').filter({ hasText: deleteReminderTitle }).first()).toBeVisible()
   const deleteReminderRow = page.locator('li').filter({ hasText: deleteReminderTitle }).first()
   await deleteReminderRow.getByRole('button', { name: 'Delete reminder' }).click()
+  // Deleting a reminder is a hard delete with no undo, so it now goes through the shared
+  // confirm modal - the same one the meeting and timetable deletes use.
+  const confirmDialog = page.getByRole('dialog')
+  await expect(confirmDialog).toBeVisible()
+  await confirmDialog.getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByRole('paragraph').filter({ hasText: deleteReminderTitle })).toHaveCount(0)
 })

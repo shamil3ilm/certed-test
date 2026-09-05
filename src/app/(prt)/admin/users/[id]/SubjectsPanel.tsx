@@ -67,14 +67,20 @@ export function SubjectsPanel({
                         <input type="hidden" name="student_id" value={studentId} />
                         <input type="hidden" name="class_id" value={s.classId} />
                         <input type="hidden" name="tutor_id" value={t.id} />
-                        <button
-                          type="submit"
-                          aria-label={`Remove ${t.name}`}
-                          title={`Remove ${t.name}`}
+                        {/* ConfirmSubmit, like the two other destructive controls in this
+                            file: removeTutor also deactivates the global tutor persona of a
+                            mentor account left with no classes - an audited privilege
+                            change - and this was the smallest click target on the page. */}
+                        <ConfirmSubmit
                           className="text-slate-600 hover:text-red-600"
+                          aria-label={`Remove ${t.name}`}
+                          title="Remove this tutor?"
+                          message={`${t.name} stops teaching ${s.subjectName}. If they are a mentor account with no other classes, their tutor access is removed too.`}
+                          confirmLabel="Remove tutor"
+                          pendingLabel="Removing..."
                         >
                           ×
-                        </button>
+                        </ConfirmSubmit>
                       </form>
                     </span>
                   ))
@@ -82,7 +88,17 @@ export function SubjectsPanel({
                 <form action={addSubjectTutorAction} className="flex items-center gap-1">
                   <input type="hidden" name="student_id" value={studentId} />
                   <input type="hidden" name="class_id" value={s.classId} />
-                  <Select name="tutor_id" defaultValue="" className="w-40" required>
+                  {/* aria-label: one of these renders per subject row, and a bare <select>
+                      has no placeholder fallback for its accessible name - so every row
+                      presented an identically unnamed combo box. Names it by subject, the
+                      way the labelled sibling below is named by <Field label="Tutor">. */}
+                  <Select
+                    name="tutor_id"
+                    defaultValue=""
+                    className="w-40"
+                    required
+                    aria-label={`Add a tutor to ${s.subjectName}`}
+                  >
                     <option value="" disabled>
                       Add tutor…
                     </option>

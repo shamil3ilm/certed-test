@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cx } from '@/lib/ui'
 import type { FxRatesPageData } from '@/lib/services/finance/fx-admin'
+import { useUI } from '../../../Providers'
 import { addRateAction, deleteRateAction, recomputeAction, setBaseCurrencyAction } from './actions'
 
 const INPUT =
@@ -15,6 +16,7 @@ type Note = { tone: 'ok' | 'error'; text: string } | null
 export function RatesManager({ data }: { data: FxRatesPageData }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const { confirm } = useUI()
   const [note, setNote] = useState<Note>(null)
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) {
@@ -59,9 +61,24 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
               className={INPUT}
               defaultValue={data.baseCurrency}
               disabled={pending}
-              onChange={(e) =>
-                run(() => setBaseCurrencyAction(e.target.value), `Base currency set to ${e.target.value}.`)
-              }
+              // Confirmed, and the select is restored when declined: this re-prices every
+              // document, and a change event fires as a keyboard user ARROWS through the
+              // options - so the un-confirmed version re-priced the ledger on a keystroke.
+              onChange={async (e) => {
+                const next = e.target.value
+                const select = e.target
+                const ok = await confirm({
+                  title: `Change the base currency to ${next}?`,
+                  message:
+                    'Every receipt and pay slip is re-priced into this currency, and academy totals report in it.',
+                  confirmLabel: `Use ${next}`,
+                })
+                if (!ok) {
+                  select.value = data.baseCurrency
+                  return
+                }
+                run(() => setBaseCurrencyAction(next), `Base currency set to ${next}.`)
+              }}
             >
               {data.currencies.map((c) => (
                 <option key={c} value={c}>
@@ -161,11 +178,23 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
                     <td className="py-1.5 pr-3 tabular-nums text-slate-600">{r.effective_from}</td>
                     <td className="py-1.5 pr-3 text-slate-600">{r.note ?? '-'}</td>
                     <td className="py-1.5 text-right">
+                      {/* Confirmed like the sibling VoidButton on the same finance surface:
+                          removing a rate deletes the row AND recomputes conversions across
+                          every receipt and pay slip, and recovery means retyping the exact
+                          rate and effective date. */}
                       <button
                         type="button"
                         className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
                         disabled={pending}
-                        onClick={() => run(() => deleteRateAction(r.id), 'Rate removed.')}
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: 'Remove this rate?',
+                            message: `${r.currency} to ${r.base_currency} from ${r.effective_from} is deleted and every document is re-priced without it.`,
+                            confirmLabel: 'Remove rate',
+                            variant: 'danger',
+                          })
+                          if (ok) run(() => deleteRateAction(r.id), 'Rate removed.')
+                        }}
                       >
                         Delete
                       </button>

@@ -13,6 +13,7 @@ import { searchFinanceStudentsAction } from './actions'
 import { VoidButton } from './VoidButton'
 import {
   Badge,
+  EmptyState,
   FilterBar,
   PageHeader,
   PaginationBar,
@@ -65,62 +66,62 @@ function DocTable({
         <SiblingFilterFields kind={kind} other={other} />
       </FilterBar>
 
-      <div className="mt-2 overflow-x-auto">
-        <table className="data-table">
-          <thead>
-            <tr className="text-left text-slate-600">
-              <th scope="col" className="p-2">
-                Number
-              </th>
-              <th scope="col">{kind === 'receipts' ? 'Student' : 'Tutor'}</th>
-              <th scope="col">Total</th>
-              <th scope="col" className="sr-only">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t">
-                <td className="p-2">
-                  {row.number} {row.voided && <Badge tone="danger">void</Badge>}
-                </td>
-                <td>{row.name}</td>
-                <td>
-                  {row.totalLabel}
-                  {row.baseLabel && <span className="block text-xs text-slate-600">{row.baseLabel}</span>}
-                </td>
-                <td className="py-1">
-                  <div className="flex items-center justify-end gap-2">
-                    <a
-                      href={`/api/${kind}/${row.id}/pdf`}
-                      target="_blank"
-                      rel="noopener"
-                      className="btn btn-sm btn-soft"
-                      aria-label={`PDF of ${row.number} - ${row.name}`}
-                    >
-                      PDF
-                    </a>
-                    {canManage && !row.voided && (
-                      <VoidButton
-                        endpoint={`/api/${kind}/${row.id}/void`}
-                        documentLabel={`${row.number} - ${row.name}`}
-                      />
-                    )}
-                  </div>
-                </td>
+      {rows.length === 0 ? (
+        <EmptyState>No {kind === 'receipts' ? 'receipts' : 'pay slips'} yet.</EmptyState>
+      ) : (
+        <div className="mt-2 overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr className="text-left text-slate-600">
+                <th scope="col" className="p-2">
+                  Number
+                </th>
+                <th scope="col">{kind === 'receipts' ? 'Student' : 'Tutor'}</th>
+                <th scope="col">Total</th>
+                <th scope="col" className="sr-only">
+                  Actions
+                </th>
               </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={4} className="p-4 text-center text-slate-600">
-                  No {kind === 'receipts' ? 'receipts' : 'pay slips'} yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-t">
+                  <td className="p-2">
+                    {row.number} {row.voided && <Badge tone="danger">void</Badge>}
+                  </td>
+                  <td>{row.name}</td>
+                  <td>
+                    {row.totalLabel}
+                    {row.baseLabel && <span className="block text-xs text-slate-600">{row.baseLabel}</span>}
+                  </td>
+                  <td className="py-1">
+                    <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/api/${kind}/${row.id}/pdf`}
+                        target="_blank"
+                        rel="noopener"
+                        className="btn btn-sm btn-soft"
+                        aria-label={`PDF of ${row.number} - ${row.name}`}
+                      >
+                        PDF
+                      </a>
+                      {canManage && !row.voided && (
+                        <VoidButton
+                          endpoint={`/api/${kind}/${row.id}/void`}
+                          documentLabel={`${row.number} - ${row.name}`}
+                        />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {/* Nothing here: the table (headers included) is replaced entirely, the way
+                /admin/history and the /receipts + /payslips lists handle the same finance
+                documents. An in-table row left Number / Student / Total framing nothing. */}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <PaginationBar
         page={page}

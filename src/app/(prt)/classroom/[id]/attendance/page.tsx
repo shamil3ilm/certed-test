@@ -84,7 +84,7 @@ export default async function AttendancePage(props: {
           <ul className="space-y-2">
             {data.rows.map((row) => {
               const daySessions = sessionsByDate.get(row.session_date) ?? []
-              // Attendance is recorded once per day, so learning time is measured against
+              // One mark per SESSION since 0094, so learning time is measured against
               // the day's OVERALL window (earliest start -> latest end) across its sessions.
               const dayStarts = daySessions.map((x) => x.actual_start).filter((v): v is string => v != null)
               const dayEnds = daySessions.map((x) => x.actual_end).filter((v): v is string => v != null)
@@ -222,7 +222,7 @@ export default async function AttendancePage(props: {
                 <ConfirmSubmit
                   className="btn btn-sm btn-ghost text-red-600"
                   title="Remove this session?"
-                  message="Its hours drop out of the monthly total. Other sessions on this date are unaffected."
+                  message="Every attendance mark for this session is deleted with it, and its hours drop out of the monthly total. Other sessions on this date are unaffected."
                   confirmLabel="Remove session"
                   pendingLabel="Removing..."
                 >
@@ -244,6 +244,25 @@ export default async function AttendancePage(props: {
                 students={rosterBySession.get(session.id) ?? []}
                 session={session}
               />
+            )}
+            {canManageContent && (rosterBySession.get(session.id)?.length ?? 0) > 0 && (
+              // Per SESSION, not per day: this used to sit below the whole date and delete
+              // every mark on it, so clearing the morning silently wiped the afternoon.
+              // Distinct from "Remove session" above, which also drops the recorded hours.
+              <form action={clearAttendanceAction} className="flex justify-end">
+                <input type="hidden" name="class_id" value={course.id} />
+                <input type="hidden" name="session_date" value={data.date} />
+                <input type="hidden" name="session_id" value={session.id} />
+                <ConfirmSubmit
+                  className="btn btn-sm btn-ghost text-red-600"
+                  title="Clear this session's marks?"
+                  message="This removes every mark for THIS session only. Other sessions on this date, and the recorded times, are unaffected."
+                  confirmLabel="Clear marks"
+                  pendingLabel="Clearing..."
+                >
+                  Clear marks
+                </ConfirmSubmit>
+              </form>
             )}
           </div>
         ))}
@@ -268,21 +287,6 @@ export default async function AttendancePage(props: {
               // No session recorded for this date yet - marking here records one, so the
               // marks still belong to a session.
               <MarkAttendanceForm classId={course.id} date={data.date} students={data.roster} session={dayWindow} />
-            )}
-            {canManageContent && data.hasMarks && (
-              <form action={clearAttendanceAction} className="flex justify-end">
-                <input type="hidden" name="class_id" value={course.id} />
-                <input type="hidden" name="session_date" value={data.date} />
-                <ConfirmSubmit
-                  className="btn btn-sm btn-ghost text-red-600"
-                  title="Clear this session?"
-                  message={`This removes every mark for ${data.date}. You can re-mark it afterwards.`}
-                  confirmLabel="Clear session"
-                  pendingLabel="Clearing..."
-                >
-                  Clear this session
-                </ConfirmSubmit>
-              </form>
             )}
           </>
         )}

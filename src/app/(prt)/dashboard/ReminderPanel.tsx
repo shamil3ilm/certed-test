@@ -55,7 +55,7 @@ function ReminderPanelBody({
   // and trip a hydration mismatch); the interval below takes over after mount.
   const [nowMs, setNowMs] = useState(now)
   const deviceLocal = useHydratedFlag()
-  const { toast } = useUI()
+  const { toast, confirm } = useUI()
   const router = useRouter()
 
   useEffect(() => {
@@ -131,7 +131,17 @@ function ReminderPanelBody({
     })
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
+    // Confirmed: this is a hard delete with no undo, and the control sits beside "Done" in
+    // a row of same-sized pills - the sibling meeting/timetable deletes both confirm.
+    const target = reminders.find((reminder) => reminder.id === id)
+    const ok = await confirm({
+      title: 'Delete this reminder?',
+      message: target ? `"${target.title}" is removed permanently.` : 'It is removed permanently.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    })
+    if (!ok) return
     const snapshot = reminders
     setReminders((current) => current.filter((reminder) => reminder.id !== id))
     const formData = new FormData()

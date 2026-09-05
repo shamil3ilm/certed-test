@@ -94,14 +94,17 @@ export function SubmitButton({
   children,
   pendingLabel,
   className,
+  disabled,
 }: {
   children: ReactNode
   pendingLabel?: string
   className?: string
+  /** Additional reason to block submission (e.g. client-side validation), ORed with pending. */
+  disabled?: boolean
 }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" disabled={pending} className={cx('btn', className || 'btn-primary')}>
+    <button type="submit" disabled={pending || disabled} className={cx('btn', className || 'btn-primary')}>
       {pending ? (pendingLabel ?? 'Working...') : children}
     </button>
   )

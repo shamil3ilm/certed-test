@@ -193,8 +193,12 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
       <details className="text-xs">
         <summary className="cursor-pointer text-slate-600">or link a Google Drive file instead</summary>
         <div className="mt-1.5 space-y-1">
+          {/* aria-label rather than the orphaned id: nothing in the app carries a matching
+              htmlFor, so the field had no accessible name. Matches its student-side twin in
+              assignments/SubmitForm. */}
           <Input
             id="document-drive-link"
+            aria-label="Google Drive link"
             type="url"
             value={url}
             onChange={(event) => setUrl(event.target.value)}

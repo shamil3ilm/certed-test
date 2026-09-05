@@ -26,8 +26,12 @@ export function MenteeNotesPanel({
 
       <form action={addMenteeNoteAction} className="mt-3 space-y-2">
         <input type="hidden" name="student_id" value={studentId} />
+        {/* aria-label, like the structurally identical placeholder-only textarea in
+            SessionFeedbackForm: the visible "Pastoral notes" heading is not associated with
+            this field, and a placeholder is dropped by some AT and vanishes on first keystroke. */}
         <textarea
           name="body"
+          aria-label="Add a pastoral note about this student"
           required
           rows={2}
           maxLength={2000}
