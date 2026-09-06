@@ -4,34 +4,10 @@ import {
   computeTotals,
   formatMoney,
   currencyDecimals,
-  netMoneyTotals,
   convertMoney,
   totalByCurrency,
-  formatMoneyTotals,
   EMPTY_MONEY,
 } from '@/lib/money'
-
-describe('netMoneyTotals', () => {
-  const t = (currency: string, live_total: number) => ({ currency, live_total })
-
-  it('subtracts payout from revenue per currency', () => {
-    expect(netMoneyTotals([t('INR', 1200)], [t('INR', 400)])).toEqual([t('INR', 800)])
-  })
-
-  it('keeps currencies present on only one side, and a payout-only one goes negative', () => {
-    const net = netMoneyTotals([t('INR', 1000), t('USD', 50)], [t('INR', 400), t('AED', 100)])
-    expect(net).toEqual(expect.arrayContaining([t('INR', 600), t('USD', 50), t('AED', -100)]))
-    expect(net).toHaveLength(3)
-  })
-
-  it('drops a currency that exactly offsets to zero', () => {
-    expect(netMoneyTotals([t('INR', 500)], [t('INR', 500)])).toEqual([])
-  })
-
-  it('rounds to the currency minor unit (fils for a 3-decimal currency)', () => {
-    expect(netMoneyTotals([t('KWD', 1.235)], [t('KWD', 1.23)])).toEqual([t('KWD', 0.005)])
-  })
-})
 
 describe('currencyDecimals', () => {
   it('defaults to 2 and is case-insensitive', () => {
@@ -151,21 +127,5 @@ describe('totalByCurrency', () => {
   it('renders a dash when every row is void or the list is empty', () => {
     expect(totalByCurrency([])).toBe(EMPTY_MONEY)
     expect(totalByCurrency([row(999, 'INR', true)])).toBe(EMPTY_MONEY)
-  })
-})
-
-describe('formatMoneyTotals', () => {
-  it('renders each per-currency total, joined', () => {
-    const s = formatMoneyTotals([
-      { currency: 'INR', live_total: 800 },
-      { currency: 'USD', live_total: 50 },
-    ])
-    expect(s).toContain('800')
-    expect(s).toContain('50')
-    expect(s).toContain(' + ')
-  })
-
-  it('is a dash when there are no totals', () => {
-    expect(formatMoneyTotals([])).toBe(EMPTY_MONEY)
   })
 })

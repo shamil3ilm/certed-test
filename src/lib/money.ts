@@ -98,26 +98,3 @@ export function totalByCurrency(rows: { total: number; currency: string; voided:
   const g = [...m.entries()]
   return g.length ? g.map(([c, t]) => formatMoney(t, c)).join(' + ') : EMPTY_MONEY
 }
-
-/** Renders already-aggregated per-currency totals into one display string, with a
- *  dash fallback when there are none. Shared anywhere the UI needs the same
- *  per-currency total presentation. */
-export function formatMoneyTotals(totals: ReadonlyArray<{ currency: string; live_total: number }>): string {
-  return totals.length ? totals.map((t) => formatMoney(t.live_total, t.currency)).join(' + ') : EMPTY_MONEY
-}
-
-/** Net of two per-currency total sets (revenue minus payout), per currency. A
- *  currency present on only one side carries through (a payout-only currency
- *  becomes negative); a currency that exactly offsets is dropped so it doesn't
- *  render a bare zero. Same shape as financeTotals, so formatMoneyTotals renders it. */
-export function netMoneyTotals(
-  revenue: ReadonlyArray<{ currency: string; live_total: number }>,
-  payout: ReadonlyArray<{ currency: string; live_total: number }>,
-): Array<{ currency: string; live_total: number }> {
-  const byCurrency = new Map<string, number>()
-  for (const r of revenue) byCurrency.set(r.currency, (byCurrency.get(r.currency) ?? 0) + Number(r.live_total))
-  for (const p of payout) byCurrency.set(p.currency, (byCurrency.get(p.currency) ?? 0) - Number(p.live_total))
-  return [...byCurrency.entries()]
-    .map(([currency, total]) => ({ currency, live_total: roundTo(total, currencyDecimals(currency)) }))
-    .filter((t) => t.live_total !== 0)
-}
