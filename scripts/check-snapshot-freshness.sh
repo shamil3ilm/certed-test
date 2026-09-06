@@ -20,7 +20,7 @@ if [ -z "$snap" ]; then
   echo "::error::rebuild snapshot has no 0001..NNNN marker; run 'npm run db:rebuild-snapshot'" >&2
   exit 1
 elif [ "$snap" != "$latest" ]; then
-  echo "::error::rebuild snapshot is stale (snapshot=$snap, migrations head=$latest); run 'supabase db reset && npm run db:rebuild-snapshot' and commit the regenerated file" >&2
+  echo "::error::rebuild snapshot is stale (snapshot=$snap, migrations head=$latest); regenerate with 'supabase db reset && npm run db:rebuild-snapshot', or without Docker/the CLI 'bash scripts/rebuild-snapshot-local.sh', and commit the regenerated file alongside the migration" >&2
   exit 1
 else
   echo "Rebuild snapshot is current ($snap)."

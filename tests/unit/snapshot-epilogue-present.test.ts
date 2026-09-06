@@ -52,3 +52,34 @@ describe('rebuild snapshot - R-01 table privilege epilogue reaches the artifact'
     expect(firstRevoke).toBeLessThan(firstAcl)
   })
 })
+
+describe('rebuild snapshot - the btree_gist prologue and what depends on it', () => {
+  // Extensions are filtered out of a --schema=public dump, so the snapshot has to re-declare
+  // btree_gist itself. Getting this wrong does not degrade the snapshot - it makes it fail to
+  // apply outright ('data type uuid has no default operator class for access method gist'),
+  // and the guard around the CREATE EXTENSION is deliberately non-fatal, so a regeneration
+  // could ship a snapshot whose double-booking protection is quietly absent.
+  it('declares the extension, pinned to a schema', () => {
+    const snapshot = readFileSync(SNAPSHOT, 'utf8')
+    // `with schema public` is load-bearing: pg_dump sets search_path to '' at the top of the
+    // file, so an unqualified CREATE EXTENSION has nowhere to install and fails.
+    expect(snapshot).toMatch(/create extension if not exists btree_gist with schema public/i)
+  })
+
+  it('declares it AFTER the schema exists and BEFORE the constraint that needs it', () => {
+    const snapshot = readFileSync(SNAPSHOT, 'utf8')
+    const schemaAt = snapshot.indexOf('CREATE SCHEMA public;')
+    const extAt = snapshot.search(/create extension if not exists btree_gist/i)
+    const constraintAt = snapshot.indexOf('class_sessions_no_tutor_overlap')
+    expect(schemaAt).toBeGreaterThan(-1)
+    expect(extAt).toBeGreaterThan(schemaAt)
+    expect(constraintAt).toBeGreaterThan(extAt)
+  })
+
+  it('still carries the exclusion constraint itself', () => {
+    // The whole point of the prologue. If a regeneration drops this, the snapshot provisions
+    // a database where two concurrent session saves can double-book a tutor and both windows
+    // are paid - with nothing failing to announce it.
+    expect(readFileSync(SNAPSHOT, 'utf8')).toMatch(/EXCLUDE USING gist/i)
+  })
+})

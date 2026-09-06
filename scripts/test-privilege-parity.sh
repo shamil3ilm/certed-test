@@ -87,6 +87,19 @@ where n.nspname = 'public'
     where d.objid = p.oid and d.classid = 'pg_proc'::regclass and d.deptype = 'e'
   )
   and has_function_privilege(r.rolname, p.oid, 'EXECUTE')
+union all
+-- DEFAULT PRIVILEGES. Not a privilege on anything that exists yet, which is exactly why it
+-- was missed: it decides what the NEXT function arrives holding. 0034 closed this for
+-- PUBLIC only, so every function created afterwards still arrived granted to anon and
+-- authenticated - the mechanism behind C-01, where 0095's re-signed issue_receipt_doc /
+-- issue_payslip_doc came back EXECUTE-able by the publishable key. If the two provisioning
+-- paths disagree here they will silently diverge on the next migration, not this one.
+select 'DEFAULT_ACL', r.rolname, coalesce(n.nspname,'-'), d.defaclobjtype::text, a.privilege_type
+from pg_default_acl d
+left join pg_namespace n on n.oid = d.defaclnamespace
+cross join lateral aclexplode(d.defaclacl) a
+join pg_roles r on r.oid = a.grantee
+where r.rolname in ('anon','authenticated')
 order by 1,2,3,4,5;
 SQL
 }
@@ -115,6 +128,73 @@ fi
 
 dump_privs "$DB_MIG" "$TMPDIR/mig.privs"
 dump_privs "$DB_SNAP" "$TMPDIR/snap.privs"
+
+# ---------------------------------------------------------------------------
+# CORRECTNESS - asserted on each database independently, BEFORE the parity diff.
+#
+# Parity alone cannot catch a privilege that is wrong in BOTH provisioning paths: two
+# identically-open databases diff clean and the gate reports OK. That is not theoretical -
+# it is what happened. C-01 (anon could mint financial documents through
+# issue_receipt_doc / issue_payslip_doc, which are SECURITY DEFINER and do not
+# self-authorize) and C-02 (11 further functions leaking EXECUTE) were both present in the
+# chain AND the snapshot, so this gate passed green while they shipped.
+#
+# So: name the functions that must never be reachable by the API roles, and check them
+# outright. A finding here is a real hole, not a drift.
+# ---------------------------------------------------------------------------
+SERVICE_ROLE_ONLY="issue_receipt_doc issue_payslip_doc next_document_number revoke_profile_guarded claim_pending_emails rate_limit_hit edit_assignment_and_reclassify rls_disabled_tables"
+
+correctness_failures=0
+for db in "$DB_MIG" "$DB_SNAP"; do
+  label=$([ "$db" = "$DB_MIG" ] && echo "migrations" || echo "snapshot")
+
+  # (a) No service-role-only function may be EXECUTE-able by anon or authenticated.
+  leaked=$(PSQL -d "$db" -tAq <<SQL
+select p.oid::regprocedure || '  <- ' || r.rolname
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+cross join (select rolname from pg_roles where rolname in ('anon','authenticated')) r
+where n.nspname = 'public'
+  and p.proname in ($(printf "'%s'," $SERVICE_ROLE_ONLY | sed 's/,$//'))
+  and has_function_privilege(r.rolname, p.oid, 'EXECUTE')
+order by 1;
+SQL
+)
+  if [ -n "$leaked" ]; then
+    echo "== PRIVILEGE CORRECTNESS: FAILED ($label) =="
+    echo "These SECURITY DEFINER functions are callable by an API role. They do not"
+    echo "self-authorize, so the EXECUTE grant is the ONLY control on them:"
+    echo "$leaked" | sed 's/^/   /'
+    correctness_failures=$((correctness_failures + 1))
+  fi
+
+  # (b) The default must be closed, or the NEXT function created arrives open again.
+  open_default=$(PSQL -d "$db" -tAq <<SQL
+select count(*)
+from pg_default_acl d
+cross join lateral aclexplode(d.defaclacl) a
+join pg_roles r on r.oid = a.grantee
+where d.defaclobjtype = 'f'
+  and r.rolname in ('anon','authenticated')
+  and a.privilege_type = 'EXECUTE';
+SQL
+)
+  if [ "${open_default:-0}" != "0" ]; then
+    echo "== PRIVILEGE CORRECTNESS: FAILED ($label) =="
+    echo "DEFAULT PRIVILEGES still grant EXECUTE on new functions to anon/authenticated."
+    echo "Every function added after this point arrives open - the C-01 mechanism."
+    correctness_failures=$((correctness_failures + 1))
+  fi
+done
+
+if [ "$correctness_failures" -ne 0 ]; then
+  echo "----------------------------------------------------------------------------"
+  echo "Fix: apply the function sweep (migration 0096) and re-run."
+  exit 1
+fi
+echo "== PRIVILEGE CORRECTNESS: OK =="
+echo "   no service-role-only function is reachable by anon/authenticated, in either path"
+echo "   and DEFAULT PRIVILEGES deny EXECUTE on future functions"
 
 if diff -u "$TMPDIR/mig.privs" "$TMPDIR/snap.privs" >"$TMPDIR/diff.txt"; then
   echo "== PRIVILEGE PARITY: OK =="

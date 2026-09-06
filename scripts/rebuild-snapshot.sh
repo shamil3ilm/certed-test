@@ -26,6 +26,19 @@ EPI="$(mktemp)"
 # verified below. Writing OUT directly (as this script used to) meant a run that failed
 # its checks still left the broken file on disk - strictly worse than the committed
 # snapshot it replaced, and silently committed by anyone who did not read stderr.
+# Guarded like 0051 guards pg_cron, so a bare local Postgres without the extension still
+# provisions (minus the exclusion constraint) rather than aborting.
+EXT_SQL=$(
+  cat <<'EXTSQL'
+do $$
+begin
+  create extension if not exists btree_gist with schema public;
+exception when others then
+  raise warning 'btree_gist could not be installed (%) - class_sessions_no_tutor_overlap will NOT be created, so this database can double-book a tutor.', sqlerrm;
+end $$;
+EXTSQL
+)
+
 BUILD="$(mktemp)"
 trap 'rm -f "$TMP" "$EPI" "$BUILD"' EXIT
 
@@ -123,18 +136,27 @@ HEADER
   # Splice the epilogue in immediately before the first ACL entry (pg_dump marks the
   # section with "; Type: ACL;"). One-line lookahead so it lands before that block's
   # opening "--" comment rather than inside it.
-  EPI_TEXT="$(cat "$EPI")" awk '
+  EPI_TEXT="$(cat "$EPI")" EXT_TEXT="$EXT_SQL" awk '
     BEGIN {
       # ENVIRON is read verbatim - unlike -v, which applies escape processing and so
       # mangles any path containing backslashes. The epilogue TEXT is passed here rather
       # than a path to read, removing the failure mode entirely: there is nothing left to
       # open, so nothing that can silently fail and leave the dump unspliced.
       epi = ENVIRON["EPI_TEXT"]
+      ext = ENVIRON["EXT_TEXT"]
       if (epi == "") { print "awk: the R-01 epilogue text is empty - refusing to splice nothing" > "/dev/stderr"; exit 1 }
       epi = epi "\n"
     }
     {
       if (!done && $0 ~ /; Type: ACL;/) { printf "%s", epi; done = 1 }
+      # Extensions are FILTERED OUT of a --schema=public dump (they do not belong to the
+      # schema), so anything the schema depends on must be re-declared. The 0101
+      # class_sessions_no_tutor_overlap constraint is an EXCLUDE USING gist over (uuid,
+      # tstzrange), needing btree_gist for the uuid operator class - without it the snapshot
+      # apply at all. Emitted right after the CREATE SCHEMA that pg_dump itself writes (the
+      # schema must exist first, and creating it here would collide with that statement),
+      # and well before the constraint that needs it.
+      if (!extDone && $0 ~ /^CREATE SCHEMA public;/) { print; print ""; print ext; extDone = 1; next }
       if (havePrev) print prev
       prev = $0; havePrev = 1
     }
@@ -245,9 +267,32 @@ first_revoke=$(grep -n '^REVOKE .* ON TABLE public\.' "$BUILD" | head -1 | cut -
 first_acl=$(grep -n '; Type: ACL;' "$BUILD" | head -1 | cut -d: -f1)
 [ -n "$first_revoke" ] && [ -n "$first_acl" ] && [ "$first_revoke" -lt "$first_acl" ]   || fail "the table privilege epilogue is not before the first ACL entry (revoke=$first_revoke acl=$first_acl)."
 
+grep -Fq 'create extension if not exists btree_gist' "$BUILD" \
+  || fail "the extension prologue did not reach the snapshot - it would fail to apply."
 # The two appended epilogues must be present too.
 grep -Fq 'INSERT INTO public.org_settings (id) VALUES (true)' "$BUILD"   || fail "the org_settings singleton seed did not reach the snapshot."
 grep -Fq 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS' "$BUILD"   || fail "the function privilege epilogue (C-01) did not reach the snapshot."
+
+# Make the artifact REPRODUCIBLE. pg_dump 18 wraps the dump in `\restrict <token>` /
+# `\unrestrict <token>`, where the token is random per run. It stops psql executing
+# anything embedded in the dump before the wrapper closes - worth keeping - but a fresh
+# random value on every run meant regenerating an UNCHANGED schema still produced a diff.
+# That is corrosive for a committed artifact: a reviewer cannot tell "the schema moved"
+# from "someone re-ran the script", so the noise trains people to skim the one diff that
+# most needs reading.
+#
+# Pinning the token keeps the guarantee, because the guarantee is that the token does not
+# appear in the body - which is asserted here rather than assumed. If it ever did collide,
+# this fails loudly instead of emitting a dump psql could be tricked out of.
+RESTRICT_TOKEN="certed_rebuild_snapshot_restrict"
+if grep -Fq "$RESTRICT_TOKEN" <(grep -vE '^\\(un)?restrict ' "$BUILD"); then
+  fail "the pinned \\restrict token appears in the dump body - pick a different RESTRICT_TOKEN."
+fi
+if grep -qE '^\\restrict ' "$BUILD"; then
+  sed -i -E "s/^\\\\restrict .*/\\\\restrict ${RESTRICT_TOKEN}/; s/^\\\\unrestrict .*/\\\\unrestrict ${RESTRICT_TOKEN}/" "$BUILD"
+  grep -qE "^\\\\unrestrict ${RESTRICT_TOKEN}$" "$BUILD" \
+    || fail "pinned the \\restrict token but the matching \\unrestrict did not update - the dump would not parse."
+fi
 
 # Verified - only now does it replace the committed snapshot.
 mv "$BUILD" "$OUT"
