@@ -47,11 +47,13 @@ export function countAuditByActorAction(actorId: string, action: string): Promis
  *  log, so it stays O(documents). */
 export async function sumResourceDownloads(): Promise<number> {
   const admin = createAdminClient()
-  const rows = await fetchAllPaged<{ download_count: number | null }>(
-    (from, to) => admin.from('resources').select('download_count').eq('status', 'active').range(from, to),
-    'analytics.sumResourceDownloads',
-  )
-  return rows.reduce((total, r) => total + (r.download_count ?? 0), 0)
+  // Summed in Postgres (0103), not here. This used to page EVERY active resource row out
+  // of the database and reduce it in JavaScript - O(documents) rows over the wire to
+  // produce one integer, and growing for as long as the academy adds documents. The figure
+  // is unchanged; only the work moved.
+  const { data, error } = await admin.rpc('sum_active_resource_downloads')
+  if (error) throw new Error(`analytics.sumResourceDownloads: ${error.message}`)
+  return Number(data ?? 0)
 }
 
 /** Every session timing row for a set of classes - the base for teaching-hours

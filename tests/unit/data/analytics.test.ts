@@ -53,16 +53,27 @@ describe('analytics data layer (head-only counts + timing reads)', () => {
     await expect(countActiveResources()).rejects.toThrow(/analytics.count\(resources\): boom/)
   })
 
-  it('sumResourceDownloads sums the counter, treating null as 0, and throws on error', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({
-        data: [{ download_count: 3 }, { download_count: null }, { download_count: 4 }],
-        error: null,
-      }) as any,
-    )
+  it('sumResourceDownloads reads the total from Postgres, and throws on error', async () => {
+    // Summed in SQL since 0103 (sum_active_resource_downloads). It previously paged every
+    // active resource row out and reduced in JS - one integer's worth of answer for
+    // O(documents) rows over the wire. coalesce() in the function makes null-vs-0 the
+    // database's problem, so the app no longer has to treat a missing counter as zero.
+    vi.mocked(createAdminClient).mockReturnValueOnce({ rpc: vi.fn(async () => ({ data: 7, error: null })) } as any)
     expect(await sumResourceDownloads()).toBe(7)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
+
+    vi.mocked(createAdminClient).mockReturnValueOnce({
+      rpc: vi.fn(async () => ({ data: null, error: { message: 'e' } })),
+    } as any)
     await expect(sumResourceDownloads()).rejects.toThrow(/analytics.sumResourceDownloads: e/)
+  })
+
+  it('sumResourceDownloads calls the aggregate, never a table scan', async () => {
+    const rpc = vi.fn(async () => ({ data: 42, error: null }))
+    const from = vi.fn()
+    vi.mocked(createAdminClient).mockReturnValueOnce({ rpc, from } as any)
+    expect(await sumResourceDownloads()).toBe(42)
+    expect(rpc).toHaveBeenCalledWith('sum_active_resource_downloads')
+    expect(from, 'must not page the resources table to add up a single number').not.toHaveBeenCalled()
   })
 
   it('selectSessionsForClasses / selectAttendanceStatusesForClasses short-circuit on []', async () => {
