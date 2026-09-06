@@ -61,6 +61,9 @@ const ALLOWED: Record<string, string[]> = {
   'subadmin@mock.test': [
     '/admin/users',
     '/admin/messaging',
+    // Oversight, same as /students: a sub-admin mentors nobody, so it sees every class's
+    // session times rather than an empty page (mentoringScopeClassIds).
+    '/session-timings',
     // Holds manageClasses, so the class-hours report is oversight it is entitled to.
     '/admin/teaching-hours',
     '/calendar',

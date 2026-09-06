@@ -32,6 +32,12 @@ describe('nav ordering by persona', () => {
     // admin-only, so they remain absent here. Organization settings are admin-only too
     // (the bank/IFSC fields the DB restricts to is_active_admin(), 0017), so despite
     // holding manageUsers a sub_admin does NOT get the Organization item.
+    //
+    // "Session times" IS here. It used to be filtered out of the sub-admin nav because
+    // the page came back empty - but that emptiness was a scope bug, not a decision: the
+    // page tested `isAdmin` for oversight while /students tested `!hasMentorAuthority`,
+    // so the same persona counted as oversight on one page and not the other. Both now
+    // share mentoringScopeClassIds, so the item earns its place.
     expect(labelsFor(['sub_admin'])).toEqual([
       'Dashboard',
       'Classes',
@@ -39,6 +45,7 @@ describe('nav ordering by persona', () => {
       'Documents',
       'Calendar',
       'Mentoring',
+      'Session times',
       'Messages',
       'Users',
       'Class hours',
