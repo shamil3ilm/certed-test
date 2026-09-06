@@ -4,6 +4,9 @@ import { computeTotals, lineAmount, SUPPORTED_CURRENCIES } from '@/lib/money'
 import { getProfileById } from '@/lib/services/users'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
 import { selectBillingRatesFor, selectPartiesWithDocForPeriod } from '@/lib/data/billing-rates'
+import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
+import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
+import { monthWindow } from '@/lib/time/month-window'
 import type { FinanceKind } from '@/lib/data/finance-docs'
 
 /**
@@ -135,9 +138,35 @@ export async function buildBillingDraft(
   const warnings: string[] = []
   if ((await selectPartiesWithDocForPeriod(kind, period)).has(partyId)) {
     warnings.push(
+      // 0100 makes this a REFUSAL, not a duplicate: receipts_one_live_per_party_period /
+      // payslips_one_live_per_party_period are unique over (party, billing_period) where the
+      // document is live. Saying "will create a second document" told the admin the opposite
+      // of what happens, and sent them to click through a warning into a hard error.
       `A ${kind === 'receipt' ? 'receipt' : 'pay slip'} for this month has already been issued to this ` +
-        `${kind === 'receipt' ? 'student' : 'payee'} and has not been voided. Issuing again will create a second document.`,
+        `${kind === 'receipt' ? 'student' : 'payee'} and has not been voided. Void it first - a second live ` +
+        `document for the same month is refused.`,
     )
+  }
+
+  // Separation of duties, surfaced rather than enforced (C-06). A tutor records the very
+  // sessions that become their own pay, and until 0102 nothing recorded WHO entered the
+  // hours - so a self-recorded month was indistinguishable from an independently recorded
+  // one. Issuance is already admin-only, which makes the issuing admin the second party;
+  // this tells them which hours nobody but the payee has attested, so that existing human
+  // step becomes a real check instead of a rubber stamp.
+  //
+  // Not a block: refusing to bill unattested hours would stop payroll to fix a visibility
+  // problem, and would strand every session recorded before 0102 (which carry no
+  // attestation at all, and are correctly not counted here).
+  if (kind === 'payslip') {
+    const window = monthWindow(period, await getInstituteTimeZone())
+    const selfRecorded = await countSelfRecordedSessions(partyId, window.startIso, window.endIso)
+    if (selfRecorded > 0) {
+      warnings.push(
+        `${selfRecorded} of this month's sessions had their hours entered by the payee themselves. ` +
+          `Nobody else has attested those hours - review them before issuing.`,
+      )
+    }
   }
 
   return {

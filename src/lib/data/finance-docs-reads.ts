@@ -119,3 +119,35 @@ export async function selectDocLines(kind: FinanceKind, id: string): Promise<Fin
     amount: Number(row.amount),
   }))
 }
+
+/**
+ * A LIVE document of the same kind, party, currency and total issued since `sinceIso`.
+ *
+ * Guards the hand-typed issue path, which 0100's unique indexes deliberately do not cover:
+ * they are partial on `billing_period is not null`, so a document that bills no particular
+ * month stays valid and unconstrained - and that is the default the issue form sends. This
+ * is a DOUBLE-SUBMIT guard, not a uniqueness rule: an academy may legitimately issue two
+ * documents to the same party on the same day, so the window is deliberately short.
+ */
+export async function selectRecentLiveDuplicate(
+  kind: FinanceKind,
+  partyId: string,
+  currency: string,
+  total: number,
+  sinceIso: string,
+): Promise<{ number: string } | null> {
+  const k = KIND[kind]
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from(k.table)
+    .select('number')
+    .eq(k.partyCol, partyId)
+    .eq('currency', currency)
+    .eq('total', total)
+    .eq('voided', false)
+    .gte('created_at', sinceIso)
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`${kind}.recentDuplicate: ${error.message}`)
+  return (data as { number: string } | null) ?? null
+}

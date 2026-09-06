@@ -3,6 +3,7 @@ import { lineAmount, computeTotals } from '@/lib/money'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { getProfileById } from '@/lib/services/users'
 import { issueDocRecord, type FinanceKind, type FinanceLine } from '@/lib/services/finance/finance-docs'
+import { selectRecentLiveDuplicate } from '@/lib/data/finance-docs-reads'
 import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
 import { writeAudit } from '@/lib/data/audit'
 import { ValidationError } from '@/lib/errors'
@@ -15,6 +16,11 @@ import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
  * lib/finance/render.ts), so nothing is stored. Receipts snapshot the student's
  * class; pay slips have no class.
  */
+/** Double-submit window for a document with no billing period. Long enough to catch a
+ *  retry after a timeout, short enough that two genuinely separate documents for the
+ *  same party and amount on one day are not blocked. */
+const DUPLICATE_WINDOW_MS = 2 * 60 * 1000
+
 async function issueDoc(
   kind: FinanceKind,
   input: IssueDocInput,
@@ -81,6 +87,28 @@ async function issueDoc(
   const { subtotal, discount: roundedDiscount, total } = computeTotals(input.lines, input.discount ?? 0, currency)
   const org = await getOrgSettings()
   const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix
+
+  // A hand-typed document carries no billing_period, and 0100's unique indexes are PARTIAL
+  // on `billing_period is not null` - deliberately, so a document that bills no particular
+  // month stays valid. That leaves the DEFAULT issue path with no protection at all against
+  // a double submit, on a model whose only correction is void-and-reissue. An identical LIVE
+  // document issued moments ago is refused by number, so the admin sees what already exists
+  // instead of silently creating its twin.
+  if (!input.billing_period) {
+    const recent = await selectRecentLiveDuplicate(
+      kind,
+      party.id,
+      currency,
+      total,
+      new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString(),
+    )
+    if (recent) {
+      throw new ValidationError(
+        `An identical ${kind === 'receipt' ? 'receipt' : 'pay slip'} (${recent.number}) was just issued to this ` +
+          `${kind === 'receipt' ? 'student' : 'payee'}. Open it to check before issuing another.`,
+      )
+    }
+  }
 
   const doc = await issueDocRecord(actorId, kind, {
     party_id: party.id,

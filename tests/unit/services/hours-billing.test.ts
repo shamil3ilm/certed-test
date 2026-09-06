@@ -6,10 +6,18 @@ vi.mock('@/lib/data/billing-rates', () => ({
   selectBillingRatesFor: vi.fn(),
   selectPartiesWithDocForPeriod: vi.fn(),
 }))
+// The self-recorded-hours warning (C-06) resolves the institute timezone to bound the
+// month, and org-settings reads through Next's unstable_cache - which has no incremental
+// cache in a unit test. Mocked here rather than dropped from the service: counting the
+// window in UTC instead would count a DIFFERENT set of sessions than the ones being
+// billed, so the warning could disagree with the lines above it.
+vi.mock('@/lib/services/finance/org-settings', () => ({ getInstituteTimeZone: vi.fn(async () => 'Asia/Kolkata') }))
+vi.mock('@/lib/data/class-sessions', () => ({ countSelfRecordedSessions: vi.fn(async () => 0) }))
 
 import { getProfileById } from '@/lib/services/users'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
 import { selectBillingRatesFor, selectPartiesWithDocForPeriod } from '@/lib/data/billing-rates'
+import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
 import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
 
 const STUDENT = 'a0000000-0000-4000-8000-000000000030'
@@ -228,5 +236,61 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
     await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(selectPartiesWithDocForPeriod).toHaveBeenCalledWith('payslip', '2026-09')
+  })
+})
+
+/**
+ * C-06: a tutor records the very sessions that become their own pay. Issuance is
+ * admin-only, so the admin is the second party - but only if they can SEE which hours
+ * nobody but the payee attested. 0102 records who entered them; this surfaces it.
+ */
+describe('self-recorded hours warning (C-06)', () => {
+  it('warns when the payee entered their own hours, naming how many', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'tutor', full_name: 'Tara Tutor' }))
+    vi.mocked(selectBillingRatesFor).mockResolvedValue(
+      new Map([[TUTOR, { pay_rate: 500, fee_rate: null, currency: 'INR' }]]) as never,
+    )
+    vi.mocked(getAcademyClassHours).mockResolvedValue({
+      tutorClasses: [{ className: 'Maths', tutors: [{ tutorId: TUTOR, minutes: 120 }] }],
+      studentClasses: [],
+    } as never)
+    vi.mocked(selectPartiesWithDocForPeriod).mockResolvedValue(new Set() as never)
+    vi.mocked(countSelfRecordedSessions).mockResolvedValue(3)
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-08')
+    expect(draft.warnings.some((w) => /3 of this month's sessions .* entered by the payee/i.test(w))).toBe(true)
+  })
+
+  it('says nothing when someone else recorded the hours', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'tutor', full_name: 'Tara Tutor' }))
+    vi.mocked(selectBillingRatesFor).mockResolvedValue(
+      new Map([[TUTOR, { pay_rate: 500, fee_rate: null, currency: 'INR' }]]) as never,
+    )
+    vi.mocked(getAcademyClassHours).mockResolvedValue({
+      tutorClasses: [{ className: 'Maths', tutors: [{ tutorId: TUTOR, minutes: 120 }] }],
+      studentClasses: [],
+    } as never)
+    vi.mocked(selectPartiesWithDocForPeriod).mockResolvedValue(new Set() as never)
+    vi.mocked(countSelfRecordedSessions).mockResolvedValue(0)
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-08')
+    expect(draft.warnings.some((w) => /entered by the payee/i.test(w))).toBe(false)
+  })
+
+  it('does not raise it for a RECEIPT - a student does not record their own hours', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(profile({ id: STUDENT, role: 'student' }))
+    vi.mocked(selectBillingRatesFor).mockResolvedValue(
+      new Map([[STUDENT, { pay_rate: null, fee_rate: 400, currency: 'INR' }]]) as never,
+    )
+    vi.mocked(getAcademyClassHours).mockResolvedValue({
+      tutorClasses: [],
+      studentClasses: [{ className: 'Maths', students: [{ studentId: STUDENT, minutes: 60 }] }],
+    } as never)
+    vi.mocked(selectPartiesWithDocForPeriod).mockResolvedValue(new Set() as never)
+    vi.mocked(countSelfRecordedSessions).mockResolvedValue(9)
+
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-08')
+    expect(draft.warnings.some((w) => /entered by the payee/i.test(w))).toBe(false)
+    expect(countSelfRecordedSessions, 'the count is not even queried for a receipt').not.toHaveBeenCalled()
   })
 })

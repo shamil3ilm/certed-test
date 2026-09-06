@@ -2,6 +2,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { FinanceDoc, FinanceKind } from './finance-docs'
 import { toDoc, type IssueFinanceDocInput } from './finance-docs-shared'
+import { ValidationError } from '@/lib/errors'
 
 export async function callIssueDoc(kind: FinanceKind, doc: IssueFinanceDocInput): Promise<FinanceDoc> {
   const admin = createAdminClient()
@@ -21,7 +22,21 @@ export async function callIssueDoc(kind: FinanceKind, doc: IssueFinanceDocInput)
     p_lines: doc.lines,
     p_billing_period: doc.billing_period,
   })
-  if (error) throw new Error(`${kind}.issue: ${error.message}`)
+  if (error) {
+    // 0100 added a partial unique index: one LIVE document per party per billing period.
+    // That turns a duplicate issue from "two documents quietly exist" into a database
+    // refusal - but the handler maps anything that is not a ValidationError to a generic
+    // 500, so an admin double-clicking Issue would be told the server broke. It did not:
+    // the month is already billed, which is a correctable thing they can see and act on.
+    // 23505 = unique_violation.
+    if ((error as { code?: string }).code === '23505' && /billing_period/.test(error.message)) {
+      throw new ValidationError(
+        `A ${kind === 'receipt' ? 'receipt' : 'pay slip'} has already been issued to this ` +
+          `${kind === 'receipt' ? 'student' : 'payee'} for that month. Void the existing one before reissuing.`,
+      )
+    }
+    throw new Error(`${kind}.issue: ${error.message}`)
+  }
   return toDoc(kind, data as Record<string, unknown>)
 }
 

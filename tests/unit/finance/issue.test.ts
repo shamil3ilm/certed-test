@@ -5,12 +5,14 @@ vi.mock('@/lib/services/finance/org-settings', () => ({ getOrgSettings: vi.fn() 
 vi.mock('@/lib/services/finance/finance-docs', () => ({ issueDocRecord: vi.fn() }))
 vi.mock('@/lib/services/finance/fx-conversion', () => ({ convertIssuedDoc: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/data/finance-docs-reads', () => ({ selectRecentLiveDuplicate: vi.fn() }))
 
 import { getProfileById } from '@/lib/services/users'
 import { getOrgSettings } from '@/lib/services/finance/org-settings'
 import { issueDocRecord } from '@/lib/services/finance/finance-docs'
 import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
 import { writeAudit } from '@/lib/data/audit'
+import { selectRecentLiveDuplicate } from '@/lib/data/finance-docs-reads'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
 
 const validInput = {
@@ -30,6 +32,8 @@ const activeStudent = {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  // Default: no near-identical document was just issued. The refusal is asserted below.
+  vi.mocked(selectRecentLiveDuplicate).mockResolvedValue(null)
   vi.mocked(getOrgSettings).mockResolvedValue({ receipt_prefix: 'CEA-R', payslip_prefix: 'CEA-P' } as any)
   vi.mocked(issueDocRecord).mockResolvedValue({ id: 'doc1', number: 'CEA-R-1' } as any)
   vi.mocked(convertIssuedDoc).mockResolvedValue(undefined as any)
@@ -70,5 +74,28 @@ describe('finance issue', () => {
       id: 'doc1',
       number: 'CEA-R-1',
     })
+  })
+})
+
+describe('finance issue - double-submit guard on the hand-typed path', () => {
+  it('refuses an identical live document issued moments ago, naming it', async () => {
+    // 0100's unique indexes are PARTIAL on `billing_period is not null`, so a document
+    // that bills no particular month - the default the issue form sends - has no database
+    // constraint behind it. On a void-and-reissue-only model a double submit is expensive.
+    vi.mocked(getProfileById).mockResolvedValue(activeStudent as never)
+    vi.mocked(getOrgSettings).mockResolvedValue({ receipt_prefix: 'CEA-R', payslip_prefix: 'CEA-P' } as never)
+    vi.mocked(selectRecentLiveDuplicate).mockResolvedValue({ number: 'CEA-R-2026-0007' })
+
+    await expect(issueDocFromApiInput('receipt', validInput, 'admin-1')).rejects.toThrow(/CEA-R-2026-0007/)
+    expect(issueDocRecord).not.toHaveBeenCalled()
+  })
+
+  it('does NOT apply the window when a billing period is given - the DB index owns that case', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(activeStudent as never)
+    vi.mocked(getOrgSettings).mockResolvedValue({ receipt_prefix: 'CEA-R', payslip_prefix: 'CEA-P' } as never)
+    vi.mocked(issueDocRecord).mockResolvedValue({ id: 'doc-1', number: 'CEA-R-2026-0008' } as never)
+
+    await issueDocFromApiInput('receipt', { ...validInput, billing_period: '2026-06' }, 'admin-1').catch(() => null)
+    expect(selectRecentLiveDuplicate).not.toHaveBeenCalled()
   })
 })
