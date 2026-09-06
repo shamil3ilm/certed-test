@@ -117,8 +117,16 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   let tutorId: string | null
   if (explicitTutorId) {
     if (explicitTutorId !== actor.id) {
-      const { isAdmin } = await loadPersonaFlags(actor.id)
-      if (!isAdmin) throw new PermissionError('Only an admin may record a session for another tutor.')
+      // Admin TIER, not the admin persona alone. 0092 gave sub_admin academy-wide
+      // authority over class-scoped tables and widened teaches_class() to match, so RLS
+      // already accepts a sub_admin inserting this row - the app was refusing what the
+      // database permits, which is exactly the app/RLS divergence 0092 set out to remove.
+      // Still barred to a tutor or mentor: attributing a session to someone else moves
+      // billable hours onto THEIR pay slip (0095), so it stays an academy-authority act.
+      const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
+      if (!isAdmin && !isSubAdmin) {
+        throw new PermissionError('Only an admin or sub-admin may record a session for another tutor.')
+      }
     }
     validateUuidField(explicitTutorId, 'Invalid tutor id.')
     await assertClassTutor(explicitTutorId, classId)
