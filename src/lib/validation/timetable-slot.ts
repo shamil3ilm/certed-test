@@ -9,10 +9,16 @@ const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be HH:mm (24h)'
 // Optional: an omitted zone falls back to the academy zone (org_settings.timezone).
 const ianaZone = z.string().refine(isValidTimeZone, 'must be a valid IANA time zone')
 
+// Free text, but trimmed: the slot's subject is read back by NAME against the curated
+// subjects list, so 'English ' silently fails to match the English it plainly names and
+// the class reads as having no subject. subjects.name is trimmed at its own boundary
+// (subjectNameSchema); this is the boundary that was not.
+const slotSubject = z.string().trim().min(1).max(200)
+
 export const createSlotSchema = z
   .object({
     class_id: z.string().uuid(),
-    subject: z.string().min(1).max(200),
+    subject: slotSubject,
     tutor_id: z.string().uuid().optional(),
     day_of_week: z.number().int().min(0).max(6),
     start_time: hhmm,
@@ -24,7 +30,7 @@ export const createSlotSchema = z
 
 export const updateSlotSchema = z
   .object({
-    subject: z.string().min(1).max(200),
+    subject: slotSubject,
     tutor_id: z.string().uuid().nullable(),
     day_of_week: z.number().int().min(0).max(6),
     start_time: hhmm,

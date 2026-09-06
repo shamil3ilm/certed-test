@@ -61,4 +61,18 @@ describe('updateSlotSchema', () => {
   it('rejects an invalid timezone in a partial update', () => {
     expect(updateSlotSchema.safeParse({ timezone: 'Not/AZone' }).success).toBe(false)
   })
+
+  // Staging carried slots literally named 'English ' and 'Maths ' (trailing space). The
+  // subject is matched against the curated subjects list by name, so an untrimmed value
+  // silently fails to match the subject it plainly names - and the class shows no subject
+  // at all. subjects.name is trimmed at its own boundary (subjectNameSchema); the slot
+  // schema is the one that was not.
+  it('trims a subject with surrounding whitespace', () => {
+    const parsed = updateSlotSchema.safeParse({ subject: '  English  ' })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.subject).toBe('English')
+  })
+  it('rejects a subject that is only whitespace', () => {
+    expect(updateSlotSchema.safeParse({ subject: '   ' }).success).toBe(false)
+  })
 })
