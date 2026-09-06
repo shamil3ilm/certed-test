@@ -204,10 +204,16 @@ describe('archiveDocument / restoreDocument', () => {
 describe('recordDownload', () => {
   it('enforces canDocument("download"), increments the counter, audits, and returns the doc', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
-    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: { download_count: 2 }, error: null }) as any)
+    // The counter is bumped by an RPC now, not a read-then-write: two concurrent
+    // downloads used to read the same value and both write value+1, counting once.
+    const adminClient = makeClient({ data: docRow, error: null }, { data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(adminClient as any)
     const doc = await recordDownload(actor, 'res-1')
     expect(doc.id).toBe('res-1')
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'download', docRow)
+    expect(adminClient.rpc).toHaveBeenCalledWith('increment_resource_download_count', {
+      p_resource_id: 'res-1',
+    })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'resource.download',

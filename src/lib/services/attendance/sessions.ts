@@ -154,6 +154,11 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     tutor_id: tutorId,
     actual_start: window.start,
     actual_end: window.end,
+    // WHO entered the hours, which is not the same fact as who is paid for them (tutor_id).
+    // Pay is summed from this window, so without it a tutor's self-recorded month and an
+    // admin-recorded one are indistinguishable in the data and no reviewer can tell them
+    // apart (C-06). Recorded on every write, so it always reflects the LAST attestation.
+    hours_recorded_by: actor.id,
     summary: noteField.parse(String(input.summary ?? '')),
     ...(canEditStaffNote ? { staff_note: noteField.parse(String(input.staff_note ?? '')) } : {}),
   }
@@ -171,9 +176,10 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
 }
 
 /**
- * Remove a recorded session. Gated like recording one (canManageClass on the session's OWN
- * class, resolved from the row rather than trusted from the caller), and audited with the
- * window that was removed so a monthly total that drops can be explained.
+ * Remove a recorded session. Gated on canWriteClass (the TUTOR-only scope - recording a
+ * session uses the wider canManageClass, which admits a mentor; removing one does not),
+ * resolved from the row rather than trusted from the caller, and audited with the window
+ * that was removed so a monthly total that drops can be explained.
  */
 export async function deleteSessionTimes(actor: Profile, sessionId: string): Promise<void> {
   validateUuidField(sessionId, 'Invalid session id.')

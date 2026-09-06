@@ -170,12 +170,11 @@ export async function updateResource(id: string, patch: ResourceEditPatch): Prom
  *  passed the canDocument('download') gate); atomic-enough for this scale. */
 export async function incrementResourceDownloadCount(id: string): Promise<void> {
   const admin = createAdminClient()
-  const { data } = await admin.from('resources').select('download_count').eq('id', id).maybeSingle()
-  const current = (data as { download_count: number } | null)?.download_count ?? 0
-  const { error } = await admin
-    .from('resources')
-    .update({ download_count: current + 1 })
-    .eq('id', id)
+  // One atomic statement, not read-then-write: two concurrent downloads of the same
+  // document both read the same value and both wrote value+1, so the pair counted once.
+  // The RPC does `download_count = download_count + 1` in the database, where the row is
+  // locked for the duration of the update.
+  const { error } = await admin.rpc('increment_resource_download_count', { p_resource_id: id })
   if (error) throw new Error(`resources.incrementDownload: ${error.message}`)
 }
 

@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ValidationError } from '@/lib/errors'
 
 /**
  * Table access for `class_sessions` - one row per class session holding the
@@ -48,6 +49,11 @@ export type ClassSessionUpsert = {
   tutor_leave_at?: string | null
   summary?: string | null
   staff_note?: string | null
+  /** WHO entered actual_start/actual_end - not who is paid for them (that is tutor_id).
+   *  Declared here so the column is part of the contract: it reached Postgres regardless,
+   *  because `fields` is passed as a variable and excess-property checking does not apply
+   *  at the call site, so a silent typo would have been dropped without a compile error. */
+  hours_recorded_by?: string | null
 }
 
 // The columns the RLS client may read. staff_note is DELIBERATELY excluded: a
@@ -116,17 +122,39 @@ export async function insertSession(row: ClassSessionUpsert): Promise<ClassSessi
   const admin = createAdminClient()
   const stamped = { ...row, updated_at: new Date().toISOString() }
   const { data, error } = await admin.from('class_sessions').insert(stamped).select(COLUMNS).single()
-  if (error) throw new Error(`classSessions.insert: ${error.message}`)
+  if (error) {
+    rethrowIfHoursLocked(error)
+    throw new Error(`classSessions.insert: ${error.message}`)
+  }
   return data as ClassSessionRow
 }
 
 /** Update an EXISTING session by its id. Only the supplied fields are written, so an
  *  omitted column (e.g. staff_note when the caller may not set it) keeps its value. */
+/**
+ * Re-raise 0100/0101's hour-lock as a ValidationError so the message reaches the person.
+ *
+ * The trigger fires on INSERT, UPDATE and DELETE of a session in a month a LIVE pay slip
+ * already billed, and raises check_violation (23514) naming the blocking document. Every
+ * write path here must map it: a plain Error falls through toActionError to the generic
+ * "something went wrong", which tells the tutor nothing about which pay slip is in the way
+ * or that voiding it is the way forward. Shared rather than inlined per call site, because
+ * the paths that missed it were exactly the ones added after the first mapping.
+ */
+function rethrowIfHoursLocked(error: { code?: string; message: string }): void {
+  if (error.code === '23514' && /Session hours are locked/i.test(error.message)) {
+    throw new ValidationError(error.message)
+  }
+}
+
 export async function updateSessionById(id: string, patch: Partial<ClassSessionUpsert>): Promise<ClassSessionRow> {
   const admin = createAdminClient()
   const stamped = { ...patch, updated_at: new Date().toISOString() }
   const { data, error } = await admin.from('class_sessions').update(stamped).eq('id', id).select(COLUMNS).maybeSingle()
-  if (error) throw new Error(`classSessions.updateById: ${error.message}`)
+  if (error) {
+    rethrowIfHoursLocked(error)
+    throw new Error(`classSessions.updateById: ${error.message}`)
+  }
   if (!data) throw new Error(`classSessions.updateById: session ${id} not found`)
   return data as ClassSessionRow
 }
@@ -136,7 +164,10 @@ export async function updateSessionById(id: string, patch: Partial<ClassSessionU
 export async function deleteSessionById(id: string): Promise<boolean> {
   const admin = createAdminClient()
   const { data, error } = await admin.from('class_sessions').delete().eq('id', id).select('id')
-  if (error) throw new Error(`classSessions.deleteById: ${error.message}`)
+  if (error) {
+    rethrowIfHoursLocked(error)
+    throw new Error(`classSessions.deleteById: ${error.message}`)
+  }
   return (data?.length ?? 0) > 0
 }
 
@@ -161,7 +192,15 @@ export async function updateSessionActualTimesAsService(
     .eq('id', sessionId)
   if (expectedUpdatedAt != null) query = query.eq('updated_at', expectedUpdatedAt)
   const { data, error } = await query.select('id').maybeSingle()
-  if (error) throw new Error(`classSessions.updateActualTimes: ${error.message}`)
+  if (error) {
+    // 0100 freezes the hour-bearing fields of a session once a LIVE pay slip has billed
+    // that payee's month (C-06). The trigger raises check_violation with a message naming
+    // the blocking document; surfacing it as a ValidationError means the tutor is told
+    // WHICH pay slip is in the way and what to do, instead of a generic server error.
+    // 23514 = check_violation.
+    rethrowIfHoursLocked(error)
+    throw new Error(`classSessions.updateActualTimes: ${error.message}`)
+  }
   return data != null
 }
 
@@ -252,4 +291,26 @@ export async function selectRecentSessions(classId: string, limit = 500): Promis
     .limit(limit)
   if (error) throw new Error(`classSessions.recent: ${error.message}`)
   return (data ?? []) as ClassSessionRow[]
+}
+
+/**
+ * How many of a payee's sessions in a window had their hours entered by the payee
+ * themselves - i.e. nobody but the person being paid has attested the figure that becomes
+ * their pay (C-06).
+ *
+ * Counts only rows that actually carry an attestation: hours_recorded_by IS NULL means the
+ * session predates 0102 and nothing is known, which must not be reported as self-recorded.
+ * Service-role: this backs an admin-facing warning on the issue screen.
+ */
+export async function countSelfRecordedSessions(tutorId: string, startIso: string, endIso: string): Promise<number> {
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from('class_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('tutor_id', tutorId)
+    .eq('hours_recorded_by', tutorId)
+    .gte('actual_start', startIso)
+    .lt('actual_start', endIso)
+  if (error) throw new Error(`classSessions.countSelfRecorded: ${error.message}`)
+  return count ?? 0
 }
