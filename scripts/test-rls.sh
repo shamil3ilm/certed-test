@@ -203,26 +203,62 @@ check() {
   if [ "$got" = "$want" ]; then pass=$((pass+1)); # echo "  ok  $label";
   else fail=$((fail+1)); echo "  FAIL $label : expected $want, got ${got:-<none>}"; fi
 }
+# classify_write OUT BLOCK_PATTERN - maps psql output to block | allow | error.
+#
+# The third state is the point. This classifier used to be a two-way grep for an RLS
+# error, with everything else falling through to "allow" - so a write that failed for
+# ANY OTHER reason (a column that does not exist, a NOT NULL or FK violation, a typo'd
+# table) was scored as "RLS permitted it" and passed. That is not a hypothetical: the
+# 0091 assignments INSERT below was rewritten to name a bogus column and the suite still
+# reported 104 passed, 0 failed. Every `allow` expectation in this file was vacuous.
+#
+# "error" is deliberately NOT a synonym for either expectation - it is always a failure,
+# because a statement that did not run tells us nothing about the policy. Order matters:
+# an RLS refusal is itself an ERROR line, so the block pattern is tested first.
+classify_write() {
+  local out="$1" block_re="$2"
+  if echo "$out" | grep -qiE "$block_re"; then echo block
+  elif echo "$out" | grep -qE "^(ERROR|FATAL):"; then echo error
+  else echo allow; fi
+}
 # check_write LABEL UID SQL EXPECT(allow|block) - runs a WRITE in a rolled-back
 # transaction (so it never mutates the fixture) and asserts whether RLS permitted it.
 # "block" = the write raised a row-level-security / permission-denied error.
+# "allow" = the write actually SUCCEEDED, not merely "did not hit RLS".
 check_write() {
   local label="$1" uid="$2" sql="$3" expect="$4"
   local out got
   out=$(psql -h $HOST -U $USER -d "$DB" -tAqc \
     "set role authenticated; set request.jwt.claims='{\"sub\":\"$uid\"}'; begin; $sql; rollback;" 2>&1)
-  if echo "$out" | grep -qiE "row-level security|permission denied"; then got=block; else got=allow; fi
+  got=$(classify_write "$out" "row-level security|permission denied")
   if [ "$got" = "$expect" ]; then pass=$((pass+1));
   else fail=$((fail+1)); echo "  FAIL $label : expected $expect, got $got ${out:+- $out}"; fi
 }
-# check_guard LABEL UID SQL EXPECT(allow|block) - like check_write but "block" also
-# covers a BEFORE-trigger raising a plpgsql exception (e.g. the assigned-reminder guard),
-# which is not an RLS/permission-denied error. Rolled back, so it never mutates.
+# check_guard LABEL UID SQL EXPECT(allow|block) [GUARD_RE] - like check_write but "block"
+# also covers a declarative guard that is NOT an RLS/permission-denied error: a BEFORE
+# trigger raising a plpgsql exception, or a CHECK constraint. Rolled back, never mutates.
+#
+# GUARD_RE names the guard this assertion expects to fire, and every caller passes one.
+# The default used to include a bare "violates", which matches ANY constraint error - so
+# the assertion only proved that *something* rejected the write, not that the guard under
+# test did. Mutation-proved on the 0095 assertion below: give it a bogus student_id and a
+# VALID billing_period, so the check constraint cannot fire and a foreign-key violation is
+# raised instead, and the old pattern still scored it `block` - 107 passed, 0 failed. It
+# would have passed with the billing_period constraint dropped entirely.
+#
+# "violates" is therefore never used unqualified: "violates check constraint" is a guard a
+# migration declared on purpose, while a not-null / foreign-key violation means the test
+# statement itself is broken and must surface as `error`, not as a satisfied expectation.
+#
+# (The assignee assertions are not vulnerable the same way - 0086's guard is a BEFORE
+# trigger, so it raises before any constraint is evaluated. Naming "assignee may" there is
+# still what proves the trigger is the thing refusing, rather than a later error.)
 check_guard() {
   local label="$1" uid="$2" sql="$3" expect="$4" out got
+  local guard_re="${5:-row-level security|permission denied}"
   out=$(psql -h $HOST -U $USER -d "$DB" -tAqc \
     "set role authenticated; set request.jwt.claims='{\"sub\":\"$uid\"}'; begin; $sql; rollback;" 2>&1)
-  if echo "$out" | grep -qiE "row-level security|permission denied|assignee may|violates"; then got=block; else got=allow; fi
+  got=$(classify_write "$out" "$guard_re")
   if [ "$got" = "$expect" ]; then pass=$((pass+1));
   else fail=$((fail+1)); echo "  FAIL $label : expected $expect, got $got ${out:+- $out}"; fi
 }
@@ -237,6 +273,7 @@ check_rows() {
   else fail=$((fail+1)); echo "  FAIL $label : expected $want, got ${got:-<none>}"; fi
 }
 A=a0000000-0000-4000-8000-000000000001   # admin
+SA=a0000000-0000-4000-8000-000000000002  # sub_admin
 T1=a0000000-0000-4000-8000-000000000010; T2=a0000000-0000-4000-8000-000000000011
 M=a0000000-0000-4000-8000-000000000020
 S1=a0000000-0000-4000-8000-000000000030; S2=a0000000-0000-4000-8000-000000000031; S3=a0000000-0000-4000-8000-000000000032
@@ -255,12 +292,27 @@ check "assigned: T1 (creator) sees open"       $T1 "select count(*) from reminde
 # creator's (the tutor's) reminder to a shared mentee (each creator manages their own)
 check "assigned: M (not creator) can't see"    $M  "select count(*) from reminders where title='assigned-open'" 0
 check "assigned: S2 cannot see it"             $S2 "select count(*) from reminders where title='assigned-open'" 0
+# POSITIVE CONTROLS for S2. Every other S2 assertion in this file expects 0, so an S2
+# that could read NOTHING - an inactive profile, a missing row, a typo'd uuid - would
+# satisfy all of them and the suite would call it a pass. These two must come back 1:
+# S2 owns reminder 'r2' and notification 'n2'. If they fail, S2's zeros mean nothing.
+check "S2 reads own reminder (S2 fixture is live)"  $S2 "select count(*) from reminders where title='r2'" 1
+check "S2 reads own notification (fixture is live)" $S2 "select count(*) from notifications where title='n2'" 1
 check "assigned: T2 cannot see it"             $T2 "select count(*) from reminders where title='assigned-open'" 0
 # assignee (student) may ONLY mark done - not edit, not reopen, not delete
 check_write "assigned: S1 marks open done"     $S1 "update reminders set is_sent=true,completed_at=now() where title='assigned-open'" allow
-check_guard "assigned: S1 cannot edit title"   $S1 "update reminders set title='hacked' where title='assigned-open'" block
-check_guard "assigned: S1 cannot edit deadline" $S1 "update reminders set remind_at=now()+interval '1 day' where title='assigned-open'" block
-check_guard "assigned: S1 cannot reopen done"  $S1 "update reminders set is_sent=false where title='assigned-done'" block
+# Each of these names the trigger message it expects, so it can only pass if the
+# assigned-reminder guard is what refused - not some other error the statement provoked.
+check_guard "assigned: S1 cannot edit title"   $S1 "update reminders set title='hacked' where title='assigned-open'" block "assignee may"
+check_guard "assigned: S1 cannot edit deadline" $S1 "update reminders set remind_at=now()+interval '1 day' where title='assigned-open'" block "assignee may"
+check_guard "assigned: S1 cannot reopen done"  $S1 "update reminders set is_sent=false where title='assigned-done'" block "assignee may"
+# POSITIVE CONTROL for the guard itself. Without one, all three assertions above would
+# still pass if the trigger simply refused EVERY update the assignee attempts - which is a
+# different (and wrong) behaviour that 0086 explicitly does not implement. The assignee is
+# allowed exactly one edit, and this is it; check_guard had no `allow` caller at all until
+# now, so the helper had never been exercised in the direction that discriminates.
+check_guard "assigned: S1 CAN still mark done (guard discriminates)" $S1 \
+  "update reminders set is_sent=true,completed_at=now() where title='assigned-open'" allow "assignee may"
 check_rows "assigned: S1 delete affects 0"     $S1 "with d as (delete from reminders where title='assigned-open' returning 1) select count(*) from d" 0
 # creator (tutor) keeps full control
 check_write "assigned: T1 edits it"            $T1 "update reminders set title='edited' where title='assigned-open'" allow
@@ -320,6 +372,12 @@ check "mentee_notes: admin sees S1's"          $A  "select count(*) from mentee_
 check "mentee_notes: mentor sees mentee S1's"  $M  "select count(*) from mentee_notes where student_id='$S1'" 1
 check "mentee_notes: student cannot see own"   $S1 "select count(*) from mentee_notes where student_id='$S1'" 0
 check "mentee_notes: tutor cannot see S1's"    $T1 "select count(*) from mentee_notes where student_id='$S1'" 0
+# The sub_admin tier is the interesting one: 0092 widened sub_admin over CLASS-scoped
+# tables (teaches_class) but deliberately did NOT widen is_active_admin(), which is what
+# mentee_notes_read gates on. A minor's pastoral history stays admin-only. This assertion
+# is the DB-side half of the pair - src/lib/services/mentee-notes.ts reads with the
+# service-role client, so it gates on isAdmin by hand to avoid becoming looser than this.
+check "mentee_notes: sub_admin cannot see S1's" $SA "select count(*) from mentee_notes where student_id='$S1'" 0
 # subjects (0064): any ACTIVE user reads all; writes are service-role only.
 check "subjects: active student sees all"      $S1 "select count(*) from subjects" 10
 check "subjects: active tutor sees all"        $T1 "select count(*) from subjects" 10
@@ -377,6 +435,12 @@ check "0082: tutor DELETE of their class's event affects 1 row" $T1 \
 check "R-05: S1 reads a session they attended"             $S1 "select count(*) from class_sessions where session_date='2999-01-01'" 1
 check "R-05: S1 CANNOT read a C1 session they did not attend" $S1 "select count(*) from class_sessions where session_date='2998-01-01'" 0
 check "R-05: tutor reads all C1 sessions"                  $T1 "select count(*) from class_sessions where class_id='$C1'" 3
+# POSITIVE CONTROL for the sub_admin actor. Every other $SA assertion in this file expects
+# 0, so a broken fixture - an inactive profile, a missing persona row, a typo'd uuid - would
+# make all of them pass while proving nothing. This one must come back NON-zero: 0092
+# widened teaches_class() to sub_admin, so it reads every C1 session exactly like the tutor.
+# If this line fails, the zeros above are meaningless, not reassuring.
+check "0092: sub_admin reads all C1 sessions (SA fixture is live)" $SA "select count(*) from class_sessions where class_id='$C1'" 3
 # 0097: the same invariant WITHIN one date. A class may hold several sessions a day (0093)
 # and a mark names its session (0094), so "attended" is per session, not per day.
 SAME_DAY_UNATTENDED=c5000000-0000-4000-8000-000000000003
@@ -405,7 +469,6 @@ check_write "mentee_notes: mentor CANNOT insert via API (service-role only)" $M 
 # 0095 billing_rates: an hourly rate is money data, gated to the admin tier like
 # org_settings - NOT to the person it prices, and NOT to the sub_admin tier (0092 widened
 # sub_admin over CLASS-scoped tables and deliberately left the finance ledger to admins).
-SA=a0000000-0000-4000-8000-000000000002
 check "0095: admin reads billing rates"                    $A  "select count(*) from billing_rates" 2
 check "0095: sub_admin CANNOT read billing rates"          $SA "select count(*) from billing_rates" 0
 check "0095: tutor CANNOT read their OWN pay rate"         $T1 "select count(*) from billing_rates" 0
@@ -428,7 +491,7 @@ check_write "0095: admin CAN set a billing rate"           $A  \
 # shape the duplicate-document lookup would silently miss.
 check_guard "0095: a malformed billing_period is rejected" $A \
   "insert into receipts(number,student_id,student_name_snapshot,currency,subtotal,total,created_by,billing_period)
-   values ('CEA-R-TEST-9999','$S1','S One','INR',1,1,'$A','Sept-2026')" block
+   values ('CEA-R-TEST-9999','$S1','S One','INR',1,1,'$A','Sept-2026')" block "violates check constraint"
 
 echo "== RLS RESULT: $pass passed, $fail failed =="
 drop_database "$HOST" 5432 "$USER" "$DB"

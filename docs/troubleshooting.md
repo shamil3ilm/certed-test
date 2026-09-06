@@ -57,12 +57,42 @@ the stale server was killed.
 These provision a scratch database first. If that reset cannot happen the script now
 **aborts loudly** and says so — nothing below the abort is an assertion result.
 
-| Symptom                                                           | Likely cause                                                                                  | Fix                                                                                                                                                           |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FATAL: could not reset the test database`                        | a connection to the scratch DB is open, or Postgres is unreachable                            | the message names the cause; the harness terminates other backends itself, so this means the server is down or credentials are wrong                          |
-| Dozens of assertion failures blaming a column that clearly exists | **historically**: a silent failed reset, leaving assertions running against an empty database | fixed — the bootstrap now checks its exit status. If you see this on an OLD checkout, verify the scratch DB actually has tables before believing the failures |
+| Symptom                                                           | Likely cause                                                                                  | Fix                                                                                                                                                                          |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FATAL: could not reset the test database`                        | a connection to the scratch DB is open, or Postgres is unreachable                            | the message names the cause; the harness terminates other backends itself, so this means the server is down or credentials are wrong                                         |
+| Dozens of assertion failures blaming a column that clearly exists | **historically**: a silent failed reset, leaving assertions running against an empty database | fixed — the bootstrap now checks its exit status. If you see this on an OLD checkout, verify the scratch DB actually has tables before believing the failures                |
+| `expected allow, got error - ERROR: …`                            | a write assertion's SQL did not run at all (bad column, FK/NOT NULL violation, stale fixture) | fix the statement or the fixture. This is **not** an RLS result — `error` is a third state on purpose, because a statement that never executed says nothing about the policy |
 
-The second row is why the check exists. A drop blocked by a lingering connection used to
+The third row is the other half of the same lesson. `check_write`/`check_guard` used to
+classify psql output two ways — "looks like an RLS refusal" or, for everything else,
+"allowed" — so a write that failed for any _other_ reason was scored as _permitted by the
+policy_ and passed. Rewriting one `allow` assertion's INSERT to name a column that does not
+exist still produced `104 passed, 0 failed`; every `allow` expectation in the file was
+asserting nothing. There is now an explicit `error` state that is never a pass.
+
+The same shape appears on the read side: an assertion expecting `0` passes when the actor
+can read nothing _at all_. Each persona therefore needs at least one assertion expecting a
+NON-zero count — a positive control proving the fixture is live — or its zeros are
+unfalsifiable. `sub_admin` and `S2` both had all-zero read sets and now have controls.
+
+And once more on the guard side: `check_guard` takes a 5th argument naming **which** guard
+the assertion expects to fire, because its default pattern used to include a bare
+`violates`, which matches any constraint error. An assertion could pass because _something_
+rejected the write, not because the guard under test did — a `block` expectation on the
+0095 `billing_period` CHECK still passed when the statement was rewritten to raise a
+foreign-key violation instead, and would have passed with that constraint dropped
+altogether. `violates check constraint` is a guard a migration declared on purpose; a
+not-null or foreign-key violation means the _test statement_ is broken and must surface as
+`error`.
+
+**The rule all three share:** every assertion helper must be exercised in both directions.
+A helper with only `block`/`0` callers cannot distinguish "the policy refused" from "nothing
+worked". `check_guard` had no `allow` caller at all, so it could not have told the
+assigned-reminder guard apart from a trigger that refused every update the assignee makes —
+which is a different, wrong behaviour that 0086 does not implement. All four helpers now
+have callers on both sides.
+
+The second row is why the reset check exists. A drop blocked by a lingering connection used to
 fail silently, and the harness then reported dozens of confident failures about missing
 columns — one pass produced 39 blaming a real column in a real migration, which took a
 hand-walk of the whole chain to disprove. A guard that fails dishonestly is worse than no

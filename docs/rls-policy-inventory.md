@@ -111,7 +111,11 @@ This is the current functional inventory. It is intentionally grouped by purpose
   - no write policy — service-role only, behind an admin gate
 
 - `mentee_notes`
-  - read (`mentee_notes_read`) — scoped to the mentor's own tenure with that student
+  - read (`mentee_notes_read`) — `is_active_admin()`, or the student's mentor scoped to
+    their own tenure. Deliberately **not** widened to `sub_admin` by 0092 (which did widen
+    the class-scoped `teaches_class()`), so a sub-admin sees no pastoral history. The
+    service-role reader in `src/lib/services/mentee-notes.ts` mirrors this on purpose —
+    widening it there without a migration would make the app looser than the policy.
   - no write policy — service-role only, behind `canMentor`
 
 ### Content tables
