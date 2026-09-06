@@ -234,6 +234,73 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     persist()
     return { data: null, error: null }
   }
+  if (fn === 'rate_limit_hit') {
+    // Mirrors the fixed-window counter (0067) over rate_limit_counters. The security layer
+    // above CAN degrade to its in-process limiter when this RPC is missing, but leaving it
+    // unimplemented means mock mode silently exercises a different limiter than production -
+    // and the parity gate cannot tell that apart from an RPC nobody remembered to add.
+    const key = String(args.p_key ?? '')
+    const limit = Number(args.p_limit ?? 0)
+    const windowSeconds = Number(args.p_window_seconds ?? 0)
+    const now = Date.now()
+    const rows = table('rate_limit_counters')
+    let row = rows.find((r) => r.bucket_key === key)
+    const startedAt = row ? Date.parse(String(row.window_started_at)) : 0
+    if (!row || now - startedAt >= windowSeconds * 1000) {
+      if (row) rows.splice(rows.indexOf(row), 1)
+      row = { bucket_key: key, window_started_at: new Date(now).toISOString(), hits: 0 }
+      rows.push(row)
+    }
+    row.hits = Number(row.hits ?? 0) + 1
+    persist()
+    const allowed = Number(row.hits) <= limit
+    const elapsed = Math.floor((now - Date.parse(String(row.window_started_at))) / 1000)
+    return {
+      data: [{ allowed, retry_after_seconds: allowed ? 0 : Math.max(windowSeconds - elapsed, 1) }],
+      error: null,
+    }
+  }
+  if (fn === 'rls_disabled_tables') {
+    // Mock mode has no RLS to report on, so the honest answer is an empty list - the same
+    // thing the data layer already short-circuits to before ever reaching this dispatcher.
+    return { data: [], error: null }
+  }
+  if (fn === 'claim_pending_emails') {
+    // Mirrors 0066: take the oldest pending rows, flip them to 'sending' and return them.
+    // The real function does it under FOR UPDATE SKIP LOCKED so two concurrent drains get
+    // disjoint batches; the mock is single-threaded, so ordering and the status flip are the
+    // parts that matter for behaviour parity.
+    const limit = Number(args.p_limit ?? 0)
+    const claimed = table('pending_emails')
+      .filter((row) => row.status === 'pending')
+      .sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')))
+      .slice(0, limit)
+    for (const row of claimed) {
+      row.status = 'sending'
+      row.claimed_at = new Date().toISOString()
+    }
+    if (claimed.length > 0) persist()
+    return { data: claimed, error: null }
+  }
+  if (fn === 'increment_resource_download_count') {
+    // Mirrors 0101: the increment happens in ONE statement so two concurrent downloads
+    // cannot both read the same value and write value+1. The mock is single-threaded, so
+    // this is about parity of BEHAVIOUR - without it, every download throws here in mock
+    // mode while working in production.
+    const resource = table('resources').find((row) => row.id === args.p_resource_id)
+    if (resource) {
+      resource.download_count = Number(resource.download_count ?? 0) + 1
+      persist()
+    }
+    return { data: null, error: null }
+  }
+  if (fn === 'sum_active_resource_downloads') {
+    // Mirrors 0103: total downloads across ACTIVE documents only.
+    const total = table('resources')
+      .filter((row) => row.status === 'active')
+      .reduce((sum, row) => sum + Number(row.download_count ?? 0), 0)
+    return { data: total, error: null }
+  }
   return { data: null, error: { message: `mock rpc not implemented: ${fn}` } }
 }
 

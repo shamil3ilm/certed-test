@@ -75,12 +75,19 @@ describe('mock RPC parity: every app .rpc() has a mock', () => {
     const client = (await createMockServerClient()) as unknown as {
       rpc: (f: string, a: Record<string, unknown>) => Promise<{ error: { message: string } | null }>
     }
+    // The call is what may legitimately throw (a handler that ran and rejected on empty args
+    // is still IMPLEMENTED). The ASSERTION must sit outside that catch: with it inside, the
+    // bare catch swallowed the expect() failure too, so this test could never fail - and it
+    // did not, while two RPCs shipped with no mock and broke the E2E suite instead.
+    let message: string | null = null
+    let threw = false
     try {
       const { error } = await client.rpc(fn, {})
-      // Any outcome except the explicit not-implemented sentinel means the fn is dispatched.
-      expect(error?.message ?? '').not.toBe(`mock rpc not implemented: ${fn}`)
+      message = error?.message ?? null
     } catch {
-      // A handler that ran and threw on empty args is still IMPLEMENTED - which is all we assert.
+      threw = true
     }
+    // Any outcome except the explicit not-implemented sentinel means the fn is dispatched.
+    if (!threw) expect(message ?? '').not.toBe(`mock rpc not implemented: ${fn}`)
   })
 })
