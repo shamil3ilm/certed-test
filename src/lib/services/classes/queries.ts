@@ -6,7 +6,7 @@ import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { getProfileNamesByIds, getProfilesByIds } from '@/lib/services/users'
 import {
   countActiveClasses as countActiveClassRows,
-  selectAllClassIds,
+  selectVisibleClassIds,
   selectAllClasses,
   selectClassById,
   selectClassesByIds,
@@ -73,8 +73,11 @@ export const getClass = selectClassById
 const myClassIdsByProfileId = cache(async (profileId: string): Promise<string[]> => {
   const { isAdmin, isSubAdmin, isTutor, isStudent, hasMentorAuthority } = await loadPersonaFlags(profileId)
   // Admin and sub_admin both manage classes academy-wide, so the Classes list is every
-  // class - matching canAccessClass, which lets them open any of them.
-  if (isAdmin || isSubAdmin) return selectAllClassIds()
+  // class they can READ - resolved through their own RLS session, the same gate the class
+  // detail page uses. Listing service-role ids here instead meant the list could offer a
+  // class the database would then refuse to open, which is exactly what a sub_admin hit on
+  // staging: two classes listed, both 404. A list and its links must come from one gate.
+  if (isAdmin || isSubAdmin) return selectVisibleClassIds()
 
   // A mentor's visible classes are the classes their mentees are enrolled in -
   // the same scoping the class guards use - so the Classes list matches what a

@@ -136,12 +136,17 @@ describe('myClassIds derives membership from explicit personas', () => {
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
-  it('an admin sees every class', async () => {
+  it('an admin sees every class they can READ, through their own RLS session', async () => {
+    // Deliberately the RLS client, not the service-role one: the Classes list must come
+    // from the same gate as the class detail page, or it can offer links the database then
+    // refuses to open. A sub_admin hit exactly that on staging - two classes listed, both
+    // 404 - because that database predates 0092's widening of teaches_class.
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: true, isTutor: false, isStudent: false } as any)
-    vi.mocked(createAdminClient).mockReturnValueOnce(
+    vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: [{ id: 'c1' }, { id: 'c2' }], error: null }) as any,
     )
     expect(await myClassIds(admin)).toEqual(['c1', 'c2'])
+    expect(createAdminClient, 'the list must not be built service-role').not.toHaveBeenCalled()
   })
 })
 

@@ -8,6 +8,7 @@ vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), getProfi
 vi.mock('@/lib/data/classes', () => ({
   countActiveClasses: vi.fn(),
   selectAllClassIds: vi.fn(),
+  selectVisibleClassIds: vi.fn(),
   selectAllClasses: vi.fn(),
   selectClassById: vi.fn(),
   selectClassesByIds: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('@/lib/data/mentorships', () => ({ selectActiveMentorshipsForStudents: v
 
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getProfileNamesByIds } from '@/lib/services/users'
-import { selectAllClassIds, selectClassesByIds } from '@/lib/data/classes'
+import { selectVisibleClassIds, selectClassesByIds } from '@/lib/data/classes'
 import { selectActiveEnrollmentRefsByClassIds, selectActiveTutorRefsByClassIds } from '@/lib/data/class-membership'
 import { listMyClasses } from '@/lib/services/classes/queries'
 
@@ -40,7 +41,7 @@ describe('listMyClasses member shaping', () => {
       isStudent: false,
       hasMentorAuthority: false,
     } as any)
-    vi.mocked(selectAllClassIds).mockResolvedValue(['c1', 'c2'])
+    vi.mocked(selectVisibleClassIds).mockResolvedValue(['c1', 'c2'])
     vi.mocked(selectClassesByIds).mockResolvedValue([
       { id: 'c1', name: 'Maths (1-on-1)', status: 'active' },
       { id: 'c2', name: 'Group Physics', status: 'active' },
@@ -83,7 +84,7 @@ describe('listMyClasses member shaping', () => {
       isStudent: false,
       hasMentorAuthority: false,
     } as any)
-    vi.mocked(selectAllClassIds).mockResolvedValue(['c1'])
+    vi.mocked(selectVisibleClassIds).mockResolvedValue(['c1'])
     vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c1', name: 'Maths', status: 'active' }] as any)
     vi.mocked(selectActiveTutorRefsByClassIds).mockResolvedValue([])
     vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([{ class_id: 'c1', student_id: 's-gone' }])

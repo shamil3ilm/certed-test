@@ -56,9 +56,33 @@ export const selectClassById = cache(async (id: string): Promise<ClassRow | null
   return (data as ClassRow) ?? null
 })
 
+/** Every class id, SERVICE-ROLE. For academy-wide aggregates (the dashboard charts),
+ *  which must count classes the viewer may not open. NOT for building a list of links -
+ *  see selectVisibleClassIds. */
 export async function selectAllClassIds(): Promise<string[]> {
   const admin = createAdminClient()
   const { data } = await admin.from('classes').select('id')
+  return ((data ?? []) as { id: string }[]).map((c) => c.id)
+}
+
+/**
+ * Class ids the CALLER can actually read, through their own RLS session.
+ *
+ * The Classes list used to be built from selectAllClassIds() for an admin or sub_admin -
+ * service-role, so it listed every class regardless of what the database would let that
+ * person open. The detail page reads through RLS, so the moment the app layer and RLS
+ * disagreed the list offered links that answered "This page doesn't exist, or you don't
+ * have access to it." Observed on staging: a sub_admin was shown both classes and refused
+ * both, because that database predates 0092's widening of teaches_class.
+ *
+ * Reading the list through the SAME gate as the detail makes that impossible by
+ * construction: a link can only appear if the row is readable. A real admin still sees
+ * every class (is_active_admin passes classes_read), so nothing narrows for them.
+ */
+export async function selectVisibleClassIds(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('classes').select('id')
+  if (error) throw new Error(`classes.visibleIds: ${error.message}`)
   return ((data ?? []) as { id: string }[]).map((c) => c.id)
 }
 
