@@ -129,6 +129,12 @@ const nextConfig = {
     '/api/receipts/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
     '/api/payslips/[id]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
     '/api/report-card/[studentId]/pdf': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
+    // Student reports render through the same brandAssets() + htmlToPdf as the three
+    // above. brandAssets does readFileSync(join(process.cwd(), ...)), a runtime-computed
+    // path the tracer cannot see - untraced, the function shipped without the fonts and
+    // logo and every report (HTML as well as PDF, since brandAssets runs before the
+    // format split) failed with ENOENT.
+    '/api/reports/[type]/[studentId]': ['./src/lib/pdf/assets/**', './node_modules/@sparticuz/chromium/**'],
   },
   experimental: {
     // The portal is force-dynamic (always fresh server-side), but the client

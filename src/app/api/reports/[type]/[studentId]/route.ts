@@ -2,6 +2,7 @@ import { authTextFail, notFoundText, textFail, tooManyRequestsText } from '@/lib
 import { assertActiveProfile } from '@/lib/auth/guards'
 import { getActorContext } from '@/lib/session/actor-context'
 import { isStudentReportType, renderStudentReport } from '@/lib/reports/render'
+import { logError } from '@/lib/observability/log'
 import { rateLimit } from '@/lib/security/rate-limit'
 
 // A PDF render spins up headless Chromium (the HTML/print variant does not), so
@@ -31,7 +32,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ type: string; s
   let out
   try {
     out = await renderStudentReport(actor, studentId, type, format)
-  } catch {
+  } catch (error) {
+    // Logged, not swallowed: a missing traced asset or a Chromium failure is PERMANENT,
+    // and the message below reads as transient - without this the operator's only
+    // signal is a user reporting that reports never work.
+    logError('reports.render', error, { type })
     return textFail('Could not generate the report. Please try again in a moment.', 502)
   }
   if (!out) return notFoundText()

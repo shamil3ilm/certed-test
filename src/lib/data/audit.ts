@@ -63,13 +63,19 @@ export async function writeAudit(entry: {
   // Best-effort: an audit failure must never break the primary action.
   try {
     const admin = createAdminClient()
-    await admin.from('audit_log').insert({
+    // The RESULT is checked, not just the absence of a throw. supabase-js RESOLVES with
+    // `{ data, error }` on a PostgREST-level failure - a constraint violation, a schema
+    // cache miss, a metadata type mismatch, a service-role grant problem - so awaiting
+    // the insert and ignoring the result meant the catch below could never fire for the
+    // most likely failure mode, and a lost audit record was silent after all.
+    const { error } = await admin.from('audit_log').insert({
       actor_id: entry.actor_id,
       action: entry.action,
       entity_type: entry.entity_type,
       entity_id: entry.entity_id ?? null,
       metadata: entry.metadata ?? null,
     })
+    if (error) throw new Error(error.message)
   } catch (error) {
     // Best-effort must not break the primary action, but a lost audit record is
     // security-relevant - log it so the gap is visible.

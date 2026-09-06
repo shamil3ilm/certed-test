@@ -37,12 +37,18 @@ export async function requestJson<T>(input: RequestInfo | URL, init?: RequestIni
 
   const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null
 
-  if (!response.ok || !payload) {
-    throw new Error(`${method} request failed`)
+  // The ENVELOPE is read before the status. `fail()` returns { success:false, error }
+  // with a 4xx/5xx, so testing `!response.ok` first made the branch below unreachable for
+  // every server-sent error - callers showed "POST request failed" instead of the masked
+  // message the server took care to produce ("Document not found or already voided", the
+  // rate-limit retry copy, a validation reason). Only a body that is NOT the envelope
+  // falls through to the generic message.
+  if (payload && payload.success === false) {
+    throw new Error(payload.error ?? `${method} request failed`)
   }
 
-  if (payload.success === false) {
-    throw new Error(payload.error ?? `${method} request failed`)
+  if (!response.ok || !payload) {
+    throw new Error(`${method} request failed`)
   }
 
   return payload.data
