@@ -43,8 +43,12 @@ if echo "$staged_all" | grep -qE '^supabase/migrations/.*\.sql$'; then
   if [ -f scripts/check-snapshot-freshness.sh ] && ! bash scripts/check-snapshot-freshness.sh; then
     echo "" >&2
     echo "pre-commit blocked: this commit adds a migration but the rebuild snapshot is stale." >&2
-    echo "Regenerate it in the SAME commit:" >&2
-    echo "  supabase db reset && npm run db:rebuild-snapshot && git add supabase/rebuild/0000_full_rebuild.sql" >&2
+    echo "Regenerate it in the SAME commit, either way:" >&2
+    echo "  with Docker + the Supabase CLI:" >&2
+    echo "    supabase db reset && npm run db:rebuild-snapshot" >&2
+    echo "  without either (plain local Postgres, same as the other DB harnesses):" >&2
+    echo "    bash scripts/rebuild-snapshot-local.sh" >&2
+    echo "then:  git add supabase/rebuild/0000_full_rebuild.sql" >&2
     exit 1
   fi
 fi

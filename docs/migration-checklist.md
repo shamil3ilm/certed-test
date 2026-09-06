@@ -55,11 +55,18 @@ The `check:doc-links` gate (CI + pre-push) catches a link broken by a doc move; 
 
 A migration that advances the chain head changes the snapshot's expected `0001..NNNN` marker, and CI's rebuild-freshness check is now a **blocking gate** (`exit 1`, no longer warn-only). Regenerate the snapshot **in the same change that adds the migration** — not "later" — or the gate blocks the next, unrelated PR (this is exactly how the snapshot drifted 4 migrations behind before the gate was made blocking):
 
+**Without Docker or the Supabase CLI** (plain local Postgres, the same thing every other DB harness here needs):
+
+1. `npm run db:rebuild-snapshot:local` — provisions a scratch database, applies the whole chain, dumps it, and drops the scratch DB. One command.
+2. `git diff supabase/rebuild/0000_full_rebuild.sql` — review, then commit it **alongside** the migration.
+
+**With Docker + the Supabase CLI:**
+
 1. `npx supabase db reset` — replay the full chain (`0001..NNNN`) onto a fresh local DB (see prerequisites below).
 2. `npm run db:rebuild-snapshot` — dump that end state into `supabase/rebuild/0000_full_rebuild.sql` (the script re-derives the `0001..NNNN` marker the CI check parses).
 3. `git diff supabase/rebuild/0000_full_rebuild.sql` — review, then commit it **alongside** the migration.
 
-If you cannot run a local DB, the migration is **not ready to merge**: the snapshot would drift and the freshness gate would block the next PR.
+If you cannot run a local Postgres at all, the migration is **not ready to merge**: the snapshot would drift and the freshness gate would block the next PR.
 
 ### Prerequisites for step 1
 

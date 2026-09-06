@@ -19,6 +19,7 @@
     "test:coverage": "vitest run --coverage",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "db:rebuild-snapshot": "bash scripts/rebuild-snapshot.sh",
+    "db:rebuild-snapshot:local": "bash scripts/rebuild-snapshot-local.sh",
     "check:snapshot": "bash scripts/check-snapshot-freshness.sh",
     "test:privilege-parity": "bash scripts/test-privilege-parity.sh",
     "check:doc-links": "bash scripts/check-doc-links.sh",
