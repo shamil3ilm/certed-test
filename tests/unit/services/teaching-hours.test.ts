@@ -2,7 +2,10 @@ vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn()
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/permission/class', () => ({ mentorAuthorityClassIds: vi.fn() }))
+vi.mock('@/lib/permission/class', () => ({
+  mentorAuthorityClassIds: vi.fn(),
+  mentoringScopeClassIds: vi.fn(),
+}))
 vi.mock('@/lib/data/analytics', () => ({
   selectSessionsForClassesInRange: vi.fn(),
   selectAttendedForSessions: vi.fn(),
@@ -17,7 +20,7 @@ vi.mock('@/lib/data/classes', () => ({
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ myClassIds: vi.fn() }))
 
-import { mentorAuthorityClassIds } from '@/lib/permission/class'
+import { mentoringScopeClassIds } from '@/lib/permission/class'
 import {
   selectAttendedForSessions,
   selectSessionsForClassesInRange,
@@ -149,7 +152,7 @@ describe('getClassTutorHours (mentor scope isolation)', () => {
 
   it('queries ONLY the mentor-authority classes - a tutor other classes never enter the query', async () => {
     // Mentor M1 has authority over C1 only (their mentee is enrolled there).
-    vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set(['C1']))
+    vi.mocked(mentoringScopeClassIds).mockResolvedValue(['C1'])
     vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([
       row({ class_id: 'C1', tutor_id: 'T1', actual_end: '2026-08-02T11:30:00.000Z' }), // 90
     ])
@@ -165,7 +168,7 @@ describe('getClassTutorHours (mentor scope isolation)', () => {
   })
 
   it('returns nothing (and never queries sessions) when the mentor has no authority classes', async () => {
-    vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set())
+    vi.mocked(mentoringScopeClassIds).mockResolvedValue([])
     const result = await getClassTutorHours(actor, '2026-08')
     expect(result).toEqual([])
     expect(selectSessionsForClassesInRange).not.toHaveBeenCalled()

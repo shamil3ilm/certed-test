@@ -1,10 +1,9 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { loadPersonaFlags } from '@/lib/permission/personas'
-import { mentorAuthorityClassIds, canManageClass } from '@/lib/permission/class'
+import { mentoringScopeClassIds, canManageClass } from '@/lib/permission/class'
+import { selectClassesByIds } from '@/lib/data/classes'
 import { assertClassActive } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
-import { selectActiveClassIds, selectActiveClassIdsAmong, selectClassesByIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
 import { getProfileNamesByIds } from '@/lib/services/users'
@@ -64,13 +63,10 @@ const rowKey = (classId: string, sessionDate: string) => `${classId}|${sessionDa
  *  bounded by a grace window rather than pinned at/after the start. */
 const EARLY_JOIN_GRACE_MINUTES = 60
 
-/** Classes whose session timings the actor may review: their mentees' classes
- *  (a mentor), or every class for an oversight admin - mirroring the mentee list. */
+/** Classes whose session timings the actor may review - see mentoringScopeClassIds, which
+ *  is the single place the mentor/oversight split is decided. */
 async function timingClassIds(actor: Profile): Promise<string[]> {
-  const flags = await loadPersonaFlags(actor.id)
-  // Archived classes drop out of the operational session-timing view (Q7).
-  if (flags.isAdmin) return selectActiveClassIds()
-  return selectActiveClassIdsAmong([...(await mentorAuthorityClassIds(actor.id))])
+  return mentoringScopeClassIds(actor)
 }
 
 /** Session timings across the actor's mentee classes: one row per (class, date),

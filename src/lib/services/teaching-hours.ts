@@ -10,7 +10,7 @@ import {
   type AttendedRow,
   type SessionHoursRow,
 } from '@/lib/data/analytics'
-import { mentorAuthorityClassIds } from '@/lib/permission/class'
+import { mentoringScopeClassIds } from '@/lib/permission/class'
 import { myClassIds } from '@/lib/services/classes'
 import { selectActiveClassIds, selectActiveClassIdsAmong, selectClassesByIds } from '@/lib/data/classes'
 import { getProfileNamesByIds } from '@/lib/services/users'
@@ -114,8 +114,10 @@ async function windowFor(month: string): Promise<{ startIso: string; endIso: str
  * classes' sessions never enter the query, so their hours cannot leak.
  */
 export async function getClassTutorHours(actor: Profile, month: string): Promise<ClassTutorHours[]> {
-  // Archived classes drop out of the hour report (Q7): trim the authority set to active ones.
-  const classIds = await selectActiveClassIdsAmong([...(await mentorAuthorityClassIds(actor.id))])
+  // Same scope as the session-timings list this panel sits beside: a mentor's mentee
+  // classes, or every active class for an oversight actor. Resolving it differently here
+  // is what left the hours panel blank for an admin on a page whose rows were populated.
+  const classIds = await mentoringScopeClassIds(actor)
   if (classIds.length === 0) return []
   const { startIso, endIso } = await windowFor(month)
   const rows = await selectSessionsForClassesInRange(classIds, startIso, endIso)

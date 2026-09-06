@@ -2,11 +2,11 @@ import 'server-only'
 import { z } from 'zod'
 import type { Profile } from '@/lib/auth/profile'
 import { canMentor } from '@/lib/permission'
-import { loadPersonaFlags } from '@/lib/permission/personas'
 import { selectMentorAssignedAt } from '@/lib/data/personas'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { insertMenteeNote, selectMenteeNotesByStudent, type MenteeNoteRow } from '@/lib/data/mentee-notes'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 
 /**
  * A mentor's pastoral notes about a mentee. Every read/write is gated on canMentor
@@ -21,10 +21,20 @@ export async function listMenteeNotes(actor: Profile, studentId: string): Promis
   const notes = await selectMenteeNotesByStudent(studentId)
 
   // Data minimisation: a mentor sees pastoral notes only from THEIR OWN mentorship
-  // onward, plus any they authored - not a previous mentor's private observations. An admin
-  // (oversight) sees the full history. Enforced here because the read is service-role gated by
-  // this service, so this IS the operative boundary. Fail-closed: a non-admin with no resolved
+  // onward, plus any they authored - not a previous mentor's private observations. An ADMIN
+  // sees the full history. Enforced here because the read is service-role gated by this
+  // service, so this IS the operative boundary. Fail-closed: a non-admin with no resolved
   // mentorship start sees only their own notes.
+  //
+  // DELIBERATELY `isAdmin`, and NOT the shared mentoring-oversight predicate that
+  // /students and the session-times list use. Those surfaces read class-scoped data, which
+  // 0092 widened to sub_admin in RLS (teaches_class); this one reads mentee_notes, whose
+  // policy gates on is_active_admin() - which 0092 deliberately did NOT widen. Using the
+  // oversight predicate here would make this service-role read disclose rows the database
+  // itself would refuse, i.e. the app LOOSER than RLS - the inversion persona-model.md
+  // warns about. A sub_admin therefore sees an empty panel by design; widening that is a
+  // DPDP decision about a minor's pastoral history and needs a migration to
+  // mentee_notes_read, not a service-layer predicate swap.
   const { isAdmin } = await loadPersonaFlags(actor.id)
   let visible = notes
   if (!isAdmin) {

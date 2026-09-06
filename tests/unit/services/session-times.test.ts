@@ -121,10 +121,24 @@ describe('saveSessionTimes tutor_id guard', () => {
     expect(insertSession).toHaveBeenCalledWith(expect.objectContaining({ tutor_id: null }))
   })
 
-  it('rejects a non-admin recording a session for ANOTHER tutor', async () => {
-    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false } as any)
+  it('rejects a TUTOR or MENTOR recording a session for ANOTHER tutor', async () => {
+    // Attributing a session to someone else moves billable hours onto THEIR pay slip
+    // (0095), so it stays an academy-authority act - not something a colleague can do.
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: false } as any)
     await expect(saveSessionTimes(actor, { ...base, tutor_id: OTHER_TUTOR })).rejects.toBeInstanceOf(PermissionError)
     expect(insertSession).not.toHaveBeenCalled()
+  })
+
+  it('lets a SUB-ADMIN record for another tutor - RLS already permits it', async () => {
+    // 0092 gave sub_admin academy-wide authority over class-scoped tables and widened
+    // teaches_class() accordingly, so class_sessions_insert already accepts this row.
+    // The app was refusing what the database allows - the app/RLS divergence 0092 set
+    // out to remove.
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false, isSubAdmin: true } as any)
+    vi.mocked(assertClassTutor).mockResolvedValue(undefined)
+    await saveSessionTimes(actor, { ...base, tutor_id: OTHER_TUTOR })
+    expect(assertClassTutor).toHaveBeenCalledWith(OTHER_TUTOR, 'class-1')
+    expect(insertSession).toHaveBeenCalledWith(expect.objectContaining({ tutor_id: OTHER_TUTOR }))
   })
 
   it('rejects a malformed tutor_id even from an admin', async () => {

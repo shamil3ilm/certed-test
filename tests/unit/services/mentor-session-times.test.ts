@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
-vi.mock('@/lib/permission/class', () => ({ canManageClass: vi.fn(), mentorAuthorityClassIds: vi.fn() }))
+vi.mock('@/lib/permission/class', () => ({
+  canManageClass: vi.fn(),
+  mentorAuthorityClassIds: vi.fn(),
+  mentoringScopeClassIds: vi.fn(),
+}))
 vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/data/classes', () => ({
   selectActiveClassIds: vi.fn(),
@@ -25,7 +29,7 @@ vi.mock('@/lib/data/attendance', () => ({
 }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
-import { canManageClass, mentorAuthorityClassIds } from '@/lib/permission/class'
+import { canManageClass, mentoringScopeClassIds } from '@/lib/permission/class'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { selectActiveClassIdsAmong, selectClassesByIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
@@ -232,8 +236,7 @@ describe('updateSessionTimes', () => {
 describe('listMenteeSessionTimings', () => {
   beforeEach(() => {
     vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false } as never)
-    vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set(['c1']))
-    vi.mocked(selectActiveClassIdsAmong).mockResolvedValue(['c1'])
+    vi.mocked(mentoringScopeClassIds).mockResolvedValue(['c1'])
     vi.mocked(selectSessionsForClassesAsService).mockResolvedValue([
       {
         class_id: 'c1',
@@ -276,7 +279,7 @@ describe('listMenteeSessionTimings', () => {
   })
 
   it('returns nothing when the mentor has no active authority classes', async () => {
-    vi.mocked(selectActiveClassIdsAmong).mockResolvedValue([])
+    vi.mocked(mentoringScopeClassIds).mockResolvedValue([])
     expect(await listMenteeSessionTimings(actor)).toEqual([])
   })
 })

@@ -1,3 +1,4 @@
+import { isMentoringOversight } from '@/lib/permission/class'
 import type { Profile } from '@/lib/auth/profile'
 import { mentoringSectionLabel } from '@/lib/ui/labels'
 import type { AssignmentBrief } from '@/lib/data/assignments'
@@ -10,7 +11,6 @@ import {
   selectEvaluatedSubmissionsForStudentAsService,
 } from '@/lib/data/submissions'
 import { canMentor } from '@/lib/permission'
-import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
 import { displayName, getProfileById, getProfilesByIds } from '@/lib/services/users'
@@ -55,8 +55,9 @@ export {
 }
 
 export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
-  const { hasMentorAuthority } = await loadPersonaFlags(me.id)
-  const isOversight = !hasMentorAuthority
+  // The shared predicate - the same one the session-times list and the pastoral-notes
+  // filter now use, so "oversight" cannot mean three different things again.
+  const isOversight = await isMentoringOversight(me.id)
   const ids = isOversight
     ? [...new Set((await listMentorships()).map((link) => link.student_id))]
     : await studentIdsOfMentor(me.id)

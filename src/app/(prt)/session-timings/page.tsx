@@ -8,6 +8,7 @@ import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 import { CARD, EmptyState, PageHeader, PaginationBar, cx } from '@/lib/ui'
 import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 
 const PAGE_SIZE = 20
 
@@ -17,6 +18,11 @@ const PAGE_SIZE = 20
 export default async function SessionTimingsPage(props: { searchParams: Promise<{ page?: string }> }) {
   const { page } = await props.searchParams
   const me = await requireCapability('viewMentees')
+  // Same split the list itself makes: a mentor is scoped to their mentees, an oversight
+  // actor (admin or sub-admin) sees every class. The copy has to follow, or the page tells
+  // an admin these are "your mentees'" sessions while showing them the whole academy.
+  const { hasMentorAuthority } = await loadPersonaFlags(me.id)
+  const isOversight = !hasMentorAuthority
   const tz = await getInstituteTimeZone()
   const month = todayInZone(tz).slice(0, 7)
   const [rows, hours] = await Promise.all([listMenteeSessionTimings(me), getClassTutorHours(me, month)])
@@ -28,13 +34,15 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Session times"
-        description="Start time, student entry and end time for your mentees' sessions. You can adjust the session start/end and a student's entry time."
+        description={`Start time, student entry and end time for ${
+          isOversight ? 'sessions across the academy' : "your mentees' sessions"
+        }. You can adjust the session start/end and a student's entry time.`}
       />
 
       <section className={cx(CARD, 'mt-2 p-4')} aria-label="Teaching hours this month">
         <h2 className="text-sm font-semibold text-slate-800">Teaching hours - {formatMonthLabel(month)}</h2>
         <p className="mt-0.5 text-xs text-slate-600">
-          Recorded hours per tutor in your mentees&apos; classes, for this month.
+          Recorded hours per tutor in {isOversight ? 'every class' : <>your mentees&apos; classes</>}, for this month.
         </p>
         {/* Render the panel even with nothing to show. Hiding it when the month has no
             recorded hours makes the section vanish for the first days of every month,
@@ -71,7 +79,10 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
       </section>
 
       {rows.length === 0 ? (
-        <EmptyState>No session timings yet - they appear once your mentees&apos; classes record sessions.</EmptyState>
+        <EmptyState>
+          No session timings yet - they appear once{' '}
+          {isOversight ? 'a class records sessions' : <>your mentees&apos; classes record sessions</>}.
+        </EmptyState>
       ) : (
         <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
           <table className="data-table w-full text-sm">

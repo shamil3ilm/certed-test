@@ -7,6 +7,7 @@ import { selectActiveGlobalOverrides } from '@/lib/data/capability-overrides'
 import { resolveCapabilities, type CapabilityOverride } from '@/lib/capabilities'
 import { ValidationError } from '@/lib/errors'
 import { loadPersonaFlags } from './personas'
+import { selectActiveClassIds, selectActiveClassIdsAmong } from '@/lib/data/classes'
 
 /**
  * Classes a mentor holds tutor-level authority over: the classes their active
@@ -30,6 +31,48 @@ export const mentorAuthorityClassIds = cache(async (profileId: string): Promise<
 /** Can this user manage the class (roster + settings)? An academy-wide class admin
  *  (admin or sub_admin - anyone with manageClasses), a tutor of it, or a mentor of a
  *  student enrolled in it. */
+/**
+ * The classes a mentoring-surface reader may review: their mentees' classes, or EVERY
+ * active class for an oversight actor.
+ *
+ * "Oversight" is `!hasMentorAuthority` - the same test getMenteeListView makes, and the
+ * single place it is now decided. Every mentoring surface is gated on `viewMentees`, so
+ * its readers are mentors, sub-admins and admins; the ones without mentor authority are
+ * exactly the oversight tier.
+ *
+ * This exists because the definition had drifted. /students used `!hasMentorAuthority` and
+ * showed a sub_admin every mentored student, while /session-timings used `isAdmin` and
+ * showed it nothing - so the same persona was "oversight" on one page and not on the next,
+ * and the resulting blank page looked like an intentional narrowing. One predicate, one
+ * answer, and the two pages describe the same population again.
+ */
+export async function mentoringScopeClassIds(profile: Pick<Profile, 'id'>): Promise<string[]> {
+  // Archived classes drop out of every operational mentoring view (Q7).
+  if (await isMentoringOversight(profile.id)) return selectActiveClassIds()
+  return selectActiveClassIdsAmong([...(await mentorAuthorityClassIds(profile.id))])
+}
+
+/**
+ * Is this actor an OVERSIGHT reader of the mentoring surfaces, rather than a mentor
+ * looking at their own mentees?
+ *
+ * Every mentoring surface is gated on `viewMentees`, so its readers are mentors,
+ * sub-admins and admins; the ones WITHOUT mentor authority are exactly the oversight tier.
+ * The definition lived in two places and disagreed - /students asked `!hasMentorAuthority`
+ * and /session-timings asked `isAdmin`, which silently dropped the sub_admin: it holds
+ * viewMentees but mentors nobody, so it fell into neither branch and got an empty page
+ * while /students showed it the whole academy.
+ *
+ * Scope: this decides who reads CLASS-SCOPED data, and it matches RLS because 0092 widened
+ * `teaches_class()` to sub_admin. It is NOT a general "admin tier" predicate - do not reach
+ * for it on a surface whose policy gates on `is_active_admin()` (mentee_notes is the one
+ * such surface today), or the app becomes looser than the database.
+ */
+export async function isMentoringOversight(profileId: string): Promise<boolean> {
+  const { hasMentorAuthority } = await loadPersonaFlags(profileId)
+  return !hasMentorAuthority
+}
+
 export async function canManageClass(profile: Pick<Profile, 'id'>, classId: string): Promise<boolean> {
   const flags = await loadPersonaFlags(profile.id)
   if (flags.isAdmin) return true
