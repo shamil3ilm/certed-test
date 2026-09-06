@@ -31,7 +31,7 @@ vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn(
 
 import { canManageClass, mentoringScopeClassIds } from '@/lib/permission/class'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { selectActiveClassIdsAmong, selectClassesByIds } from '@/lib/data/classes'
+import { selectClassesByIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
 import { getProfileNamesByIds } from '@/lib/services/users'
