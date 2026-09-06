@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { getBrowserAuthAvailability, updatePasswordClient } from '../../auth-client'
 import { Field, PasswordInput } from '../../form'
+import { useHydratedFlag } from '@/lib/ui/client-env'
 import { AlertBanner } from '@/lib/ui'
 import { changePasswordSchema } from '@/lib/validation/user'
 
@@ -12,6 +13,7 @@ export function ResetPasswordForm() {
   const authAvailability = getBrowserAuthAvailability()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const hydrated = useHydratedFlag()
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -48,7 +50,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <form onSubmit={onSubmit} method="post" className="space-y-3">
       <Field label="New password">
         <PasswordInput name="password" required placeholder="At least 8 characters" autoComplete="new-password" />
       </Field>
@@ -57,7 +59,7 @@ export function ResetPasswordForm() {
       </Field>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
-      <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">
+      <button type="submit" disabled={busy || !hydrated || !authAvailability.ok} className="btn btn-primary w-full">
         {busy ? 'Updating...' : 'Update password'}
       </button>
     </form>

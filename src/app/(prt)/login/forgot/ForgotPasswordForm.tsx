@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { getBrowserAuthAvailability, requestPasswordResetClient } from '../../auth-client'
 import { Field, Input } from '../../form'
+import { useHydratedFlag } from '@/lib/ui/client-env'
 import { AlertBanner } from '@/lib/ui'
 
 export function ForgotPasswordForm() {
@@ -12,6 +13,7 @@ export function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const hydrated = useHydratedFlag()
   const [sent, setSent] = useState(false)
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -55,13 +57,13 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <form onSubmit={onSubmit} method="post" className="space-y-3">
       <Field label="Email">
         <Input name="email" type="email" required placeholder="you@example.com" autoComplete="username" />
       </Field>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
-      <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">
+      <button type="submit" disabled={busy || !hydrated || !authAvailability.ok} className="btn btn-primary w-full">
         {busy ? 'Sending...' : 'Send reset link'}
       </button>
       <a href="/login" className="block text-center text-xs font-medium text-slate-600 hover:underline">
