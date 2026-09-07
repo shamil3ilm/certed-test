@@ -1,4 +1,6 @@
 import 'server-only'
+import { assertFilterSafeId } from '@/lib/text/filter-values'
+import type { Page } from '@/lib/pagination'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertMutated } from '@/lib/data/mutation'
@@ -92,6 +94,43 @@ export async function selectAssignments(filters: AssignmentFilters = {}): Promis
   const { data, error } = await query
   if (error) throw new Error(`assignments.list: ${error.message}`)
   return (data ?? []) as AssignmentRow[]
+}
+
+/**
+ * ONE page of a class's assignments, soonest due first, with the exact total.
+ *
+ * `visibleIds` carries the viewer's visibility rule INTO the query: a student sees an
+ * assignment that is still active, or any they have submitted to. Applied here rather than
+ * to the fetched rows because the list is paged - filtering afterwards would leave the
+ * COUNT describing a different set from the one rendered, so the pager would promise pages
+ * that come back short or empty. A manager passes no rule and sees the class's whole
+ * history.
+ */
+export async function selectAssignmentPage(
+  classId: string,
+  range: { from: number; to: number },
+  visible?: { activeOnly: true; alsoIds: string[] },
+): Promise<Page<AssignmentRow>> {
+  const supabase = await createClient()
+  let query = supabase
+    .from('assignments')
+    .select('*', { count: 'exact' })
+    .eq('class_id', classId)
+    .order('due_date', { ascending: true })
+    // due_date ties (a batch set for the same day) would otherwise order arbitrarily, and
+    // an unstable order under paging can repeat or skip a row.
+    .order('id', { ascending: true })
+  if (visible) {
+    // Validated, not escaped - see the note in mentee-notes: a uuid cannot contain the
+    // `.or()` grammar, and one that appears to is a bug rather than something to sanitise.
+    for (const id of visible.alsoIds) assertFilterSafeId(id, 'assignments.visibleIds')
+    query = visible.alsoIds.length
+      ? query.or(`status.eq.active,id.in.(${visible.alsoIds.join(',')})`)
+      : query.eq('status', 'active')
+  }
+  const { data, error, count } = await query.range(range.from, range.to)
+  if (error) throw new Error(`assignments.page: ${error.message}`)
+  return { items: (data ?? []) as AssignmentRow[], total: count ?? 0 }
 }
 
 /** One assignment, or null. Treats a read error as "not visible" rather than

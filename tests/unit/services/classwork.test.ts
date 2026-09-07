@@ -6,7 +6,7 @@ vi.mock('@/lib/permission/personas', () => ({
   hasPersona: vi.fn(),
   loadPersonaFlags: vi.fn(),
 }))
-vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
+vi.mock('@/lib/services/assignments', () => ({ listAssignmentPage: vi.fn() }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
 vi.mock('@/lib/services/resources', () => ({
   listResourcesPage: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('@/lib/services/submissions', () => ({
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { canManageClass } from '@/lib/permission'
-import { listAssignments } from '@/lib/services/assignments'
+import { listAssignmentPage } from '@/lib/services/assignments'
 import { loadClassworkPageData, documentFilterUrl, type DocumentFilterState } from '@/lib/services/page-data/classwork'
 import { listCommentsForEntities } from '@/lib/services/comments'
 import { listResourcesPage } from '@/lib/services/resources'
@@ -63,10 +63,14 @@ describe('loadClassworkPageData', () => {
       items: [doc({ id: 'r1', title: 'Notes', category: 'practice_sheets', created_at: '2026-07-15T00:00:00.000Z' })],
       total: 1,
     } as any)
-    vi.mocked(listAssignments).mockResolvedValueOnce([
-      { id: 'a1', class_id: 'class-1', title: 'Essay', status: 'active', due_date: '2026-07-17T00:00:00.000Z' },
-      { id: 'a2', class_id: 'class-1', title: 'Old task', status: 'archived', due_date: '2026-07-10T00:00:00.000Z' },
-    ] as any)
+    // The visibility rule is applied by the QUERY now, so the mock returns what that query
+    // would: the active assignment, not the archived one the student never submitted to.
+    vi.mocked(listAssignmentPage).mockResolvedValueOnce({
+      items: [
+        { id: 'a1', class_id: 'class-1', title: 'Essay', status: 'active', due_date: '2026-07-17T00:00:00.000Z' },
+      ],
+      total: 1,
+    } as any)
     vi.mocked(listMyActiveSubmissions).mockResolvedValueOnce([
       { id: 's1', assignment_id: 'a1', submitted_at: '2026-07-15T09:00:00.000Z', status: 'submitted' },
     ] as any)
@@ -91,12 +95,19 @@ describe('loadClassworkPageData', () => {
     expect(result.documentsByCategory.question_papers).toEqual([])
     expect(result.archivedDocuments).toEqual([])
     expect(result.assignmentViews).toHaveLength(1)
+    // The rule that decides which assignments a student may see now travels INTO the query,
+    // so the pager's total counts the same set the page renders. Applied afterwards it
+    // would not, and pages would come back short.
+    expect(vi.mocked(listAssignmentPage).mock.calls[0][2]).toEqual({
+      activeOnly: true,
+      alsoIds: ['a1'],
+    })
     expect(result.assignmentViews[0].submissionHistory.map((s) => s.id)).toEqual(['s0'])
   })
 
   it('reads the filter state from search params', async () => {
     vi.mocked(listResourcesPage).mockResolvedValue({ items: [], total: 0 } as any)
-    vi.mocked(listAssignments).mockResolvedValue([] as any)
+    vi.mocked(listAssignmentPage).mockResolvedValue({ items: [], total: 0 } as any)
     vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
 
     const result = await loadClassworkPageData(
@@ -126,7 +137,7 @@ describe('loadClassworkPageData', () => {
     ]
     let call = 0
     vi.mocked(listResourcesPage).mockImplementation(() => Promise.resolve(responses[call++] as any))
-    vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
+    vi.mocked(listAssignmentPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
 
     const result = await loadClassworkPageData(
@@ -143,7 +154,7 @@ describe('loadClassworkPageData', () => {
 
   it('keeps archived-class classwork readable while disabling manager write actions', async () => {
     vi.mocked(listResourcesPage).mockResolvedValue({ items: [], total: 0 } as any)
-    vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
+    vi.mocked(listAssignmentPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
 
     const result = await loadClassworkPageData(

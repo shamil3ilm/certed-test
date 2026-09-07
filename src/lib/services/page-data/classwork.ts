@@ -1,7 +1,8 @@
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { listAssignments, type Assignment } from '@/lib/services/assignments'
+import { listAssignmentPage, type Assignment } from '@/lib/services/assignments'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
 import {
   listResourcesPage,
@@ -18,6 +19,7 @@ import { DOCUMENT_CATEGORY_VALUES, isDocumentCategory, type DocumentCategory } f
 // lives on the separate Documents page.
 const CLASS_DOCS_CAP = 500
 const ARCHIVED_PAGE_SIZE = 50
+const ASSIGNMENTS_PAGE_SIZE = 20
 
 type ClassworkSearchParams = {
   q?: string
@@ -27,6 +29,7 @@ type ClassworkSearchParams = {
   to?: string
   sort?: string
   error?: string
+  aPage?: string
 }
 
 type ClassworkAssignmentView = {
@@ -63,7 +66,12 @@ type ClassworkPageData = {
   hasActiveFilters: boolean
   documentsByCategory: Record<DocumentCategory, ClassworkDocumentView[]>
   documentTotal: number
+  documentsTruncated: boolean
+  documentsShown: number
   assignmentViews: ClassworkAssignmentView[]
+  assignmentPage: number
+  assignmentTotal: number
+  assignmentTotalPages: number
   archivedDocuments: Document[]
 }
 
@@ -107,11 +115,21 @@ export async function loadClassworkPageData(
     to: searchParams?.to ?? '',
     sort: searchParams?.sort === 'oldest' ? 'oldest' : 'latest',
   }
+  const requestedAssignmentPage = parsePageParam(searchParams?.aPage)
   const hasActiveFilters = Boolean(
     filters.q || filters.category || filters.subject || filters.from || filters.to || filters.sort === 'oldest',
   )
 
-  const [docsPage, archivedPage, assignments, mySubs, myPriorSubs] = await Promise.all([
+  // Submissions FIRST: they decide which non-active assignments this student may still
+  // see, and that rule has to reach the query rather than being applied to fetched rows -
+  // the list is paged, so a post-filter would leave the count describing a different set.
+  const [mySubs, myPriorSubs] = await Promise.all([
+    isStudent ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
+    isStudent ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
+  ])
+  const submittedAssignmentIds = [...new Set([...mySubs, ...myPriorSubs].map((s) => s.assignment_id))]
+
+  const [docsPage, archivedPage, assignmentPage] = await Promise.all([
     listResourcesPage(course.id, {
       page: 1,
       pageSize: CLASS_DOCS_CAP,
@@ -126,9 +144,14 @@ export async function loadClassworkPageData(
     canManage
       ? listResourcesPage(course.id, { page: 1, pageSize: ARCHIVED_PAGE_SIZE, status: 'archived' })
       : Promise.resolve({ items: [], total: 0 }),
-    listAssignments({ classId: course.id }),
-    isStudent ? listMyActiveSubmissions(me.id) : Promise.resolve([]),
-    isStudent ? listMySupersededSubmissions(me.id) : Promise.resolve([]),
+    // A manager sees the class's whole assignment history; a student sees what is still
+    // active plus anything they have submitted to. Paged either way - this was every
+    // assignment ever set for the class, rendered without a pager.
+    listAssignmentPage(
+      course.id,
+      { page: requestedAssignmentPage, pageSize: ASSIGNMENTS_PAGE_SIZE },
+      canManage ? undefined : { activeOnly: true, alsoIds: submittedAssignmentIds },
+    ),
   ])
 
   const subByAssignment = new Map(mySubs.map((s) => [s.assignment_id, s]))
@@ -138,9 +161,21 @@ export async function loadClassworkPageData(
     list.push(prior)
     historyByAssignment.set(prior.assignment_id, list)
   }
-  const visibleAssignments = assignments.filter(
-    (a) => canManage || a.status === 'active' || subByAssignment.has(a.id) || historyByAssignment.has(a.id),
-  )
+  // Fold an out-of-range ?aPage back onto the last real page - a bookmark from when the
+  // class had more assignments would otherwise render an empty section.
+  const assignmentPageNo = clampPage(requestedAssignmentPage, assignmentPage.total, ASSIGNMENTS_PAGE_SIZE)
+  const assignmentsOnPage =
+    assignmentPageNo === requestedAssignmentPage
+      ? assignmentPage
+      : await listAssignmentPage(
+          course.id,
+          { page: assignmentPageNo, pageSize: ASSIGNMENTS_PAGE_SIZE },
+          canManage ? undefined : { activeOnly: true, alsoIds: submittedAssignmentIds },
+        )
+
+  // No post-filter: the visibility rule went into the query above, so what came back IS
+  // what may be shown and the total counts the same set.
+  const visibleAssignments = assignmentsOnPage.items
 
   const docIds = docsPage.items.map((d) => d.id)
   const [commentsBySub, docComments, versionsByDoc] = await Promise.all([
@@ -176,7 +211,18 @@ export async function loadClassworkPageData(
     filters,
     hasActiveFilters,
     documentsByCategory,
-    documentTotal: docsPage.items.length,
+    // The QUERY's count, not the page length. Reporting items.length made a class with
+    // more materials than CLASS_DOCS_CAP claim it had exactly the cap - a wrong number
+    // rather than a short list, and the one thing Page<T> exists to prevent.
+    documentTotal: docsPage.total,
+    // The materials view groups by category, so it cannot page without splitting a
+    // category across pages. It stays a capped read - but a STATED one: the reader is told
+    // when there is more, and the filters that narrow it are directly above.
+    documentsTruncated: docsPage.total > docsPage.items.length,
+    documentsShown: docsPage.items.length,
+    assignmentPage: assignmentPageNo,
+    assignmentTotal: assignmentsOnPage.total,
+    assignmentTotalPages: totalPages(assignmentsOnPage.total, ASSIGNMENTS_PAGE_SIZE),
     assignmentViews: visibleAssignments.map((assignment) => {
       const submission = subByAssignment.get(assignment.id)
       return {

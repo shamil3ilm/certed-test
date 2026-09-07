@@ -7,6 +7,7 @@ import {
 } from '@/lib/documents/categories'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
 import {
+  AlertBanner,
   ArchivedList,
   Badge,
   Card,
@@ -159,6 +160,15 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
           <option value="oldest">Oldest first</option>
         </SelectFilterField>
       </FilterBar>
+
+      {/* A capped read has to SAY it is capped, or the filters above imply the view is the
+          whole library. Grouping by category is what stops this being paged outright. */}
+      {data.documentsTruncated && (
+        <AlertBanner tone="warning">
+          Showing the most recent {data.documentsShown} of {data.documentTotal} materials. Narrow the search or date
+          range above to reach the rest.
+        </AlertBanner>
+      )}
 
       {data.documentTotal === 0 ? (
         <EmptyState>

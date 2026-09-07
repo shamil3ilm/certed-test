@@ -20,7 +20,7 @@ export type {
   ArchiveAssignmentActionInput,
 } from './validation'
 
-export { listAssignments, getAssignment } from './queries'
+export { listAssignments, listAssignmentPage, getAssignment } from './queries'
 export type { Assignment } from './queries'
 
 export {
