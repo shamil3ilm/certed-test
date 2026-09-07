@@ -43,7 +43,8 @@ import { loadClassroomPageData, classroomUrl } from '@/lib/services/page-data/cl
  */
 
 const ME = { id: 'me' } as never
-const SUBJ = 'subject-1'
+const SUBJ = '11111111-1111-4111-8111-111111111111'
+const TAG = '22222222-2222-4222-8222-222222222222'
 
 function flags(over: Record<string, boolean>) {
   vi.mocked(loadPersonaFlags).mockResolvedValue({
@@ -115,7 +116,7 @@ describe('classroom filters narrow the ROSTER, not just the cards', () => {
     vi.mocked(selectClassIdsBySubject).mockResolvedValue(['c1', 'c2'])
     vi.mocked(entityIdsForTag).mockResolvedValue(['c2', 'c3'])
     vi.mocked(selectActiveStudentIdsByClassIds).mockResolvedValue(['s1'])
-    await loadClassroomPageData(ME, { subject: SUBJ, tag: 't1' })
+    await loadClassroomPageData(ME, { subject: SUBJ, tag: TAG })
     expect(vi.mocked(selectActiveStudentIdsByClassIds).mock.calls[0][0]).toEqual(['c2'])
   })
 
@@ -174,6 +175,24 @@ describe('a student sees their own flat list, with no roster read', () => {
     expect(selectProfilePage).not.toHaveBeenCalled()
     expect(data.groupByStudentView).toBe(false)
     expect(data.ownClasses.map((c) => c.id)).toEqual(['c1'])
+  })
+})
+
+describe('a malformed filter narrows nothing rather than erroring', () => {
+  // Both name a uuid column, and PostgREST answers a bad uuid with a 400 - so a stale
+  // bookmark or a hand-edited URL would turn a filter into an error page. Dropping the
+  // value shows the unfiltered list instead, which is what the reader meant.
+  it.each([
+    ['subject', 'not-a-uuid'],
+    ['tag', "'; drop table classes;--"],
+    ['subject', '12345'],
+  ])('drops a malformed %s', async (key, value) => {
+    flags({ isClassAdmin: true })
+    const data = await loadClassroomPageData(ME, { [key]: value })
+    expect(data.filters[key as 'subject']).toBe('')
+    expect(data.hasActiveFilters).toBe(false)
+    expect(selectClassIdsBySubject).not.toHaveBeenCalled()
+    expect(entityIdsForTag).not.toHaveBeenCalled()
   })
 })
 

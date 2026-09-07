@@ -1,4 +1,4 @@
-import { parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { searchDocuments, type DocumentSearchResult } from '@/lib/services/resources'
 import { isDocumentCategory, type DocumentCategory } from '@/lib/documents/categories'
 
@@ -74,15 +74,29 @@ export async function loadDocumentSearchPageData(searchParams?: DocumentSearchPa
   const hasActiveFilters = Boolean(
     filters.q || filters.category || filters.subject || filters.from || filters.to || filters.sort === 'oldest',
   )
-  const { items, total } = await searchDocuments({
-    page: filters.page,
-    pageSize: PAGE_SIZE,
-    search: filters.q || undefined,
-    category: filters.category || undefined,
-    subject: filters.subject || undefined,
-    dateFrom: isoOrUndefined(filters.from),
-    dateTo: isoOrUndefined(filters.to, true),
-    sort: filters.sort,
-  })
-  return { filters, hasActiveFilters, results: items, total, totalPages: totalPages(total, PAGE_SIZE) }
+  const read = (page: number) =>
+    searchDocuments({
+      page,
+      pageSize: PAGE_SIZE,
+      search: filters.q || undefined,
+      category: filters.category || undefined,
+      subject: filters.subject || undefined,
+      dateFrom: isoOrUndefined(filters.from),
+      dateTo: isoOrUndefined(filters.to, true),
+      sort: filters.sort,
+    })
+
+  const first = await read(filters.page)
+  // Fold a page past the end back onto the last real one. parsePageParam can only clamp
+  // the LOWER bound - it has no idea how many rows exist - so a stale bookmark or a
+  // narrowed filter otherwise leaves a blank list with no way back but editing the URL.
+  const page = clampPage(filters.page, first.total, PAGE_SIZE)
+  const { items, total } = page === filters.page ? first : await read(page)
+  return {
+    filters: { ...filters, page },
+    hasActiveFilters,
+    results: items,
+    total,
+    totalPages: totalPages(total, PAGE_SIZE),
+  }
 }

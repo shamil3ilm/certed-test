@@ -1,7 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import { isAdminTier } from '@/lib/capabilities'
 import { listAuditPage } from '@/lib/data/audit'
-import { parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { getProfilesByIds, searchProfileIds } from '@/lib/services/users'
 
 const PAGE_SIZE = 25
@@ -94,12 +94,15 @@ export async function loadHistoryPageData(
 
   // A non-super viewer's actor search may only match non-admin roles (no admin oracle).
   const actorIds = await resolveActorIds(filters.actor, isSuper ? undefined : NON_ADMIN_ROLES)
-  const { items, total } = await listAuditPage({
-    page: filters.page,
-    pageSize: PAGE_SIZE,
-    action: filters.action,
-    actorIds,
-  })
+  const requestedPage = filters.page
+  const read = (page: number) => listAuditPage({ page, pageSize: PAGE_SIZE, action: filters.action, actorIds })
+  const first = await read(requestedPage)
+  // Fold a page past the end back onto the last real one. parsePageParam can only clamp
+  // the LOWER bound - it has no idea how many rows exist - so a stale bookmark or a
+  // narrowed filter otherwise leaves a blank list with no way back but editing the URL.
+  const currentPage = clampPage(filters.page, first.total, PAGE_SIZE)
+  filters.page = currentPage
+  const { items, total } = currentPage === requestedPage ? first : await read(currentPage)
   const actors = await getProfilesByIds(items.map((r) => r.actor_id).filter((id): id is string => !!id))
   const rows = items.map((r) => {
     const actor = r.actor_id ? actors.get(r.actor_id) : null

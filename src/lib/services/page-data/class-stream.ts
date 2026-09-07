@@ -1,5 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
-import { parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listAnnouncementsForClassPage, type Announcement } from '@/lib/services/announcements'
@@ -76,7 +76,9 @@ export async function loadClassStreamViewData(
   // a blank posts list with no empty-state and no pager. Clamp to the last real page
   // and refetch so the user lands on content with a working pager instead.
   const streamTotalPages = totalPages(activePage.total, STREAM_PAGE_SIZE)
-  const effStreamPage = Math.min(streamPage, streamTotalPages)
+  // clampPage, not a hand-rolled Math.min: the shared helper is where this rule lives, and
+  // it also guards the lower bound (a `?page=0` or a negative).
+  const effStreamPage = clampPage(streamPage, activePage.total, STREAM_PAGE_SIZE)
   const active =
     effStreamPage === streamPage
       ? activePage

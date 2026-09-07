@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
+import { isUuid } from '@/lib/validation/id'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { myClassIds, type ClassSummary } from '@/lib/services/classes'
 import { listMyClasses } from '@/lib/services/classes'
@@ -73,6 +74,9 @@ export function classroomUrl(filters: ClassroomFilters, patch: Partial<Classroom
   return query ? `/classroom?${query}` : '/classroom'
 }
 
+/** A search param that must be a uuid to mean anything; anything else narrows nothing. */
+const uuidParam = (raw?: string): string => (raw && isUuid(raw) ? raw : '')
+
 /**
  * The class ids a filter admits, or null when that filter is not applied.
  *
@@ -113,8 +117,11 @@ export async function loadClassroomPageData(
   const flags = await loadPersonaFlags(me.id)
   const filters: ClassroomFilters = {
     page: parsePageParam(searchParams?.page),
-    tag: searchParams?.tag ?? '',
-    subject: searchParams?.subject ?? '',
+    // Both name a uuid column. A malformed one is DROPPED rather than forwarded: PostgREST
+    // answers a bad uuid with a 400, so a hand-edited or stale URL would turn a filter into
+    // an error page instead of an unfiltered list. Same rule the session-timings filters use.
+    tag: uuidParam(searchParams?.tag),
+    subject: uuidParam(searchParams?.subject),
     q: searchParams?.q?.trim() ?? '',
   }
   const hasActiveFilters = Boolean(filters.tag || filters.subject || filters.q)
