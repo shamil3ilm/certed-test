@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -15,6 +15,7 @@ import {
   countFailedAttachments,
   selectLiveAttachmentIds,
   selectReadableActiveAttachment,
+  supersedePriorResourceAttachments,
 } from '@/lib/data/attachments'
 
 const row = { id: 'att1', status: 'pending' }
@@ -86,5 +87,22 @@ describe('attachments data layer', () => {
     expect(await selectReadableActiveAttachment('att1')).toEqual(row)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     expect(await selectReadableActiveAttachment('gone')).toBeNull()
+  })
+})
+
+/**
+ * 0057 added trg_attachments_updated_at "to keep updated_at honest without the service
+ * having to remember" - a BEFORE UPDATE trigger that overwrites whatever the service sends.
+ * Stamping it here too computed a value, sent it over the wire and had it discarded, and
+ * left one invariant with two owners.
+ */
+describe('supersedePriorResourceAttachments leaves updated_at to the trigger', () => {
+  it('does not send updated_at in the patch', async () => {
+    const { builder, client } = makeClientCapturing({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await supersedePriorResourceAttachments('r1', 'keep-me')
+    expect(builder.update).toHaveBeenCalledTimes(1)
+    expect(builder.update.mock.calls[0][0]).not.toHaveProperty('updated_at')
+    expect(builder.update.mock.calls[0][0]).toHaveProperty('deleted_at')
   })
 })

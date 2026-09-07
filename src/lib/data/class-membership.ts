@@ -2,7 +2,6 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertMutated } from '@/lib/data/mutation'
-import { fetchAllPaged } from '@/lib/data/paginate'
 
 /**
  * Table access for the two membership tables - `class_tutors` and `enrollments`.
@@ -16,7 +15,7 @@ import { fetchAllPaged } from '@/lib/data/paginate'
  *  - AGGREGATION reads (the *Refs* and *RowsFor* / *IdsFor* functions) are
  *    service-role. They resolve the membership graph on a caller's behalf, so
  *    the domain MUST scope by that caller's own membership before using them.
- *  - DIRECT reads (selectAllActiveEnrollmentRefs) are RLS-scoped, because they
+ *  - DIRECT reads (countActiveEnrollmentsPerClass) are RLS-scoped, because they
  *    answer a caller's own question and policy can safely bound the answer.
  *
  * The writes are service-role, and gated in the domain.
@@ -159,16 +158,22 @@ export async function deactivateClassTutor(classId: string, tutorId: string): Pr
   assertMutated(result, 'classTutors.unassign', 'That tutor is not assigned to this class.')
 }
 
-/** Just the class_id of every active enrolment - cheaper than whole rows when
- *  the caller only wants to tally head counts. RLS-scoped. */
-export async function selectAllActiveEnrollmentRefs(): Promise<MembershipRef[]> {
+/**
+ * Head count of active enrolments per class, for the "students per class" tally.
+ *
+ * Counted in Postgres (0105). This previously read every active enrolment in the academy -
+ * paging through the PostgREST row cap to stay correct - and folded them into a Map here,
+ * transferring rows whose only purpose was to be counted and thrown away.
+ *
+ * Still RLS-scoped: the function is SECURITY INVOKER and called on the RLS client, so the
+ * tally covers exactly the classes this caller could already see.
+ */
+export async function countActiveEnrollmentsPerClass(): Promise<Map<string, number>> {
   const supabase = await createClient()
-  // Feeds the "students per class" tally, so it must count EVERY active enrolment,
-  // not just the first PostgREST page - page through all rows.
-  return fetchAllPaged<MembershipRef>(
-    (from, to) => supabase.from('enrollments').select('class_id').eq('active', true).range(from, to),
-    'enrollments.countPerClass',
-  )
+  const { data, error } = await supabase.rpc('count_active_enrollments_per_class')
+  if (error) throw new Error(`enrollments.countPerClass: ${error.message}`)
+  const rows = (data ?? []) as { class_id: string; student_count: number | string }[]
+  return new Map(rows.map((r) => [r.class_id, Number(r.student_count)]))
 }
 
 /** Re-enrolling reactivates a previously soft-removed row, keeping its history. */

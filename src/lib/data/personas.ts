@@ -100,6 +100,30 @@ export async function upsertScopedMentorPersona(mentorId: string, studentId: str
   if (error) throw new Error(`data.personas.upsertScopedMentor: ${error.message}`)
 }
 
+/**
+ * The same scoped mentor persona for a WHOLE mentee set, in one statement.
+ *
+ * Restoring a mentor rebuilds one row per surviving mentorship. Written one at a time that
+ * is a round trip per mentee for rows that differ only by scope_id - and a failure halfway
+ * leaves the mentor holding reach over some mentees and not others. One upsert restores
+ * the set or none of it.
+ */
+export async function upsertScopedMentorPersonas(mentorId: string, studentIds: string[]): Promise<void> {
+  if (studentIds.length === 0) return
+  const admin = createAdminClient()
+  const { error } = await admin.from('persona_assignments').upsert(
+    studentIds.map((studentId) => ({
+      profile_id: mentorId,
+      persona_name: 'mentor',
+      scope_type: 'student',
+      scope_id: studentId,
+      status: 'active',
+    })),
+    { onConflict: PERSONA_CONFLICT },
+  )
+  if (error) throw new Error(`data.personas.upsertScopedMentors: ${error.message}`)
+}
+
 /** Remove the student-scoped mentor persona for one pair, when that mentorship
  *  ends. Idempotent, so an admin retrying a failed removal reconciles cleanly. */
 export async function deleteScopedMentorPersona(mentorId: string, studentId: string): Promise<void> {

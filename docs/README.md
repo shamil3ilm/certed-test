@@ -22,7 +22,7 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 
 ## Schema and data
 
-- [schema-reference.md](schema-reference.md) — **canonical** table-by-table reference (40 tables)
+- [schema-reference.md](schema-reference.md) — **canonical** table-by-table reference (41 tables)
 - [rls-policy-inventory.md](rls-policy-inventory.md) — RLS policy families to verify
 - [fk-cascade-inventory.md](fk-cascade-inventory.md) — **canonical** foreign-key list and `ON DELETE` behaviour (owns the FK count)
 - [persona-model.md](persona-model.md) — personas, capabilities, and the fixed-identity model

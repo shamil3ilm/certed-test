@@ -2,7 +2,7 @@ import type { Profile } from '@/lib/auth/profile'
 import {
   deactivateEnrollment,
   selectActiveEnrollmentRefsByClassIds,
-  selectAllActiveEnrollmentRefs,
+  countActiveEnrollmentsPerClass,
   upsertEnrollment,
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
@@ -13,15 +13,11 @@ import { PermissionError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
 /**
- * Active-enrollment count per class, for the "students per class" dashboard
- * chart. Selects only `class_id` refs and aggregates them in one O(n) pass.
+ * Active-enrollment count per class, for the "students per class" dashboard chart.
+ * Counted in Postgres (0105) rather than by reading every enrolment row to tally it here.
  */
 export async function countEnrollmentsPerClass(): Promise<Map<string, number>> {
-  const counts = new Map<string, number>()
-  for (const row of await selectAllActiveEnrollmentRefs()) {
-    counts.set(row.class_id, (counts.get(row.class_id) ?? 0) + 1)
-  }
-  return counts
+  return countActiveEnrollmentsPerClass()
 }
 
 type EnrollmentParams = { classId: string; studentId: string }

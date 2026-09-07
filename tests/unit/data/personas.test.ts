@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 
@@ -9,6 +9,7 @@ import {
   upsertGlobalPersona,
   deactivateGlobalPersona,
   upsertScopedMentorPersona,
+  upsertScopedMentorPersonas,
   deleteScopedMentorPersona,
   selectScopedMenteeIds,
 } from '@/lib/data/personas'
@@ -66,5 +67,28 @@ describe('personas data layer', () => {
     expect(await selectScopedMenteeIds('m1')).toEqual(['s1', 's2'])
     admin({ data: null, error: { message: 'e' } })
     await expect(selectScopedMenteeIds('m1')).rejects.toThrow(/data.personas.scopedMentees: e/)
+  })
+})
+
+/**
+ * Restoring a mentor rebuilt one scoped persona per mentee, each its own round trip, so a
+ * mentor with thirty mentees issued thirty sequential writes where the shape of the data -
+ * identical rows differing only by scope_id - is a single bulk upsert.
+ */
+describe('upsertScopedMentorPersonas (bulk)', () => {
+  it('writes the whole mentee set in ONE round trip', async () => {
+    const { builder, client } = makeClientCapturing({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await upsertScopedMentorPersonas('m1', ['s1', 's2', 's3'])
+    expect(client.from).toHaveBeenCalledTimes(1)
+    expect(builder.upsert).toHaveBeenCalledTimes(1)
+    expect(builder.upsert.mock.calls[0][0]).toHaveLength(3)
+  })
+
+  it('does not touch the database for an empty set', async () => {
+    const { client } = makeClientCapturing({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await upsertScopedMentorPersonas('m1', [])
+    expect(client.from).not.toHaveBeenCalled()
   })
 })

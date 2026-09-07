@@ -4,7 +4,7 @@ import {
   deactivateAllPersonas,
   deactivateOtherGlobalPersonas,
   upsertGlobalPersona,
-  upsertScopedMentorPersona,
+  upsertScopedMentorPersonas,
 } from '@/lib/data/personas'
 import { selectActiveMenteeIds } from '@/lib/data/mentorships'
 import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
@@ -78,7 +78,5 @@ export async function restorePersonasForProfile(profileId: string, role: Profile
   // rows that carry mentee access. Restoring the global persona alone would not
   // restore mentor reach, so rebuild the scoped personas from the surviving
   // mentorship graph too.
-  for (const studentId of await selectActiveMenteeIds(profileId)) {
-    await upsertScopedMentorPersona(profileId, studentId)
-  }
+  await upsertScopedMentorPersonas(profileId, await selectActiveMenteeIds(profileId))
 }

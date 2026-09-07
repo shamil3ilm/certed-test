@@ -14,7 +14,7 @@ import {
   selectActiveTutorRefsByClassIds,
   selectActiveStudentIdsByClassIds,
   selectActiveTutorIdsByClassIds,
-  selectAllActiveEnrollmentRefs,
+  countActiveEnrollmentsPerClass,
   upsertClassTutor,
   upsertEnrollment,
 } from '@/lib/data/class-membership'
@@ -61,11 +61,16 @@ describe('class-membership data layer', () => {
     expect(await selectActiveTutorIdsByClassIds(['c1'])).toEqual(['t1'])
   })
 
-  it('selectAllActiveEnrollmentRefs uses the RLS client and throws on error', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ class_id: 'c1' }], error: null }) as any)
-    expect(await selectAllActiveEnrollmentRefs()).toEqual([{ class_id: 'c1' }])
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(selectAllActiveEnrollmentRefs()).rejects.toThrow(/enrollments.countPerClass: e/)
+  // Counted in SQL (0105). The RLS client matters as much as the count: the function is
+  // SECURITY INVOKER, so calling it on the admin client would widen the chart to classes
+  // the viewer cannot see.
+  it('countActiveEnrollmentsPerClass counts via RPC on the RLS client, and throws on error', async () => {
+    const rpc = { data: [{ class_id: 'c1', student_count: '7' }], error: null }
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }, rpc) as any)
+    expect(await countActiveEnrollmentsPerClass()).toEqual(new Map([['c1', 7]]))
+    const bad = { data: null, error: { message: 'e' } }
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }, bad) as any)
+    await expect(countActiveEnrollmentsPerClass()).rejects.toThrow(/enrollments.countPerClass: e/)
   })
 
   it('upsertClassTutor / upsertEnrollment resolve on success and throw on error', async () => {

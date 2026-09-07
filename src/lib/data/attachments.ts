@@ -191,10 +191,11 @@ export async function selectActiveAttachmentsForOwner(owner: AttachmentOwner): P
  */
 export async function supersedePriorResourceAttachments(resourceId: string, exceptId: string): Promise<void> {
   const admin = createAdminClient()
-  const now = new Date().toISOString()
+  // updated_at is NOT set here: trg_attachments_updated_at (0057) is a BEFORE UPDATE
+  // trigger that maintains it, so a value sent from the service is overwritten anyway.
   const { error } = await admin
     .from('attachments')
-    .update({ status: 'deleted', deleted_at: now, updated_at: now })
+    .update({ status: 'deleted', deleted_at: new Date().toISOString() })
     .eq('resource_id', resourceId)
     .eq('status', 'active')
     .neq('id', exceptId)

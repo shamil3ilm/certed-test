@@ -294,6 +294,18 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     }
     return { data: null, error: null }
   }
+  if (fn === 'count_active_enrollments_per_class') {
+    // Mirrors 0105: active enrolments grouped by class. Returned as (class_id,
+    // student_count) rows, not a Map - the caller does the folding, exactly as it does
+    // against PostgREST.
+    const counts = new Map<string, number>()
+    for (const row of table('enrollments')) {
+      if (row.active !== true) continue
+      const key = String(row.class_id)
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return { data: [...counts].map(([class_id, student_count]) => ({ class_id, student_count })), error: null }
+  }
   if (fn === 'sum_active_resource_downloads') {
     // Mirrors 0103: total downloads across ACTIVE documents only.
     const total = table('resources')

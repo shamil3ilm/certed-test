@@ -211,6 +211,7 @@ DO $EPI$
 DECLARE
   fn record;
   keeps_authenticated CONSTANT text[] := ARRAY[
+    'count_active_enrollments_per_class',
     'current_app_role', 'current_profile_id', 'current_status',
     'finance_totals', 'finance_totals_base',
     'is_active_admin', 'is_active_sub_admin', 'is_conversation_member',

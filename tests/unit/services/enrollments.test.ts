@@ -144,9 +144,18 @@ describe('removeStudent', () => {
 })
 
 describe('countEnrollmentsPerClass', () => {
-  it('aggregates class_id rows into a per-class count map', async () => {
-    const rows = [{ class_id: 'c-1' }, { class_id: 'c-1' }, { class_id: 'c-2' }]
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: rows, error: null }) as any)
+  // Counted in SQL (0105): the per-class totals arrive already grouped, and PostgREST
+  // returns bigint as a string - coercing it is what keeps the chart from rendering "7"
+  // as a string and sorting it as one.
+  it('returns the per-class count map the database grouped', async () => {
+    const rpc = {
+      data: [
+        { class_id: 'c-1', student_count: '2' },
+        { class_id: 'c-2', student_count: 1 },
+      ],
+      error: null,
+    }
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }, rpc) as any)
     const counts = await countEnrollmentsPerClass()
     expect(counts.get('c-1')).toBe(2)
     expect(counts.get('c-2')).toBe(1)
@@ -154,9 +163,10 @@ describe('countEnrollmentsPerClass', () => {
   })
 
   it('returns an empty map when there are no active enrollments', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [], error: null }) as any)
-    const counts = await countEnrollmentsPerClass()
-    expect(counts.size).toBe(0)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: null, error: null }, { data: [], error: null }) as any,
+    )
+    expect((await countEnrollmentsPerClass()).size).toBe(0)
   })
 })
 
