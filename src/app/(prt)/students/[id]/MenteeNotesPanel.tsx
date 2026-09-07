@@ -1,4 +1,4 @@
-import { Card, EmptyState } from '@/lib/ui'
+import { Card, EmptyState, PaginationBar } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 import { SubmitButton } from '../../form'
 import { addMenteeNoteAction } from './note-actions'
@@ -12,13 +12,23 @@ export function MenteeNotesPanel({
   studentId,
   notes,
   authorNames,
+  page,
+  totalPages,
+  total,
+  hrefFor,
 }: {
   studentId: string
   notes: MenteeNoteRow[]
   authorNames: Map<string, string>
+  page: number
+  totalPages: number
+  total: number
+  hrefFor: (page: number) => string
 }) {
   return (
-    <Card className="mt-6 p-4">
+    // The anchor is what the pager links back to, so paging returns you to the notes
+    // rather than the top of a long mentee page.
+    <Card className="mt-6 scroll-mt-20 p-4" id="pastoral-notes">
       <h2 className="text-base font-semibold text-slate-900">Pastoral notes</h2>
       <p className="mt-0.5 text-xs text-slate-600">
         Private to this student&apos;s mentors and admins - the student never sees these.
@@ -57,6 +67,15 @@ export function MenteeNotesPanel({
           ))}
         </ul>
       )}
+
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        label="notes"
+        previousHref={page > 1 ? hrefFor(page - 1) : undefined}
+        nextHref={page < totalPages ? hrefFor(page + 1) : undefined}
+      />
     </Card>
   )
 }

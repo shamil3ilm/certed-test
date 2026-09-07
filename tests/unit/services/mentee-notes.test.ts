@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/permission', () => ({ canMentor: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/data/personas', () => ({ selectMentorAssignedAt: vi.fn() }))
-vi.mock('@/lib/data/mentee-notes', () => ({ insertMenteeNote: vi.fn(), selectMenteeNotesByStudent: vi.fn() }))
+vi.mock('@/lib/data/mentee-notes', () => ({ insertMenteeNote: vi.fn(), selectMenteeNotePage: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
 import { canMentor } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { selectMentorAssignedAt } from '@/lib/data/personas'
-import { insertMenteeNote, selectMenteeNotesByStudent } from '@/lib/data/mentee-notes'
+import { insertMenteeNote, selectMenteeNotePage } from '@/lib/data/mentee-notes'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { addMenteeNote, listMenteeNotes } from '@/lib/services/mentee-notes'
 import { PermissionError, ValidationError } from '@/lib/errors'
@@ -33,14 +33,19 @@ const asMentor = () =>
 beforeEach(() => vi.resetAllMocks())
 
 describe('mentee notes (pastoral)', () => {
-  it('admin sees the full history and the view is audited', async () => {
+  const PAGE = { page: 1, pageSize: 20 }
+  const page = (items: unknown[], total = items.length) => ({ items, total }) as never
+
+  it('admin sees the full history - no visibility rule is imposed', async () => {
     vi.mocked(canMentor).mockResolvedValue(true)
     asAdmin()
-    vi.mocked(selectMenteeNotesByStudent).mockResolvedValue([
-      { id: 'n1', author_id: 'x', created_at: '2020-01-01' },
-    ] as never)
-    expect(await listMenteeNotes(actor, 's1')).toEqual([{ id: 'n1', author_id: 'x', created_at: '2020-01-01' }])
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([{ id: 'n1', author_id: 'x', created_at: '2020-01-01' }]))
+    const result = await listMenteeNotes(actor, 's1', PAGE)
+    expect(result.items).toEqual([{ id: 'n1', author_id: 'x', created_at: '2020-01-01' }])
     expect(selectMentorAssignedAt).not.toHaveBeenCalled()
+    // Third argument undefined = no narrowing, which is what "full history" means now that
+    // the rule lives in the query rather than in a pass over the fetched rows.
+    expect(vi.mocked(selectMenteeNotePage).mock.calls[0][2]).toBeUndefined()
     expect(auditPrivilegedAction).toHaveBeenCalledWith(actor, 'mentee.note_view', 'profile', 's1')
   })
 
@@ -54,51 +59,65 @@ describe('mentee notes (pastoral)', () => {
     vi.mocked(canMentor).mockResolvedValue(true)
     asSubAdmin()
     vi.mocked(selectMentorAssignedAt).mockResolvedValue(null as never)
-    vi.mocked(selectMenteeNotesByStudent).mockResolvedValue([
-      { id: 'old', author_id: 'previous-mentor', created_at: '2020-01-01' },
-    ] as never)
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([]))
 
-    // Falls into the minimised branch: not the author, no mentorship tenure -> nothing.
-    expect(await listMenteeNotes(actor, 's1')).toEqual([])
+    await listMenteeNotes(actor, 's1', PAGE)
+    // Narrowed like any other non-admin: their own notes only, since no tenure resolves.
+    expect(vi.mocked(selectMenteeNotePage).mock.calls[0][2]).toEqual({ authorId: 'm1', since: null })
     expect(auditPrivilegedAction).not.toHaveBeenCalled()
   })
 
   it('does NOT audit a view that discloses nothing (empty result)', async () => {
     vi.mocked(canMentor).mockResolvedValue(true)
     asAdmin()
-    vi.mocked(selectMenteeNotesByStudent).mockResolvedValue([] as never)
-    expect(await listMenteeNotes(actor, 's1')).toEqual([])
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([]))
+    expect((await listMenteeNotes(actor, 's1', PAGE)).items).toEqual([])
     expect(auditPrivilegedAction).not.toHaveBeenCalled()
   })
 
-  it('minimises a mentor to their own tenure + their own notes', async () => {
+  it('minimises a mentor to their own tenure + their own notes, IN THE QUERY', async () => {
+    // The rule has to reach the database now that the list is paged: applied to fetched
+    // rows instead, the COUNT would describe the full history while the rows described the
+    // visible subset, so the pager would offer pages of a previous mentor's observations.
     vi.mocked(canMentor).mockResolvedValue(true)
     asMentor()
     vi.mocked(selectMentorAssignedAt).mockResolvedValue('2026-06-01T00:00:00.000Z')
-    vi.mocked(selectMenteeNotesByStudent).mockResolvedValue([
-      { id: 'other-old', author_id: 'prev', created_at: '2026-05-01T00:00:00.000Z' }, // before tenure, other author -> hidden
-      { id: 'mine-old', author_id: 'm1', created_at: '2026-05-15T00:00:00.000Z' }, // before tenure but own -> shown
-      { id: 'after', author_id: 'prev', created_at: '2026-07-01T00:00:00.000Z' }, // during tenure -> shown
-    ] as never)
-    const result = await listMenteeNotes(actor, 's1')
-    expect(result.map((n) => n.id)).toEqual(['mine-old', 'after'])
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([{ id: 'after', author_id: 'prev' }]))
+    await listMenteeNotes(actor, 's1', PAGE)
+    expect(vi.mocked(selectMenteeNotePage).mock.calls[0][2]).toEqual({
+      authorId: 'm1',
+      since: '2026-06-01T00:00:00.000Z',
+    })
   })
 
-  it('fail-closed: a non-admin with no resolved mentorship start sees only their own notes', async () => {
+  it('fail-closed: a non-admin with no resolved mentorship start is narrowed to their own notes', async () => {
     vi.mocked(canMentor).mockResolvedValue(true)
     asMentor()
     vi.mocked(selectMentorAssignedAt).mockResolvedValue(null)
-    vi.mocked(selectMenteeNotesByStudent).mockResolvedValue([
-      { id: 'a', author_id: 'prev', created_at: '2026-07-01T00:00:00.000Z' },
-      { id: 'b', author_id: 'm1', created_at: '2026-07-02T00:00:00.000Z' },
-    ] as never)
-    expect((await listMenteeNotes(actor, 's1')).map((n) => n.id)).toEqual(['b'])
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([]))
+    await listMenteeNotes(actor, 's1', PAGE)
+    expect(vi.mocked(selectMenteeNotePage).mock.calls[0][2]).toEqual({ authorId: 'm1', since: null })
+  })
+
+  it('reports the QUERY total, so the pager counts the notes this reader may see', async () => {
+    vi.mocked(canMentor).mockResolvedValue(true)
+    asAdmin()
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([{ id: 'n1' }], 137))
+    await expect(listMenteeNotes(actor, 's1', PAGE)).resolves.toMatchObject({ total: 137 })
+  })
+
+  it('asks for the requested page rather than always the first', async () => {
+    vi.mocked(canMentor).mockResolvedValue(true)
+    asAdmin()
+    vi.mocked(selectMenteeNotePage).mockResolvedValue(page([]))
+    await listMenteeNotes(actor, 's1', { page: 3, pageSize: 20 })
+    expect(vi.mocked(selectMenteeNotePage).mock.calls[0][1]).toEqual({ from: 40, to: 59 })
   })
 
   it('refuses to list for someone who does not mentor the student', async () => {
     vi.mocked(canMentor).mockResolvedValue(false)
-    await expect(listMenteeNotes(actor, 's1')).rejects.toBeInstanceOf(PermissionError)
-    expect(selectMenteeNotesByStudent).not.toHaveBeenCalled()
+    await expect(listMenteeNotes(actor, 's1', PAGE)).rejects.toBeInstanceOf(PermissionError)
+    expect(selectMenteeNotePage).not.toHaveBeenCalled()
   })
 
   it('adds a trimmed note authored by the actor when allowed', async () => {

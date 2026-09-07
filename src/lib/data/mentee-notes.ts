@@ -1,4 +1,6 @@
 import 'server-only'
+import { assertFilterSafeId, isFilterSafeInstant } from '@/lib/text/filter-values'
+import type { Page } from '@/lib/pagination'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
@@ -33,14 +35,44 @@ export async function deleteMenteeNotesForStudent(studentId: string): Promise<vo
   if (error) throw new Error(`menteeNotes.deleteForStudent: ${error.message}`)
 }
 
-export async function selectMenteeNotesByStudent(studentId: string, limit = 200): Promise<MenteeNoteRow[]> {
+/**
+ * ONE page of a student's pastoral notes, newest first, with the exact total.
+ *
+ * Previously a flat newest-200 with no pager: a mentor writing weekly reaches that in four
+ * years, and this is the record you would least want quietly shortened - the older notes
+ * simply stopped existing as far as the page was concerned.
+ */
+export async function selectMenteeNotePage(
+  studentId: string,
+  range: { from: number; to: number },
+  /** A non-admin mentor sees only notes they authored, plus anything written since their
+   *  own mentorship began. Applied in SQL rather than to the fetched rows: filtering after
+   *  the read would make the COUNT describe a different set from the one on screen, so the
+   *  pager would promise pages of another mentor's private observations. */
+  visibility?: { authorId: string; since: string | null },
+): Promise<Page<MenteeNoteRow>> {
   const admin = createAdminClient()
-  const { data, error } = await admin
+  let query = admin
     .from('mentee_notes')
-    .select(COLUMNS)
+    .select(COLUMNS, { count: 'exact' })
     .eq('student_id', studentId)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    // Two notes saved in the same second would otherwise order arbitrarily between pages.
+    .order('id', { ascending: true })
+  if (visibility) {
+    // `.or()` takes a STRING whose grammar is commas and parentheses, which is why
+    // escapeOrIlike exists for free text. These are structured values, so they are
+    // VALIDATED rather than escaped - a uuid and an ISO instant cannot contain the grammar,
+    // and anything that does is a bug upstream worth failing on rather than sanitising into
+    // a filter that quietly means something else. Fail closed: on a bad tenure value, fall
+    // back to the mentor's own notes rather than widening the read.
+    const since = isFilterSafeInstant(visibility.since) ? visibility.since : null
+    assertFilterSafeId(visibility.authorId, 'menteeNotes.visibility.authorId')
+    query = since
+      ? query.or(`author_id.eq.${visibility.authorId},created_at.gte.${since}`)
+      : query.eq('author_id', visibility.authorId)
+  }
+  const { data, error, count } = await query.range(range.from, range.to)
   if (error) throw new Error(`menteeNotes.list: ${error.message}`)
-  return (data ?? []) as MenteeNoteRow[]
+  return { items: (data ?? []) as MenteeNoteRow[], total: count ?? 0 }
 }

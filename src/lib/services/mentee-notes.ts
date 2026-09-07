@@ -5,7 +5,8 @@ import { canMentor } from '@/lib/permission'
 import { selectMentorAssignedAt } from '@/lib/data/personas'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { insertMenteeNote, selectMenteeNotesByStudent, type MenteeNoteRow } from '@/lib/data/mentee-notes'
+import { insertMenteeNote, selectMenteeNotePage, type MenteeNoteRow } from '@/lib/data/mentee-notes'
+import { toRange, type Page } from '@/lib/pagination'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 
 /**
@@ -16,15 +17,23 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 
 const bodySchema = z.string().trim().min(1, 'Write a note.').max(2000)
 
-export async function listMenteeNotes(actor: Profile, studentId: string): Promise<MenteeNoteRow[]> {
+export async function listMenteeNotes(
+  actor: Profile,
+  studentId: string,
+  opts: { page: number; pageSize: number },
+): Promise<Page<MenteeNoteRow>> {
   if (!(await canMentor(actor, studentId))) throw new PermissionError('Not allowed to view these notes.')
-  const notes = await selectMenteeNotesByStudent(studentId)
 
   // Data minimisation: a mentor sees pastoral notes only from THEIR OWN mentorship
   // onward, plus any they authored - not a previous mentor's private observations. An ADMIN
   // sees the full history. Enforced here because the read is service-role gated by this
   // service, so this IS the operative boundary. Fail-closed: a non-admin with no resolved
   // mentorship start sees only their own notes.
+  //
+  // Resolved BEFORE the read and pushed into the query, rather than filtering rows already
+  // fetched. The list is paged, and a post-filter would leave the COUNT describing the full
+  // history while the rows describe the visible subset - a pager offering pages of another
+  // mentor's private observations, which is the exact disclosure this rule exists to stop.
   //
   // DELIBERATELY `isAdmin`, and NOT the shared mentoring-oversight predicate that
   // /students and the session-times list use. Those surfaces read class-scoped data, which
@@ -36,18 +45,18 @@ export async function listMenteeNotes(actor: Profile, studentId: string): Promis
   // DPDP decision about a minor's pastoral history and needs a migration to
   // mentee_notes_read, not a service-layer predicate swap.
   const { isAdmin } = await loadPersonaFlags(actor.id)
-  let visible = notes
-  if (!isAdmin) {
-    const since = await selectMentorAssignedAt(actor.id, studentId)
-    visible = notes.filter((n) => n.author_id === actor.id || (since != null && n.created_at >= since))
-  }
+  const visibility = isAdmin
+    ? undefined
+    : { authorId: actor.id, since: await selectMentorAssignedAt(actor.id, studentId) }
+
+  const page = await selectMenteeNotePage(studentId, toRange(opts.page, opts.pageSize), visibility)
 
   // Audit the READ, not only the write. Pastoral notes are sensitive personal
   // data about a (often minor) student, so who VIEWED them is as much an access event
   // as who wrote them. Only log an actual disclosure (notes returned), to avoid a row
   // for every empty panel load.
-  if (visible.length) await auditPrivilegedAction(actor, 'mentee.note_view', 'profile', studentId)
-  return visible
+  if (page.items.length) await auditPrivilegedAction(actor, 'mentee.note_view', 'profile', studentId)
+  return page
 }
 
 export async function addMenteeNote(actor: Profile, studentId: string, rawBody: unknown): Promise<void> {
