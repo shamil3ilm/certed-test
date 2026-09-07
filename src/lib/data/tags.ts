@@ -1,4 +1,5 @@
 import 'server-only'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -86,14 +87,25 @@ export async function selectTagsForEntities(entityType: string, entityIds: strin
   return byEntity
 }
 
-/** Entity ids of one type carrying a given tag - the "filter this list by tag". */
+/**
+ * Entity ids of one type carrying a given tag - the "filter this list by tag" set.
+ *
+ * COMPLETE, not a first page. This is a FILTER: a truncated set does not shorten the
+ * result, it removes matching rows from a filtered view with nothing on screen to say so.
+ * The reader concludes the tag is not on those items.
+ */
 export async function selectEntityIdsForTag(entityType: string, tagId: string): Promise<string[]> {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('entity_tags')
-    .select('entity_id')
-    .eq('entity_type', entityType)
-    .eq('tag_id', tagId)
-  if (error) throw new Error(`tags.entityIds: ${error.message}`)
-  return ((data ?? []) as { entity_id: string }[]).map((r) => r.entity_id)
+  const rows = await fetchAllPaged<{ entity_id: string }>(
+    (from, to) =>
+      supabase
+        .from('entity_tags')
+        .select('entity_id')
+        .eq('entity_type', entityType)
+        .eq('tag_id', tagId)
+        .order('entity_id', { ascending: true })
+        .range(from, to),
+    'tags.entityIds',
+  )
+  return rows.map((r) => r.entity_id)
 }

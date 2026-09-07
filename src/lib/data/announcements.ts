@@ -1,4 +1,5 @@
 import 'server-only'
+import { fetchUpTo } from '@/lib/data/paginate'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeOrIlike } from '@/lib/text/ilike'
@@ -94,41 +95,48 @@ export async function selectClassPageSources(
   const search = opts.search?.trim()
   const searchClause = search ? `title.ilike.%${escapeOrIlike(search)}%,message.ilike.%${escapeOrIlike(search)}%` : null
 
-  let forClass = supabase.from('announcements').select('*').eq('class_id', classId).eq('status', opts.status)
-  let global = supabase.from('announcements').select('*').is('class_id', null).eq('status', opts.status)
-  let forClassCount = supabase
-    .from('announcements')
-    .select('id', { count: 'exact', head: true })
-    .eq('class_id', classId)
-    .eq('status', opts.status)
-  let globalCount = supabase
-    .from('announcements')
-    .select('id', { count: 'exact', head: true })
-    .is('class_id', null)
-    .eq('status', opts.status)
-  if (searchClause) {
-    forClass = forClass.or(searchClause)
-    global = global.or(searchClause)
-    forClassCount = forClassCount.or(searchClause)
-    globalCount = globalCount.or(searchClause)
+  /**
+   * A FRESH query each call, which is what fetchUpTo requires: a supabase query builder is
+   * a thenable that executes once, so re-ranging and re-awaiting one builder would replay a
+   * spent request rather than fetch the next chunk.
+   */
+  const source = (scope: 'class' | 'global') => {
+    let q = supabase.from('announcements').select('*').eq('status', opts.status)
+    q = scope === 'class' ? q.eq('class_id', classId) : q.is('class_id', null)
+    if (searchClause) q = q.or(searchClause)
+    return q.order('created_at', { ascending: false }).order('id', { ascending: true })
   }
-  forClass = forClass.order('created_at', { ascending: false }).limit(opts.limit)
-  global = global.order('created_at', { ascending: false }).limit(opts.limit)
+  const counter = (scope: 'class' | 'global') => {
+    let q = supabase.from('announcements').select('id', { count: 'exact', head: true }).eq('status', opts.status)
+    q = scope === 'class' ? q.eq('class_id', classId) : q.is('class_id', null)
+    if (searchClause) q = q.or(searchClause)
+    return q
+  }
 
-  const [classRes, globalRes, classCountRes, globalCountRes] = await Promise.all([
-    forClass,
-    global,
-    forClassCount,
-    globalCount,
+  // `.limit(n)` cannot express this once n passes the PostgREST row cap: the response is
+  // capped regardless, so each source returned 1000 rows while the merge believed it held
+  // `page * pageSize`. Correct to roughly page 50 and silently wrong after. fetchUpTo pages
+  // in chunks, so the depth the merge relies on is real.
+  const [classRows, globalRows, classCountRes, globalCountRes] = await Promise.all([
+    fetchUpTo<AnnouncementRow>(
+      (from, to) => source('class').range(from, to),
+      opts.limit,
+      'announcements.listForClassPage',
+    ),
+    fetchUpTo<AnnouncementRow>(
+      (from, to) => source('global').range(from, to),
+      opts.limit,
+      'announcements.listForClassPage',
+    ),
+    counter('class'),
+    counter('global'),
   ])
-  if (classRes.error) throw new Error(`announcements.listForClassPage: ${classRes.error.message}`)
-  if (globalRes.error) throw new Error(`announcements.listForClassPage: ${globalRes.error.message}`)
   if (classCountRes.error) throw new Error(`announcements.listForClassPage: ${classCountRes.error.message}`)
   if (globalCountRes.error) throw new Error(`announcements.listForClassPage: ${globalCountRes.error.message}`)
 
   return {
-    classRows: (classRes.data ?? []) as AnnouncementRow[],
-    globalRows: (globalRes.data ?? []) as AnnouncementRow[],
+    classRows,
+    globalRows,
     classCount: classCountRes.count ?? 0,
     globalCount: globalCountRes.count ?? 0,
   }

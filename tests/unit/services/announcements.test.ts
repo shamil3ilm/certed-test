@@ -309,12 +309,17 @@ describe('listAnnouncementsForClassPage', () => {
     expect(result.total).toBe(3)
   })
 
-  it('requests page 2 as the next pageSize-worth of rows from each source', async () => {
+  it('asks each source for everything up to the end of the requested page', async () => {
+    // The two sources interleave by date, so neither can be limited to a single page on its
+    // own - each has to offer rows 0..(page*pageSize-1) for the merge to slice correctly.
+    // This used to be `.limit(page * pageSize)`, which the PostgREST row cap silently
+    // overrode past roughly page 50; ranging in chunks is what makes the depth real.
     const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 0 })) }
     vi.mocked(createClient).mockResolvedValueOnce(client as any)
     await listAnnouncementsForClassPage('class-1', { page: 2, pageSize: 10 })
     const forClassBuilder = client.from.mock.results[0].value
-    expect(forClassBuilder.limit).toHaveBeenCalledWith(20) // page * pageSize
+    expect(forClassBuilder.range).toHaveBeenCalledWith(0, 19) // page * pageSize - 1
+    expect(forClassBuilder.limit).not.toHaveBeenCalled()
   })
 
   it('applies a title-or-message search clause to every source and count query, escaping wildcards', async () => {
