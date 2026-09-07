@@ -88,7 +88,10 @@ describe('MockQueryBuilder — or() (cross-column search)', () => {
   })
 
   it('throws on an unsupported operator rather than silently matching nothing', () => {
-    expect(() => new MockQueryBuilder([...people], 'profiles').or('full_name.gt.5')).toThrow()
+    // `gt` is supported now (a visibility rule can be an OR of "mine" and "since a date"),
+    // so this needs an operator the builder genuinely does not model - otherwise the test
+    // would quietly stop guarding anything.
+    expect(() => new MockQueryBuilder([...people], 'profiles').or('full_name.fts.abc')).toThrow()
   })
 })
 
@@ -139,5 +142,33 @@ describe('MockQueryBuilder - contracts a PAGED read depends on', () => {
       .not('class_id', 'in', '(c11)')
       .select('*')
     expect((data as { id: string }[]).map((r) => r.id)).toEqual(['1'])
+  })
+})
+
+describe('MockQueryBuilder - or() with a parenthesised in-list', () => {
+  const rows = [
+    { id: 'a', status: 'active' },
+    { id: 'b', status: 'archived' },
+    { id: 'c', status: 'archived' },
+    { id: 'd', status: 'archived' },
+  ]
+
+  it('treats `in.(a,b)` as ONE value, not as separate clauses', async () => {
+    // A naive split(',') shreds the list: `status.eq.active,id.in.(b,c)` becomes three
+    // pieces and the last is a bare id with no operator, which threw. Real PostgREST parses
+    // the parenthesised list as a single value - and this shape is a live visibility rule
+    // ("still open, OR one I submitted to"), so the divergence broke a real page.
+    const { data } = await new MockQueryBuilder([...rows], 'assignments').or('status.eq.active,id.in.(b,c)').select('*')
+    expect((data as { id: string }[]).map((r) => r.id).sort()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('still splits top-level clauses normally', async () => {
+    const { data } = await new MockQueryBuilder([...rows], 'assignments').or('id.eq.a,id.eq.d').select('*')
+    expect((data as { id: string }[]).map((r) => r.id).sort()).toEqual(['a', 'd'])
+  })
+
+  it('handles a single-value in-list too', async () => {
+    const { data } = await new MockQueryBuilder([...rows], 'assignments').or('id.in.(c)').select('*')
+    expect((data as { id: string }[]).map((r) => r.id)).toEqual(['c'])
   })
 })

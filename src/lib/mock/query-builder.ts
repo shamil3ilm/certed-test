@@ -28,6 +28,33 @@ function notNullViolation(table: string, column: string) {
   }
 }
 
+/**
+ * Split a PostgREST `.or()` string into clauses on commas that are NOT inside parentheses.
+ *
+ * A naive split(',') shreds an `in` list: `status.eq.active,id.in.(a,b)` becomes three
+ * pieces, the last of which is a bare id with no operator. Real PostgREST parses the
+ * parenthesised list as one value, so the mock has to as well - otherwise a perfectly valid
+ * filter throws only in mock mode, which is exactly what it did to the student classwork
+ * page the moment a second id appeared.
+ */
+function splitOrClauses(filterString: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let current = ''
+  for (const ch of filterString) {
+    if (ch === '(') depth++
+    else if (ch === ')') depth--
+    if (ch === ',' && depth === 0) {
+      out.push(current)
+      current = ''
+      continue
+    }
+    current += ch
+  }
+  if (current) out.push(current)
+  return out
+}
+
 export class MockQueryBuilder implements PromiseLike<Result> {
   private filters: Array<(r: Row) => boolean> = []
   /** Every `.order()` in call order, not just the last. PostgREST applies them as a
@@ -119,13 +146,14 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     )
     return this
   }
-  /** Minimal stand-in for PostgREST's `.or('col.op.val,col2.op2.val2')` - only
-   *  the operators callers actually use (ilike/eq/is), matched against ANY
-   *  clause. Real cross-column OR search (e.g. name-or-email) has nowhere
-   *  else to go: two separate single-column queries can't be merged into one
-   *  correctly-paginated result. */
+  /** Minimal stand-in for PostgREST's `.or('col.op.val,col2.op2.val2')` - the operators
+   *  callers actually use (ilike/eq/is plus the comparisons), matched against ANY clause.
+   *  Real cross-column OR has nowhere else to go: two separate single-column queries cannot
+   *  be merged into one correctly-paginated result, which is precisely why a visibility
+   *  rule expressed as an OR has to reach the database rather than being applied to rows
+   *  already fetched. */
   or(filterString: string) {
-    const clauses = filterString.split(',').map((clause) => {
+    const clauses = splitOrClauses(filterString).map((clause) => {
       const [col, op, ...rest] = clause.split('.')
       const value = rest.join('.')
       if (op === 'ilike') {
@@ -140,6 +168,29 @@ export class MockQueryBuilder implements PromiseLike<Result> {
       }
       if (op === 'eq') {
         return (r: Row) => String(r[col]) === value
+      }
+      // `col.in.(a,b,c)` - one half of a "still open OR one I submitted to" rule.
+      if (op === 'in') {
+        const vals = value
+          .replace(/^\(|\)$/g, '')
+          .split(',')
+          .map((v) => v.trim().replace(/^"|"$/g, ''))
+          .filter((v) => v !== '')
+        return (r: Row) => vals.includes(String(r[col]))
+      }
+      // Comparisons. A visibility rule can be an OR of "mine" and "since a date" - the
+      // pastoral-notes read is exactly that - and pushing it into SQL is what lets the
+      // COUNT match the rows the reader may actually see.
+      if (op === 'gte' || op === 'gt' || op === 'lte' || op === 'lt') {
+        return (r: Row) => {
+          const cell = r[col]
+          if (cell == null) return false
+          const a = String(cell)
+          if (op === 'gte') return a >= value
+          if (op === 'gt') return a > value
+          if (op === 'lte') return a <= value
+          return a < value
+        }
       }
       throw new Error(`MockQueryBuilder.or(): unsupported operator "${op}" in clause "${clause}"`)
     })
