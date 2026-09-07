@@ -80,12 +80,14 @@ test('a sub_admin can open and manage a mentor account (revoke/restore)', async 
 test('revoke and restore both confirm first, and the modal names the account being changed', async ({ page }) => {
   await loginAs(page, 'subadmin@mock.test')
   await page.goto('/admin/users')
-  const mayaRow = page.locator('li', { hasText: 'Maya Mentor' }).first()
-
-  // Each row's control is addressable by WHO it acts on. Two accounts can have
-  // near-identical emails (an imported "ef.0803.maya@x.test" beside "maya@x.test"),
-  // so a bare "Revoke" would be ambiguous to a screen reader and to this test.
-  await mayaRow.getByRole('button', { name: /^Revoke access for / }).click()
+  // Target the CONTROL, not a row containing her name. `li` with hasText 'Maya Mentor'
+  // also matches every student whose subtitle reads "mentor: Maya Mentor", so `.first()`
+  // resolved to whichever of them the database happened to return first - it picked Maya
+  // only by luck, and stopped the day the people list gained a deterministic sort. The
+  // button's accessible name is unique by construction, which is the property the row
+  // controls were given aria-labels for in the first place.
+  const revoke = page.getByRole('button', { name: 'Revoke access for Maya Mentor (mentor@mock.test)' })
+  await revoke.click()
 
   // The confirm modal covers the list, so it must name the account itself -
   // otherwise "they are signed out" points at nothing still on screen.
@@ -95,11 +97,11 @@ test('revoke and restore both confirm first, and the modal names the account bei
 
   // Restore confirms too. It used to submit on a single click, sitting next to the
   // irreversible Erase, and re-grants sign-in - so it asks like its siblings.
-  const restore = mayaRow.getByRole('button', { name: /^Restore access for / })
+  const restore = page.getByRole('button', { name: 'Restore access for Maya Mentor (mentor@mock.test)' })
   await expect(restore).toBeVisible()
   await restore.click()
   await expect(dialog).toContainText('Maya Mentor')
   await dialog.getByRole('button', { name: 'Restore' }).click()
 
-  await expect(mayaRow.getByRole('button', { name: /^Revoke access for / })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Revoke access for Maya Mentor (mentor@mock.test)' })).toBeVisible()
 })

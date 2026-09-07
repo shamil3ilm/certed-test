@@ -95,7 +95,7 @@ export async function selectProfilePage(
   const sortColMap = { name: 'full_name', email: 'email', created_at: 'created_at' }
   query = query.order(sortColMap[sortBy], { ascending: sortOrder === 'asc' })
 
-  const { data, error, count } = await query.range(from, to)
+  const { data, error, count } = await query.order('id', { ascending: true }).range(from, to)
   if (error) throw new Error(`data.profiles.selectPage: ${error.message}`)
   return { items: (data ?? []) as Profile[], total: count ?? 0 }
 }

@@ -22,7 +22,12 @@ export async function selectConvertibleDocs(kind: FinanceKind): Promise<Converti
   // pages for the same reason; this read was the one that did not.
   const data = await fetchAllPaged<Record<string, unknown>>(
     (from, to) =>
-      admin.from(KIND[kind].table).select('id, currency, issue_date, total').eq('voided', false).range(from, to),
+      admin
+        .from(KIND[kind].table)
+        .select('id, currency, issue_date, total')
+        .eq('voided', false)
+        .order('id', { ascending: true })
+        .range(from, to),
     `${kind}.convertible`,
   )
   return data.map((r) => ({

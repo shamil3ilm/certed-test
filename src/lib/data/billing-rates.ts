@@ -54,7 +54,13 @@ export async function selectBillingRatesFor(profileIds: string[]): Promise<Map<s
   if (profileIds.length === 0) return new Map()
   const admin = createAdminClient()
   const rows = await fetchAllPaged<RateRow>(
-    (from, to) => admin.from('billing_rates').select(COLUMNS).in('profile_id', profileIds).range(from, to),
+    (from, to) =>
+      admin
+        .from('billing_rates')
+        .select(COLUMNS)
+        .in('profile_id', profileIds)
+        .order('profile_id', { ascending: true })
+        .range(from, to),
     'billingRates.selectFor',
   )
   return new Map(rows.map((row) => [row.profile_id, toBillingRate(row)]))
@@ -64,7 +70,7 @@ export async function selectBillingRatesFor(profileIds: string[]): Promise<Map<s
 export async function selectAllBillingRates(): Promise<BillingRate[]> {
   const admin = createAdminClient()
   const rows = await fetchAllPaged<RateRow>(
-    (from, to) => admin.from('billing_rates').select(COLUMNS).range(from, to),
+    (from, to) => admin.from('billing_rates').select(COLUMNS).order('profile_id', { ascending: true }).range(from, to),
     'billingRates.selectAll',
   )
   return rows.map(toBillingRate)

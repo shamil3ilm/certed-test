@@ -74,6 +74,7 @@ export async function selectScoresForStudentAsService(
         .select('assignment_id, score')
         .eq('student_id', studentId)
         .eq('is_active', true)
+        .order('id', { ascending: true })
         .range(from, to),
     'reportCard.subs',
   )
@@ -112,6 +113,7 @@ export async function selectActiveSubmissionsForStudentsAsService(
         .select('student_id, assignment_id, status, submitted_at, drive_link')
         .in('student_id', studentIds)
         .eq('is_active', true)
+        .order('id', { ascending: true })
         .range(from, to),
     'menteeOverview.subsBatch',
   )
@@ -135,6 +137,7 @@ export async function selectEvaluatedSubmissionsForStudentsAsService(
         .eq('is_active', true)
         .not('score', 'is', null)
         .not('graded_at', 'is', null)
+        .order('id', { ascending: true })
         .range(from, to),
     'menteeOverview.gradedSubsBatch',
   )

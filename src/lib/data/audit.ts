@@ -45,7 +45,7 @@ export async function listAuditPage(opts: {
   const action = opts.action?.trim()
   if (action) query = query.ilike('action', `%${escapeIlike(action)}%`)
   if (opts.actorIds) query = query.in('actor_id', opts.actorIds)
-  const { data, error, count } = await query.range(from, to)
+  const { data, error, count } = await query.order('id', { ascending: true }).range(from, to)
   if (error) throw new Error(`audit.listPage: ${error.message}`)
   return { items: (data ?? []) as AuditRow[], total: count ?? 0 }
 }

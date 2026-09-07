@@ -335,8 +335,11 @@ export async function selectSessionPage(
     .select(COLUMNS, { count: 'exact' })
     .order('session_date', { ascending: false })
     // A class can hold several sessions a day, so date alone is not a total order and the
-    // same row could appear on two pages (or on neither). created_at breaks the tie.
+    // same row could appear on two pages (or on neither). created_at orders them within the
+    // day; `id` is what actually makes the order TOTAL, because two sessions written by one
+    // statement share a created_at too.
     .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
   if (filter.classIds) query = query.in('class_id', filter.classIds)
   // PostgREST spells a NOT IN list `(a,b,c)`; an empty exclusion is skipped entirely,
   // because `not.in.()` is a syntax error rather than a no-op.
@@ -353,17 +356,23 @@ export async function selectSessionPage(
   return { items: (data ?? []) as ClassSessionRow[], total: count ?? 0 }
 }
 
-/** Recent sessions for a class, newest first - bounded for the summaries + the
- *  per-row hours join. */
-export async function selectRecentSessions(classId: string, limit = 500): Promise<ClassSessionRow[]> {
+/**
+ * Sessions by id (RLS client) - the sessions a page of attendance records belongs to.
+ *
+ * Bounded by construction: at most one page of record rows goes in. It replaces a flat
+ * newest-N read for the whole class, which gave the record pager and its session context
+ * DIFFERENT horizons - older records were reachable while the sessions explaining them had
+ * been cut off.
+ */
+export async function selectSessionsByIds(ids: string[]): Promise<ClassSessionRow[]> {
+  if (ids.length === 0) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('class_sessions')
     .select(COLUMNS)
-    .eq('class_id', classId)
+    .in('id', ids)
     .order('session_date', { ascending: false })
-    .limit(limit)
-  if (error) throw new Error(`classSessions.recent: ${error.message}`)
+  if (error) throw new Error(`classSessions.byIds: ${error.message}`)
   return (data ?? []) as ClassSessionRow[]
 }
 

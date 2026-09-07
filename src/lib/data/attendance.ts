@@ -62,24 +62,33 @@ export async function selectForClassDate(classId: string, date: string): Promise
   return (data ?? []) as AttendanceRow[]
 }
 
-/** Filterable, date-wise attendance history for a class (newest first). Powers
- *  the Attendance Details view - status + date-range filters run SQL-side. */
-export async function selectHistoryForClass(
+/**
+ * ONE page of a class's attendance history, newest first, with the exact total.
+ *
+ * This used to return a flat newest-200 with no pager and no total, under a heading that
+ * reads as the whole history and beside filters that make it look authoritative. A 1:1
+ * class reaches 200 marks in about eighteen months, after which filtering to "absent"
+ * across a year silently searched only the recent slice.
+ */
+export async function selectHistoryPageForClass(
   classId: string,
-  opts: { status?: AttendanceStatus; from?: string; to?: string; limit?: number },
-): Promise<AttendanceRow[]> {
+  opts: { status?: AttendanceStatus; from?: string; to?: string; range: { from: number; to: number } },
+): Promise<Page<AttendanceRow>> {
   const supabase = await createClient()
   let query = supabase
     .from('attendance')
-    .select(ATTENDANCE_COLUMNS)
+    .select(ATTENDANCE_COLUMNS, { count: 'exact' })
     .eq('class_id', classId)
     .order('session_date', { ascending: false })
+    // session_date is a DATE, so a class with several sessions in a day ties on it. Without
+    // a tie-break the order is not total and a row can repeat across pages or be skipped.
+    .order('id', { ascending: true })
   if (opts.status) query = query.eq('status', opts.status)
   if (opts.from) query = query.gte('session_date', opts.from)
   if (opts.to) query = query.lte('session_date', opts.to)
-  const { data, error } = await query.limit(opts.limit ?? 200)
+  const { data, error, count } = await query.range(opts.range.from, opts.range.to)
   if (error) throw new Error(`attendance.historyForClass: ${error.message}`)
-  return (data ?? []) as AttendanceRow[]
+  return { items: (data ?? []) as AttendanceRow[], total: count ?? 0 }
 }
 
 /** Which of `classIds` already have ANY mark on `date` - one query instead of
@@ -109,7 +118,7 @@ export async function selectStudentPage(
     .eq('student_id', studentId)
     .order('session_date', { ascending: false })
   if (opts.classId) query = query.eq('class_id', opts.classId)
-  const { data, error, count } = await query.range(opts.from, opts.to)
+  const { data, error, count } = await query.order('id', { ascending: true }).range(opts.from, opts.to)
   if (error) throw new Error(`attendance.listForStudentPage: ${error.message}`)
   return { items: (data ?? []) as AttendanceRow[], total: count ?? 0 }
 }
@@ -198,7 +207,13 @@ export async function selectStatusesForStudentAsService(studentId: string): Prom
   // short list - it prints a wrong figure on a document handed to a parent. There is no
   // ORDER here either, so past the cap the surviving rows would be an arbitrary subset.
   return fetchAllPaged<{ status: AttendanceStatus }>(
-    (from, to) => admin.from('attendance').select('status').eq('student_id', studentId).range(from, to),
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('status')
+        .eq('student_id', studentId)
+        .order('id', { ascending: true })
+        .range(from, to),
     'reportCard.att',
   )
 }
@@ -218,6 +233,7 @@ export async function selectRowsForStudentAsService(
       .select('class_id, session_date, status')
       .eq('student_id', studentId)
       .order('session_date', { ascending: false })
+      .order('id', { ascending: true })
       .range(from, to)
     if (classId) query = query.eq('class_id', classId)
     return query
@@ -240,6 +256,7 @@ export async function selectRowsForStudentsAsService(
         .select('student_id, class_id, session_date, status')
         .in('student_id', studentIds)
         .order('session_date', { ascending: false })
+        .order('id', { ascending: true })
         .range(from, to),
     'menteeOverview.attendanceBatch',
   )

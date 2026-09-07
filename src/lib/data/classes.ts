@@ -86,7 +86,7 @@ export async function selectVisibleClassIds(): Promise<string[]> {
   // treat it as the caller's whole scope, and a truncated version of either reads as a
   // smaller academy rather than as an error.
   const rows = await fetchAllPaged<{ id: string }>(
-    (from, to) => supabase.from('classes').select('id').range(from, to),
+    (from, to) => supabase.from('classes').select('id').order('id', { ascending: true }).range(from, to),
     'classes.visibleIds',
   )
   return rows.map((c) => c.id)
@@ -119,7 +119,8 @@ export async function selectArchivedClassIds(): Promise<string[]> {
   // they drop out of, silently and in the permissive direction. That is the opposite of how
   // a truncated inclusion list fails, and the reason this pages rather than reading once.
   const rows = await fetchAllPaged<{ id: string }>(
-    (from, to) => admin.from('classes').select('id').eq('status', 'archived').range(from, to),
+    (from, to) =>
+      admin.from('classes').select('id').eq('status', 'archived').order('id', { ascending: true }).range(from, to),
     'data.classes.archivedIds',
   )
   return rows.map((c) => c.id)
@@ -159,7 +160,8 @@ export async function selectClassIdsBySubject(subjectId: string): Promise<string
   // Complete for the same reason: this narrows a roster, and a truncated set would drop
   // students out of a filtered view with nothing to show it had happened.
   const rows = await fetchAllPaged<{ id: string }>(
-    (from, to) => admin.from('classes').select('id').eq('subject_id', subjectId).range(from, to),
+    (from, to) =>
+      admin.from('classes').select('id').eq('subject_id', subjectId).order('id', { ascending: true }).range(from, to),
     'data.classes.idsBySubject',
   )
   return rows.map((c) => c.id)

@@ -47,7 +47,12 @@ export async function selectAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
   // PostgREST row cap - page through every row (see fetchAllPaged).
   const rows = await fetchAllPaged(
     (from, to) =>
-      supabase.from(k.table).select(docColumns(k)).order('created_at', { ascending: false }).range(from, to),
+      supabase
+        .from(k.table)
+        .select(docColumns(k))
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to),
     `${kind}.listAll`,
   )
   return (rows as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row))
@@ -79,7 +84,7 @@ export async function selectDocPage(
     const needle = escapeOrIlike(search)
     query = query.or(`number.ilike.%${needle}%,${k.nameCol}.ilike.%${needle}%`)
   }
-  const { data, error, count } = await query.range(opts.from, opts.to)
+  const { data, error, count } = await query.order('id', { ascending: true }).range(opts.from, opts.to)
   if (error) throw new Error(`${kind}.listPage: ${error.message}`)
   return {
     items: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row)),
@@ -105,7 +110,13 @@ export async function selectPartyDocTotals(
   // list is not allowed to show.
   const supabase = await createClient()
   const rows = await fetchAllPaged<{ total: number | string; currency: string; voided: boolean }>(
-    (from, to) => supabase.from(k.table).select('total, currency, voided').eq(k.partyCol, partyId).range(from, to),
+    (from, to) =>
+      supabase
+        .from(k.table)
+        .select('total, currency, voided')
+        .eq(k.partyCol, partyId)
+        .order('id', { ascending: true })
+        .range(from, to),
     `${kind}.partyTotals`,
   )
   // Postgres returns numeric as a STRING over PostgREST; left as-is, the per-currency sum

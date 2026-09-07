@@ -78,7 +78,7 @@ export async function selectResourcePage(classId: string, opts: ResourcePageFilt
     const term = `%${escapeOrIlike(search)}%`
     query = query.or(`title.ilike.${term},description.ilike.${term},subject.ilike.${term}`)
   }
-  const { data, error, count } = await query.range(opts.from, opts.to)
+  const { data, error, count } = await query.order('id', { ascending: true }).range(opts.from, opts.to)
   if (error) throw new Error(`resources.listPage: ${error.message}`)
   return { items: (data ?? []) as ResourceRow[], total: count ?? 0 }
 }
@@ -115,7 +115,7 @@ export async function selectDocumentSearchPage(opts: {
     const term = `%${escapeOrIlike(search)}%`
     query = query.or(`title.ilike.${term},description.ilike.${term},subject.ilike.${term}`)
   }
-  const { data, error, count } = await query.range(opts.from, opts.to)
+  const { data, error, count } = await query.order('id', { ascending: true }).range(opts.from, opts.to)
   if (error) throw new Error(`resources.searchPage: ${error.message}`)
   return { items: (data ?? []) as ResourceRow[], total: count ?? 0 }
 }

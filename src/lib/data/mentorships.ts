@@ -65,7 +65,8 @@ export async function selectActiveMentorshipsForStudents(studentIds: string[]): 
 export async function selectActiveMentorships(): Promise<MentorshipRow[]> {
   const supabase = await createClient()
   return fetchAllPaged<MentorshipRow>(
-    (from, to) => supabase.from('mentorships').select('*').eq('active', true).range(from, to),
+    (from, to) =>
+      supabase.from('mentorships').select('*').eq('active', true).order('id', { ascending: true }).range(from, to),
     'mentorships.list',
   )
 }
@@ -79,7 +80,8 @@ export async function selectAllActiveMentorships(): Promise<MentorshipRow[]> {
   // Same completeness argument as the RLS read above: the Users hub's mentor/mentee panel
   // presents itself as the full picture of who mentors whom.
   return fetchAllPaged<MentorshipRow>(
-    (from, to) => admin.from('mentorships').select('*').eq('active', true).range(from, to),
+    (from, to) =>
+      admin.from('mentorships').select('*').eq('active', true).order('id', { ascending: true }).range(from, to),
     'mentorships.listForUsersHub',
   )
 }

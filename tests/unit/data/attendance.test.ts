@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
   selectForClassDate,
-  selectHistoryForClass,
+  selectHistoryPageForClass,
   selectMarkedClassIds,
   selectStudentPage,
   countStatusesForStudent,
@@ -25,11 +25,13 @@ const mark = { id: 'a1', class_id: 'c1', student_id: 's1', session_date: '2026-0
 beforeEach(() => vi.resetAllMocks())
 
 describe('attendance data layer', () => {
-  it('selectForClassDate + selectHistoryForClass + selectRecentForClass return rows and throw on error', async () => {
+  it('selectForClassDate + selectHistoryPageForClass + selectRecentForClass return rows and throw on error', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [mark], error: null }) as any)
     expect(await selectForClassDate('c1', '2026-06-20')).toEqual([mark])
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [mark], error: null }) as any)
-    expect(await selectHistoryForClass('c1', { status: 'present', limit: 10 })).toEqual([mark])
+    expect(await selectHistoryPageForClass('c1', { status: 'present', range: { from: 0, to: 19 } })).toMatchObject({
+      items: [mark],
+    })
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [mark], error: null }) as any)
     expect(await selectRecentForClass('c1')).toEqual([mark])
 

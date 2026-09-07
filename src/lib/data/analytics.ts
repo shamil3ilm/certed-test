@@ -67,6 +67,7 @@ export async function selectSessionsForClasses(classIds: string[]): Promise<Clas
         .from('class_sessions')
         .select('actual_start, actual_end, class_id, session_date')
         .in('class_id', classIds)
+        .order('id', { ascending: true })
         .range(from, to),
     'analytics.selectSessionsForClasses',
   )
@@ -104,6 +105,7 @@ export async function selectSessionsForClassesInRange(
         .in('class_id', classIds)
         .gte('actual_start', startIso)
         .lt('actual_start', endIso)
+        .order('id', { ascending: true })
         .range(from, to),
     'analytics.selectSessionsForClassesInRange',
   )
@@ -135,6 +137,7 @@ export async function selectAttendedForSessions(sessionIds: string[]): Promise<A
         .select('session_id, student_id')
         .in('session_id', sessionIds)
         .in('status', ['present', 'late'])
+        .order('id', { ascending: true })
         .range(from, to),
     'analytics.selectAttendedForSessions',
   )
@@ -146,7 +149,13 @@ export async function selectTimedAttendanceForStudent(
 ): Promise<Array<{ join_at: string | null; leave_at: string | null }>> {
   const admin = createAdminClient()
   return fetchAllPaged<{ join_at: string | null; leave_at: string | null }>(
-    (from, to) => admin.from('attendance').select('join_at, leave_at').eq('student_id', studentId).range(from, to),
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('join_at, leave_at')
+        .eq('student_id', studentId)
+        .order('id', { ascending: true })
+        .range(from, to),
     'analytics.selectTimedAttendanceForStudent',
   )
 }
@@ -157,7 +166,13 @@ export async function selectAttendanceStatusesForClasses(classIds: string[]): Pr
   if (classIds.length === 0) return []
   const admin = createAdminClient()
   return fetchAllPaged<{ status: string }>(
-    (from, to) => admin.from('attendance').select('status').in('class_id', classIds).range(from, to),
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('status')
+        .in('class_id', classIds)
+        .order('id', { ascending: true })
+        .range(from, to),
     'analytics.selectAttendanceStatusesForClasses',
   )
 }
