@@ -30,7 +30,11 @@ function notNullViolation(table: string, column: string) {
 
 export class MockQueryBuilder implements PromiseLike<Result> {
   private filters: Array<(r: Row) => boolean> = []
-  private orderBy: { col: string; asc: boolean } | null = null
+  /** Every `.order()` in call order, not just the last. PostgREST applies them as a
+   *  compound sort, and a paged list DEPENDS on that: its second key is the tie-breaker
+   *  that makes the order total, so rows cannot shift between pages. Keeping only the last
+   *  key made mock mode page non-deterministically wherever the first key had ties. */
+  private orderBys: { col: string; asc: boolean }[] = []
   private limitN: number | null = null
   private rangeFrom: number | null = null
   private op: Op = 'select'
@@ -88,7 +92,18 @@ export class MockQueryBuilder implements PromiseLike<Result> {
     } else if (operator === 'eq') {
       this.filters.push((r) => r[col] !== val)
     } else if (operator === 'in') {
-      const vals = val as unknown[]
+      // PostgREST takes the list as the STRING `(a,b,c)`, not an array - supabase-js does
+      // not wrap it for you on `.not()` the way it does on `.in()`. Accept both, because a
+      // caller passing the real wire form would otherwise land on `String.includes` here
+      // and silently substring-match: any id that is a fragment of another would be
+      // excluded too, in mock mode only.
+      const vals = Array.isArray(val)
+        ? val
+        : String(val)
+            .replace(/^\(|\)$/g, '')
+            .split(',')
+            .map((v) => v.trim().replace(/^"|"$/g, ''))
+            .filter((v) => v !== '')
       this.filters.push((r) => !vals.includes(r[col]))
     } else {
       throw new Error(`MockQueryBuilder.not(): unsupported operator "${operator}"`)
@@ -134,7 +149,7 @@ export class MockQueryBuilder implements PromiseLike<Result> {
 
   // ---- shaping -------------------------------------------------------------
   order(col: string, opts?: { ascending?: boolean }) {
-    this.orderBy = { col, asc: opts?.ascending !== false }
+    this.orderBys.push({ col, asc: opts?.ascending !== false })
     return this
   }
   limit(n: number) {
@@ -218,12 +233,15 @@ export class MockQueryBuilder implements PromiseLike<Result> {
       const count = this.wantCount ? matched.length : undefined
       if (this.headOnly) return { data: [], error: null, count: count ?? 0 }
       let out = matched
-      if (this.orderBy) {
-        const { col, asc } = this.orderBy
+      if (this.orderBys.length > 0) {
         out = [...out].sort((a, b) => {
-          const av = a[col] as never,
-            bv = b[col] as never
-          return (av < bv ? -1 : av > bv ? 1 : 0) * (asc ? 1 : -1)
+          for (const { col, asc } of this.orderBys) {
+            const av = a[col] as never,
+              bv = b[col] as never
+            const cmp = (av < bv ? -1 : av > bv ? 1 : 0) * (asc ? 1 : -1)
+            if (cmp !== 0) return cmp
+          }
+          return 0
         })
       }
       if (this.rangeFrom != null && this.limitN != null) {

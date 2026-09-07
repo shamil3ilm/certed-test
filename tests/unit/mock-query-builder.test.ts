@@ -91,3 +91,53 @@ describe('MockQueryBuilder — or() (cross-column search)', () => {
     expect(() => new MockQueryBuilder([...people], 'profiles').or('full_name.gt.5')).toThrow()
   })
 })
+
+describe('MockQueryBuilder - contracts a PAGED read depends on', () => {
+  // Deliberately built so the two sort keys DISAGREE: ordering by created_at alone gives
+  // b, c, a - a different answer from the compound (session_date desc, created_at desc),
+  // which gives c, a, b. A fixture where both keys agree cannot tell the two apart, and so
+  // could not fail against a builder that honoured only the last .order().
+  const rows = [
+    { id: 'a', class_id: 'c1', session_date: '2026-08-05', created_at: '2026-08-04T09:00:00Z' },
+    { id: 'b', class_id: 'c2', session_date: '2026-08-04', created_at: '2026-08-06T09:00:00Z' },
+    { id: 'c', class_id: 'c3', session_date: '2026-08-05', created_at: '2026-08-05T09:00:00Z' },
+  ]
+
+  it('applies EVERY .order() as a compound sort, not just the last', async () => {
+    // A paged list orders by a primary key plus a tie-breaker precisely so the order is
+    // total and a row cannot shift between pages. Honouring only the last .order() would
+    // make mock-mode paging non-deterministic wherever the first key ties - and it did.
+    const { data } = await new MockQueryBuilder([...rows], 'class_sessions')
+      .order('session_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .select('*')
+    expect((data as { id: string }[]).map((r) => r.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it("accepts .not(col, 'in', ...) in PostgREST's `(a,b)` string form as well as an array", async () => {
+    // supabase-js does not wrap the list for you on .not() the way it does on .in(), so the
+    // real wire form is a string. Treated as an array it would hit String.includes and
+    // substring-match, excluding any id that is a fragment of another - in mock mode only.
+    const asString = await new MockQueryBuilder([...rows], 'class_sessions')
+      .not('class_id', 'in', '(c1,c3)')
+      .select('*')
+    const asArray = await new MockQueryBuilder([...rows], 'class_sessions')
+      .not('class_id', 'in', ['c1', 'c3'])
+      .select('*')
+    expect((asString.data as { id: string }[]).map((r) => r.id)).toEqual(['b'])
+    expect((asArray.data as { id: string }[]).map((r) => r.id)).toEqual(['b'])
+  })
+
+  it('does not substring-match an id that is a fragment of an excluded one', async () => {
+    const { data } = await new MockQueryBuilder(
+      [
+        { id: '1', class_id: 'c1' },
+        { id: '2', class_id: 'c11' },
+      ],
+      'class_sessions',
+    )
+      .not('class_id', 'in', '(c11)')
+      .select('*')
+    expect((data as { id: string }[]).map((r) => r.id)).toEqual(['1'])
+  })
+})
