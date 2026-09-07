@@ -1,6 +1,7 @@
 import { requireActorCapability } from '@/lib/services/authorization'
 import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
+import { toRange } from '@/lib/pagination'
 import {
   callFinanceTotals,
   callFinanceTotalsBase,
@@ -9,7 +10,8 @@ import {
   selectDocById,
   selectDocLines,
   selectDocPage,
-  selectDocsForParty,
+  selectDocPageForParty,
+  selectPartyDocTotals,
   selectRecentDocs,
   updateDocVoided,
   type FinanceDoc,
@@ -48,9 +50,18 @@ export function validateFinanceDocId(input: unknown): string {
   return parsed.data
 }
 
-/** A caller's own documents (RLS-scoped), newest first. */
-export async function listMyDocs(kind: FinanceKind, partyId: string): Promise<FinanceDoc[]> {
-  return selectDocsForParty(kind, partyId)
+/** ONE page of a caller's own documents (RLS-scoped), newest first, with the exact total. */
+export async function listMyDocsPage(
+  kind: FinanceKind,
+  partyId: string,
+  opts: { page: number; pageSize: number },
+): Promise<PaginatedFinanceDocs> {
+  return selectDocPageForParty(kind, partyId, toRange(opts.page, opts.pageSize))
+}
+
+/** The three fields the caller's stat cards sum over - the COMPLETE set, not a page. */
+export async function myDocTotals(kind: FinanceKind, partyId: string) {
+  return selectPartyDocTotals(kind, partyId)
 }
 
 /** Every document, newest first. Unbounded - use only for the explicit CSV
@@ -71,14 +82,11 @@ export async function listDocsPage(
   kind: FinanceKind,
   opts: { page: number; pageSize: number; search?: string; status?: 'active' | 'voided' },
 ): Promise<PaginatedFinanceDocs> {
-  const from = (opts.page - 1) * opts.pageSize
-  const { rows, total } = await selectDocPage(kind, {
-    from,
-    to: from + opts.pageSize - 1,
+  return selectDocPage(kind, {
+    ...toRange(opts.page, opts.pageSize),
     search: opts.search,
     status: opts.status,
   })
-  return { items: rows, total }
 }
 
 /** Per-currency, non-voided totals computed in SQL - no rows shipped to the app. */

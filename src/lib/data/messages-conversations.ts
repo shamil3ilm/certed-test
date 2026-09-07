@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Page } from '@/lib/pagination'
 
 export type ConversationKind = 'direct' | 'group'
 
@@ -23,12 +24,35 @@ type NewConversation = {
   direct_key: string | null
 }
 
-export async function selectConversationsByIds(ids: string[]): Promise<ConversationRow[]> {
-  if (ids.length === 0) return []
+/**
+ * ONE page of the given conversations, most recently active first, with the exact total.
+ *
+ * Ordering lives on `conversations.last_message_at`, not on the participation rows, so the
+ * inbox has to sort and slice HERE - doing it in the app meant fetching every conversation
+ * the caller is in on each page view, then throwing all but twenty away.
+ *
+ * `ids` is the caller's own participation set, so it is bounded by who may message them
+ * rather than by how long they have been using the portal - short enough for `.in()`.
+ */
+export async function selectConversationPage(
+  ids: string[],
+  range: { from: number; to: number },
+): Promise<Page<ConversationRow>> {
+  if (ids.length === 0) return { items: [], total: 0 }
   const admin = createAdminClient()
-  const { data, error } = await admin.from('conversations').select('*').in('id', ids)
-  if (error) throw new Error(`data.messages.selectConversationsByIds: ${error.message}`)
-  return (data ?? []) as ConversationRow[]
+  const { data, error, count } = await admin
+    .from('conversations')
+    .select('*', { count: 'exact' })
+    .in('id', ids)
+    // nullsFirst: false keeps a conversation with no messages yet at the BOTTOM rather than
+    // pinned above every active thread.
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    // last_message_at ties (a group created in the same second) would otherwise order
+    // arbitrarily, and an unstable order under paging can repeat or skip a row.
+    .order('id', { ascending: true })
+    .range(range.from, range.to)
+  if (error) throw new Error(`data.messages.selectConversationPage: ${error.message}`)
+  return { items: (data ?? []) as ConversationRow[], total: count ?? 0 }
 }
 
 export async function selectConversationById(id: string): Promise<ConversationRow | null> {

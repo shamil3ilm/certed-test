@@ -1,15 +1,17 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
-import { loadPersonaFlags } from '@/lib/permission/personas'
-import { listMyClasses, sortClassesByStudent, groupClassesByStudent, type ClassSummary } from '@/lib/services/classes'
-import { listTags, tagsForEntities, entityIdsForTag, type Tag } from '@/lib/services/tags'
+
+import { type ClassSummary } from '@/lib/services/classes'
+import { listTags, type Tag } from '@/lib/services/tags'
 import { listSubjects } from '@/lib/services/subjects'
-import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
+import { classroomUrl, loadClassroomPageData, type ClassroomSearchParams } from '@/lib/services/page-data/classroom'
 import {
   AlertBanner,
   PageHeader,
   EmptyState,
   PaginationBar,
+  SearchFilterField,
+  SectionLabel,
   RowChevron,
   CARD,
   FilterBar,
@@ -18,7 +20,6 @@ import {
   cx,
 } from '@/lib/ui'
 
-const CLASSES_PAGE_SIZE = 12
 import { TagChips } from '../tags/TagChips'
 
 /** A class is always a student's SUBJECT (created from the student's page - "Add
@@ -124,53 +125,38 @@ function ClassCard({
   )
 }
 
-export default async function ClassroomPage(props: {
-  searchParams?: Promise<{ error?: string; tag?: string; subject?: string; page?: string }>
-}) {
+export default async function ClassroomPage(props: { searchParams?: Promise<ClassroomSearchParams> }) {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewClasses')
-  const [allClasses, flags, allTags, allSubjects] = await Promise.all([
-    listMyClasses(me),
-    loadPersonaFlags(me.id),
+  // The Classes list pages by STUDENT, not by class: staff views group classes under the
+  // student they are for, ordered by the student's name, and that ordering lives in
+  // profiles/enrollments rather than on `classes`. Paging the roster puts the sort and the
+  // search in SQL, and stops a student's subjects splitting across a page boundary.
+  const [data, allTags, allSubjects] = await Promise.all([
+    loadClassroomPageData(me, searchParams),
     listTags(),
     listSubjects(),
   ])
+  const {
+    filters,
+    groups,
+    ownClasses,
+    unassigned,
+    groupByStudentView,
+    tagsByClass,
+    total,
+    totalPages: pages,
+    flags,
+  } = data
+  // A studentless class still counts as something to show, so the empty state must consider
+  // both - otherwise an academy whose classes have all lost their student is told it has
+  // no classes at all.
+  const nothingToShow = total === 0 && unassigned.length === 0
   // Academy-wide class authority (admin or sub_admin) drives the "Add a subject" CTA,
   // the all-classes subtitle, and the create hint - not the admin tier specifically.
   const isAdmin = flags.isClassAdmin
   const isStudent = flags.isStudent
   const isTeacher = flags.isTutor
-
-  // Everyone who isn't the student themselves thinks student-first (tutors,
-  // mentors and admins all lead with the student), so they see classes grouped
-  // under each student. The student's own view stays a flat per-subject list.
-  const groupByStudentView = !isStudent
-
-  // Optional filters: by tag and/or by subject (both narrow the list; combine with AND).
-  const tagFilter = searchParams?.tag ?? ''
-  const subjectFilter = searchParams?.subject ?? ''
-  const taggedIds = tagFilter ? new Set(await entityIdsForTag('class', tagFilter)) : null
-  const classes = allClasses.filter(
-    (c) => (!taggedIds || taggedIds.has(c.id)) && (!subjectFilter || c.subject_id === subjectFilter),
-  )
-  // For the per-student views, order by student (then subject) so each student's
-  // classes sit together for grouping; other viewers keep the service's name sort.
-  const orderedClasses = groupByStudentView ? sortClassesByStudent(classes) : classes
-  // Page AFTER the tag filter; fetch per-card tags only for the visible page.
-  const currentPage = parsePageParam(searchParams?.page)
-  const pagedClasses = pageSlice(orderedClasses, currentPage, CLASSES_PAGE_SIZE)
-  const tagsByClass = await tagsForEntities(
-    'class',
-    pagedClasses.map((c) => c.id),
-  )
-  const classPageHref = (p: number) => {
-    const sp = new URLSearchParams()
-    if (tagFilter) sp.set('tag', tagFilter)
-    if (subjectFilter) sp.set('subject', subjectFilter)
-    if (p > 1) sp.set('page', String(p))
-    const qs = sp.toString()
-    return qs ? `/classroom?${qs}` : '/classroom'
-  }
 
   // Student and tutor are mutually exclusive (role is fixed and single; a student
   // is never granted a tutor persona and vice-versa), so there is no learner+teacher
@@ -191,10 +177,15 @@ export default async function ClassroomPage(props: {
         <AlertBanner className="mb-4">That change couldn&apos;t be applied. Please try again.</AlertBanner>
       )}
 
-      {(allSubjects.length > 0 || allTags.length > 0) && (
-        <FilterBar className="mb-4" clearHref="/classroom" showClear={Boolean(tagFilter || subjectFilter)}>
+      {(allSubjects.length > 0 || allTags.length > 0 || groupByStudentView) && (
+        <FilterBar className="mb-4" clearHref="/classroom" showClear={data.hasActiveFilters}>
+          {/* Searching the ROSTER, which is what this list is paged by - so the field says
+              so rather than implying it searches class names. */}
+          {groupByStudentView && (
+            <SearchFilterField label="Student" name="q" defaultValue={filters.q} placeholder="Student name..." />
+          )}
           {allSubjects.length > 0 && (
-            <SelectFilterField label="Subject" name="subject" defaultValue={subjectFilter}>
+            <SelectFilterField label="Subject" name="subject" defaultValue={filters.subject}>
               <option value="">All subjects</option>
               {allSubjects.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -204,7 +195,7 @@ export default async function ClassroomPage(props: {
             </SelectFilterField>
           )}
           {allTags.length > 0 && (
-            <SelectFilterField label="Tag" name="tag" defaultValue={tagFilter}>
+            <SelectFilterField label="Tag" name="tag" defaultValue={filters.tag}>
               <option value="">All tags</option>
               {allTags.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -216,9 +207,9 @@ export default async function ClassroomPage(props: {
         </FilterBar>
       )}
 
-      {classes.length === 0 ? (
+      {nothingToShow ? (
         <EmptyState>
-          {tagFilter || subjectFilter
+          {data.hasActiveFilters
             ? 'No classes match these filters.'
             : isAdmin
               ? 'No classes yet - open a student and use "Add subject" to create one.'
@@ -230,7 +221,29 @@ export default async function ClassroomPage(props: {
         </EmptyState>
       ) : groupByStudentView ? (
         <div className="space-y-6">
-          {groupClassesByStudent(pagedClasses).map((g) => (
+          {/* Classes with no active student sit outside the roster the pager walks, so they
+              are shown once, on page 1. Surfaced FIRST rather than last (where the old
+              class-paged list buried them): a class whose student has been unenrolled is an
+              anomaly someone needs to act on, and on the last page of nine nobody would. */}
+          {unassigned.length > 0 && (
+            <section aria-label="Classes with no student">
+              <SectionLabel count={unassigned.length} className="mb-2">
+                Not assigned to a student
+              </SectionLabel>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {unassigned.map((c) => (
+                  <ClassCard
+                    key={c.id}
+                    c={c}
+                    viewerIsStudent={false}
+                    viewerIsTutor={isTeacher}
+                    tags={tagsByClass.get(c.id) ?? []}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+          {groups.map((g) => (
             <section key={g.key} aria-label={g.label}>
               <h2 className="mb-2 text-sm font-semibold text-slate-600">{g.label}</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -250,22 +263,25 @@ export default async function ClassroomPage(props: {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {pagedClasses.map((c) => (
+          {ownClasses.map((c) => (
             <ClassCard key={c.id} c={c} viewerIsStudent={isStudent} tags={tagsByClass.get(c.id) ?? []} />
           ))}
         </div>
       )}
 
-      <PaginationBar
-        page={currentPage}
-        totalPages={totalPages(classes.length, CLASSES_PAGE_SIZE)}
-        total={classes.length}
-        previousHref={currentPage > 1 ? classPageHref(currentPage - 1) : undefined}
-        nextHref={
-          currentPage < totalPages(classes.length, CLASSES_PAGE_SIZE) ? classPageHref(currentPage + 1) : undefined
-        }
-        className="mt-4"
-      />
+      {/* A student's own list is bounded by the subjects they take, so it is shown whole -
+          the pager belongs to the staff roster view. */}
+      {groupByStudentView && (
+        <PaginationBar
+          page={filters.page}
+          totalPages={pages}
+          total={total}
+          label="students"
+          previousHref={filters.page > 1 ? classroomUrl(filters, { page: filters.page - 1 }) : undefined}
+          nextHref={filters.page < pages ? classroomUrl(filters, { page: filters.page + 1 }) : undefined}
+          className="mt-4"
+        />
+      )}
     </main>
   )
 }

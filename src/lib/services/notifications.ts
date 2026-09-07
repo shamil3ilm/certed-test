@@ -123,11 +123,13 @@ export const NOTIFICATIONS_PAGE_SIZE = 30
 
 export async function listMyNotifications(
   profileId: string,
-  opts: { page: number; pageSize?: number } = { page: 1 },
+  opts: { page: number; pageSize?: number; kind?: string; read?: 'read' | 'unread' } = { page: 1 },
 ): Promise<{ items: Notification[]; total: number }> {
   const { items, total } = await selectNotificationsPage(profileId, {
     page: opts.page,
     pageSize: opts.pageSize ?? NOTIFICATIONS_PAGE_SIZE,
+    kind: opts.kind,
+    read: opts.read,
   })
   return { items: items as Notification[], total }
 }

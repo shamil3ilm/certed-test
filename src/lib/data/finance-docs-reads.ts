@@ -3,19 +3,41 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { escapeOrIlike } from '@/lib/text/ilike'
 import { fetchAllPaged } from '@/lib/data/paginate'
+import type { Page } from '@/lib/pagination'
 import type { FinanceDoc, FinanceKind, FinanceLine } from './finance-docs'
 import { docColumns, KIND, toDoc, type FinanceTotal } from './finance-docs-shared'
 
-export async function selectDocsForParty(kind: FinanceKind, partyId: string): Promise<FinanceDoc[]> {
+/**
+ * ONE page of a party's OWN documents, newest first, with the exact total.
+ *
+ * Deliberately on the RLS client, not the service role. The admin ledger's selectDocPage is
+ * service-role because it must read every party; this is the self-service page, where the
+ * caller may only ever see their own - so RLS stays the gate and `partyId` is a narrowing
+ * filter rather than the security boundary. Routing the self-service list through the
+ * admin-ledger query would have moved that boundary into application code, where a future
+ * caller passing someone else's id is a leak the database no longer catches.
+ */
+export async function selectDocPageForParty(
+  kind: FinanceKind,
+  partyId: string,
+  range: { from: number; to: number },
+): Promise<Page<FinanceDoc>> {
   const k = KIND[kind]
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from(k.table)
-    .select(docColumns(k))
+    .select(docColumns(k), { count: 'exact' })
     .eq(k.partyCol, partyId)
     .order('created_at', { ascending: false })
-  if (error) throw new Error(`${kind}.listMine: ${error.message}`)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row))
+    // created_at ties (two documents issued in one run) are otherwise ordered arbitrarily,
+    // and an unstable order under paging can repeat or skip a row.
+    .order('id', { ascending: true })
+    .range(range.from, range.to)
+  if (error) throw new Error(`${kind}.listMinePage: ${error.message}`)
+  return {
+    items: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row)),
+    total: count ?? 0,
+  }
 }
 
 export async function selectAllDocs(kind: FinanceKind): Promise<FinanceDoc[]> {
@@ -46,7 +68,7 @@ export async function selectRecentDocs(kind: FinanceKind, limit: number): Promis
 export async function selectDocPage(
   kind: FinanceKind,
   opts: { from: number; to: number; search?: string; status?: 'active' | 'voided' },
-): Promise<{ rows: FinanceDoc[]; total: number }> {
+): Promise<Page<FinanceDoc>> {
   const k = KIND[kind]
   const supabase = createAdminClient()
   let query = supabase.from(k.table).select(docColumns(k), { count: 'exact' }).order('created_at', { ascending: false })
@@ -60,9 +82,35 @@ export async function selectDocPage(
   const { data, error, count } = await query.range(opts.from, opts.to)
   if (error) throw new Error(`${kind}.listPage: ${error.message}`)
   return {
-    rows: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row)),
+    items: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row)),
     total: count ?? 0,
   }
+}
+
+/**
+ * Every document of ONE party, reduced to the three fields its totals need.
+ *
+ * The stat cards are per-currency sums over the WHOLE set, so they cannot be computed from
+ * a page - and a sum that silently omits rows past the PostgREST cap is worse than no sum
+ * at all. fetchAllPaged exists for exactly this: a read that must be complete to be
+ * correct. Only three narrow columns travel, and the set is one person's monthly documents.
+ */
+export async function selectPartyDocTotals(
+  kind: FinanceKind,
+  partyId: string,
+): Promise<{ total: number; currency: string; voided: boolean }[]> {
+  const k = KIND[kind]
+  // RLS client, matching selectDocPageForParty: the stat cards summarise exactly the list
+  // beneath them, so both must be gated the same way or the totals could describe rows the
+  // list is not allowed to show.
+  const supabase = await createClient()
+  const rows = await fetchAllPaged<{ total: number | string; currency: string; voided: boolean }>(
+    (from, to) => supabase.from(k.table).select('total, currency, voided').eq(k.partyCol, partyId).range(from, to),
+    `${kind}.partyTotals`,
+  )
+  // Postgres returns numeric as a STRING over PostgREST; left as-is, the per-currency sum
+  // would concatenate instead of adding.
+  return rows.map((r) => ({ total: Number(r.total), currency: r.currency, voided: r.voided }))
 }
 
 export async function callFinanceTotals(kind: FinanceKind): Promise<FinanceTotal[]> {

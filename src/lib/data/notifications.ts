@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { toRange } from '@/lib/pagination'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -42,20 +43,32 @@ export async function insertNotifications(rows: NewNotificationRow[]): Promise<v
   if (error) throw new Error(`data.notifications.insert: ${error.message}`)
 }
 
-/** A page of a profile's notifications, newest first, with the total for the pager. */
+/**
+ * A page of a profile's notifications, newest first, with the total for the pager.
+ *
+ * `kind` and `read` narrow in SQL, so the count the pager prints is the count of what the
+ * reader asked for. Filtering a page in memory instead would page the UNFILTERED feed and
+ * then hide rows from it - "Page 1 of 9" above four visible items, and an empty page
+ * whenever a page happened to hold none of the chosen kind.
+ */
 export async function selectNotificationsPage(
   profileId: string,
-  opts: { page: number; pageSize: number },
+  opts: { page: number; pageSize: number; kind?: string; read?: 'read' | 'unread' },
 ): Promise<{ items: NotificationRow[]; total: number }> {
   const supabase = await createClient()
-  const from = (opts.page - 1) * opts.pageSize
-  const to = from + opts.pageSize - 1
-  const { data, error, count } = await supabase
+  const { from, to } = toRange(opts.page, opts.pageSize)
+  let query = supabase
     .from('notifications')
     .select('*', { count: 'exact' })
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
-    .range(from, to)
+    // created_at ties (a batch notified in the same statement) would otherwise order
+    // arbitrarily, and an unstable order under paging can repeat or skip a row.
+    .order('id', { ascending: true })
+  if (opts.kind) query = query.eq('kind', opts.kind)
+  if (opts.read === 'unread') query = query.is('read_at', null)
+  if (opts.read === 'read') query = query.not('read_at', 'is', null)
+  const { data, error, count } = await query.range(from, to)
   if (error) throw new Error(`data.notifications.selectPage: ${error.message}`)
   return { items: (data ?? []) as NotificationRow[], total: count ?? 0 }
 }

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { listInbox } from '@/lib/services/messaging'
 import { listMessageableContacts } from '@/lib/messaging/recipient-policy'
-import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { PageHeader, EmptyState, Badge, Avatar, CARD, PaginationBar, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { NewChatLauncher } from './NewChatLauncher'
@@ -12,9 +12,16 @@ const INBOX_PAGE_SIZE = 20
 export default async function MessagesPage(props: { searchParams: Promise<{ page?: string }> }) {
   const { page } = await props.searchParams
   const me = await requireCapability('viewMessages')
-  const [inbox, contacts] = await Promise.all([listInbox(me), listMessageableContacts(me)])
-  const currentPage = parsePageParam(page)
-  const pagedInbox = pageSlice(inbox, currentPage, INBOX_PAGE_SIZE)
+  const requestedPage = parsePageParam(page)
+  const [firstRead, contacts] = await Promise.all([
+    listInbox(me, { page: requestedPage, pageSize: INBOX_PAGE_SIZE }),
+    listMessageableContacts(me),
+  ])
+  // A stale `?page=99` reads back an empty slice; show the last real page instead of a
+  // blank inbox with no way back but editing the URL.
+  const currentPage = clampPage(requestedPage, firstRead.total, INBOX_PAGE_SIZE)
+  const { items: pagedInbox, total } =
+    currentPage === requestedPage ? firstRead : await listInbox(me, { page: currentPage, pageSize: INBOX_PAGE_SIZE })
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -22,7 +29,7 @@ export default async function MessagesPage(props: { searchParams: Promise<{ page
 
       <NewChatLauncher contacts={contacts} />
 
-      {inbox.length === 0 ? (
+      {total === 0 ? (
         <EmptyState>No conversations yet.</EmptyState>
       ) : (
         <ul className="space-y-2">
@@ -65,12 +72,10 @@ export default async function MessagesPage(props: { searchParams: Promise<{ page
 
       <PaginationBar
         page={currentPage}
-        totalPages={totalPages(inbox.length, INBOX_PAGE_SIZE)}
-        total={inbox.length}
+        totalPages={totalPages(total, INBOX_PAGE_SIZE)}
+        total={total}
         previousHref={currentPage > 1 ? `/messages?page=${currentPage - 1}` : undefined}
-        nextHref={
-          currentPage < totalPages(inbox.length, INBOX_PAGE_SIZE) ? `/messages?page=${currentPage + 1}` : undefined
-        }
+        nextHref={currentPage < totalPages(total, INBOX_PAGE_SIZE) ? `/messages?page=${currentPage + 1}` : undefined}
         className="mt-4"
       />
     </main>

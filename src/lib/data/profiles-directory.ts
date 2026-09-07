@@ -1,4 +1,5 @@
 import 'server-only'
+import { toRange } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeOrIlike } from '@/lib/text/ilike'
@@ -20,6 +21,12 @@ type ProfilePage = { items: Profile[]; total: number }
 export type ProfilePageOptions = {
   page: number
   pageSize: number
+  /** Restrict to these profile ids, on top of the role filter. For a list whose membership
+   *  is decided by another table (the mentee roster comes from `mentorships`) but whose
+   *  ORDER and SEARCH belong to `profiles` - so the sort and the ilike stay in SQL instead
+   *  of the caller fetching every member to sort them. An empty array matches nothing,
+   *  which is the correct reading of "a resolved set that came back empty". */
+  ids?: string[]
   search?: string
   status?: 'active' | 'pending' | 'disabled'
   sortBy?: 'name' | 'email' | 'created_at'
@@ -70,10 +77,11 @@ export async function selectProfilePage(
   opts: ProfilePageOptions,
 ): Promise<ProfilePage> {
   const admin = createAdminClient()
-  const from = (opts.page - 1) * opts.pageSize
-  const to = from + opts.pageSize - 1
+  const { from, to } = toRange(opts.page, opts.pageSize)
+  if (opts.ids?.length === 0) return { items: [], total: 0 }
   let query = admin.from('profiles').select(PROFILE_COLUMNS_WITH_CREATED, { count: 'exact' })
   query = Array.isArray(role) ? query.in('role', role as string[]) : query.eq('role', role)
+  if (opts.ids) query = query.in('id', opts.ids)
   if (opts.status) query = query.eq('status', opts.status)
 
   const search = opts.search?.trim()

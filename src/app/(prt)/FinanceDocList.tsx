@@ -1,9 +1,9 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import type { Capability } from '@/lib/capabilities'
-import { listMyDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
+import { listMyDocsPage, myDocTotals, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { formatDate } from '@/lib/time/format'
-import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { PageHeader, PaginationBar, StatCard, ListRow, Badge, EmptyState, ExternalActionLink } from '@/lib/ui'
 
 const FINANCE_PAGE_SIZE = 20
@@ -34,22 +34,31 @@ export async function FinanceDocList({
   page?: string
 }) {
   const me = await requireCapability(capability)
-  // Stats (count, total, void note) are computed over ALL docs; only the rendered
-  // list is paged, so the totals stay correct while the DOM stays bounded.
-  const docs = await listMyDocs(kind, me.id)
-  const currentPage = parsePageParam(page)
-  const pagedDocs = pageSlice(docs, currentPage, FINANCE_PAGE_SIZE)
+  const requestedPage = parsePageParam(page)
+  // The LIST is paged in SQL; the stat cards are per-currency sums over the whole set, so
+  // they read their own narrow three-column projection (see selectPartyDocTotals). A sum
+  // taken from the page would report one page's worth of money as the lifetime total.
+  const [firstPage, totals] = await Promise.all([
+    listMyDocsPage(kind, me.id, { page: requestedPage, pageSize: FINANCE_PAGE_SIZE }),
+    myDocTotals(kind, me.id),
+  ])
+  // A stale `?page=99` reads back nothing; show the last real page instead of a blank list.
+  const currentPage = clampPage(requestedPage, firstPage.total, FINANCE_PAGE_SIZE)
+  const { items: pagedDocs, total } =
+    currentPage === requestedPage
+      ? firstPage
+      : await listMyDocsPage(kind, me.id, { page: currentPage, pageSize: FINANCE_PAGE_SIZE })
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
       <PageHeader title={title} description={description} />
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <StatCard label={statLabel} value={docs.length} />
-        <StatCard label={totalLabel} value={totalByCurrency(docs)} tone="primary" />
+        <StatCard label={statLabel} value={total} />
+        <StatCard label={totalLabel} value={totalByCurrency(totals)} tone="primary" />
       </section>
 
-      {docs.some((d) => d.voided) && (
+      {totals.some((d) => d.voided) && (
         <p className="mt-3 text-xs text-slate-600">
           Documents marked <span className="font-medium text-slate-600">void</span> are kept for your records but are
           not included in your {totalLabel.toLowerCase()}.
@@ -87,17 +96,15 @@ export async function FinanceDocList({
             />
           </li>
         ))}
-        {docs.length === 0 && <EmptyState as="li">{emptyText}</EmptyState>}
+        {total === 0 && <EmptyState as="li">{emptyText}</EmptyState>}
       </ul>
 
       <PaginationBar
         page={currentPage}
-        totalPages={totalPages(docs.length, FINANCE_PAGE_SIZE)}
-        total={docs.length}
+        totalPages={totalPages(total, FINANCE_PAGE_SIZE)}
+        total={total}
         previousHref={currentPage > 1 ? `/${kind}s?page=${currentPage - 1}` : undefined}
-        nextHref={
-          currentPage < totalPages(docs.length, FINANCE_PAGE_SIZE) ? `/${kind}s?page=${currentPage + 1}` : undefined
-        }
+        nextHref={currentPage < totalPages(total, FINANCE_PAGE_SIZE) ? `/${kind}s?page=${currentPage + 1}` : undefined}
         className="mt-4"
       />
     </main>

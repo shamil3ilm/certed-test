@@ -7,7 +7,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
-  selectDocsForParty,
+  selectDocPageForParty,
   selectAllDocs,
   selectRecentDocs,
   selectDocPage,
@@ -22,13 +22,31 @@ const doc = { id: 'd1', number: 'CEA-R-1', total: 100 }
 beforeEach(() => vi.resetAllMocks())
 
 describe('finance-docs-reads data layer', () => {
-  it('selectDocsForParty maps rows (RLS client) and throws a kind-namespaced error', async () => {
+  it('selectDocPageForParty reads through RLS, NOT the service role', async () => {
+    // This is the self-service list: the caller may only ever see their own documents, so
+    // the database stays the gate and partyId is a narrowing filter. Reading it service-role
+    // would move that boundary into app code, where a future caller passing someone else's
+    // id is a leak nothing catches.
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [doc], error: null }) as any)
-    const rows = await selectDocsForParty('receipt', 'p1')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].id).toBe('d1')
+    const page = await selectDocPageForParty('receipt', 'p1', { from: 0, to: 19 })
+    expect(page.items).toHaveLength(1)
+    expect(page.items[0].id).toBe('d1')
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('selectDocPageForParty scopes to the party, pages, and reports the query total', async () => {
+    const client = makeClient({ data: [doc], error: null, count: 7 })
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const page = await selectDocPageForParty('receipt', 'p1', { from: 20, to: 39 })
+    const builder = client.from.mock.results[0].value
+    expect(builder.eq).toHaveBeenCalledWith('student_id', 'p1')
+    expect(builder.range).toHaveBeenCalledWith(20, 39)
+    expect(page.total).toBe(7)
+  })
+
+  it('selectDocPageForParty surfaces an error rather than an empty list', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(selectDocsForParty('receipt', 'p1')).rejects.toThrow(/receipt.listMine: e/)
+    await expect(selectDocPageForParty('receipt', 'p1', { from: 0, to: 19 })).rejects.toThrow(/receipt.listMinePage: e/)
   })
 
   it('selectAllDocs / selectRecentDocs map rows (service role) and throw on error', async () => {

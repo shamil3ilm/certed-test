@@ -34,10 +34,17 @@ function tableClient(byTable: Record<string, unknown[]>) {
 function multiTableClient(byTable: Record<string, unknown[]>) {
   const build = (t: string) => {
     const rows = () => (byTable[t] ?? []) as unknown[]
-    const array = () => ({ data: rows(), error: null as unknown })
+    // `count: 'exact'` is what a paged read gets its TOTAL from, and a stub that ignored it
+    // returned `count: undefined` - so a service reporting the page length as the total
+    // would have looked correct here while capping every list at one page.
+    let wantCount = false
+    const array = () => ({ data: rows(), error: null as unknown, ...(wantCount ? { count: rows().length } : {}) })
     const first = () => ({ data: (rows()[0] ?? null) as unknown, error: null as unknown })
     const builder: Record<string, unknown> = {
-      select: () => builder,
+      select: (_cols?: string, opts?: { count?: string }) => {
+        if (opts?.count) wantCount = true
+        return builder
+      },
       insert: () => builder,
       update: () => builder,
       delete: () => builder,
@@ -246,9 +253,11 @@ describe('markRead', () => {
 })
 
 describe('listInbox', () => {
+  const PAGE = { page: 1, pageSize: 20 }
+
   it('returns empty when the actor is in no conversations', async () => {
     vi.mocked(createAdminClient).mockReturnValue(multiTableClient({ conversation_participants: [] }) as any)
-    await expect(listInbox(actor)).resolves.toEqual([])
+    await expect(listInbox(actor, PAGE)).resolves.toEqual({ items: [], total: 0 })
   })
 
   it('flags unread when the last message is from someone else and newer than the read watermark', async () => {
@@ -273,9 +282,11 @@ describe('listInbox', () => {
         ],
       }) as any,
     )
-    const inbox = await listInbox(actor)
-    expect(inbox).toHaveLength(1)
-    expect(inbox[0]).toMatchObject({ id: 'c1', title: 'Bob', hasUnread: true, lastMessage: 'unread from bob' })
+    const { items, total } = await listInbox(actor, PAGE)
+    expect(items).toHaveLength(1)
+    // The pager reads `total`; it must come from the query's own count, not the page length.
+    expect(total).toBe(1)
+    expect(items[0]).toMatchObject({ id: 'c1', title: 'Bob', hasUnread: true, lastMessage: 'unread from bob' })
   })
 
   it('does not flag unread when the actor sent the last message', async () => {
@@ -300,8 +311,8 @@ describe('listInbox', () => {
         ],
       }) as any,
     )
-    const inbox = await listInbox(actor)
-    expect(inbox[0]).toMatchObject({ id: 'c1', hasUnread: false, lastMessage: 'my own reply' })
+    const { items } = await listInbox(actor, PAGE)
+    expect(items[0]).toMatchObject({ id: 'c1', hasUnread: false, lastMessage: 'my own reply' })
   })
 })
 

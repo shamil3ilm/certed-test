@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import { assertMutated } from '@/lib/data/mutation'
 
 /**
@@ -81,9 +82,14 @@ export async function selectAllClassIds(): Promise<string[]> {
  */
 export async function selectVisibleClassIds(): Promise<string[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('classes').select('id')
-  if (error) throw new Error(`classes.visibleIds: ${error.message}`)
-  return ((data ?? []) as { id: string }[]).map((c) => c.id)
+  // Complete: callers subtract this set from another (which classes have no student) or
+  // treat it as the caller's whole scope, and a truncated version of either reads as a
+  // smaller academy rather than as an error.
+  const rows = await fetchAllPaged<{ id: string }>(
+    (from, to) => supabase.from('classes').select('id').range(from, to),
+    'classes.visibleIds',
+  )
+  return rows.map((c) => c.id)
 }
 
 /** Every ACTIVE (non-archived) class id - the scope for teaching-hour reports, so an
@@ -95,6 +101,30 @@ export async function selectActiveClassIds(): Promise<string[]> {
   return ((data ?? []) as { id: string }[]).map((c) => c.id)
 }
 
+/**
+ * Every ARCHIVED class id - the complement of selectActiveClassIds, for excluding rather
+ * than including.
+ *
+ * An academy-wide list (the session list read by an admin) cannot scope itself with
+ * `.in('class_id', activeIds)`: that is one uuid per class in a GET URL, and a 1:1 academy
+ * has a class per student per subject, so the request outgrows the URL limit as the academy
+ * grows. Archived classes are the small side of the same split, so the same Q7 rule is
+ * applied as `not.in(archivedIds)` instead - identical result, a list that shrinks rather
+ * than grows with the academy.
+ */
+export async function selectArchivedClassIds(): Promise<string[]> {
+  const admin = createAdminClient()
+  // MUST be complete. This list is used as an EXCLUSION, so a truncated one does not
+  // shorten the result - it lets archived classes back INTO an oversight list that Q7 says
+  // they drop out of, silently and in the permissive direction. That is the opposite of how
+  // a truncated inclusion list fails, and the reason this pages rather than reading once.
+  const rows = await fetchAllPaged<{ id: string }>(
+    (from, to) => admin.from('classes').select('id').eq('status', 'archived').range(from, to),
+    'data.classes.archivedIds',
+  )
+  return rows.map((c) => c.id)
+}
+
 /** Of the given class ids, the subset that are ACTIVE (non-archived). Empty in, empty out.
  *  Used to trim a mentor/tutor's authority set to live classes for the hour reports (Q7). */
 export async function selectActiveClassIdsAmong(ids: string[]): Promise<string[]> {
@@ -103,6 +133,36 @@ export async function selectActiveClassIdsAmong(ids: string[]): Promise<string[]
   const { data, error } = await admin.from('classes').select('id').in('id', ids).eq('status', 'active')
   if (error) throw new Error(`data.classes.activeAmong: ${error.message}`)
   return ((data ?? []) as { id: string }[]).map((c) => c.id)
+}
+
+/**
+ * Classes by id read through the CALLER'S OWN RLS session, not the service role.
+ *
+ * The Classes list is built a page of students at a time, so it can no longer pre-resolve
+ * "every class this person may read" and filter against it. RLS becomes the gate directly:
+ * a class the database would refuse to open simply does not come back, which is the same
+ * one-gate rule selectVisibleClassIds was introduced for (a list must not offer a link the
+ * detail page then 404s).
+ */
+export async function selectClassesByIdsAsCaller(ids: string[]): Promise<ClassRow[]> {
+  if (ids.length === 0) return []
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('classes').select('*').in('id', ids).order('name')
+  if (error) throw new Error(`classes.byIdsAsCaller: ${error.message}`)
+  return (data ?? []) as ClassRow[]
+}
+
+/** Class ids teaching a given subject. Bounded by the students taking that subject (a class
+ *  is one student's subject), and only read when the subject filter is actually applied. */
+export async function selectClassIdsBySubject(subjectId: string): Promise<string[]> {
+  const admin = createAdminClient()
+  // Complete for the same reason: this narrows a roster, and a truncated set would drop
+  // students out of a filtered view with nothing to show it had happened.
+  const rows = await fetchAllPaged<{ id: string }>(
+    (from, to) => admin.from('classes').select('id').eq('subject_id', subjectId).range(from, to),
+    'data.classes.idsBySubject',
+  )
+  return rows.map((c) => c.id)
 }
 
 export async function selectClassesByIds(ids: string[]): Promise<ClassRow[]> {

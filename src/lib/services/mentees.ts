@@ -13,7 +13,8 @@ import {
 import { canMentor } from '@/lib/permission'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
-import { displayName, getProfileById, getProfilesByIds } from '@/lib/services/users'
+import { displayName, getProfileById } from '@/lib/services/users'
+import { selectProfilePage } from '@/lib/data/profiles-directory'
 import { getMentorDashboard } from './mentees-dashboard'
 import {
   buildMenteeGradeRows,
@@ -54,16 +55,36 @@ export {
   getMentorDashboard,
 }
 
-export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
+/**
+ * ONE page of the mentee roster, ordered by name, with an optional name/email search.
+ *
+ * The MEMBERSHIP comes from `mentorships` - an id-only read, so it stays one small column
+ * however large the academy is - but the ORDER and the SEARCH belong to `profiles`, so both
+ * run in SQL via selectProfilePage. Only the page's own students then get their full
+ * profile and the class-list subtitle, which is the expensive part: this used to build a
+ * subtitle for every mentee in the academy to render twenty.
+ */
+export async function getMenteeListView(
+  me: Profile,
+  opts: { page: number; pageSize: number; search?: string },
+): Promise<MenteeListView> {
   // The shared predicate - the same one the session-times list and the pastoral-notes
   // filter now use, so "oversight" cannot mean three different things again.
   const isOversight = await isMentoringOversight(me.id)
   const ids = isOversight
     ? [...new Set((await listMentorships()).map((link) => link.student_id))]
     : await studentIdsOfMentor(me.id)
-  const profiles = await getProfilesByIds(ids)
+
+  const { items: profiles, total } = await selectProfilePage('student', {
+    page: opts.page,
+    pageSize: opts.pageSize,
+    ids,
+    search: opts.search,
+    sortBy: 'name',
+    sortOrder: 'asc',
+  })
   const subtitles = await buildStudentRelationshipSubtitles(
-    ids.map((id) => ({ id, classLevel: profiles.get(id)?.class_level ?? null })),
+    profiles.map((p) => ({ id: p.id, classLevel: p.class_level ?? null })),
   )
 
   return {
@@ -72,14 +93,12 @@ export async function getMenteeListView(me: Profile): Promise<MenteeListView> {
     description: isOversight
       ? 'Students currently linked through mentor assignments across the academy.'
       : 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
-    items: ids.map((id) => {
-      const profile = profiles.get(id)
-      return {
-        id,
-        name: profile ? displayName(profile) : id,
-        subtitle: subtitles.get(id),
-      }
-    }),
+    items: profiles.map((profile) => ({
+      id: profile.id,
+      name: displayName(profile),
+      subtitle: subtitles.get(profile.id),
+    })),
+    total,
   }
 }
 

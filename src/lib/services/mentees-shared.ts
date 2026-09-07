@@ -82,7 +82,10 @@ export type MenteeListView = {
   isOversight: boolean
   title: string
   description: string
+  /** The rows on the requested page only. */
   items: MenteeListItem[]
+  /** Every mentee matching the search, not just this page - what the pager counts. */
+  total: number
 }
 
 export type RawGradeRow = MenteeEvaluationGradeRow & { gradedAtMs: number }

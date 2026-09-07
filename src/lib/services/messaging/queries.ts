@@ -4,7 +4,7 @@ import { NotFoundError } from '@/lib/errors'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import {
   selectConversationById,
-  selectConversationsByIds,
+  selectConversationPage,
   selectMessageWindow,
   searchMessages,
   selectMyParticipations,
@@ -15,6 +15,7 @@ import {
   type MessageRow,
 } from '@/lib/data/messages'
 import { assertParticipant } from './policies'
+import { toRange, type Page } from '@/lib/pagination'
 
 /** Read paths: the inbox list and a thread window, shaped for the UI. */
 
@@ -54,16 +55,18 @@ function titleFor(kind: ConversationKind, explicit: string | null, otherNames: s
  * Unread is last-message-based: true when the newest message is from someone else
  * and is newer than the caller's read watermark.
  */
-export async function listInbox(actor: Profile): Promise<InboxItem[]> {
+export async function listInbox(actor: Profile, opts: { page: number; pageSize: number }): Promise<Page<InboxItem>> {
   const parts = await selectMyParticipations(actor.id)
-  if (parts.length === 0) return []
+  if (parts.length === 0) return { items: [], total: 0 }
   const convIds = parts.map((p) => p.conversation_id)
   const lastReadByConv = new Map(parts.map((p) => [p.conversation_id, p.last_read_at]))
 
-  const [conversations, allParts] = await Promise.all([
-    selectConversationsByIds(convIds),
-    selectParticipantsForConversations(convIds),
-  ])
+  // Order and slice in SQL, then resolve names for the PAGE only. This used to load every
+  // conversation the caller is in - and every participant of every one of them - to render
+  // twenty rows.
+  const { items: conversations, total } = await selectConversationPage(convIds, toRange(opts.page, opts.pageSize))
+  const pageIds = conversations.map((c) => c.id)
+  const allParts = await selectParticipantsForConversations(pageIds)
 
   const otherIds = allParts.filter((p) => p.profile_id !== actor.id).map((p) => p.profile_id)
   const names = await getProfileNamesByIds([...new Set(otherIds)])
@@ -76,21 +79,23 @@ export async function listInbox(actor: Profile): Promise<InboxItem[]> {
     othersByConv.set(p.conversation_id, list)
   }
 
-  return conversations
-    .map((c) => {
-      const readAt = lastReadByConv.get(c.id) ?? null
-      const lastAt = c.last_message_at
-      const hasUnread = lastAt != null && c.last_message_sender_id !== actor.id && (readAt == null || lastAt > readAt)
-      return {
-        id: c.id,
-        kind: c.kind,
-        title: titleFor(c.kind, c.title, othersByConv.get(c.id) ?? []),
-        lastMessage: c.last_message_body ?? null,
-        lastAt,
-        hasUnread,
-      }
-    })
-    .sort((a, b) => (b.lastAt ?? '').localeCompare(a.lastAt ?? ''))
+  const items = conversations.map((c) => {
+    const readAt = lastReadByConv.get(c.id) ?? null
+    const lastAt = c.last_message_at
+    const hasUnread = lastAt != null && c.last_message_sender_id !== actor.id && (readAt == null || lastAt > readAt)
+    return {
+      id: c.id,
+      kind: c.kind,
+      title: titleFor(c.kind, c.title, othersByConv.get(c.id) ?? []),
+      lastMessage: c.last_message_body ?? null,
+      lastAt,
+      hasUnread,
+    }
+  })
+  // No re-sort: the query already ordered by last_message_at, and re-sorting here would
+  // only reorder WITHIN the page, which cannot fix - but can contradict - the page it was
+  // given.
+  return { items, total }
 }
 
 /** A thread window for a conversation the caller is in (else NotFound/Permission).

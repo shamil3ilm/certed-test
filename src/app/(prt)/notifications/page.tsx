@@ -1,7 +1,7 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
 import { countUnreadNotifications, listMyNotifications, NOTIFICATIONS_PAGE_SIZE } from '@/lib/services/notifications'
-import { parsePageParam, totalPages } from '@/lib/pagination'
-import { AlertBanner, PageHeader, EmptyState, PaginationBar, cx } from '@/lib/ui'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
+import { AlertBanner, PageHeader, EmptyState, FilterBar, PaginationBar, SelectFilterField, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { markAllNotificationsReadAction } from './actions'
 
@@ -18,17 +18,43 @@ const KIND_META: Record<string, { label: string; className: string }> = {
   schedule: { label: 'Schedule', className: 'bg-rose-50 text-rose-700' },
 }
 
-export default async function NotificationsPage(props: { searchParams: Promise<{ page?: string; read?: string }> }) {
+/** The read-state filter travels as `state`, NOT `read`: `?read=1` already means "the mark
+ *  all read action just succeeded" and shows a banner, so reusing it would pop that banner
+ *  every time someone filtered the list. */
+type NotificationsSearchParams = { page?: string; read?: string; kind?: string; state?: string }
+
+/** A /notifications URL carrying the current filters, so paging never drops one. */
+function notificationsUrl(kind: string, state: string, page: number): string {
+  const sp = new URLSearchParams()
+  if (kind) sp.set('kind', kind)
+  if (state) sp.set('state', state)
+  if (page > 1) sp.set('page', String(page))
+  const query = sp.toString()
+  return query ? `/notifications?${query}` : '/notifications'
+}
+
+export default async function NotificationsPage(props: { searchParams: Promise<NotificationsSearchParams> }) {
   const searchParams = await props.searchParams
   const me = await requireActiveProfile()
-  const page = parsePageParam(searchParams.page)
+  const requestedPage = parsePageParam(searchParams.page)
+  // Unknown values are DROPPED rather than forwarded: a hand-edited `?kind=nonsense` should
+  // show the unfiltered feed, not an empty list that reads as "you have no notifications".
+  const kind = searchParams.kind && searchParams.kind in KIND_META ? searchParams.kind : ''
+  const state = searchParams.state === 'read' || searchParams.state === 'unread' ? searchParams.state : ''
+  const hasActiveFilters = Boolean(kind || state)
   // Gate "Mark all read" on the TRUE unread count, not just the visible page - the
   // action clears all unread (RLS-scoped), so older unread notifications on later
   // pages are covered and the header badge always clears.
-  const [{ items, total }, unreadCount] = await Promise.all([
-    listMyNotifications(me.id, { page }),
+  const read = state === '' ? undefined : (state as 'read' | 'unread')
+  const [first, unreadCount] = await Promise.all([
+    listMyNotifications(me.id, { page: requestedPage, kind: kind || undefined, read }),
     countUnreadNotifications(me.id),
   ])
+  // Fold a page past the end back onto the last real one - narrowing the filter while on
+  // page 4 would otherwise leave the reader on a blank page with no way back but the URL.
+  const page = clampPage(requestedPage, first.total, NOTIFICATIONS_PAGE_SIZE)
+  const { items, total } =
+    page === requestedPage ? first : await listMyNotifications(me.id, { page, kind: kind || undefined, read })
   const hasUnread = unreadCount > 0
   const pages = totalPages(total, NOTIFICATIONS_PAGE_SIZE)
 
@@ -54,9 +80,31 @@ export default async function NotificationsPage(props: { searchParams: Promise<{
         </AlertBanner>
       )}
 
+      <FilterBar className="mb-4" clearHref="/notifications" showClear={hasActiveFilters}>
+        <SelectFilterField label="Type" name="kind" defaultValue={kind}>
+          <option value="">All types</option>
+          {Object.entries(KIND_META).map(([value, meta]) => (
+            <option key={value} value={value}>
+              {meta.label}
+            </option>
+          ))}
+        </SelectFilterField>
+        <SelectFilterField label="Status" name="state" defaultValue={state}>
+          <option value="">All</option>
+          <option value="unread">Unread</option>
+          <option value="read">Read</option>
+        </SelectFilterField>
+      </FilterBar>
+
       <ul className="space-y-2">
         {items.length === 0 && (
-          <EmptyState as="li">Nothing yet - grades, messages and class announcements show up here.</EmptyState>
+          <EmptyState as="li">
+            {/* A filtered-to-nothing feed is a different state from an empty one - telling
+                someone who just picked "Grade" that nothing has ever happened is wrong. */}
+            {hasActiveFilters
+              ? 'No notifications match these filters.'
+              : 'Nothing yet - grades, messages and class announcements show up here.'}
+          </EmptyState>
         )}
         {items.map((n) => {
           const kind = KIND_META[n.kind] ?? { label: n.kind, className: 'bg-slate-100 text-slate-600' }
@@ -103,8 +151,8 @@ export default async function NotificationsPage(props: { searchParams: Promise<{
         page={page}
         totalPages={pages}
         total={total}
-        previousHref={page > 1 ? `/notifications?page=${page - 1}` : undefined}
-        nextHref={page < pages ? `/notifications?page=${page + 1}` : undefined}
+        previousHref={page > 1 ? notificationsUrl(kind, state, page - 1) : undefined}
+        nextHref={page < pages ? notificationsUrl(kind, state, page + 1) : undefined}
         className="mt-4"
       />
     </main>

@@ -6,6 +6,7 @@ vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), studentIdsOfMentor: vi.fn() }))
 vi.mock('@/lib/services/student-relationship-subtitles', () => ({ buildStudentRelationshipSubtitles: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
+vi.mock('@/lib/data/profiles-directory', () => ({ selectProfilePage: vi.fn() }))
 vi.mock('@/lib/services/users', async () => {
   const actual = await vi.importActual<typeof import('@/lib/services/users')>('@/lib/services/users')
   return {
@@ -20,8 +21,9 @@ import { canMentor } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listMentorships, studentIdsOfMentor } from '@/lib/services/mentorships'
 import { buildStudentRelationshipSubtitles } from '@/lib/services/student-relationship-subtitles'
+import { selectProfilePage } from '@/lib/data/profiles-directory'
 import { getProfileById } from '@/lib/services/users'
-import { getProfilesByIds } from '@/lib/services/users'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMenteeListView, getMenteeOverview } from '@/lib/services/mentees'
 
@@ -87,6 +89,22 @@ describe('getMenteeOverview', () => {
 })
 
 describe('getMenteeListView', () => {
+  const PAGE = { page: 2, pageSize: 20 }
+  const STUD1 = {
+    id: 'stud-1',
+    full_name: 'Stu Dent',
+    email: 'stud-1@test.dev',
+    role: 'student',
+    class_level: 'Grade 8',
+  }
+  const STUD2 = {
+    id: 'stud-2',
+    full_name: 'Sam Student',
+    email: 'stud-2@test.dev',
+    role: 'student',
+    class_level: 'Grade 7',
+  }
+
   it('builds the oversight roster (all mentorship links) for a viewer without mentor authority', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: false } as any)
     vi.mocked(listMentorships).mockResolvedValueOnce([
@@ -94,24 +112,7 @@ describe('getMenteeListView', () => {
       { student_id: 'stud-2' },
       { student_id: 'stud-1' },
     ] as any)
-    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
-      new Map([
-        [
-          'stud-1',
-          { id: 'stud-1', full_name: 'Stu Dent', email: 'stud-1@test.dev', role: 'student', class_level: 'Grade 8' },
-        ],
-        [
-          'stud-2',
-          {
-            id: 'stud-2',
-            full_name: 'Sam Student',
-            email: 'stud-2@test.dev',
-            role: 'student',
-            class_level: 'Grade 7',
-          },
-        ],
-      ]) as any,
-    )
+    vi.mocked(selectProfilePage).mockResolvedValueOnce({ items: [STUD1, STUD2], total: 37 } as any)
     vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(
       new Map([
         ['stud-1', 'Grade 8 - Maths'],
@@ -119,7 +120,7 @@ describe('getMenteeListView', () => {
       ]),
     )
 
-    await expect(getMenteeListView(tutor)).resolves.toEqual({
+    await expect(getMenteeListView(tutor, PAGE)).resolves.toEqual({
       isOversight: true,
       title: 'Mentoring',
       description: 'Students currently linked through mentor assignments across the academy.',
@@ -127,27 +128,64 @@ describe('getMenteeListView', () => {
         { id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8 - Maths' },
         { id: 'stud-2', name: 'Sam Student', subtitle: 'Grade 7 - Science' },
       ],
+      // The pager reads this: the whole roster, not the two rows on this page.
+      total: 37,
     })
+  })
+
+  it('de-duplicates the mentorship links before restricting the roster read', async () => {
+    // A student with two mentors appears twice in `mentorships`; passing the raw list would
+    // put a duplicate id in the `.in()` and, worse, overstate nothing visible while making
+    // the URL longer than it needs to be.
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: false } as any)
+    vi.mocked(listMentorships).mockResolvedValueOnce([
+      { student_id: 'stud-1' },
+      { student_id: 'stud-2' },
+      { student_id: 'stud-1' },
+    ] as any)
+    vi.mocked(selectProfilePage).mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map())
+    await getMenteeListView(tutor, PAGE)
+    expect(vi.mocked(selectProfilePage).mock.calls[0][1].ids).toEqual(['stud-1', 'stud-2'])
+  })
+
+  it('orders and searches in SQL, and asks for the requested page', async () => {
+    // The whole point of the change: the name sort and the search are the database's job,
+    // not a pass over every mentee in the academy.
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: true } as any)
+    vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['stud-1'] as any)
+    vi.mocked(selectProfilePage).mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map())
+    await getMenteeListView(tutor, { page: 2, pageSize: 20, search: 'sam' })
+    expect(selectProfilePage).toHaveBeenCalledWith(
+      'student',
+      expect.objectContaining({ page: 2, pageSize: 20, search: 'sam', sortBy: 'name', sortOrder: 'asc' }),
+    )
+  })
+
+  it('resolves subtitles for the PAGE only, not for every mentee', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: false } as any)
+    vi.mocked(listMentorships).mockResolvedValueOnce([{ student_id: 'stud-1' }, { student_id: 'stud-2' }] as any)
+    vi.mocked(selectProfilePage).mockResolvedValueOnce({ items: [STUD1], total: 2 } as any)
+    vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map([['stud-1', 'Grade 8 - Maths']]))
+    await getMenteeListView(tutor, PAGE)
+    expect(vi.mocked(buildStudentRelationshipSubtitles).mock.calls[0][0]).toEqual([
+      { id: 'stud-1', classLevel: 'Grade 8' },
+    ])
   })
 
   it('builds the personal mentee list from the caller student ids for an actual mentor', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ hasMentorAuthority: true } as any)
     vi.mocked(studentIdsOfMentor).mockResolvedValueOnce(['stud-1'] as any)
-    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
-      new Map([
-        [
-          'stud-1',
-          { id: 'stud-1', full_name: 'Stu Dent', email: 'stud-1@test.dev', role: 'student', class_level: 'Grade 8' },
-        ],
-      ]) as any,
-    )
+    vi.mocked(selectProfilePage).mockResolvedValueOnce({ items: [STUD1], total: 1 } as any)
     vi.mocked(buildStudentRelationshipSubtitles).mockResolvedValueOnce(new Map([['stud-1', 'Grade 8 - Maths']]))
 
-    await expect(getMenteeListView(tutor)).resolves.toEqual({
+    await expect(getMenteeListView(tutor, PAGE)).resolves.toEqual({
       isOversight: false,
       title: 'Mentees',
       description: 'Students you mentor, like a class tutor - you look after their overall progress across subjects.',
       items: [{ id: 'stud-1', name: 'Stu Dent', subtitle: 'Grade 8 - Maths' }],
+      total: 1,
     })
   })
 })
