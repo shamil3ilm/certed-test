@@ -36,6 +36,18 @@ const EVER_GROWING = [
   'rate_limit_counters',
   'reminders',
   'resource_versions',
+  // Added after a sweep found the original list covered 11 of the schema's 39 tables, and
+  // that the gap was not arbitrary: these all accumulate with TIME rather than with the
+  // roster, which is exactly the shape this gate exists to catch.
+  'comments',
+  'messages',
+  'conversations',
+  'assignments',
+  'announcements',
+  'calendar_events',
+  'mentee_notes',
+  'attachments',
+  'entity_tags',
 ]
 
 /** Constructs that bound a read, whatever the table. */
@@ -96,6 +108,38 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'The active submissions of ONE student - one per assignment they were set.',
   'src/lib/data/submissions-writes.ts:selectActiveSubmissionIdForStudent':
     'The active submission of ONE student for ONE assignment - a uniqueness lookup.',
+  // --- added when the watch list widened to the time-growing tables it had missed ---
+  'src/lib/data/assignments.ts:selectAssignments':
+    'Always called with a class scope, an activeOnly flag or a due-date window (the calendar ' +
+    'and dashboards); its own docstring says the window is what bounds it. The CLASSWORK ' +
+    'list, the one caller that read a class whole history, now uses selectAssignmentPage.',
+  'src/lib/data/assignments.ts:selectActiveAssignmentsByClassIdsAsService':
+    'ACTIVE assignments for a named class set - work in hand, which drains as assignments ' +
+    'close, rather than a history that accumulates.',
+  'src/lib/data/assignments.ts:selectAssignmentsByIdsAsService':
+    'Bounded by the ids passed in, which come from a page of submissions.',
+  'src/lib/data/class-sessions.ts:selectSessionsByIds':
+    'Bounded by construction: at most one PAGE of attendance-record rows supplies the ids. ' +
+    'It exists to replace a flat newest-N read that gave the record pager and its session ' +
+    'context different horizons.',
+  'src/lib/data/comments.ts:selectForEntities':
+    'Comments on a NAMED entity set - every caller passes a page of documents, or one ' +
+    'student own submissions. Bounded by the page above it, not by time.',
+  'src/lib/data/attachments.ts:selectActiveAttachmentsForOwner':
+    'The attachments of ONE owner row (an assignment, a submission, an announcement). ' +
+    'Bounded by what a person can attach to a single item.',
+  'src/lib/data/attachments.ts:selectActiveAttachmentsForOwners':
+    'The same bound across a NAMED owner set - a page of items.',
+  'src/lib/data/attachments.ts:selectLiveAttachmentIds':
+    'A membership test over the ids passed in: which of THESE are still live.',
+  'src/lib/data/attachments.ts:selectStalePendingAttachmentIds':
+    'status = pending AND older than a cutoff - the reconciliation backlog, which the job ' +
+    'then clears. Self-draining: a truncated read simply cleans 1000 this run and the rest ' +
+    'on the next, so it converges either way.',
+  'src/lib/data/tags.ts:selectTagsForEntity':
+    'The tags on ONE item. Bounded by the tag catalogue, which is administered, not grown.',
+  'src/lib/data/tags.ts:selectTagsForEntities':
+    'The same, across a page of items - callers pass the ids they are about to render.',
 }
 
 function walk(dir: string): string[] {
