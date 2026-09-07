@@ -5,12 +5,14 @@ vi.mock('@/lib/permission/class', () => ({
   canManageClass: vi.fn(),
   mentorAuthorityClassIds: vi.fn(),
   mentoringScopeClassIds: vi.fn(),
+  isMentoringOversight: vi.fn(),
 }))
 vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/data/classes', () => ({
   selectActiveClassIds: vi.fn(),
   selectActiveClassIdsAmong: vi.fn(),
   selectClassesByIds: vi.fn(),
+  selectArchivedClassIds: vi.fn(),
 }))
 vi.mock('@/lib/data/subjects', () => ({ selectSubjectsByIds: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveEnrollmentRefsByClassIds: vi.fn() }))
@@ -19,29 +21,29 @@ vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionById: vi.fn(),
   selectSessionsForDate: vi.fn(),
   selectSessionByIdAsService: vi.fn(),
-  selectSessionsForClassesAsService: vi.fn(),
+  selectSessionPage: vi.fn(),
   selectTutorOverlappingSessions: vi.fn(),
   updateSessionActualTimesAsService: vi.fn(),
 }))
 vi.mock('@/lib/data/attendance', () => ({
-  selectJoinRowsForClassesAsService: vi.fn(),
+  selectJoinRowsForSessionsAsService: vi.fn(),
   updateJoinAtAsService: vi.fn(),
 }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
-import { canManageClass, mentoringScopeClassIds } from '@/lib/permission/class'
+import { canManageClass, mentoringScopeClassIds, isMentoringOversight } from '@/lib/permission/class'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { selectClassesByIds } from '@/lib/data/classes'
+import { selectClassesByIds, selectArchivedClassIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import {
   selectSessionByIdAsService,
-  selectSessionsForClassesAsService,
+  selectSessionPage,
   selectTutorOverlappingSessions,
   updateSessionActualTimesAsService,
 } from '@/lib/data/class-sessions'
-import { selectJoinRowsForClassesAsService, updateJoinAtAsService } from '@/lib/data/attendance'
+import { selectJoinRowsForSessionsAsService, updateJoinAtAsService } from '@/lib/data/attendance'
 import { selectSessionById, selectSessionsForDate } from '@/lib/data/class-sessions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import {
@@ -58,6 +60,7 @@ const base = { classId: 'c1', sessionDate: '2026-08-05' }
 const timesBase = { sessionId: 'ses1' }
 const START = '2026-08-05T10:00:00.000Z'
 const END = '2026-08-05T11:30:00.000Z'
+const JOIN = '2026-08-05T10:05:00.000Z'
 // id + class_id + session_date matter now: the service resolves the class (and so the
 // authorization) from the ROW, and excludes the edited session from the overlap check by id.
 const existing = {
@@ -234,21 +237,30 @@ describe('updateSessionTimes', () => {
 })
 
 describe('listMenteeSessionTimings', () => {
+  const PAGE = { page: 1, pageSize: 20 }
+
   beforeEach(() => {
     vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: false } as never)
+    vi.mocked(isMentoringOversight).mockResolvedValue(false)
     vi.mocked(mentoringScopeClassIds).mockResolvedValue(['c1'])
-    vi.mocked(selectSessionsForClassesAsService).mockResolvedValue([
-      {
-        class_id: 'c1',
-        session_date: '2026-08-05',
-        tutor_id: 't1',
-        actual_start: START,
-        actual_end: END,
-        updated_at: 'v1',
-      },
-    ] as never)
-    vi.mocked(selectJoinRowsForClassesAsService).mockResolvedValue([
-      { class_id: 'c1', student_id: 's1', session_date: '2026-08-05', join_at: '2026-08-05T10:05:00.000Z' },
+    vi.mocked(selectArchivedClassIds).mockResolvedValue(['arch1'])
+    vi.mocked(selectSessionPage).mockResolvedValue({
+      items: [
+        {
+          id: 'ses1',
+          class_id: 'c1',
+          session_date: '2026-08-05',
+          tutor_id: 't1',
+          subject_id: 'sub1',
+          actual_start: START,
+          actual_end: END,
+          updated_at: 'v1',
+        },
+      ],
+      total: 137,
+    } as never)
+    vi.mocked(selectJoinRowsForSessionsAsService).mockResolvedValue([
+      { class_id: 'c1', session_id: 'ses1', student_id: 's1', session_date: '2026-08-05', join_at: JOIN },
     ] as never)
     vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([{ class_id: 'c1', student_id: 's1' }] as never)
     vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c1', name: 'Maths', subject_id: 'sub1' }] as never)
@@ -261,10 +273,11 @@ describe('listMenteeSessionTimings', () => {
     )
   })
 
-  it('returns one row per (class, date) unioning session + attendance, with names/subject/updatedAt', async () => {
-    const rows = await listMenteeSessionTimings(actor)
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({
+  it('returns one row per SESSION with names, subject and updatedAt attached', async () => {
+    const { items } = await listMenteeSessionTimings(actor, PAGE)
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      sessionId: 'ses1',
       classId: 'c1',
       className: 'Maths',
       subject: 'Algebra',
@@ -273,13 +286,71 @@ describe('listMenteeSessionTimings', () => {
       sessionDate: '2026-08-05',
       startAt: START,
       endAt: END,
-      studentEntryAt: '2026-08-05T10:05:00.000Z',
+      studentEntryAt: JOIN,
       updatedAt: 'v1',
     })
   })
 
+  it('reports the QUERY total, not the length of the page', async () => {
+    // The pager reads this. Returning items.length would cap every list at one page while
+    // still looking correct on the first - the exact shape of the bug this replaced.
+    await expect(listMenteeSessionTimings(actor, PAGE)).resolves.toMatchObject({ total: 137 })
+  })
+
+  it("reads the subject from the SESSION, not from the class's current subject", async () => {
+    // Re-pointing a class at another subject must not relabel what past sessions taught.
+    vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c1', name: 'Maths', subject_id: 'sub-new' }] as never)
+    const { items } = await listMenteeSessionTimings(actor, PAGE)
+    expect(items[0].subject).toBe('Algebra')
+    expect(vi.mocked(selectSubjectsByIds).mock.calls[0][0]).toEqual(['sub1'])
+  })
+
+  it('asks for only ONE page of rows, not the whole scope', async () => {
+    await listMenteeSessionTimings(actor, { page: 3, pageSize: 20 })
+    expect(selectSessionPage).toHaveBeenCalledWith(expect.anything(), { from: 40, to: 59 })
+  })
+
+  it("fetches attendance for the page's SESSIONS, never for every class in scope", async () => {
+    await listMenteeSessionTimings(actor, PAGE)
+    expect(selectJoinRowsForSessionsAsService).toHaveBeenCalledWith(['ses1'])
+  })
+
+  it('scopes a mentor by an inclusion list of their classes', async () => {
+    await listMenteeSessionTimings(actor, PAGE)
+    expect(selectSessionPage).toHaveBeenCalledWith(expect.objectContaining({ classIds: ['c1'] }), expect.anything())
+  })
+
+  it('scopes an OVERSIGHT reader by excluding archived classes, not by listing every active one', async () => {
+    // Listing every active class would put one uuid per class in the URL; the exclusion is
+    // the small side of the same Q7 split.
+    vi.mocked(isMentoringOversight).mockResolvedValue(true)
+    await listMenteeSessionTimings(actor, PAGE)
+    const filter = vi.mocked(selectSessionPage).mock.calls[0][0]
+    expect(filter.excludeClassIds).toEqual(['arch1'])
+    expect(filter.classIds).toBeUndefined()
+  })
+
+  it('INTERSECTS a student filter with the mentor scope rather than replacing it', async () => {
+    // A mentor narrowing to a student outside their mentees must see nothing, not that
+    // student's sessions.
+    await listMenteeSessionTimings(actor, { ...PAGE, filters: { studentClassIds: ['c9'] } })
+    expect(selectSessionPage).toHaveBeenCalledWith(expect.objectContaining({ classIds: [] }), expect.anything())
+  })
+
+  it('passes the subject, tutor and date filters straight through to the query', async () => {
+    await listMenteeSessionTimings(actor, {
+      ...PAGE,
+      filters: { subjectId: 'sub1', tutorId: 't1', from: '2026-08-01', to: '2026-08-31' },
+    })
+    expect(selectSessionPage).toHaveBeenCalledWith(
+      expect.objectContaining({ subjectId: 'sub1', tutorId: 't1', from: '2026-08-01', to: '2026-08-31' }),
+      expect.anything(),
+    )
+  })
+
   it('returns nothing when the mentor has no active authority classes', async () => {
     vi.mocked(mentoringScopeClassIds).mockResolvedValue([])
-    expect(await listMenteeSessionTimings(actor)).toEqual([])
+    vi.mocked(selectSessionPage).mockResolvedValue({ items: [], total: 0 } as never)
+    await expect(listMenteeSessionTimings(actor, PAGE)).resolves.toEqual({ items: [], total: 0 })
   })
 })

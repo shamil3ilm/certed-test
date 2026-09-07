@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ValidationError } from '@/lib/errors'
+import type { Page } from '@/lib/pagination'
 
 /**
  * Table access for `class_sessions` - one row per class session holding the
@@ -20,6 +21,10 @@ export type ClassSessionRow = {
   actual_start: string | null
   actual_end: string | null
   tutor_id: string | null
+  /** The subject this session TAUGHT, captured when it was recorded (0104). Not read
+   *  back from the class: re-pointing a class at another subject must not rewrite what
+   *  past sessions taught, which is the same reason tutor_id lives here. */
+  subject_id: string | null
   tutor_join_at: string | null
   tutor_leave_at: string | null
   summary: string | null
@@ -41,6 +46,10 @@ export type ClassSessionUpsert = {
   class_id: string
   session_date: string
   tutor_id?: string | null
+  /** Set EXPLICITLY on every insert. 0104 also fills it with a trigger, but mock mode runs
+   *  no triggers - leaving it to the database would make subject-filtered lists behave
+   *  differently in the E2E suite than in production. */
+  subject_id?: string | null
   scheduled_start?: string | null
   scheduled_end?: string | null
   actual_start?: string | null
@@ -61,7 +70,7 @@ export type ClassSessionUpsert = {
 // staff_note on a student-reachable path. Managers read it via MANAGER_COLUMNS
 // (service role) instead.
 const COLUMNS =
-  'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, tutor_join_at, tutor_leave_at, summary, student_feedback, created_at, updated_at'
+  'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, subject_id, tutor_join_at, tutor_leave_at, summary, student_feedback, created_at, updated_at'
 
 // Everything above plus the staff-private note, for the service-role manager read.
 const MANAGER_COLUMNS = `${COLUMNS}, staff_note`
@@ -117,16 +126,37 @@ export async function selectSessionByIdAsService(id: string): Promise<ClassSessi
 
 /** Record a NEW session. Always inserts: a class may hold several sessions on one date,
  *  and each gets its own id. (Before 0093 this upserted on (class_id, session_date), which
- *  silently REPLACED the day's earlier session and lost its hours.) */
+ *  silently REPLACED the day's earlier session and lost its hours.)
+ *
+ *  Stamps subject_id from the class when the caller did not name one. 0104 has a trigger
+ *  that does the same thing, and this deliberately duplicates it rather than deferring:
+ *  mock mode runs no triggers, so without this the E2E suite would record subject-less
+ *  sessions and every subject filter would behave differently there than in production.
+ *  Resolved HERE, next to the trigger it mirrors, rather than at each of the two callers -
+ *  a third caller would otherwise be one more place to remember. Shares the caller's admin
+ *  client rather than building a second one for the lookup. */
 export async function insertSession(row: ClassSessionUpsert): Promise<ClassSessionRow> {
   const admin = createAdminClient()
-  const stamped = { ...row, updated_at: new Date().toISOString() }
+  const subjectId = row.subject_id !== undefined ? row.subject_id : await selectClassSubjectId(admin, row.class_id)
+  const stamped = { ...row, subject_id: subjectId, updated_at: new Date().toISOString() }
   const { data, error } = await admin.from('class_sessions').insert(stamped).select(COLUMNS).single()
   if (error) {
     rethrowIfHoursLocked(error)
     throw new Error(`classSessions.insert: ${error.message}`)
   }
   return data as ClassSessionRow
+}
+
+/** The subject a class currently teaches, for stamping onto a NEW session. A missing class
+ *  or a class with no subject both read as null - neither is an error here, because a
+ *  subject-less session is valid (0064 left legacy classes without one) and the insert
+ *  itself will fail on the foreign key if the class does not exist. */
+async function selectClassSubjectId(
+  admin: ReturnType<typeof createAdminClient>,
+  classId: string,
+): Promise<string | null> {
+  const { data } = await admin.from('classes').select('subject_id').eq('id', classId).maybeSingle()
+  return (data as { subject_id: string | null } | null)?.subject_id ?? null
 }
 
 /** Update an EXISTING session by its id. Only the supplied fields are written, so an
@@ -264,19 +294,63 @@ export async function writeStudentSessionFeedback(
   if (inserted.error) throw new Error(`classSessions.studentFeedback(insert): ${inserted.error.message}`)
 }
 
-/** Sessions for a SET of classes, newest first (service role). The caller scopes
- *  classIds to the mentor's authority (mentorAuthorityClassIds / all-classes for
- *  oversight); used by the mentor session-timing list. */
-export async function selectSessionsForClassesAsService(classIds: string[]): Promise<ClassSessionRow[]> {
-  if (classIds.length === 0) return []
+/** The filters the session list narrows on. Every one is a column ON class_sessions
+ *  (subject_id since 0104), so the whole query is one indexed scan - no join, which the
+ *  mock query builder could not run, and no `.in()` over resolved ids, whose URL grows
+ *  with the academy. */
+export type SessionPageFilter = {
+  /** The classes in the reader's scope. Undefined means UNSCOPED (oversight over every
+   *  class) - deliberately not the same as an empty array, which means "no scope, no
+   *  rows" and is what a mentor with no mentees gets. */
+  classIds?: string[]
+  /** Classes to leave OUT, applied on top of `classIds`. How the unscoped (oversight)
+   *  read drops archived classes without listing every active one - see
+   *  selectArchivedClassIds for why the exclusion is the cheaper side. */
+  excludeClassIds?: string[]
+  classId?: string
+  subjectId?: string
+  tutorId?: string
+  /** Inclusive calendar-date bounds, 'YYYY-MM-DD'. */
+  from?: string
+  to?: string
+}
+
+/**
+ * ONE page of sessions matching `filter`, newest first, with the exact total.
+ *
+ * Both the range and the count are SQL-side. The list this replaces fetched every session
+ * in scope and sliced it in memory, which PostgREST silently truncated at the project's Max
+ * rows (default 1000): past that the totals understated and older sessions were unreachable.
+ */
+export async function selectSessionPage(
+  filter: SessionPageFilter,
+  range: { from: number; to: number },
+): Promise<Page<ClassSessionRow>> {
+  // An EMPTY scope means the reader has no classes - there is nothing to ask the database.
+  // (`.in('class_id', [])` would also return nothing, but only after a round trip.)
+  if (filter.classIds?.length === 0) return { items: [], total: 0 }
   const admin = createAdminClient()
-  const { data, error } = await admin
+  let query = admin
     .from('class_sessions')
-    .select(COLUMNS)
-    .in('class_id', classIds)
+    .select(COLUMNS, { count: 'exact' })
     .order('session_date', { ascending: false })
-  if (error) throw new Error(`classSessions.forClasses: ${error.message}`)
-  return (data ?? []) as ClassSessionRow[]
+    // A class can hold several sessions a day, so date alone is not a total order and the
+    // same row could appear on two pages (or on neither). created_at breaks the tie.
+    .order('created_at', { ascending: false })
+  if (filter.classIds) query = query.in('class_id', filter.classIds)
+  // PostgREST spells a NOT IN list `(a,b,c)`; an empty exclusion is skipped entirely,
+  // because `not.in.()` is a syntax error rather than a no-op.
+  if (filter.excludeClassIds?.length) {
+    query = query.not('class_id', 'in', `(${filter.excludeClassIds.join(',')})`)
+  }
+  if (filter.classId) query = query.eq('class_id', filter.classId)
+  if (filter.subjectId) query = query.eq('subject_id', filter.subjectId)
+  if (filter.tutorId) query = query.eq('tutor_id', filter.tutorId)
+  if (filter.from) query = query.gte('session_date', filter.from)
+  if (filter.to) query = query.lte('session_date', filter.to)
+  const { data, error, count } = await query.range(range.from, range.to)
+  if (error) throw new Error(`classSessions.page: ${error.message}`)
+  return { items: (data ?? []) as ClassSessionRow[], total: count ?? 0 }
 }
 
 /** Recent sessions for a class, newest first - bounded for the summaries + the

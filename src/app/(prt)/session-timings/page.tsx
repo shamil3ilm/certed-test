@@ -1,22 +1,25 @@
 import { requireCapability } from '@/lib/auth/require-role'
-import { listMenteeSessionTimings } from '@/lib/services/mentor-session-timings'
+import { loadSessionTimingsPageData, type SessionTimingSearchParams } from '@/lib/services/page-data/session-timings'
 import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { pageSlice, parsePageParam, totalPages } from '@/lib/pagination'
 import { CARD, EmptyState, PageHeader, PaginationBar, cx } from '@/lib/ui'
 import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
+import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTimingsFilterBar'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-
-const PAGE_SIZE = 20
 
 /** Mentor session-timing list: the three timings (tutor joined, student joined,
  *  class end) across the mentor's mentees' sessions, with an inline edit for the
- *  student joined time. Reuses existing session/attendance data - no new fields. */
-export default async function SessionTimingsPage(props: { searchParams: Promise<{ page?: string }> }) {
-  const { page } = await props.searchParams
+ *  student joined time, filterable by student, subject, tutor and date.
+ *
+ *  The list is paged and filtered IN SQL. It used to fetch every session in scope and
+ *  slice the array - for an oversight reader that was every session in the academy on
+ *  each page view, and PostgREST silently capped the fetch at its Max rows, so past that
+ *  the totals understated and older sessions could not be reached at all. */
+export default async function SessionTimingsPage(props: { searchParams: Promise<SessionTimingSearchParams> }) {
+  const searchParams = await props.searchParams
   const me = await requireCapability('viewMentees')
   // Same split the list itself makes: a mentor is scoped to their mentees, an oversight
   // actor (admin or sub-admin) sees every class. The copy has to follow, or the page tells
@@ -25,10 +28,8 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
   const isOversight = !hasMentorAuthority
   const tz = await getInstituteTimeZone()
   const month = todayInZone(tz).slice(0, 7)
-  const [rows, hours] = await Promise.all([listMenteeSessionTimings(me), getClassTutorHours(me, month)])
-  const currentPage = parsePageParam(page)
-  const paged = pageSlice(rows, currentPage, PAGE_SIZE)
-  const pages = totalPages(rows.length, PAGE_SIZE)
+  const [data, hours] = await Promise.all([loadSessionTimingsPageData(me, searchParams), getClassTutorHours(me, month)])
+  const { filters, items, total, totalPages: pages } = data
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
@@ -78,10 +79,21 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
         )}
       </section>
 
-      {rows.length === 0 ? (
+      <SessionTimingsFilterBar filters={filters} options={data.options} hasActiveFilters={data.hasActiveFilters} />
+
+      {total === 0 ? (
         <EmptyState>
-          No session timings yet - they appear once{' '}
-          {isOversight ? 'a class records sessions' : <>your mentees&apos; classes record sessions</>}.
+          {data.hasActiveFilters ? (
+            // A filtered-to-nothing list is a DIFFERENT state from an empty one, and saying
+            // "no sessions yet" here would read as data loss to someone who just narrowed
+            // by a tutor who happens not to teach that subject.
+            <>No sessions match these filters. Try widening the date range or clearing a filter.</>
+          ) : (
+            <>
+              No session timings yet - they appear once{' '}
+              {isOversight ? 'a class records sessions' : <>your mentees&apos; classes record sessions</>}.
+            </>
+          )}
         </EmptyState>
       ) : (
         <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
@@ -112,8 +124,8 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
               </tr>
             </thead>
             <tbody>
-              {paged.map((row) => (
-                <tr key={row.sessionId ?? `${row.classId}:${row.sessionDate}`} className="border-t">
+              {items.map((row) => (
+                <tr key={row.sessionId} className="border-t">
                   <td className="p-2 font-medium text-slate-800">{row.studentName}</td>
                   <td className="p-2 text-slate-600">{row.className}</td>
                   <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-300">-</span>}</td>
@@ -122,20 +134,14 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                   </td>
                   <td className="p-2 text-slate-600">{row.sessionDate}</td>
                   <td className="p-2">
-                    {row.sessionId ? (
-                      <EditSessionTimes
-                        sessionId={row.sessionId}
-                        classId={row.classId}
-                        sessionDate={row.sessionDate}
-                        startAt={row.startAt}
-                        endAt={row.endAt}
-                        updatedAt={row.updatedAt}
-                      />
-                    ) : (
-                      // Attendance was marked for this day but no session is recorded yet -
-                      // there is no row to edit until the tutor records one.
-                      <span className="text-slate-600">Not recorded</span>
-                    )}
+                    <EditSessionTimes
+                      sessionId={row.sessionId}
+                      classId={row.classId}
+                      sessionDate={row.sessionDate}
+                      startAt={row.startAt}
+                      endAt={row.endAt}
+                      updatedAt={row.updatedAt}
+                    />
                   </td>
                   <td className="p-2">
                     <EditJoinTime
@@ -153,11 +159,11 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
       )}
 
       <PaginationBar
-        page={currentPage}
+        page={filters.page}
         totalPages={pages}
-        total={rows.length}
-        previousHref={currentPage > 1 ? `/session-timings?page=${currentPage - 1}` : undefined}
-        nextHref={currentPage < pages ? `/session-timings?page=${currentPage + 1}` : undefined}
+        total={total}
+        previousHref={filters.page > 1 ? sessionTimingsPageHref(filters, filters.page - 1) : undefined}
+        nextHref={filters.page < pages ? sessionTimingsPageHref(filters, filters.page + 1) : undefined}
         className="mt-4"
       />
     </main>

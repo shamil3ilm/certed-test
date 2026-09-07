@@ -1,6 +1,6 @@
 # Schema reference
 
-A high-level, table-by-table summary of the active schema and helper-function model (40 tables) — not a generated full-column dump. The source of truth is the migrations in `supabase/migrations`.
+A high-level, table-by-table summary of the active schema and helper-function model (41 tables) — not a generated full-column dump. The source of truth is the migrations in `supabase/migrations`.
 
 Use this file for:
 
@@ -145,6 +145,14 @@ Notes:
   `(class_id, session_date)` uniqueness); `id` is the session identifier
 - hours come from the recorded window `actual_start` -> `actual_end`; a session with no
   recorded start contributes nothing to any hours report
+- `subject_id` (migration 0104) records what the session TAUGHT, copied from the class at
+  insert and never re-synced afterwards - re-pointing a class at another subject must not
+  rewrite the subject of sessions already held (and already billed). It is what the session
+  list filters on; reading the class's current subject instead would have needed a join the
+  mock query builder cannot run, and would have relabelled history
+- `tutor_id` is likewise the tutor RECORDED on the session, not the class's tutor today;
+  `hours_recorded_by` (0102) is who entered the window, which is a different fact from who
+  is paid for it
 
 ### `mentorships`
 

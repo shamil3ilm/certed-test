@@ -1,20 +1,22 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { mentoringScopeClassIds, canManageClass } from '@/lib/permission/class'
-import { selectClassesByIds } from '@/lib/data/classes'
+import { mentoringScopeClassIds, canManageClass, isMentoringOversight } from '@/lib/permission/class'
+import { selectClassesByIds, selectArchivedClassIds } from '@/lib/data/classes'
 import { assertClassActive } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
+import { toRange, type Page } from '@/lib/pagination'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import {
   selectSessionsForDate,
   selectSessionByIdAsService,
   type ClassSessionRow,
-  selectSessionsForClassesAsService,
+  selectSessionPage,
   updateSessionActualTimesAsService,
+  type SessionPageFilter,
 } from '@/lib/data/class-sessions'
-import { selectJoinRowsForClassesAsService, updateJoinAtAsService } from '@/lib/data/attendance'
+import { selectJoinRowsForSessionsAsService, updateJoinAtAsService } from '@/lib/data/attendance'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -30,15 +32,16 @@ import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
  */
 
 export type MenteeSessionTiming = {
-  /** The recorded session's own id, or null for a day that has attendance but no recorded
-   *  session yet. Rows are now per SESSION - a class may hold several on one date - so this
-   *  is what an edit targets. */
-  sessionId: string | null
+  /** The recorded session's own id - what an edit targets. Never null: every row IS a
+   *  session now, since attendance.session_id has been NOT NULL and backfilled since 0094
+   *  (see listMenteeSessionTimings on why the attendance-without-a-session row is gone). */
+  sessionId: string
   classId: string
   className: string
-  /** The class's CURRENT subject. Subject is not historized per session (it lives on
-   *  the class, not class_sessions), so this reflects the class's subject today - fine
-   *  for a 1:1 (student, subject, tutor) class where the subject is effectively fixed. */
+  /** The subject the SESSION recorded (class_sessions.subject_id, 0104) - what was
+   *  taught, not what the class teaches today. Re-pointing a class at another subject
+   *  therefore leaves past sessions reading as they were. Null for a session recorded
+   *  against a class that had no subject. */
   subject: string | null
   studentId: string
   studentName: string
@@ -56,90 +59,116 @@ export type MenteeSessionTiming = {
   updatedAt: string | null
 }
 
-const rowKey = (classId: string, sessionDate: string) => `${classId}|${sessionDate}`
-
 /** How far BEFORE the recorded session start a student entry may legitimately fall - a
  *  student waiting in the room before the tutor starts is normal, so the entry time is
  *  bounded by a grace window rather than pinned at/after the start. */
 const EARLY_JOIN_GRACE_MINUTES = 60
 
-/** Classes whose session timings the actor may review - see mentoringScopeClassIds, which
- *  is the single place the mentor/oversight split is decided. */
-async function timingClassIds(actor: Profile): Promise<string[]> {
-  return mentoringScopeClassIds(actor)
+/** What the reader may narrow the list to. All four are columns on class_sessions, so they
+ *  become part of the SQL query rather than a pass over rows already fetched. */
+export type SessionTimingFilters = {
+  /** Narrow to one student, expressed as THEIR class ids (a student has a handful, so
+   *  this stays a short `.in()`). Intersected with the reader's scope, never substituted
+   *  for it - a mentor filtering by a student outside their mentees must still see
+   *  nothing. An empty array therefore means "no matches", not "no filter". */
+  studentClassIds?: string[]
+  classId?: string
+  subjectId?: string
+  tutorId?: string
+  /** Inclusive 'YYYY-MM-DD' bounds on session_date. */
+  from?: string
+  to?: string
 }
 
-/** Session timings across the actor's mentee classes: one row per (class, date),
- *  unioning class_sessions (tutor joined / class end) with attendance (student
- *  joined), newest session first. */
-export async function listMenteeSessionTimings(actor: Profile): Promise<MenteeSessionTiming[]> {
-  const classIds = await timingClassIds(actor)
-  if (classIds.length === 0) return []
+/**
+ * The class scope clause for this actor, as a filter the query can apply.
+ *
+ * A MENTOR is scoped to their mentee classes - a bounded set (their mentee count), so it
+ * travels as an inclusion list. An OVERSIGHT reader (admin / sub-admin) sees every class,
+ * and listing them all would put one uuid per class in the URL; the same Q7 rule - archived
+ * classes drop out - is applied as an exclusion instead, which shrinks rather than grows
+ * with the academy. See mentoringScopeClassIds for the mentor/oversight split itself.
+ */
+async function scopeFilter(actor: Profile): Promise<Pick<SessionPageFilter, 'classIds' | 'excludeClassIds'>> {
+  if (await isMentoringOversight(actor.id)) return { excludeClassIds: await selectArchivedClassIds() }
+  return { classIds: await mentoringScopeClassIds(actor) }
+}
 
-  const [sessions, joinRows, enrollRefs, classes] = await Promise.all([
-    selectSessionsForClassesAsService(classIds),
-    selectJoinRowsForClassesAsService(classIds),
-    selectActiveEnrollmentRefsByClassIds(classIds),
-    selectClassesByIds(classIds),
+/**
+ * One page of session timings across the actor's scope, newest first, with the exact total.
+ *
+ * WHY THE ATTENDANCE UNION IS GONE: this used to add a row for a (class, date) that had
+ * attendance but no recorded session. That case cannot occur any more - 0094 made
+ * attendance.session_id NOT NULL after backfilling a session for every orphan mark, 0099
+ * bound it to (class_id, session_date), and deleting a session CASCADEs its marks away. The
+ * branch only ever fired on the OLD list's own bug: when its unbounded fetch was silently
+ * truncated at the PostgREST row cap, marks whose session fell outside the truncated page
+ * looked like orphans and were listed as "Not recorded".
+ */
+export async function listMenteeSessionTimings(
+  actor: Profile,
+  opts: { page: number; pageSize: number; filters?: SessionTimingFilters },
+): Promise<Page<MenteeSessionTiming>> {
+  const scope = await scopeFilter(actor)
+  const { studentClassIds, ...rest } = opts.filters ?? {}
+  const scopedClassIds = studentClassIds
+    ? // Intersect: a mentor's scope wins over the requested student, so a student outside
+      // their mentees narrows to nothing rather than widening the list.
+      (scope.classIds?.filter((id) => studentClassIds.includes(id)) ?? studentClassIds)
+    : scope.classIds
+  const { items: sessions, total } = await selectSessionPage(
+    { excludeClassIds: scope.excludeClassIds, classIds: scopedClassIds, ...rest },
+    toRange(opts.page, opts.pageSize),
+  )
+  if (sessions.length === 0) return { items: [], total }
+
+  // Everything below is keyed to the ROWS ON THIS PAGE - at most pageSize of them - so the
+  // per-row lookups no longer scale with the size of the academy.
+  const pageClassIds = [...new Set(sessions.map((s) => s.class_id))]
+  const [joinRows, enrollRefs, classes] = await Promise.all([
+    selectJoinRowsForSessionsAsService(sessions.map((s) => s.id)),
+    selectActiveEnrollmentRefsByClassIds(pageClassIds),
+    selectClassesByIds(pageClassIds),
   ])
 
   const studentByClass = new Map(enrollRefs.map((r) => [r.class_id, r.student_id]))
   const classNameById = new Map(classes.map((c) => [c.id, c.name]))
-  const subjectIdByClass = new Map(classes.map((c) => [c.id, c.subject_id]))
   // Attendance is per SESSION (0094), so index the marks by session id. Keying by
   // (class, date) would keep only one mark per day and show the same entry time against
   // every session that day.
   const joinBySession = new Map(joinRows.map((r) => [r.session_id, r]))
 
-  // Subject names for the classes in scope (the class's current subject; see the type).
-  const subjectIds = [...new Set(classes.map((c) => c.subject_id).filter((id): id is string => id != null))]
+  const subjectIds = [...new Set(sessions.map((s) => s.subject_id).filter((id): id is string => id != null))]
   const subjectNameById = new Map((await selectSubjectsByIds(subjectIds)).map((s) => [s.id, s.name]))
 
-  // One name lookup for students AND the sessions' recorded tutors.
+  // One name lookup for the page's students AND its sessions' recorded tutors.
   const personIds = new Set<string>()
   for (const r of enrollRefs) personIds.add(r.student_id)
   for (const r of joinRows) personIds.add(r.student_id)
   for (const s of sessions) if (s.tutor_id) personIds.add(s.tutor_id)
   const names = await getProfileNamesByIds([...personIds])
 
-  /** Build one output row. `session` is null for a day that has attendance but no recorded
-   *  session yet - still listed, so a marked-but-unrecorded day stays visible. */
-  const toRow = (classId: string, sessionDate: string, session: ClassSessionRow | null): MenteeSessionTiming => {
-    const join = session ? joinBySession.get(session.id) : undefined
-    const studentId = join?.student_id ?? studentByClass.get(classId) ?? ''
-    const subjectId = subjectIdByClass.get(classId) ?? null
-    const tutorId = session?.tutor_id ?? null
+  const items = sessions.map((session): MenteeSessionTiming => {
+    const join = joinBySession.get(session.id)
+    const studentId = join?.student_id ?? studentByClass.get(session.class_id) ?? ''
+    const tutorId = session.tutor_id
     return {
-      sessionId: session?.id ?? null,
-      classId,
-      className: classNameById.get(classId) ?? 'Class',
-      subject: subjectId ? (subjectNameById.get(subjectId) ?? null) : null,
+      sessionId: session.id,
+      classId: session.class_id,
+      className: classNameById.get(session.class_id) ?? 'Class',
+      subject: session.subject_id ? (subjectNameById.get(session.subject_id) ?? null) : null,
       studentId,
       studentName: names.get(studentId) ?? 'Unknown',
       tutorId,
       tutorName: tutorId ? (names.get(tutorId) ?? null) : null,
-      sessionDate,
-      startAt: session?.actual_start ?? null,
-      // The entry time of THIS session's mark (joinBySession above). Before 0094 one
-      // mark covered the whole day and every session repeated the same time.
+      sessionDate: session.session_date,
+      startAt: session.actual_start,
       studentEntryAt: join?.join_at ?? null,
-      endAt: session?.actual_end ?? null,
-      updatedAt: session?.updated_at ?? null,
+      endAt: session.actual_end,
+      updatedAt: session.updated_at,
     }
-  }
-
-  // ONE ROW PER RECORDED SESSION - a class may hold several on the same date, and each is
-  // its own record. (This used to collapse to one row per (class, date), which hid every
-  // session but the last.) Days with attendance but no recorded session are added after,
-  // so a marked-but-unrecorded day is still listed exactly once.
-  const rows: MenteeSessionTiming[] = sessions.map((session) => toRow(session.class_id, session.session_date, session))
-  const datesWithSession = new Set(sessions.map((s) => rowKey(s.class_id, s.session_date)))
-  for (const r of joinRows) {
-    if (datesWithSession.has(rowKey(r.class_id, r.session_date))) continue
-    rows.push(toRow(r.class_id, r.session_date, null))
-  }
-  rows.sort((a, b) => (a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0))
-  return rows
+  })
+  return { items, total }
 }
 
 export type UpdateStudentJoinInput = {

@@ -1,8 +1,10 @@
 # Foreign-key and cascade inventory
 
-The complete inventory of foreign keys and their `ON DELETE` behaviour, extracted from the fully-migrated schema (`supabase/rebuild/0000_full_rebuild.sql`). It exists so that the delete-time blast radius of any row is reviewable without reading every migration — see [schema-reference.md](./schema-reference.md#foreign-keys-and-cascade-behaviour) for the summary. Regenerate this table whenever a migration adds or changes a foreign key.
+The complete inventory of foreign keys and their `ON DELETE` behaviour, generated from a database built by applying the migration chain to its head — NOT from `supabase/rebuild/0000_full_rebuild.sql`, which is a schema-only dump and can lag the chain. It exists so that the delete-time blast radius of any row is reviewable without reading every migration — see [schema-reference.md](./schema-reference.md#foreign-keys-and-cascade-behaviour) for the summary. Regenerate this table whenever a migration adds or changes a foreign key.
 
-At the current chain head there are **68 foreign keys** across the public schema.
+At the current chain head (0105) there are **73 foreign keys** across the public schema — 39 CASCADE, 31 SET NULL, 1 RESTRICT, 2 NO ACTION. One of them, `profiles.id`, points out of the schema at `auth.users`.
+
+This table is generated, not hand-maintained: it drifted ~30 migrations behind once (missing `subjects`, `consents`, `guardians`, `mentee_notes` and `billing_rates` entirely), which is the failure mode this file exists to prevent — a delete blast-radius review that silently omits four PII tables is worse than no review.
 
 ## The four behaviours and when each is used
 
@@ -15,7 +17,7 @@ At the current chain head there are **68 foreign keys** across the public schema
 
 ## Full inventory
 
-Grouped by parent table. `→` reads "references".
+Grouped by parent table. `→` reads "references". Regenerated from the fully-migrated schema at chain head 0105.
 
 ### → `profiles` (the actor/owner hub)
 
@@ -27,21 +29,28 @@ Grouped by parent table. `→` reads "references".
 | `attendance.marked_by`                 | SET NULL      |
 | `attendance.student_id`                | CASCADE       |
 | `audit_log.actor_id`                   | SET NULL      |
+| `billing_rates.profile_id`             | CASCADE       |
+| `billing_rates.updated_by`             | SET NULL      |
 | `calendar_events.created_by`           | **NO ACTION** |
 | `capability_overrides.created_by`      | SET NULL      |
 | `capability_overrides.profile_id`      | CASCADE       |
+| `class_sessions.hours_recorded_by`     | SET NULL      |
 | `class_sessions.tutor_id`              | SET NULL      |
 | `class_tutors.tutor_id`                | CASCADE       |
 | `comments.author_id`                   | CASCADE       |
+| `consents.profile_id`                  | CASCADE       |
 | `conversation_participants.profile_id` | CASCADE       |
 | `conversations.created_by`             | SET NULL      |
 | `conversations.last_message_sender_id` | SET NULL      |
 | `enrollments.student_id`               | CASCADE       |
 | `entity_tags.created_by`               | SET NULL      |
 | `exchange_rates.created_by`            | SET NULL      |
+| `guardians.student_id`                 | CASCADE       |
 | `meet_links.created_by`                | SET NULL      |
-| `mentorships.student_id`               | CASCADE       |
+| `mentee_notes.author_id`               | SET NULL      |
+| `mentee_notes.student_id`              | CASCADE       |
 | `mentorships.mentor_id`                | CASCADE       |
+| `mentorships.student_id`               | CASCADE       |
 | `messages.sender_id`                   | SET NULL      |
 | `notifications.profile_id`             | CASCADE       |
 | `payslips.created_by`                  | SET NULL      |
@@ -49,9 +58,11 @@ Grouped by parent table. `→` reads "references".
 | `persona_assignments.profile_id`       | CASCADE       |
 | `receipts.created_by`                  | SET NULL      |
 | `receipts.student_id`                  | SET NULL      |
+| `reminders.created_by`                 | CASCADE       |
 | `reminders.user_id`                    | CASCADE       |
 | `resource_versions.created_by`         | SET NULL      |
 | `resources.uploaded_by`                | SET NULL      |
+| `subjects.created_by`                  | SET NULL      |
 | `submissions.graded_by`                | SET NULL      |
 | `submissions.student_id`               | CASCADE       |
 | `tags.created_by`                      | SET NULL      |
@@ -69,27 +80,32 @@ Grouped by parent table. `→` reads "references".
 | `class_tutors.class_id`    | CASCADE   |
 | `enrollments.class_id`     | CASCADE   |
 | `meet_links.class_id`      | CASCADE   |
+| `reminders.class_id`       | SET NULL  |
 | `resources.class_id`       | CASCADE   |
 | `timetable_slots.class_id` | CASCADE   |
 
 ### → other parents
 
-| Child table.column                          | Parent            | On delete |
-| ------------------------------------------- | ----------------- | --------- |
-| `attachments.announcement_id`               | `announcements`   | CASCADE   |
-| `attachments.resource_id`                   | `resources`       | CASCADE   |
-| `attachments.submission_id`                 | `submissions`     | CASCADE   |
-| `submissions.assignment_id`                 | `assignments`     | CASCADE   |
-| `resource_versions.resource_id`             | `resources`       | CASCADE   |
-| `conversation_participants.conversation_id` | `conversations`   | CASCADE   |
-| `messages.conversation_id`                  | `conversations`   | CASCADE   |
-| `entity_tags.tag_id`                        | `tags`            | CASCADE   |
-| `receipt_lines.receipt_id`                  | `receipts`        | CASCADE   |
-| `payslip_lines.payslip_id`                  | `payslips`        | CASCADE   |
-| `receipts.fx_rate_id`                       | `exchange_rates`  | SET NULL  |
-| `payslips.fx_rate_id`                       | `exchange_rates`  | SET NULL  |
-| `calendar_events.slot_id`                   | `timetable_slots` | SET NULL  |
-| `profiles.auth_user_id`                     | `auth.users`      | SET NULL  |
+| Child table.column                            | Parent            | On delete |
+| --------------------------------------------- | ----------------- | --------- |
+| `attachments.announcement_id`                 | `announcements`   | CASCADE   |
+| `attachments.assignment_id`                   | `assignments`     | CASCADE   |
+| `attachments.resource_id`                     | `resources`       | CASCADE   |
+| `attachments.submission_id`                   | `submissions`     | CASCADE   |
+| `attendance.session_id+class_id+session_date` | `class_sessions`  | CASCADE   |
+| `calendar_events.slot_id`                     | `timetable_slots` | SET NULL  |
+| `class_sessions.subject_id`                   | `subjects`        | SET NULL  |
+| `classes.subject_id`                          | `subjects`        | SET NULL  |
+| `conversation_participants.conversation_id`   | `conversations`   | CASCADE   |
+| `entity_tags.tag_id`                          | `tags`            | CASCADE   |
+| `messages.conversation_id`                    | `conversations`   | CASCADE   |
+| `payslip_lines.payslip_id`                    | `payslips`        | CASCADE   |
+| `payslips.fx_rate_id`                         | `exchange_rates`  | SET NULL  |
+| `profiles.auth_user_id`                       | `auth.users`      | SET NULL  |
+| `receipt_lines.receipt_id`                    | `receipts`        | CASCADE   |
+| `receipts.fx_rate_id`                         | `exchange_rates`  | SET NULL  |
+| `resource_versions.resource_id`               | `resources`       | CASCADE   |
+| `submissions.assignment_id`                   | `assignments`     | CASCADE   |
 
 ## Notes and review items
 

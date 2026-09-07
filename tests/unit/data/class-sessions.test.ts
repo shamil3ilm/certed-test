@@ -12,7 +12,6 @@ import {
   updateSessionById,
   deleteSessionById,
   writeStudentSessionFeedback,
-  selectSessionsForClassesAsService,
   selectRecentSessions,
 } from '@/lib/data/class-sessions'
 
@@ -33,7 +32,9 @@ describe('class-sessions data layer', () => {
     const client = makeClient({ data: session, error: null })
     vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     expect(await insertSession({ class_id: 'c1', session_date: '2026-06-20', tutor_id: 't1' } as any)).toEqual(session)
-    const builder = client.from.mock.results[0].value
+    // results[0] is the classes lookup that resolves the session's subject; the insert is
+    // the second call on the same client.
+    const builder = client.from.mock.results[1].value
     expect(builder.insert).toHaveBeenCalledWith(
       expect.objectContaining({ class_id: 'c1', updated_at: expect.any(String) }),
     )
@@ -90,18 +91,6 @@ describe('class-sessions data layer', () => {
     await expect(writeStudentSessionFeedback('c1', 'd', null)).rejects.toThrow(
       /classSessions.studentFeedback\(update\): e/,
     )
-  })
-
-  it('selectSessionsForClassesAsService short-circuits on [] and returns rows otherwise', async () => {
-    expect(await selectSessionsForClassesAsService([])).toEqual([])
-    expect(createAdminClient).not.toHaveBeenCalled()
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [session], error: null }) as any)
-    expect(await selectSessionsForClassesAsService(['c1'])).toEqual([session])
-  })
-
-  it('selectSessionsForClassesAsService throws on error', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(selectSessionsForClassesAsService(['c1'])).rejects.toThrow(/classSessions.forClasses: e/)
   })
 
   it('selectRecentSessions returns bounded rows (RLS client) and throws on error', async () => {
