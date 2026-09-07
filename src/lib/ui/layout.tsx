@@ -233,6 +233,7 @@ export function PaginationBar({
   previousHref,
   nextHref,
   separator = '-',
+  label = 'total',
   className = '',
 }: {
   page: number
@@ -241,13 +242,17 @@ export function PaginationBar({
   previousHref?: string
   nextHref?: string
   separator?: string
+  /** What `total` COUNTS. Most lists page the thing they show, so "total" is right; a list
+   *  paged by a different unit than it renders (Classes pages by student) has to say which,
+   *  or "37 total" reads as 37 classes on a page showing twelve. */
+  label?: string
   className?: string
 }) {
   if (totalPages <= 1) return null
   return (
     <div className={cx('mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600', className)}>
       <span>
-        Page {page} of {totalPages} {separator} {total} total
+        Page {page} of {totalPages} {separator} {total} {label}
       </span>
       <div className="flex flex-wrap gap-2">
         {previousHref && (

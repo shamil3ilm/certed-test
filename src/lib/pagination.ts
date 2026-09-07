@@ -28,11 +28,36 @@ export function clampPage(page: number, total: number, pageSize: number): number
   return Math.min(Math.max(1, page), totalPages(total, pageSize))
 }
 
-/** The slice of `items` shown on `page`. For in-memory pagination of a list a
- *  page already holds in full - e.g. one where the totals/filters need the whole
- *  set (own receipts, class list) - so the rendered list is bounded and the pager
- *  works, without a second count query. Pass the FULL/filtered array as `total`. */
+/**
+ * The slice of `items` shown on `page`, for in-memory pagination of a list the page
+ * already holds in full.
+ *
+ * ONLY for a list whose source read is itself BOUNDED - a fixed-size set, or one already
+ * capped by the query. Over an unbounded `.select()` this looks like pagination but is
+ * not: PostgREST caps the response at the project's Max rows (default 1000), so the
+ * fetch silently truncates, `total` understates, and later pages are unreachable. Every
+ * call site is enumerated by tests/unit/pagination-boundedness.test.ts - a new one has
+ * to justify itself there. When the source grows without bound, page in SQL instead
+ * (toRange + `.range()` + `count: 'exact'`).
+ */
 export function pageSlice<T>(items: readonly T[], page: number, pageSize: number): T[] {
   const from = (page - 1) * pageSize
   return items.slice(from, from + pageSize)
 }
+
+/** The INCLUSIVE `[from, to]` bounds PostgREST's `.range()` wants for a 1-based page.
+ *  That inclusive `to` is the off-by-one this replaces: the same two lines were copied
+ *  into nine data/service modules, and each one had to remember the `- 1`. */
+export function toRange(page: number, pageSize: number): { from: number; to: number } {
+  const from = (page - 1) * pageSize
+  return { from, to: from + pageSize - 1 }
+}
+
+/**
+ * One page of rows plus the TOTAL matching the same filters (not the page length).
+ *
+ * The shared shape for every paged read. `total` must come from the query's own
+ * `count: 'exact'`, never from `items.length` - the pager's "Page 3 of 12" and the empty
+ * state both read it, and a page-local count silently caps the list at one page.
+ */
+export type Page<T> = { items: T[]; total: number }
