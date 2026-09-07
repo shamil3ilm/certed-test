@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Page } from '@/lib/pagination'
+import { directKeyFor } from '@/lib/messaging/direct-key'
 
 export type ConversationKind = 'direct' | 'group'
 
@@ -98,30 +99,23 @@ export async function updateConversationLastMessage(
   if (error) throw new Error(`data.messages.updateConversationLastMessage: ${error.message}`)
 }
 
+/**
+ * The existing direct conversation between two people, or null.
+ *
+ * ONE indexed lookup on `conversations.direct_key` - the canonical sorted pair the app
+ * already writes (directKeyFor), backed by the unique index 0023 added. This replaced three
+ * round trips that scanned every conversation_participants row for one person, intersected
+ * them with the other's, then filtered the survivors by kind: unbounded on the first read,
+ * and answering from `[0]` a set the database could have identified outright.
+ */
 export async function findDirectConversationId(a: string, b: string): Promise<string | null> {
   const admin = createAdminClient()
-  const { data: aParts, error: aError } = await admin
-    .from('conversation_participants')
-    .select('conversation_id')
-    .eq('profile_id', a)
-  if (aError) throw new Error(`data.messages.findDirectConversationId.a: ${aError.message}`)
-  const aIds = ((aParts ?? []) as { conversation_id: string }[]).map((row) => row.conversation_id)
-  if (aIds.length === 0) return null
-
-  const { data: bParts, error: bError } = await admin
-    .from('conversation_participants')
-    .select('conversation_id')
-    .eq('profile_id', b)
-    .in('conversation_id', aIds)
-  if (bError) throw new Error(`data.messages.findDirectConversationId.b: ${bError.message}`)
-  const shared = ((bParts ?? []) as { conversation_id: string }[]).map((row) => row.conversation_id)
-  if (shared.length === 0) return null
-
-  const { data: conversations, error: convError } = await admin
+  const { data, error } = await admin
     .from('conversations')
     .select('id')
-    .in('id', shared)
     .eq('kind', 'direct')
-  if (convError) throw new Error(`data.messages.findDirectConversationId.conversations: ${convError.message}`)
-  return ((conversations ?? []) as { id: string }[])[0]?.id ?? null
+    .eq('direct_key', directKeyFor(a, b))
+    .maybeSingle()
+  if (error) throw new Error(`data.messages.findDirectConversationId: ${error.message}`)
+  return (data as { id: string } | null)?.id ?? null
 }

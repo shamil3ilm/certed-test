@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
+import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
@@ -18,12 +18,9 @@ import { getProfileNamesByIds } from '@/lib/services/users'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { createConversation, sendMessage, markRead, listInbox, loadThread } from '@/lib/services/messaging'
 import { PermissionError, ValidationError, NotFoundError, RateLimitError } from '@/lib/errors'
+import { directKeyFor } from '@/lib/messaging/direct-key'
 
 const actor = { id: 'actor-1', email: 'a@x.c', role: 'tutor', status: 'active' } as any
-
-function tableClient(byTable: Record<string, unknown[]>) {
-  return { from: vi.fn((t: string) => queryBuilder({ data: byTable[t] ?? [], error: null })) }
-}
 
 /**
  * Like `tableClient`, but `single()`/`maybeSingle()` return the FIRST row of the
@@ -48,7 +45,9 @@ function multiTableClient(byTable: Record<string, unknown[]>) {
       insert: () => builder,
       update: () => builder,
       delete: () => builder,
-      eq: () => builder,
+      // A spy, not a bare arrow: a test that cares WHICH column a lookup keyed on (the
+      // direct_key dedupe) needs to read the call, and returning `builder` keeps chaining.
+      eq: vi.fn(() => builder),
       neq: () => builder,
       in: () => builder,
       ilike: () => builder,
@@ -92,13 +91,24 @@ describe('createConversation', () => {
   it('dedupes to an existing 1:1 conversation instead of creating a new one', async () => {
     vi.mocked(unmessageableRecipients).mockResolvedValueOnce([])
     vi.mocked(createAdminClient).mockReturnValue(
-      tableClient({
-        conversation_participants: [{ conversation_id: 'conv-existing' }],
-        conversations: [{ id: 'conv-existing' }],
-      }) as any,
+      multiTableClient({ conversations: [{ id: 'conv-existing', kind: 'direct' }] }) as any,
     )
     await expect(createConversation(actor, { recipientIds: ['friend'] })).resolves.toEqual({ id: 'conv-existing' })
     expect(writeAudit).not.toHaveBeenCalled() // no new conversation -> no create audit
+  })
+
+  it('finds that existing thread by the SORTED direct_key, whichever way round the pair is', async () => {
+    // The key is written on create and read on lookup, and conversations_direct_key_uniq
+    // (0023) enforces that the two agree - so if they ever computed it differently, dedupe
+    // would stop finding the thread and the unique index would reject the insert instead.
+    // Sorting is what makes it order-independent.
+    expect(directKeyFor('actor-1', 'friend')).toBe(directKeyFor('friend', 'actor-1'))
+    vi.mocked(unmessageableRecipients).mockResolvedValueOnce([])
+    const client = multiTableClient({ conversations: [{ id: 'conv-existing', kind: 'direct' }] })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await createConversation(actor, { recipientIds: ['friend'] })
+    const builder = client.from.mock.results[0].value as { eq: ReturnType<typeof vi.fn> }
+    expect(builder.eq).toHaveBeenCalledWith('direct_key', directKeyFor('actor-1', 'friend'))
   })
 
   it('creates a group conversation (no 1:1 dedupe) for multiple allowed recipients', async () => {
