@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -16,6 +16,8 @@ import {
   upsertMarks,
   deleteSessionMarks,
   selectStatusesForStudentAsService,
+  selectRowsForStudentAsService,
+  selectRowsForStudentsAsService,
 } from '@/lib/data/attendance'
 
 const mark = { id: 'a1', class_id: 'c1', student_id: 's1', session_date: '2026-06-20', status: 'present' }
@@ -43,9 +45,9 @@ describe('attendance data layer', () => {
     expect(await selectMarkedClassIds(['c1', 'c2'], 'd')).toEqual(['c1', 'c2'])
   })
 
-  it('selectStudentPage returns rows + an exact total, and throws on error', async () => {
+  it('selectStudentPage returns items + an exact total, and throws on error', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [mark], error: null, count: 42 }) as any)
-    expect(await selectStudentPage('s1', { from: 0, to: 19 })).toEqual({ rows: [mark], total: 42 })
+    expect(await selectStudentPage('s1', { from: 0, to: 19 })).toEqual({ items: [mark], total: 42 })
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
     await expect(selectStudentPage('s1', { from: 0, to: 19, classId: 'c1' })).rejects.toThrow(
       /attendance.listForStudentPage: e/,
@@ -86,5 +88,37 @@ describe('attendance data layer', () => {
     expect(await selectStatusesForStudentAsService('s1')).toEqual([{ status: 'present' }])
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
     await expect(selectStatusesForStudentAsService('s1')).rejects.toThrow(/reportCard.att: e/)
+  })
+})
+
+/**
+ * PostgREST caps every response at the project's Max rows (default 1000) and reports no
+ * error when it truncates. These three reads feed FIGURES - a report card's attendance
+ * summary, a student's history, a mentor's whole cohort - so a truncated read does not
+ * show a short list, it shows a WRONG NUMBER that looks right. They must page.
+ *
+ * The cohort read is the first to reach the cap: it multiplies marks-per-student by the
+ * number of mentees, so a single academy year can pass 1000 rows.
+ */
+describe('attendance report reads are paged, not silently truncated', () => {
+  it('selectStatusesForStudentAsService pages (report-card attendance figure)', async () => {
+    const { builder, client } = makeClientCapturing({ data: [{ status: 'present' }], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await selectStatusesForStudentAsService('s1')
+    expect(builder.range).toHaveBeenCalled()
+  })
+
+  it('selectRowsForStudentAsService pages (full history)', async () => {
+    const { builder, client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await selectRowsForStudentAsService('s1')
+    expect(builder.range).toHaveBeenCalled()
+  })
+
+  it('selectRowsForStudentsAsService pages (whole cohort - reaches the cap first)', async () => {
+    const { builder, client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await selectRowsForStudentsAsService(['s1', 's2'])
+    expect(builder.range).toHaveBeenCalled()
   })
 })

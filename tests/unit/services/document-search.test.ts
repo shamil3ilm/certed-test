@@ -13,7 +13,7 @@ beforeEach(() => vi.resetAllMocks())
 describe('searchDocuments', () => {
   it('translates page -> range, forwards filters, and decorates rows with class names', async () => {
     vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({
-      rows: [
+      items: [
         { id: 'd1', class_id: 'c1', title: 'Algebra paper', category: 'question_papers', download_count: 0 },
         { id: 'd2', class_id: 'c2', title: 'Physics sheet', category: 'practice_sheets', download_count: 3 },
       ] as any,
@@ -36,7 +36,7 @@ describe('searchDocuments', () => {
 
   it('falls back to a generic class label when a name cannot be resolved', async () => {
     vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({
-      rows: [{ id: 'd1', class_id: 'gone', title: 'Orphan', category: 'general_documents', download_count: 0 }] as any,
+      items: [{ id: 'd1', class_id: 'gone', title: 'Orphan', category: 'general_documents', download_count: 0 }] as any,
       total: 1,
     })
     vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
@@ -47,7 +47,7 @@ describe('searchDocuments', () => {
 
 describe('loadDocumentSearchPageData', () => {
   it('parses filters, marks active filters, and pages the results', async () => {
-    vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({ rows: [], total: 45 } as any)
+    vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({ items: [], total: 45 } as any)
     vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
 
     const data = await loadDocumentSearchPageData({ q: ' maths ', cat: 'question_papers', page: '3' })
@@ -62,7 +62,7 @@ describe('loadDocumentSearchPageData', () => {
   })
 
   it('ignores an unknown category and reports no active filters on a clean search', async () => {
-    vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({ rows: [], total: 0 } as any)
+    vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
     const data = await loadDocumentSearchPageData({ cat: 'made_up' })
     expect(data.filters.category).toBe('')

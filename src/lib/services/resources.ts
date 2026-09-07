@@ -1,4 +1,5 @@
 import 'server-only'
+import { toRange } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { supersedePriorResourceAttachments } from '@/lib/data/attachments'
 import { logError } from '@/lib/observability/log'
@@ -94,10 +95,8 @@ export type ListDocumentsOptions = {
 
 /** Paginated read of a class's documents (SQL-side range + count). */
 export async function listResourcesPage(classId: string, opts: ListDocumentsOptions): Promise<PaginatedDocuments> {
-  const from = (opts.page - 1) * opts.pageSize
-  const { rows, total } = await selectResourcePage(classId, {
-    from,
-    to: from + opts.pageSize - 1,
+  const { items: rows, total } = await selectResourcePage(classId, {
+    ...toRange(opts.page, opts.pageSize),
     status: opts.status ?? 'active',
     search: opts.search,
     category: opts.category,
@@ -134,10 +133,8 @@ export async function searchDocuments(opts: {
   dateTo?: string
   sort?: 'latest' | 'oldest'
 }): Promise<{ items: DocumentSearchResult[]; total: number }> {
-  const from = (opts.page - 1) * opts.pageSize
-  const { rows, total } = await selectDocumentSearchPage({
-    from,
-    to: from + opts.pageSize - 1,
+  const { items: rows, total } = await selectDocumentSearchPage({
+    ...toRange(opts.page, opts.pageSize),
     search: opts.search,
     category: opts.category,
     subject: opts.subject,

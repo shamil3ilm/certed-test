@@ -1,4 +1,5 @@
 import 'server-only'
+import { toRange } from '@/lib/pagination'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeIlike } from '@/lib/text/ilike'
 import { logError } from '@/lib/observability/log'
@@ -36,8 +37,7 @@ export async function listAuditPage(opts: {
   actorIds?: string[]
 }): Promise<PaginatedAudit> {
   const admin = createAdminClient()
-  const from = (opts.page - 1) * opts.pageSize
-  const to = from + opts.pageSize - 1
+  const { from, to } = toRange(opts.page, opts.pageSize)
   let query = admin
     .from('audit_log')
     .select('id, actor_id, action, entity_type, entity_id, created_at', { count: 'exact' })

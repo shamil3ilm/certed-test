@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Page } from '@/lib/pagination'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeIlike, escapeOrIlike } from '@/lib/text/ilike'
@@ -59,10 +60,7 @@ export type ResourcePageFilters = {
 /** One page of a class's documents with an exact total. Category/subject/date
  *  filters, keyword search (title + description + subject), and sort all run
  *  SQL-side, so paging stays correct under filtering. */
-export async function selectResourcePage(
-  classId: string,
-  opts: ResourcePageFilters,
-): Promise<{ rows: ResourceRow[]; total: number }> {
+export async function selectResourcePage(classId: string, opts: ResourcePageFilters): Promise<Page<ResourceRow>> {
   const supabase = await createClient()
   let query = supabase
     .from('resources')
@@ -82,7 +80,7 @@ export async function selectResourcePage(
   }
   const { data, error, count } = await query.range(opts.from, opts.to)
   if (error) throw new Error(`resources.listPage: ${error.message}`)
-  return { rows: (data ?? []) as ResourceRow[], total: count ?? 0 }
+  return { items: (data ?? []) as ResourceRow[], total: count ?? 0 }
 }
 
 /** Cross-class document search: the same filters as the per-class
@@ -100,7 +98,7 @@ export async function selectDocumentSearchPage(opts: {
   dateFrom?: string
   dateTo?: string
   sort?: 'latest' | 'oldest'
-}): Promise<{ rows: ResourceRow[]; total: number }> {
+}): Promise<Page<ResourceRow>> {
   const supabase = await createClient()
   let query = supabase
     .from('resources')
@@ -119,7 +117,7 @@ export async function selectDocumentSearchPage(opts: {
   }
   const { data, error, count } = await query.range(opts.from, opts.to)
   if (error) throw new Error(`resources.searchPage: ${error.message}`)
-  return { rows: (data ?? []) as ResourceRow[], total: count ?? 0 }
+  return { items: (data ?? []) as ResourceRow[], total: count ?? 0 }
 }
 
 /** Newest active resources across a set of classes - the dashboard's "recent

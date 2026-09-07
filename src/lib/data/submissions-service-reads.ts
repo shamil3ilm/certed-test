@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import type { EvaluatedSubmissionBrief, SubmissionBrief } from './submissions-shared'
 
 /**
@@ -63,13 +64,19 @@ export async function selectScoresForStudentAsService(
   studentId: string,
 ): Promise<{ assignment_id: string; score: number | null }[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('submissions')
-    .select('assignment_id, score')
-    .eq('student_id', studentId)
-    .eq('is_active', true)
-  if (error) throw new Error(`reportCard.subs: ${error.message}`)
-  return (data ?? []) as { assignment_id: string; score: number | null }[]
+  // Paged for the same reason as the report card's attendance summary: every row counts
+  // toward a FIGURE on a document handed to a parent, so a truncated read prints a wrong
+  // average rather than a visibly short list.
+  return fetchAllPaged<{ assignment_id: string; score: number | null }>(
+    (from, to) =>
+      admin
+        .from('submissions')
+        .select('assignment_id, score')
+        .eq('student_id', studentId)
+        .eq('is_active', true)
+        .range(from, to),
+    'reportCard.subs',
+  )
 }
 
 /** A student's active graded submissions, SERVICE-ROLE, for mentor/admin
@@ -96,13 +103,18 @@ export async function selectActiveSubmissionsForStudentsAsService(
 ): Promise<(SubmissionBrief & { student_id: string })[]> {
   if (studentIds.length === 0) return []
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('submissions')
-    .select('student_id, assignment_id, status, submitted_at, drive_link')
-    .in('student_id', studentIds)
-    .eq('is_active', true)
-  if (error) throw new Error(`menteeOverview.subsBatch: ${error.message}`)
-  return (data ?? []) as (SubmissionBrief & { student_id: string })[]
+  // Cohort x assignments: the same multiplication that made the cohort attendance read the
+  // first to reach the row cap. Paged so a mentor dashboard cannot quietly lose mentees.
+  return fetchAllPaged<SubmissionBrief & { student_id: string }>(
+    (from, to) =>
+      admin
+        .from('submissions')
+        .select('student_id, assignment_id, status, submitted_at, drive_link')
+        .in('student_id', studentIds)
+        .eq('is_active', true)
+        .range(from, to),
+    'menteeOverview.subsBatch',
+  )
 }
 
 /** Evaluated (graded) submissions for a SET of students, the batched form of
@@ -112,13 +124,18 @@ export async function selectEvaluatedSubmissionsForStudentsAsService(
 ): Promise<(EvaluatedSubmissionBrief & { student_id: string })[]> {
   if (studentIds.length === 0) return []
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('submissions')
-    .select('student_id, assignment_id, status, submitted_at, drive_link, score, graded_at')
-    .in('student_id', studentIds)
-    .eq('is_active', true)
-    .not('score', 'is', null)
-    .not('graded_at', 'is', null)
-  if (error) throw new Error(`menteeOverview.gradedSubsBatch: ${error.message}`)
-  return (data ?? []) as (EvaluatedSubmissionBrief & { student_id: string })[]
+  // Cohort x assignments again - the same shape as the active-submission and attendance
+  // cohort reads, and paged for the same reason.
+  return fetchAllPaged<EvaluatedSubmissionBrief & { student_id: string }>(
+    (from, to) =>
+      admin
+        .from('submissions')
+        .select('student_id, assignment_id, status, submitted_at, drive_link, score, graded_at')
+        .in('student_id', studentIds)
+        .eq('is_active', true)
+        .not('score', 'is', null)
+        .not('graded_at', 'is', null)
+        .range(from, to),
+    'menteeOverview.gradedSubsBatch',
+  )
 }

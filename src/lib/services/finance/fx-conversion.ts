@@ -24,6 +24,11 @@ import { writeAudit } from '@/lib/data/audit'
 const KINDS: FinanceKind[] = ['receipt', 'payslip']
 const FX_DENIED = 'Only an admin can manage currency conversion.'
 
+/** Conversion writes issued at once. Each touches its own row, so they are independent -
+ *  but a whole back catalogue in one Promise.all would open a write per document and
+ *  saturate the connection pool, so the fan-out is capped. */
+const WRITE_BATCH = 25
+
 function conversionFor(doc: ConvertibleDoc, base: string, rates: ReadonlyArray<ExchangeRate>): DocConversion {
   const resolved = resolveRate(rates, doc.currency, base, doc.issue_date)
   if (!resolved) return { base_currency: base, base_total: null, fx_rate: null, fx_rate_id: null }
@@ -50,11 +55,16 @@ export async function recomputeConversions(actorId: string): Promise<RecomputeRe
   let unconverted = 0
   for (const kind of KINDS) {
     const docs = await selectConvertibleDocs(kind)
-    for (const doc of docs) {
-      const conv = conversionFor(doc, base, rates)
-      await updateDocConversion(kind, doc.id, conv)
-      if (conv.base_total == null) unconverted += 1
-      else converted += 1
+    // Priced first (pure, in memory), then written in bounded batches. A write per
+    // document awaited one at a time made a recompute take as long as walking the whole
+    // back catalogue in series; the rows are independent, so they need not queue.
+    for (let i = 0; i < docs.length; i += WRITE_BATCH) {
+      const batch = docs.slice(i, i + WRITE_BATCH).map((doc) => ({ doc, conv: conversionFor(doc, base, rates) }))
+      await Promise.all(batch.map(({ doc, conv }) => updateDocConversion(kind, doc.id, conv)))
+      for (const { conv } of batch) {
+        if (conv.base_total == null) unconverted += 1
+        else converted += 1
+      }
     }
   }
   // Best-effort audit: the recompute already succeeded, so a failed audit write

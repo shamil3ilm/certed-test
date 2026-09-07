@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 
 /**
  * Table access for `mentorships` - the pastoral mentor <-> student link, which
@@ -53,13 +54,20 @@ export async function selectActiveMentorshipsForStudents(studentIds: string[]): 
   return (data ?? []) as MentorshipRef[]
 }
 
-/** RLS-scoped list of active links: an admin sees all, a mentor their own, a
- *  student their own. */
+/**
+ * RLS-scoped list of active links: an admin sees all, a mentor their own, a student their
+ * own.
+ *
+ * Complete rather than a first page. It resolves WHO is on the mentee roster, and that
+ * roster is then paged and counted as if it were whole - so a truncated read here would
+ * drop students off /students while the pager still reported a confident total.
+ */
 export async function selectActiveMentorships(): Promise<MentorshipRow[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('mentorships').select('*').eq('active', true)
-  if (error) throw new Error(`mentorships.list: ${error.message}`)
-  return (data ?? []) as MentorshipRow[]
+  return fetchAllPaged<MentorshipRow>(
+    (from, to) => supabase.from('mentorships').select('*').eq('active', true).range(from, to),
+    'mentorships.list',
+  )
 }
 
 /** Every active link, service-role. The Users hub is gated (admin + sub_admin)
@@ -68,9 +76,12 @@ export async function selectActiveMentorships(): Promise<MentorshipRow[]> {
  *  callers. */
 export async function selectAllActiveMentorships(): Promise<MentorshipRow[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('mentorships').select('*').eq('active', true)
-  if (error) throw new Error(`mentorships.listForUsersHub: ${error.message}`)
-  return (data ?? []) as MentorshipRow[]
+  // Same completeness argument as the RLS read above: the Users hub's mentor/mentee panel
+  // presents itself as the full picture of who mentors whom.
+  return fetchAllPaged<MentorshipRow>(
+    (from, to) => admin.from('mentorships').select('*').eq('active', true).range(from, to),
+    'mentorships.listForUsersHub',
+  )
 }
 
 /** The two parties on a link, for persona cleanup when it is removed. Returns

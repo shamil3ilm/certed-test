@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import { KIND } from './finance-docs-shared'
 import type { FinanceKind } from './finance-docs'
 
@@ -15,12 +16,16 @@ export type ConvertibleDoc = { id: string; currency: string; issue_date: string;
 /** Non-void documents of a kind, with the fields needed to price them into base. */
 export async function selectConvertibleDocs(kind: FinanceKind): Promise<ConvertibleDoc[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from(KIND[kind].table)
-    .select('id, currency, issue_date, total')
-    .eq('voided', false)
-  if (error) throw new Error(`${kind}.convertible: ${error.message}`)
-  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+  // A recompute must reach EVERY document or it is not a recompute: at the PostgREST row
+  // cap the documents past the first page would keep a base_total priced at the old rate,
+  // while the caller's converted/unconverted counts still look complete. finance-docs-reads
+  // pages for the same reason; this read was the one that did not.
+  const data = await fetchAllPaged<Record<string, unknown>>(
+    (from, to) =>
+      admin.from(KIND[kind].table).select('id, currency, issue_date, total').eq('voided', false).range(from, to),
+    `${kind}.convertible`,
+  )
+  return data.map((r) => ({
     id: r.id as string,
     currency: r.currency as string,
     issue_date: r.issue_date as string,
@@ -54,13 +59,15 @@ export async function selectUnconvertedCurrencies(): Promise<string[]> {
   const admin = createAdminClient()
   const out = new Set<string>()
   for (const kind of ['receipt', 'payslip'] as FinanceKind[]) {
-    const { data, error } = await admin
-      .from(KIND[kind].table)
-      .select('currency')
-      .eq('voided', false)
-      .is('base_total', null)
-    if (error) throw new Error(`${kind}.unconvertedCurrencies: ${error.message}`)
-    for (const r of (data ?? []) as Record<string, unknown>[]) out.add(r.currency as string)
+    // Truncated, this reports FEWER currencies needing a rate than there are: the admin
+    // adds rates for the ones listed, reruns the recompute, and documents in the missing
+    // currencies still refuse to convert with nothing to say why.
+    const data = await fetchAllPaged<Record<string, unknown>>(
+      (from, to) =>
+        admin.from(KIND[kind].table).select('currency').eq('voided', false).is('base_total', null).range(from, to),
+      `${kind}.unconvertedCurrencies`,
+    )
+    for (const r of data) out.add(r.currency as string)
   }
   return [...out]
 }

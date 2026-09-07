@@ -1,4 +1,5 @@
 import 'server-only'
+import { toRange } from '@/lib/pagination'
 import { summarizeAttendance, type AttendanceSummary } from '@/lib/attendance/summary'
 import {
   countStatusesForStudent,
@@ -47,13 +48,7 @@ export async function listAttendanceForStudentPage(
   studentId: string,
   opts: { page: number; pageSize: number; classId?: string },
 ): Promise<PaginatedAttendance> {
-  const from = (opts.page - 1) * opts.pageSize
-  const { rows, total } = await selectStudentPage(studentId, {
-    from,
-    to: from + opts.pageSize - 1,
-    classId: opts.classId,
-  })
-  return { items: rows, total }
+  return selectStudentPage(studentId, { ...toRange(opts.page, opts.pageSize), classId: opts.classId })
 }
 
 /** Present/late/absent/rate for a student, counted SQL-side. */

@@ -1,4 +1,5 @@
 import 'server-only'
+import { toRange } from '@/lib/pagination'
 import {
   selectAnnouncementById,
   selectClassPageSources,
@@ -50,7 +51,7 @@ export async function listAnnouncementsForClassPage(
     search: opts.search,
   })
   const merged = [...classRows, ...globalRows].sort(byNewest)
-  const from = (opts.page - 1) * opts.pageSize
+  const { from } = toRange(opts.page, opts.pageSize)
   return { items: merged.slice(from, from + opts.pageSize), total: classCount + globalCount }
 }
 

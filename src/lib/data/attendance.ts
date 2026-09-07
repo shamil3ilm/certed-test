@@ -1,6 +1,8 @@
 import 'server-only'
+import type { Page } from '@/lib/pagination'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import type { AttendanceStatus } from '@/lib/attendance/summary'
 
 /**
@@ -99,7 +101,7 @@ export async function selectMarkedClassIds(classIds: string[], date: string): Pr
 export async function selectStudentPage(
   studentId: string,
   opts: { from: number; to: number; classId?: string },
-): Promise<{ rows: AttendanceRow[]; total: number }> {
+): Promise<Page<AttendanceRow>> {
   const supabase = await createClient()
   let query = supabase
     .from('attendance')
@@ -109,7 +111,7 @@ export async function selectStudentPage(
   if (opts.classId) query = query.eq('class_id', opts.classId)
   const { data, error, count } = await query.range(opts.from, opts.to)
   if (error) throw new Error(`attendance.listForStudentPage: ${error.message}`)
-  return { rows: (data ?? []) as AttendanceRow[], total: count ?? 0 }
+  return { items: (data ?? []) as AttendanceRow[], total: count ?? 0 }
 }
 
 /** Present/late/absent/total for a student as head-only counts - zero rows
@@ -192,9 +194,13 @@ export async function deleteSessionMarks(sessionId: string): Promise<number> {
  *  selectScoresForStudentAsService. */
 export async function selectStatusesForStudentAsService(studentId: string): Promise<{ status: AttendanceStatus }[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('attendance').select('status').eq('student_id', studentId)
-  if (error) throw new Error(`reportCard.att: ${error.message}`)
-  return (data ?? []) as { status: AttendanceStatus }[]
+  // Every row counts toward the summary PERCENTAGE, so a truncated read does not show a
+  // short list - it prints a wrong figure on a document handed to a parent. There is no
+  // ORDER here either, so past the cap the surviving rows would be an arbitrary subset.
+  return fetchAllPaged<{ status: AttendanceStatus }>(
+    (from, to) => admin.from('attendance').select('status').eq('student_id', studentId).range(from, to),
+    'reportCard.att',
+  )
 }
 
 /** Full attendance history for one student, SERVICE-ROLE, for mentor/admin
@@ -204,15 +210,18 @@ export async function selectRowsForStudentAsService(
   classId?: string,
 ): Promise<Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'>[]> {
   const admin = createAdminClient()
-  let query = admin
-    .from('attendance')
-    .select('class_id, session_date, status')
-    .eq('student_id', studentId)
-    .order('session_date', { ascending: false })
-  if (classId) query = query.eq('class_id', classId)
-  const { data, error } = await query
-  if (error) throw new Error(`menteeOverview.attendance: ${error.message}`)
-  return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'>[]
+  // Ordered newest-first, so an unpaged read would drop the OLDEST history at the row cap -
+  // the evaluation view would show a full-looking record that quietly begins partway in.
+  return fetchAllPaged<Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'>>((from, to) => {
+    let query = admin
+      .from('attendance')
+      .select('class_id, session_date, status')
+      .eq('student_id', studentId)
+      .order('session_date', { ascending: false })
+      .range(from, to)
+    if (classId) query = query.eq('class_id', classId)
+    return query
+  }, 'menteeOverview.attendance')
 }
 
 /** Attendance rows for a SET of students (keeping `student_id`), so the mentor
@@ -222,30 +231,39 @@ export async function selectRowsForStudentsAsService(
 ): Promise<(Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'> & { student_id: string })[]> {
   if (studentIds.length === 0) return []
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('attendance')
-    .select('student_id, class_id, session_date, status')
-    .in('student_id', studentIds)
-    .order('session_date', { ascending: false })
-  if (error) throw new Error(`menteeOverview.attendanceBatch: ${error.message}`)
-  return (data ?? []) as (Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'> & { student_id: string })[]
+  // The cap's nearest approach: this multiplies marks-per-student by the size of the whole
+  // cohort, so one academy year of a mentor's mentees can pass 1000 rows on its own.
+  return fetchAllPaged<Pick<AttendanceRow, 'class_id' | 'session_date' | 'status'> & { student_id: string }>(
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('student_id, class_id, session_date, status')
+        .in('student_id', studentIds)
+        .order('session_date', { ascending: false })
+        .range(from, to),
+    'menteeOverview.attendanceBatch',
+  )
 }
 
-/** Attendance rows WITH `join_at` for a SET of classes (service role). The caller
- *  scopes classIds to the mentor's authority; used by the mentor session-timing
- *  list to show/edit the student joined time. */
-export async function selectJoinRowsForClassesAsService(
-  classIds: string[],
+/**
+ * The join marks for a NAMED SET of sessions - the entry times for one page of the session
+ * list.
+ *
+ * Replaces a by-class read that fetched every mark of every class in scope on each page
+ * view: unbounded, so PostgREST silently truncated it at the project's Max rows and the
+ * page then showed "Not recorded" for real marks that fell outside the truncation. Bounded
+ * here by construction - at most one page of session ids goes in.
+ */
+export async function selectJoinRowsForSessionsAsService(
+  sessionIds: string[],
 ): Promise<Pick<AttendanceRow, 'class_id' | 'session_id' | 'student_id' | 'session_date' | 'join_at'>[]> {
-  if (classIds.length === 0) return []
+  if (sessionIds.length === 0) return []
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('attendance')
-    // session_id is selected because a day can hold several marks now (one per session);
-    // callers must key on it rather than on (class, date), which would keep only one.
     .select('class_id, session_id, student_id, session_date, join_at')
-    .in('class_id', classIds)
-  if (error) throw new Error(`sessionTimings.joinRows: ${error.message}`)
+    .in('session_id', sessionIds)
+  if (error) throw new Error(`sessionTimings.joinRowsForSessions: ${error.message}`)
   return (data ?? []) as Pick<AttendanceRow, 'class_id' | 'session_id' | 'student_id' | 'session_date' | 'join_at'>[]
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 
@@ -67,5 +67,20 @@ describe('finance-fx data layer (base-currency overlay)', () => {
     await expect(updateDocConversion('receipt', 'r1', conv)).resolves.toBeUndefined()
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'no' } }) as any)
     await expect(updateDocConversion('receipt', 'r1', conv)).rejects.toThrow(/receipt.updateConversion: no/)
+  })
+})
+
+/**
+ * recomputeConversions re-prices EVERY non-void receipt and pay slip after a rate change.
+ * Unbounded, PostgREST returns only the first 1000 per kind and reports no error, so the
+ * documents past the cap keep a base_total priced at the OLD rate while the caller's
+ * {converted, unconverted} counts look entirely plausible. Money, silently stale.
+ */
+describe('selectConvertibleDocs is complete, not first-page-only', () => {
+  it('pages through every convertible document', async () => {
+    const { builder, client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+    await selectConvertibleDocs('receipt')
+    expect(builder.range).toHaveBeenCalled()
   })
 })

@@ -81,3 +81,61 @@ describe('convertIssuedDoc', () => {
     expect(updateDocConversion).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * A recompute writes one row per document. Issued serially that is a round trip per
+ * document with the next only starting when the last returns, so re-pricing an academy's
+ * back catalogue after a rate correction ran for as long as it took to walk every receipt
+ * and pay slip one at a time. The writes are independent - each touches its own row - so
+ * they go out in bounded batches instead: enough concurrency to matter, capped so a
+ * recompute cannot saturate the connection pool.
+ */
+describe('recomputeConversions writes in bounded batches', () => {
+  it('still writes EVERY document exactly once across several batches', async () => {
+    const docs = Array.from({ length: 60 }, (_, i) => ({
+      id: `d${i}`,
+      currency: 'USD',
+      issue_date: '2026-01-01',
+      total: 100,
+    }))
+    vi.mocked(requireActorCapability).mockResolvedValue(undefined as never)
+    vi.mocked(selectOrgSettings).mockResolvedValue({ base_currency: 'INR' } as never)
+    vi.mocked(selectExchangeRates).mockResolvedValue([] as never)
+    vi.mocked(selectConvertibleDocs).mockImplementation(async (kind) => (kind === 'receipt' ? docs : []) as never)
+    vi.mocked(writeAudit).mockResolvedValue(undefined as never)
+
+    // Watch how many writes are in flight at once. Serially this never exceeds 1; batched
+    // it rises to the cap and no further - which is the property worth pinning, since
+    // "just Promise.all everything" would let a big recompute open a write per document.
+    let inFlight = 0
+    let peak = 0
+    vi.mocked(updateDocConversion).mockImplementation(async () => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await new Promise((r) => setTimeout(r, 0))
+      inFlight -= 1
+    })
+
+    const result = await recomputeConversions('admin-1')
+
+    expect(peak).toBeGreaterThan(1)
+    expect(peak).toBeLessThanOrEqual(25)
+    expect(updateDocConversion).toHaveBeenCalledTimes(60)
+    const ids = vi.mocked(updateDocConversion).mock.calls.map((c) => c[1])
+    expect(new Set(ids).size).toBe(60)
+    // No rate table, so nothing prices: the tally must still account for all 60.
+    expect(result.converted + result.unconverted).toBe(60)
+  })
+
+  it('propagates a write failure rather than reporting a complete recompute', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValue(undefined as never)
+    vi.mocked(selectOrgSettings).mockResolvedValue({ base_currency: 'INR' } as never)
+    vi.mocked(selectExchangeRates).mockResolvedValue([] as never)
+    vi.mocked(selectConvertibleDocs).mockImplementation(
+      async (kind) =>
+        (kind === 'receipt' ? [{ id: 'd1', currency: 'USD', issue_date: '2026-01-01', total: 1 }] : []) as never,
+    )
+    vi.mocked(updateDocConversion).mockRejectedValue(new Error('write failed') as never)
+    await expect(recomputeConversions('admin-1')).rejects.toThrow(/write failed/)
+  })
+})
