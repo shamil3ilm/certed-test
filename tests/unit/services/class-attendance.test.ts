@@ -9,10 +9,10 @@ vi.mock('@/lib/permission/personas', () => ({
 vi.mock('@/lib/services/attendance', () => ({
   listAttendanceForClassDate: vi.fn(),
   listAttendanceForStudentPage: vi.fn(),
-  listAttendanceHistoryForClass: vi.fn(),
+  listAttendanceHistoryPageForClass: vi.fn(),
   summarizeAttendanceForStudent: vi.fn(),
   listManagerSessionsForDate: vi.fn(),
-  listRecentSessions: vi.fn(),
+  listSessionsByIds: vi.fn(),
 }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
@@ -24,10 +24,10 @@ import { canManageClass } from '@/lib/permission'
 import {
   listAttendanceForClassDate,
   listAttendanceForStudentPage,
-  listAttendanceHistoryForClass,
+  listAttendanceHistoryPageForClass,
   summarizeAttendanceForStudent,
   listManagerSessionsForDate,
-  listRecentSessions,
+  listSessionsByIds,
 } from '@/lib/services/attendance'
 import {
   loadClassAttendancePageData,
@@ -62,8 +62,8 @@ beforeEach(() => {
   })
   vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
   vi.mocked(listManagerSessionsForDate).mockResolvedValue([])
-  vi.mocked(listRecentSessions).mockResolvedValue([])
-  vi.mocked(listAttendanceHistoryForClass).mockResolvedValue([])
+  vi.mocked(listSessionsByIds).mockResolvedValue([])
+  vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValue({ items: [], total: 0 })
   vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map())
 })
 
@@ -129,9 +129,10 @@ describe('loadClassAttendancePageData', () => {
     vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([
       { student_id: 's1', session_id: 'ses1', status: 'late' },
     ] as any)
-    vi.mocked(listAttendanceHistoryForClass).mockResolvedValueOnce([
-      { session_date: '2026-07-16', status: 'late', student_id: 's1', join_at: null, leave_at: null },
-    ] as any)
+    vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValueOnce({
+      items: [{ session_date: '2026-07-16', status: 'late', student_id: 's1', join_at: null, leave_at: null }],
+      total: 1,
+    } as any)
 
     await expect(
       loadClassAttendancePageData({ id: 'tutor-1', role: 'tutor' } as any, 'class-1', { date: 'bad-date' }),
@@ -158,6 +159,11 @@ describe('loadClassAttendancePageData', () => {
       historyFilters: { status: '', from: '', to: '' },
       hasHistoryFilters: false,
       history: [{ session_date: '2026-07-16', status: 'late', name: 'Sara Student', join_at: null, leave_at: null }],
+      // The details view is paged now: it was a silent newest-200 under a heading that
+      // reads as the whole record, with filters that made it look authoritative.
+      historyPage: 1,
+      historyTotal: 1,
+      historyTotalPages: 1,
     })
   })
 
@@ -167,9 +173,12 @@ describe('loadClassAttendancePageData', () => {
       students: [{ id: 's1', name: 'Sara Student' }],
     } as any)
     vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([] as any)
-    vi.mocked(listAttendanceHistoryForClass).mockResolvedValueOnce([
-      { session_date: '2026-07-16', status: 'late', student_id: 'former-student', join_at: null, leave_at: null },
-    ] as any)
+    vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValueOnce({
+      items: [
+        { session_date: '2026-07-16', status: 'late', student_id: 'former-student', join_at: null, leave_at: null },
+      ],
+      total: 1,
+    } as any)
     vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map([['former-student', 'Past Student']]))
 
     await expect(

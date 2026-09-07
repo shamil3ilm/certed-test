@@ -1,12 +1,12 @@
 import type { Profile } from '@/lib/auth/profile'
-import { parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
 import {
   listManagerSessionsForDate,
   listAttendanceForClassDate,
   listAttendanceForStudentPage,
-  listAttendanceHistoryForClass,
-  listRecentSessions,
+  listAttendanceHistoryPageForClass,
+  listSessionsByIds,
   summarizeAttendanceForStudent,
   type AttendanceStatus,
   type ClassSession,
@@ -17,6 +17,7 @@ import { isCalendarDate, todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 
 const RECORD_PAGE_SIZE = 20
+const HISTORY_PAGE_SIZE = 20
 
 type AttendanceSearchParams = {
   date?: string
@@ -24,6 +25,7 @@ type AttendanceSearchParams = {
   aStatus?: string
   aFrom?: string
   aTo?: string
+  aPage?: string
 }
 
 export type AttendanceHistoryFilterState = { status: AttendanceStatus | ''; from: string; to: string }
@@ -73,6 +75,9 @@ type ManagerAttendancePageData = {
   // session whose marked students were later unenrolled can still be cleared.
   hasMarks: boolean
   historyFilters: AttendanceHistoryFilterState
+  historyPage: number
+  historyTotal: number
+  historyTotalPages: number
   hasHistoryFilters: boolean
   history: AttendanceHistoryRow[]
 }
@@ -81,6 +86,17 @@ type ClassAttendancePageData = StudentAttendancePageData | ManagerAttendancePage
 
 export function attendanceRecordPageUrl(page: number): string {
   return page > 1 ? `?recPage=${page}` : '?'
+}
+
+/** A history-page URL that KEEPS the marking date and the history filters - paging the
+ *  details must not silently reset the session shown above it, nor the filter being read. */
+export function attendanceHistoryPageUrl(date: string, filters: AttendanceHistoryFilterState, page: number): string {
+  const sp = new URLSearchParams({ date })
+  if (filters.status) sp.set('aStatus', filters.status)
+  if (filters.from) sp.set('aFrom', filters.from)
+  if (filters.to) sp.set('aTo', filters.to)
+  if (page > 1) sp.set('aPage', String(page))
+  return `?${sp.toString()}#attendance-history`
 }
 
 /** The session date to show: a valid supplied date, else "today" in the
@@ -98,11 +114,16 @@ export async function loadClassAttendancePageData(
 
   if (!canManage) {
     const recPage = parsePageParam(searchParams?.recPage)
-    const [summary, recordPage, sessions] = await Promise.all([
+    const [summary, recordPage] = await Promise.all([
       summarizeAttendanceForStudent(me.id, courseId),
       listAttendanceForStudentPage(me.id, { page: recPage, pageSize: RECORD_PAGE_SIZE, classId: courseId }),
-      listRecentSessions(courseId),
     ])
+    // The sessions that the records ON THIS PAGE belong to. This used to be a flat
+    // newest-500 for the class, which gave the two halves different horizons: the record
+    // pager correctly offered older pages whose session context had been cut off, so the
+    // rows appeared with no session to explain them. Keyed off the page, the two can no
+    // longer disagree however long the class runs.
+    const sessions = await listSessionsByIds([...new Set(recordPage.items.map((r) => r.session_id))])
 
     return {
       kind: 'student',
@@ -121,16 +142,32 @@ export async function loadClassAttendancePageData(
     from: isCalendarDate(searchParams?.aFrom ?? '') ? (searchParams!.aFrom as string) : '',
     to: isCalendarDate(searchParams?.aTo ?? '') ? (searchParams!.aTo as string) : '',
   }
-  const [{ students }, marks, sessions, historyRows] = await Promise.all([
+  const historyQuery = {
+    status: historyFilters.status || undefined,
+    from: historyFilters.from || undefined,
+    to: historyFilters.to || undefined,
+  }
+  const requestedHistoryPage = parsePageParam(searchParams?.aPage)
+  const [{ students }, marks, sessions, firstHistory] = await Promise.all([
     getClassMembers(courseId),
     listAttendanceForClassDate(courseId, date),
     listManagerSessionsForDate(me, courseId, date),
-    listAttendanceHistoryForClass(courseId, {
-      status: historyFilters.status || undefined,
-      from: historyFilters.from || undefined,
-      to: historyFilters.to || undefined,
+    listAttendanceHistoryPageForClass(courseId, historyQuery, {
+      page: requestedHistoryPage,
+      pageSize: HISTORY_PAGE_SIZE,
     }),
   ])
+  // Narrowing the filter while on a later page would otherwise leave a blank section with
+  // no way back but the URL.
+  const historyPage = clampPage(requestedHistoryPage, firstHistory.total, HISTORY_PAGE_SIZE)
+  const history =
+    historyPage === requestedHistoryPage
+      ? firstHistory
+      : await listAttendanceHistoryPageForClass(courseId, historyQuery, {
+          page: historyPage,
+          pageSize: HISTORY_PAGE_SIZE,
+        })
+  const historyRows = history.items
   // Attendance is per SESSION (0094): a day can hold one mark per student PER session, so
   // index by (session, student). A Map keyed on student alone would keep only one mark and
   // make every session show the same statuses.
@@ -157,6 +194,9 @@ export async function loadClassAttendancePageData(
     sessions,
     historyFilters,
     hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
+    historyPage,
+    historyTotal: history.total,
+    historyTotalPages: totalPages(history.total, HISTORY_PAGE_SIZE),
     history: historyRows.map((r) => ({
       session_date: r.session_date,
       status: r.status,

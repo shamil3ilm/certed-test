@@ -10,7 +10,7 @@ import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 import {
   deleteSessionById,
   insertSession,
-  selectRecentSessions,
+  selectSessionsByIds,
   selectSessionByIdAsService,
   selectSessionsForDate,
   selectSessionsForDateAsService,
@@ -266,6 +266,7 @@ export async function listManagerSessionsForDate(
   return selectSessionsForDateAsService(classId, date)
 }
 
-export async function listRecentSessions(classId: string, limit?: number): Promise<ClassSession[]> {
-  return selectRecentSessions(classId, limit)
+/** The sessions a NAMED set of ids belongs to - bounded by the caller's page. */
+export async function listSessionsByIds(ids: string[]): Promise<ClassSession[]> {
+  return selectSessionsByIds(ids)
 }

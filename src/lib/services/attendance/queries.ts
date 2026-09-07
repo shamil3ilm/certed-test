@@ -1,11 +1,11 @@
 import 'server-only'
-import { toRange } from '@/lib/pagination'
+import { toRange, type Page } from '@/lib/pagination'
 import { summarizeAttendance, type AttendanceSummary } from '@/lib/attendance/summary'
 import {
   countStatusesForStudent,
   RECENT_CLASS_MARKS_CAP,
   selectForClassDate,
-  selectHistoryForClass,
+  selectHistoryPageForClass,
   selectMarkedClassIds,
   selectRecentForClass,
   selectStudentPage,
@@ -15,13 +15,14 @@ import type { AttendanceStatus } from '@/lib/attendance/summary'
 
 export type AttendanceHistoryFilters = { status?: AttendanceStatus; from?: string; to?: string }
 
-/** Filterable, date-wise attendance history for a class (the Details view). RLS
- *  scopes it; the page gates who reaches it. */
-export async function listAttendanceHistoryForClass(
+/** ONE page of a class's filterable attendance history (the Details view), with the exact
+ *  total. RLS scopes it; the page gates who reaches it. */
+export async function listAttendanceHistoryPageForClass(
   classId: string,
   filters: AttendanceHistoryFilters,
-): Promise<AttendanceRow[]> {
-  return selectHistoryForClass(classId, filters)
+  opts: { page: number; pageSize: number },
+): Promise<Page<AttendanceRow>> {
+  return selectHistoryPageForClass(classId, { ...filters, range: toRange(opts.page, opts.pageSize) })
 }
 
 /** Reading attendance: one session, a student's history, and the per-session

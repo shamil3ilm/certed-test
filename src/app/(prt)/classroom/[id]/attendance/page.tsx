@@ -1,7 +1,11 @@
 import { requireClassAccess } from '../../access'
 import { getActorContext } from '@/lib/session/actor-context'
 import { type AttendanceStatus } from '@/lib/services/attendance'
-import { attendanceRecordPageUrl, loadClassAttendancePageData } from '@/lib/services/page-data/class-attendance'
+import {
+  attendanceHistoryPageUrl,
+  attendanceRecordPageUrl,
+  loadClassAttendancePageData,
+} from '@/lib/services/page-data/class-attendance'
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { SessionTimesForm } from './SessionTimesForm'
 import { SessionFeedbackForm } from './SessionFeedbackForm'
@@ -308,7 +312,7 @@ export default async function AttendancePage(props: {
           <DateFilterField label="To" name="aTo" defaultValue={data.historyFilters.to} />
         </FilterBar>
 
-        {data.history.length === 0 ? (
+        {data.historyTotal === 0 ? (
           <EmptyState className="mt-3">
             {data.hasHistoryFilters ? 'No records match these filters.' : 'No attendance recorded yet.'}
           </EmptyState>
@@ -359,6 +363,26 @@ export default async function AttendancePage(props: {
             </table>
           </div>
         )}
+
+        {/* The details view is a FILTERED history, so it needs a pager as much as a total:
+            without one it showed a silent newest-200 under a heading that reads as the whole
+            record, and filtering to "absent" across a year searched only the recent slice. */}
+        <PaginationBar
+          page={data.historyPage}
+          totalPages={data.historyTotalPages}
+          total={data.historyTotal}
+          label="records"
+          previousHref={
+            data.historyPage > 1
+              ? attendanceHistoryPageUrl(data.date, data.historyFilters, data.historyPage - 1)
+              : undefined
+          }
+          nextHref={
+            data.historyPage < data.historyTotalPages
+              ? attendanceHistoryPageUrl(data.date, data.historyFilters, data.historyPage + 1)
+              : undefined
+          }
+        />
       </section>
     </div>
   )

@@ -16,7 +16,7 @@ export {
   listAttendanceForStudentPage,
   summarizeAttendanceForStudent,
   listSessionSummariesForClass,
-  listAttendanceHistoryForClass,
+  listAttendanceHistoryPageForClass,
 } from './queries'
 export type { AttendanceRow, PaginatedAttendance, SessionSummary, AttendanceHistoryFilters } from './queries'
 
@@ -30,6 +30,6 @@ export {
   saveSessionFeedback,
   listSessionsForDate,
   listManagerSessionsForDate,
-  listRecentSessions,
+  listSessionsByIds,
 } from './sessions'
 export type { ClassSession, SaveSessionActionInput, SaveFeedbackActionInput } from './sessions'

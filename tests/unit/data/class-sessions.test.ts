@@ -12,7 +12,6 @@ import {
   updateSessionById,
   deleteSessionById,
   writeStudentSessionFeedback,
-  selectRecentSessions,
 } from '@/lib/data/class-sessions'
 
 const session = { id: 'ses1', class_id: 'c1', session_date: '2026-06-20' }
@@ -91,12 +90,5 @@ describe('class-sessions data layer', () => {
     await expect(writeStudentSessionFeedback('c1', 'd', null)).rejects.toThrow(
       /classSessions.studentFeedback\(update\): e/,
     )
-  })
-
-  it('selectRecentSessions returns bounded rows (RLS client) and throws on error', async () => {
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [session], error: null }) as any)
-    expect(await selectRecentSessions('c1')).toEqual([session])
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(selectRecentSessions('c1')).rejects.toThrow(/classSessions.recent: e/)
   })
 })
