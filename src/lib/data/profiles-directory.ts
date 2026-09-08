@@ -3,6 +3,7 @@ import { toRange } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeOrIlike } from '@/lib/text/ilike'
+import { fetchAllPaged } from '@/lib/data/paginate'
 
 const PROFILE_COLUMNS = 'id, auth_user_id, email, full_name, role, status, class_level'
 const PROFILE_COLUMNS_WITH_CREATED = `${PROFILE_COLUMNS}, created_at`
@@ -63,13 +64,22 @@ export async function selectProfilesByFilter(filter: {
   status?: 'active' | 'pending' | 'disabled'
 }): Promise<Profile[]> {
   const admin = createAdminClient()
-  let query = admin.from('profiles').select(PROFILE_COLUMNS_WITH_CREATED).order('created_at', { ascending: false })
-  if (Array.isArray(filter.role)) query = query.in('role', filter.role as string[])
-  else if (filter.role) query = query.eq('role', filter.role)
-  if (filter.status) query = query.eq('status', filter.status)
-  const { data, error } = await query
-  if (error) throw new Error(`data.profiles.selectByFilter: ${error.message}`)
-  return (data ?? []) as Profile[]
+  // COMPLETE. This answers "every active student" / "everyone pending" for the dashboard
+  // pickers, and a capped read there does not look like an error - the picker simply does
+  // not offer a student, and the person using it concludes the student is not enrolled.
+  // `created_at` is not unique (a seeded or bulk-imported cohort shares it to the second),
+  // so `id` carries the tie-break that makes the offset walk a total order.
+  return fetchAllPaged<Profile>((from, to) => {
+    let query = admin
+      .from('profiles')
+      .select(PROFILE_COLUMNS_WITH_CREATED)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+    if (Array.isArray(filter.role)) query = query.in('role', filter.role as string[])
+    else if (filter.role) query = query.eq('role', filter.role)
+    if (filter.status) query = query.eq('status', filter.status)
+    return query.range(from, to)
+  }, 'data.profiles.selectByFilter')
 }
 
 export async function selectProfilePage(
@@ -123,14 +133,23 @@ export async function selectProfileIdsBySearch(search: string, roles?: readonly 
   if (!needle) return []
   const admin = createAdminClient()
   const escaped = escapeOrIlike(needle)
-  let query = admin.from('profiles').select('id').or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
-  // Optional role clamp: callers that must not disclose the admin tier (e.g. the
-  // history actor search reached by an override-granted, non-super viewer) restrict
-  // the match so a search can't oracle an admin account's existence.
-  if (roles) query = query.in('role', roles)
-  const { data, error } = await query
-  if (error) throw new Error(`data.profiles.selectIdsBySearch: ${error.message}`)
-  return ((data ?? []) as { id: string }[]).map((row) => row.id)
+  // COMPLETE. The result is used as an `.in()` filter on another query, so a capped read
+  // silently narrows THAT list too - the history page would drop rows for a matching actor
+  // and show a shorter history rather than an error. A broad needle ("a") matches most of
+  // the academy, so this is reachable, not theoretical.
+  const rows = await fetchAllPaged<{ id: string }>((from, to) => {
+    let query = admin
+      .from('profiles')
+      .select('id')
+      .or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
+      .order('id', { ascending: true })
+    // Optional role clamp: callers that must not disclose the admin tier (e.g. the
+    // history actor search reached by an override-granted, non-super viewer) restrict
+    // the match so a search can't oracle an admin account's existence.
+    if (roles) query = query.in('role', roles)
+    return query.range(from, to)
+  }, 'data.profiles.selectIdsBySearch')
+  return rows.map((row) => row.id)
 }
 
 export async function selectProfileById(id: string): Promise<Profile | null> {

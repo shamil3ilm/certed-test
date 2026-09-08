@@ -58,19 +58,27 @@ export async function sumResourceDownloads(): Promise<number> {
 
 /** Every session timing row for a set of classes - the base for teaching-hours
  *  and sessions-held. Empty in, empty out (no all-rows fetch on []). */
-export async function selectSessionsForClasses(classIds: string[]): Promise<ClassSessionRow[]> {
-  if (classIds.length === 0) return []
+export async function selectSessionsForClasses(
+  /** Classes to include, or NULL for "every class" - which is NOT the same as an empty
+   *  array (that means "no scope, no rows"). */
+  classIds: string[] | null,
+  /** Classes to leave out, for the academy-wide caller. An inclusion list there is one uuid
+   *  per class in a GET URL and grows with the academy; the archived set is the same Q7
+   *  rule from the side that shrinks. Same inversion selectSessionPage and the teaching
+   *  -hours report use. */
+  excludeClassIds?: string[],
+): Promise<ClassSessionRow[]> {
+  if (classIds?.length === 0) return []
   const admin = createAdminClient()
-  const rows = await fetchAllPaged(
-    (from, to) =>
-      admin
-        .from('class_sessions')
-        .select('actual_start, actual_end, class_id, session_date')
-        .in('class_id', classIds)
-        .order('id', { ascending: true })
-        .range(from, to),
-    'analytics.selectSessionsForClasses',
-  )
+  const rows = await fetchAllPaged((from, to) => {
+    let q = admin
+      .from('class_sessions')
+      .select('actual_start, actual_end, class_id, session_date')
+      .order('id', { ascending: true })
+    if (classIds) q = q.in('class_id', classIds)
+    if (excludeClassIds?.length) q = q.not('class_id', 'in', `(${excludeClassIds.join(',')})`)
+    return q.range(from, to)
+  }, 'analytics.selectSessionsForClasses')
   return rows as unknown as ClassSessionRow[]
 }
 
@@ -80,6 +88,9 @@ export interface SessionHoursRow {
   id: string
   class_id: string
   tutor_id: string | null
+  /** The subject the SESSION recorded (0104) - what was taught, which is not necessarily
+   *  what the class is called or points at today. Null for sessions predating 0104. */
+  subject_id: string | null
   actual_start: string | null
   actual_end: string | null
 }
@@ -91,24 +102,31 @@ export interface SessionHoursRow {
  * sessions with no start (an incomplete session contributes no hours). Empty in, empty out.
  */
 export async function selectSessionsForClassesInRange(
-  classIds: string[],
+  /** The classes to include, or NULL for "every class" - which is not the same as an empty
+   *  array (that means "no scope, no rows"). */
+  classIds: string[] | null,
   startIso: string,
   endIso: string,
+  /** Classes to leave OUT. How an academy-wide report expresses its scope: listing every
+   *  active class puts one uuid per class in a GET URL and grows with the academy, while the
+   *  archived set - the same Q7 rule, inverted - shrinks. Same trick selectSessionPage uses. */
+  excludeClassIds?: string[],
 ): Promise<SessionHoursRow[]> {
-  if (classIds.length === 0) return []
+  if (classIds?.length === 0) return []
   const admin = createAdminClient()
-  return fetchAllPaged<SessionHoursRow>(
-    (from, to) =>
-      admin
-        .from('class_sessions')
-        .select('id, class_id, tutor_id, actual_start, actual_end')
-        .in('class_id', classIds)
-        .gte('actual_start', startIso)
-        .lt('actual_start', endIso)
-        .order('id', { ascending: true })
-        .range(from, to),
-    'analytics.selectSessionsForClassesInRange',
-  )
+  return fetchAllPaged<SessionHoursRow>((from, to) => {
+    let q = admin
+      .from('class_sessions')
+      .select('id, class_id, tutor_id, subject_id, actual_start, actual_end')
+      .gte('actual_start', startIso)
+      .lt('actual_start', endIso)
+      .order('id', { ascending: true })
+    if (classIds) q = q.in('class_id', classIds)
+    // PostgREST spells NOT IN as `(a,b,c)`; an empty exclusion is skipped, because
+    // `not.in.()` is a syntax error rather than a no-op.
+    if (excludeClassIds?.length) q = q.not('class_id', 'in', `(${excludeClassIds.join(',')})`)
+    return q.range(from, to)
+  }, 'analytics.selectSessionsForClassesInRange')
 }
 
 export interface AttendedRow {

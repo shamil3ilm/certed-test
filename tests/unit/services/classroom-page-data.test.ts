@@ -196,6 +196,71 @@ describe('a malformed filter narrows nothing rather than erroring', () => {
   })
 })
 
+describe('extras can be skipped by a caller that does not render them', () => {
+  // /grading shares this loader for the roster and the grouping but renders neither the tag
+  // chips nor the "not assigned to a student" section. Computing them there is round trips
+  // whose results are discarded - the fetch-what-you-do-not-render shape this module exists
+  // to avoid.
+  it('skips the unassigned-classes pass and the tag lookup', async () => {
+    flags({ isClassAdmin: true })
+    vi.mocked(selectVisibleClassIds).mockResolvedValue(['c1', 'orphan'])
+    vi.mocked(countActiveEnrollmentsPerClass).mockResolvedValue(new Map([['c1', 1]]))
+
+    const data = await loadClassroomPageData(ME, {}, { extras: false })
+
+    expect(data.unassigned).toEqual([])
+    expect(data.tagsByClass.size).toBe(0)
+    expect(selectVisibleClassIds).not.toHaveBeenCalled()
+    expect(tagsForEntities).not.toHaveBeenCalled()
+  })
+
+  it('computes them by default, so the Classes list is unaffected', async () => {
+    flags({ isClassAdmin: true })
+    vi.mocked(selectVisibleClassIds).mockResolvedValue(['c1', 'orphan'])
+    vi.mocked(countActiveEnrollmentsPerClass).mockResolvedValue(new Map([['c1', 1]]))
+    vi.mocked(selectClassesByIdsAsCaller).mockResolvedValue([{ id: 'orphan', name: 'Physics' }] as never)
+
+    const data = await loadClassroomPageData(ME, {})
+
+    expect(data.unassigned.map((c) => c.id)).toEqual(['orphan'])
+    expect(data.unassignedTotal).toBe(1)
+    expect(data.unassignedTruncated).toBe(false)
+    expect(tagsForEntities).toHaveBeenCalled()
+  })
+
+  /**
+   * The section is a grid of cards, not a pager, and for an ADMIN the orphan set is drawn
+   * from every class in the academy - so an academy seeded with classes before anyone is
+   * enrolled makes it arbitrarily long. Both of its reads scope with `.in(ids)`, which is
+   * ~37 bytes per uuid in the GET URL, so the list has to be capped.
+   *
+   * The trap the cap must avoid is the one Page<T> exists for: reporting the number of
+   * cards RENDERED as the number that EXIST. That turns a short list into a wrong figure,
+   * which no reader can detect. The total is computed from two complete reads before the
+   * capped fetch, so it costs nothing to be right.
+   */
+  it('caps what it FETCHES but still reports how many there really are', async () => {
+    flags({ isClassAdmin: true })
+    const orphans = Array.from({ length: 30 }, (_, i) => `orphan-${i}`)
+    vi.mocked(selectVisibleClassIds).mockResolvedValue(['c1', ...orphans])
+    vi.mocked(countActiveEnrollmentsPerClass).mockResolvedValue(new Map([['c1', 1]]))
+    vi.mocked(selectClassesByIdsAsCaller).mockImplementation(
+      async (ids: string[]) => ids.map((id) => ({ id, name: id })) as never,
+    )
+
+    const data = await loadClassroomPageData(ME, {})
+
+    // 24 fetched and rendered...
+    expect(data.unassigned).toHaveLength(24)
+    // ...but the section says there are 30, not 24.
+    expect(data.unassignedTotal, 'the count must not collapse to the page length').toBe(30)
+    expect(data.unassignedTruncated).toBe(true)
+    // The uuid list actually sent must be the capped one, or capping bought nothing.
+    expect(vi.mocked(selectClassesByIdsAsCaller).mock.calls[0][0]).toHaveLength(24)
+    expect(vi.mocked(selectActiveTutorPairsByClassIds).mock.calls[0][0]).toHaveLength(24)
+  })
+})
+
 describe('classroomUrl', () => {
   const base = { page: 1, tag: '', subject: '', q: '' }
 

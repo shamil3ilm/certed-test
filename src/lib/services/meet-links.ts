@@ -4,7 +4,6 @@ import {
   insertMeetLink,
   selectMeetLinkById,
   selectMeetLinks,
-  selectNewestForClasses,
   setMeetLinkActive,
   updateMeetLink,
   type MeetLinkRow,
@@ -21,26 +20,13 @@ import { z } from 'zod'
 
 export type MeetLink = MeetLinkRow
 
-/** Newest first, ties left in encounter order. */
-const byNewest = (a: MeetLink, b: MeetLink): number =>
-  a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
-
 export async function listMeetLinks(classId?: string, includeInactive = false): Promise<MeetLink[]> {
-  const rows = await selectMeetLinks(includeInactive)
-  // A class view includes academy-wide (null) links too; no classId = global listing.
-  return classId ? rows.filter((m) => m.class_id === classId || m.class_id === null) : rows
-}
-
-/**
- * Newest active meet links across a set of classes, plus academy-wide ones -
- * the dashboard's "meeting links" widget. Named for what the data actually is
- * (recently posted links, sorted by `created_at`): meet_links has no
- * scheduled-time column, so there's no way to derive a genuine "upcoming"
- * (time-ordered) list without a schema change.
- */
-export async function listMeetLinksForClasses(classIds: string[], limit = 5): Promise<MeetLink[]> {
-  const { classRows, globalRows } = await selectNewestForClasses(classIds, limit)
-  return [...classRows, ...globalRows].sort(byNewest).slice(0, limit)
+  // The class filter is pushed into the QUERY, not applied to the result. Reading every
+  // link in the academy and keeping the handful for this class made the request grow with
+  // the academy and put the answer at the mercy of PostgREST's row cap - past it, links
+  // simply stopped appearing on a class page. A class view still includes academy-wide
+  // (null) links; no classId = the global listing.
+  return selectMeetLinks(includeInactive, classId)
 }
 
 async function getMeetLink(id: string): Promise<MeetLink | null> {

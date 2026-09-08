@@ -23,10 +23,8 @@ type GradingQueueSection = {
 }
 
 type GradingQueuePageData = {
-  totalUngraded: number
   query?: string
   classFilter?: string
-  classOptions: { id: string; name: string }[]
   sections: GradingQueueSection[]
   filteredCount: number
 }
@@ -36,12 +34,24 @@ export async function loadGradingQueuePageData(
   me: Profile,
   searchParams?: GradingSearchParams,
 ): Promise<GradingQueuePageData> {
-  const classIds = await myClassIds(me)
+  // Scope BEFORE the read, not after it. The queue is opened one class at a time - the
+  // /grading landing is a class picker and the class tab passes its own id - but this used
+  // to load every class's assignments and every ungraded submission in the academy, then
+  // discard all but one class's worth. For an admin `myClassIds` IS every class, so both
+  // the work and the `.in()` list carrying it grew with the academy to answer a question
+  // about one class.
+  const mine = await myClassIds(me)
+  const classFilter = searchParams?.classId || undefined
+  // A filter naming a class the caller cannot reach yields nothing, rather than silently
+  // widening back to their whole scope.
+  const classIds = classFilter ? (mine.includes(classFilter) ? [classFilter] : []) : mine
   // activeOnly: archiving an assignment must also drop its ungraded submissions
   // from the "to review" queue - otherwise archived work lingers there forever.
   const assignments = classIds.length ? await listAssignments({ classIds, activeOnly: true }) : []
   const assignmentsById = new Map(assignments.map((a) => [a.id, a]))
-  const allUngraded = await listUngradedSubmissions(assignments.map((a) => a.id))
+  // No assignments in scope means no queue - skip the round trip rather than asking for
+  // the ungraded submissions of an empty set.
+  const allUngraded = assignments.length ? await listUngradedSubmissions(assignments.map((a) => a.id)) : []
 
   const [names, classes] = await Promise.all([
     getProfileNamesByIds(allUngraded.map((s) => s.student_id)),
@@ -52,10 +62,11 @@ export async function loadGradingQueuePageData(
   const classNameById = new Map(classes.map((c) => [c.id, c.name]))
 
   const query = searchParams?.q?.trim().toLowerCase() || undefined
-  const classFilter = searchParams?.classId || undefined
+  // Class narrowing already happened in the query above; only the free-text search runs
+  // here, because it spans a student's NAME and an assignment's TITLE - two other tables -
+  // and neither is worth a join for a queue this size.
   const filtered = allUngraded.filter((s) => {
     const assignment = assignmentsById.get(s.assignment_id)
-    if (classFilter && assignment?.class_id !== classFilter) return false
     if (!query) return true
     const name = (names.get(s.student_id) ?? '').toLowerCase()
     const title = (assignment?.title ?? '').toLowerCase()
@@ -85,12 +96,5 @@ export async function loadGradingQueuePageData(
     items: items.slice().sort((a, b) => (a.submittedAt < b.submittedAt ? -1 : 1)),
   }))
 
-  return {
-    totalUngraded: allUngraded.length,
-    query,
-    classFilter,
-    classOptions: [...classNameById.entries()].map(([id, name]) => ({ id, name })),
-    sections,
-    filteredCount: filtered.length,
-  }
+  return { query, classFilter, sections, filteredCount: filtered.length }
 }

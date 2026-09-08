@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ myClassIds: vi.fn() }))
-vi.mock('@/lib/data/classes', () => ({ selectAllClassIds: vi.fn() }))
 vi.mock('@/lib/data/analytics', () => ({
   selectSessionsForClasses: vi.fn(),
   selectAttendanceStatusesForClasses: vi.fn(),
@@ -12,7 +11,6 @@ vi.mock('@/lib/services/finance/finance-docs', () => ({ financeTotalsBase: vi.fn
 vi.mock('@/lib/services/authorization', () => ({ actorHasCapability: vi.fn() }))
 
 import { selectSessionsForClasses, selectAttendanceStatusesForClasses } from '@/lib/data/analytics'
-import { selectAllClassIds } from '@/lib/data/classes'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
 import { myClassIds } from '@/lib/services/classes'
@@ -39,7 +37,6 @@ describe('loadDashboardChartSeries', () => {
         unconverted_count: 0,
       } as any)
       .mockResolvedValueOnce({ base_currency: 'INR', base_total: 400, converted_count: 1, unconverted_count: 0 } as any)
-    vi.mocked(selectAllClassIds).mockResolvedValue(['c1'])
     vi.mocked(selectSessionsForClasses).mockResolvedValue([{ session_date: '2026-08-03' }] as any)
     vi.mocked(selectAttendanceStatusesForClasses).mockResolvedValue([
       { status: 'present' },
@@ -78,7 +75,6 @@ describe('loadDashboardChartSeries', () => {
         unconverted_count: 2,
       } as any)
       .mockResolvedValueOnce({ base_currency: 'INR', base_total: 0, converted_count: 0, unconverted_count: 1 } as any)
-    vi.mocked(selectAllClassIds).mockResolvedValue([])
     vi.mocked(selectSessionsForClasses).mockResolvedValue([] as any)
 
     const series = await loadDashboardChartSeries(me)
@@ -118,7 +114,6 @@ describe('loadDashboardChartSeries - viewFinance is a capability, not a persona'
     // the dashboard money cards correctly hid them.
     vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: true } as any)
     vi.mocked(actorHasCapability).mockResolvedValue(false)
-    vi.mocked(selectAllClassIds).mockResolvedValue(['c1'] as any)
     vi.mocked(selectSessionsForClasses).mockResolvedValue([] as any)
 
     const series = await loadDashboardChartSeries(me)

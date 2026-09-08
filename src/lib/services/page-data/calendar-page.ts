@@ -1,6 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
 import type { Capability } from '@/lib/capabilities'
-import { listClasses, listClassesByIds, myClassIds } from '@/lib/services/classes'
+import { listClasses, listClassesByIds, myClassScope } from '@/lib/services/classes'
 import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { mentorAuthorityClassIds } from '@/lib/permission/class'
@@ -51,7 +51,11 @@ export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<C
     }
   }
 
-  let visibleClassIds: string[]
+  // Null means "every class", which an academy-wide reader can land on here: a sub_admin
+  // whose manageClasses is denied by override fails the isAdmin test above and falls
+  // through, and myClassIds() would then hand this branch every class in the academy to
+  // spend as an `.in()` list. Read the list whole in that case, exactly as isAdmin does.
+  let visibleClassIds: string[] | null
   if (canManage || canManageContent) {
     // Manageable classes = classes this actor teaches PLUS (for a mentor) the
     // classes their mentees are enrolled in.
@@ -61,9 +65,9 @@ export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<C
     ])
     visibleClassIds = [...new Set([...tutorClassIds, ...mentorClassIds])]
   } else {
-    visibleClassIds = await myClassIds(profile)
+    visibleClassIds = await myClassScope(profile)
   }
-  if (visibleClassIds.length === 0) {
+  if (visibleClassIds?.length === 0) {
     return {
       canManage,
       isAdmin,
@@ -71,7 +75,7 @@ export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<C
       tutors: canManage || canManageContent ? [{ id: profile.id, name: profile.full_name ?? profile.email }] : [],
     }
   }
-  const myClasses = await listClassesByIds(visibleClassIds)
+  const myClasses = visibleClassIds === null ? await listClasses() : await listClassesByIds(visibleClassIds)
   return {
     canManage,
     isAdmin,

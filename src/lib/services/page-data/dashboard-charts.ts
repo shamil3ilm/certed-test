@@ -3,7 +3,6 @@ import type { Profile } from '@/lib/auth/profile'
 import type { ChartPoint } from '@/lib/ui'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { myClassIds } from '@/lib/services/classes'
-import { selectAllClassIds } from '@/lib/data/classes'
 import { selectSessionsForClasses, selectAttendanceStatusesForClasses } from '@/lib/data/analytics'
 import { summarizeAttendance, type AttendanceStatus } from '@/lib/attendance/summary'
 import { summarizeAttendanceForStudent } from '@/lib/services/attendance'
@@ -94,8 +93,10 @@ function attendanceMix(summary: { present: number; late: number; absent: number 
   ]
 }
 
-async function weeklySessionsSeries(classIds: string[]): Promise<ChartSeries> {
-  const sessions = classIds.length ? await selectSessionsForClasses(classIds) : []
+/** `classIds: null` means EVERY class - the academy-wide chart - and is not the same as an
+ *  empty array, which means the caller has no classes and the series is empty. */
+async function weeklySessionsSeries(classIds: string[] | null): Promise<ChartSeries> {
+  const sessions = classIds === null || classIds.length ? await selectSessionsForClasses(classIds) : []
   const dates = sessions.map((s) => s.session_date)
   return {
     key: 'sessions',
@@ -134,7 +135,6 @@ export async function loadDashboardChartSeries(me: Profile): Promise<ChartSeries
     // the dashboard's own money cards - correctly hid them. The operational series below
     // is NOT finance, so a denied admin still gets their cross-academy sessions chart.
     const canViewFinance = await actorHasCapability(me.id, 'viewFinance')
-    const classIds = await selectAllClassIds()
     if (canViewFinance) {
       const [receiptBase, payslipBase] = await Promise.all([financeTotalsBase('receipt'), financeTotalsBase('payslip')])
       const base = receiptBase.base_currency || payslipBase.base_currency || 'INR'
@@ -162,7 +162,12 @@ export async function loadDashboardChartSeries(me: Profile): Promise<ChartSeries
             : undefined,
       })
     }
-    series.push(await weeklySessionsSeries(classIds))
+    // NULL, not a list of every class id: this chart is deliberately cross-academy and
+    // includes ARCHIVED classes - those sessions still happened - so it is the one place the
+    // Q7 archived exclusion must NOT be applied. Listing the ids instead put one uuid per
+    // class in a GET URL that grows with the academy; no class predicate is the same set,
+    // without the ceiling.
+    series.push(await weeklySessionsSeries(null))
     // Admin dashboards should stay operational and cross-academy. Raw attendance
     // mix is more useful in class / mentor / student contexts than as a global
     // homepage metric for an admin.

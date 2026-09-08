@@ -142,6 +142,8 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
     groups,
     ownClasses,
     unassigned,
+    unassignedTotal,
+    unassignedTruncated,
     groupByStudentView,
     tagsByClass,
     total,
@@ -227,9 +229,18 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
               anomaly someone needs to act on, and on the last page of nine nobody would. */}
           {unassigned.length > 0 && (
             <section aria-label="Classes with no student">
-              <SectionLabel count={unassigned.length} className="mb-2">
+              {/* The COUNT, not the rendered length: the section caps what it fetches (one
+                  uuid per class travels in the query URL), so an academy with more of these
+                  than the cap would otherwise report exactly the cap - a wrong number rather
+                  than a short list. */}
+              <SectionLabel count={unassignedTotal} className="mb-2">
                 Not assigned to a student
               </SectionLabel>
+              {unassignedTruncated && (
+                <p className="mb-2 text-sm text-slate-600">
+                  Showing {unassigned.length} of {unassignedTotal}. Assign or archive these to see the rest.
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {unassigned.map((c) => (
                   <ClassCard

@@ -14,12 +14,32 @@ import { getProfileNamesByIds } from '@/lib/services/users'
 beforeEach(() => vi.resetAllMocks())
 
 describe('loadGradingQueuePageData', () => {
+  it('reads the caller whole scope when no class is named', async () => {
+    vi.mocked(myClassIds).mockResolvedValue(['class-1', 'class-2'] as any)
+    vi.mocked(listAssignments).mockResolvedValueOnce([] as any)
+    vi.mocked(listUngradedSubmissions).mockResolvedValueOnce([] as any)
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map() as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
+    await loadGradingQueuePageData({ id: 'tutor-1' } as any, {})
+    expect(listAssignments).toHaveBeenCalledWith({ classIds: ['class-1', 'class-2'], activeOnly: true })
+  })
+
+  it('a class the caller cannot reach yields nothing, not their whole scope', async () => {
+    // Widening back to everything would turn a bad id into a broader read than the caller
+    // asked for - the opposite of what a filter should do.
+    vi.mocked(myClassIds).mockResolvedValue(['class-1'] as any)
+    vi.mocked(getProfileNamesByIds).mockResolvedValueOnce(new Map() as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
+    const result = await loadGradingQueuePageData({ id: 'tutor-1' } as any, { classId: 'someone-elses' })
+    expect(listAssignments).not.toHaveBeenCalled()
+    expect(result.sections).toEqual([])
+    expect(result.filteredCount).toBe(0)
+  })
+
   it('loads, filters, groups, and sorts the grading queue', async () => {
-    vi.mocked(myClassIds).mockResolvedValueOnce(['class-1', 'class-2'] as any)
-    vi.mocked(listAssignments).mockResolvedValueOnce([
-      { id: 'a1', class_id: 'class-1', title: 'Algebra' },
-      { id: 'a2', class_id: 'class-2', title: 'Biology' },
-    ] as any)
+    vi.mocked(myClassIds).mockResolvedValue(['class-1', 'class-2'] as any)
+    // Scoped to class-1 by the query, so class-2's assignment never comes back.
+    vi.mocked(listAssignments).mockResolvedValueOnce([{ id: 'a1', class_id: 'class-1', title: 'Algebra' }] as any)
     vi.mocked(listUngradedSubmissions).mockResolvedValueOnce([
       { id: 's1', assignment_id: 'a1', student_id: 'u1', submitted_at: '2026-07-15T10:00:00.000Z', status: 'late' },
       {
@@ -27,13 +47,6 @@ describe('loadGradingQueuePageData', () => {
         assignment_id: 'a1',
         student_id: 'u2',
         submitted_at: '2026-07-14T10:00:00.000Z',
-        status: 'submitted',
-      },
-      {
-        id: 's3',
-        assignment_id: 'a2',
-        student_id: 'u3',
-        submitted_at: '2026-07-13T10:00:00.000Z',
         status: 'submitted',
       },
     ] as any)
@@ -44,21 +57,17 @@ describe('loadGradingQueuePageData', () => {
         ['u3', 'Ben Biology'],
       ]) as any,
     )
-    vi.mocked(listClassesByIds).mockResolvedValueOnce([
-      { id: 'class-1', name: 'Math' },
-      { id: 'class-2', name: 'Science' },
-    ] as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([{ id: 'class-1', name: 'Math' }] as any)
 
     const result = await loadGradingQueuePageData({ id: 'tutor-1' } as any, { q: ' stu ', classId: 'class-1' })
 
-    expect(result.totalUngraded).toBe(3)
+    // The class narrowing reached the QUERY: one class's assignments were asked for, not
+    // the caller's whole scope. That is the difference between reading one class and
+    // reading the academy to render one class.
+    expect(listAssignments).toHaveBeenCalledWith({ classIds: ['class-1'], activeOnly: true })
     expect(result.filteredCount).toBe(2)
     expect(result.classFilter).toBe('class-1')
     expect(result.query).toBe('stu')
-    expect(result.classOptions).toEqual([
-      { id: 'class-1', name: 'Math' },
-      { id: 'class-2', name: 'Science' },
-    ])
     expect(result.sections).toEqual([
       {
         classId: 'class-1',
@@ -95,10 +104,8 @@ describe('loadGradingQueuePageData', () => {
     vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
 
     await expect(loadGradingQueuePageData({ id: 'tutor-1' } as any, {})).resolves.toEqual({
-      totalUngraded: 0,
       query: undefined,
       classFilter: undefined,
-      classOptions: [],
       sections: [],
       filteredCount: 0,
     })

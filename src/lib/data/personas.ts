@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { selectActiveIdsAmong } from '@/lib/data/profiles'
+import { fetchAllPaged } from '@/lib/data/paginate'
 
 /**
  * Data layer for `persona_assignments` - table access only. WHICH persona a role
@@ -219,13 +220,23 @@ export async function selectActiveProfileIdsByPersona(personaName: string): Prom
 export async function selectActiveProfileIdsByPersonas(personaNames: string[]): Promise<string[]> {
   if (personaNames.length === 0) return []
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('persona_assignments')
-    .select('profile_id')
-    .in('persona_name', personaNames)
-    .eq('status', 'active')
-  if (error) throw new Error(`data.personas.activeIdsByPersonas: ${error.message}`)
-  const profileIds = [...new Set(((data ?? []) as { profile_id: string }[]).map((row) => row.profile_id))]
+  // COMPLETE. This expands a persona into its people for MESSAGE RECIPIENTS, so a capped
+  // read does not fail - it quietly drops recipients from a send that told the author it
+  // was going to "all students". Silent under-delivery is the worst shape this bug family
+  // takes, so this pages rather than reading once.
+  const rows = await fetchAllPaged<{ profile_id: string }>(
+    (from, to) =>
+      admin
+        .from('persona_assignments')
+        .select('profile_id')
+        .in('persona_name', personaNames)
+        .eq('status', 'active')
+        .order('profile_id', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    'data.personas.activeIdsByPersonas',
+  )
+  const profileIds = [...new Set(rows.map((row) => row.profile_id))]
   return selectActiveIdsAmong(profileIds)
 }
 

@@ -25,9 +25,21 @@ export type ClassRow = {
 
 export async function selectAllClasses(): Promise<ClassRow[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('classes').select('*').order('name')
-  if (error) throw new Error(`classes.list: ${error.message}`)
-  return (data ?? []) as ClassRow[]
+  // Complete, not a first page: this feeds the Classes list and the calendar's class
+  // picker, and a capped read there drops classes out of a dropdown with nothing to
+  // say so - the reader concludes the class does not exist. `name` is not unique, so
+  // `id` carries the tie-break that makes the offset walk a total order; without it a
+  // page boundary landing between two same-named classes repeats one and skips another.
+  return fetchAllPaged<ClassRow>(
+    (from, to) =>
+      supabase
+        .from('classes')
+        .select('*')
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    'classes.list',
+  )
 }
 
 /** Count of active classes - SQL-side, transfers zero rows. RLS-scoped: an
@@ -57,20 +69,11 @@ export const selectClassById = cache(async (id: string): Promise<ClassRow | null
   return (data as ClassRow) ?? null
 })
 
-/** Every class id, SERVICE-ROLE. For academy-wide aggregates (the dashboard charts),
- *  which must count classes the viewer may not open. NOT for building a list of links -
- *  see selectVisibleClassIds. */
-export async function selectAllClassIds(): Promise<string[]> {
-  const admin = createAdminClient()
-  const { data } = await admin.from('classes').select('id')
-  return ((data ?? []) as { id: string }[]).map((c) => c.id)
-}
-
 /**
  * Class ids the CALLER can actually read, through their own RLS session.
  *
- * The Classes list used to be built from selectAllClassIds() for an admin or sub_admin -
- * service-role, so it listed every class regardless of what the database would let that
+ * The Classes list used to be built, for an admin or sub_admin, from a SERVICE-ROLE read of
+ * every class id, so it listed every class regardless of what the database would let that
  * person open. The detail page reads through RLS, so the moment the app layer and RLS
  * disagreed the list offered links that answered "This page doesn't exist, or you don't
  * have access to it." Observed on staging: a sub_admin was shown both classes and refused
@@ -96,9 +99,17 @@ export async function selectVisibleClassIds(): Promise<string[]> {
  *  archived class drops out of the mentor/admin hour views (business decision Q7). */
 export async function selectActiveClassIds(): Promise<string[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('classes').select('id').eq('status', 'active')
-  if (error) throw new Error(`data.classes.activeIds: ${error.message}`)
-  return ((data ?? []) as { id: string }[]).map((c) => c.id)
+  // Complete. This is an academy-wide INCLUSION list, so a capped read does not raise an
+  // error - it silently narrows the caller's scope to the first page of classes and reads
+  // as a smaller academy. Every current caller checks isMentoringOversight first and takes
+  // the exclusion path instead, so this stays correct rather than becoming a trap for the
+  // next one.
+  const rows = await fetchAllPaged<{ id: string }>(
+    (from, to) =>
+      admin.from('classes').select('id').eq('status', 'active').order('id', { ascending: true }).range(from, to),
+    'data.classes.activeIds',
+  )
+  return rows.map((c) => c.id)
 }
 
 /**

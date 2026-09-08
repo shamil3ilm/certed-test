@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 // The tutor-only write scope, mirroring the teaches_class_write RLS behind these
@@ -15,12 +15,12 @@ import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import {
+  listMeetLinks,
   createMeetLink,
   createMeetLinkFromActionInput,
   deleteMeetLink,
   editMeetLinkFromActionInput,
   restoreMeetLink,
-  listMeetLinksForClasses,
   validateCreateMeetLinkInput,
 } from '@/lib/services/meet-links'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
@@ -239,20 +239,46 @@ describe('editMeetLinkFromActionInput', () => {
   })
 })
 
-describe('listMeetLinksForClasses', () => {
-  it('merges class-scoped and global links, newest first, capped at limit', async () => {
-    const older = { ...linkRow, id: 'a', created_at: '2026-01-01T00:00:00.000Z' }
-    const newer = { ...linkRow, id: 'b', class_id: null, created_at: '2026-02-01T00:00:00.000Z' }
-    // Query order inside listMeetLinksForClasses builds `global` before
-    // `forClasses` (each .from() call fires synchronously at build time).
-    const client = {
-      from: vi
-        .fn()
-        .mockReturnValueOnce(queryBuilder({ data: [newer], error: null })) // global
-        .mockReturnValueOnce(queryBuilder({ data: [older], error: null })), // forClasses
-    }
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
-    const result = await listMeetLinksForClasses(['class-1'], 5)
-    expect(result.map((r) => r.id)).toEqual(['b', 'a'])
+/**
+ * listMeetLinks used to read EVERY link in the academy and then keep the ones for this
+ * class. Two things were wrong with that: the request grew with the academy, and the answer
+ * depended on PostgREST's row cap - past it, links silently stopped appearing on a class
+ * page, which looks like "the tutor never posted one" rather than like an error.
+ *
+ * So the test asserts where the filtering HAPPENS, not just what comes back: a result-shape
+ * test passes either way, which is exactly why this regressed unnoticed.
+ */
+describe('listMeetLinks filters in the QUERY, not in memory', () => {
+  it('asks the database for this class AND the academy-wide links', async () => {
+    const { builder, client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createClient).mockResolvedValue(client as any)
+
+    await listMeetLinks(VALID_ID)
+
+    // Two reads, deliberately: the class's links and the null-class ones. The stub shares
+    // one builder across both, so this asserts the SET of filters applied, not "the" key -
+    // and the count below is what keeps that honest.
+    expect(client.from).toHaveBeenCalledTimes(2)
+    expect(builder.eq).toHaveBeenCalledWith('class_id', VALID_ID)
+    expect(builder.is).toHaveBeenCalledWith('class_id', null)
+    // Bounded, not a bare select: this is the read that used to have no ceiling at all.
+    expect(builder.range).toHaveBeenCalled()
+  })
+
+  it('a global listing asks for no class at all, rather than every class', async () => {
+    const { builder, client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createClient).mockResolvedValue(client as any)
+
+    await listMeetLinks()
+
+    expect(client.from).toHaveBeenCalledTimes(1)
+    expect(builder.eq).not.toHaveBeenCalledWith('class_id', expect.anything())
+    expect(builder.is).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed class id instead of putting it in a filter', async () => {
+    const { client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createClient).mockResolvedValue(client as any)
+    await expect(listMeetLinks('not-a-uuid')).rejects.toThrow()
   })
 })

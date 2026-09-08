@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
-import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
+import { clampPage, parsePageParam, totalPages, type Page } from '@/lib/pagination'
 import { isUuid } from '@/lib/validation/id'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { myClassIds, type ClassSummary } from '@/lib/services/classes'
@@ -37,6 +37,10 @@ import type { Tag } from '@/lib/services/tags'
  */
 
 const CLASSES_PAGE_SIZE = 12
+/** How many studentless classes the section RENDERS. It is a grid of cards, not a pager, so
+ *  it is a stated cap rather than a page: the true count is shown beside it and the reader
+ *  is told when there is more. Sized to fill the 3-column grid evenly. */
+const UNASSIGNED_CAP = 24
 
 export type ClassroomSearchParams = { error?: string; tag?: string; subject?: string; page?: string; q?: string }
 
@@ -54,6 +58,13 @@ export type ClassroomPageData = {
   /** Classes with NO active student. They belong to no roster group, so paging by student
    *  would drop them entirely - see unassignedClasses. Page 1 of a staff view only. */
   unassigned: ClassSummary[]
+  /** How many studentless classes there ACTUALLY are - the count, not the page length.
+   *  Reporting the rendered length would make an academy with more than UNASSIGNED_CAP of
+   *  them claim it had exactly the cap: a wrong number rather than a short list. */
+  unassignedTotal: number
+  /** True when the section is showing fewer than `unassignedTotal`, so the page can say so
+   *  rather than quietly dropping the rest. */
+  unassignedTruncated: boolean
   groupByStudentView: boolean
   tagsByClass: Map<string, Tag[]>
   /** Students matching the filters (staff view) - what the pager counts. */
@@ -113,7 +124,14 @@ async function scopeStudentIds(me: Profile, isAcademyWide: boolean): Promise<str
 export async function loadClassroomPageData(
   me: Profile,
   searchParams?: ClassroomSearchParams,
+  /** The Classes list's own decorations: the tag chips on each card and the
+   *  "not assigned to a student" section. /grading shares this loader for the roster and
+   *  the grouping but renders neither, and computing them there is three round trips whose
+   *  results are thrown away - the exact fetch-what-you-do-not-render shape this module was
+   *  rewritten to remove. */
+  opts: { extras?: boolean } = {},
 ): Promise<ClassroomPageData> {
+  const withExtras = opts.extras !== false
   const flags = await loadPersonaFlags(me.id)
   const filters: ClassroomFilters = {
     page: parsePageParam(searchParams?.page),
@@ -140,11 +158,15 @@ export async function loadClassroomPageData(
       // A student's own list is already every class they are in; there is no roster to be
       // outside of, so the unassigned section does not apply.
       unassigned: [],
+      unassignedTotal: 0,
+      unassignedTruncated: false,
       groupByStudentView: false,
-      tagsByClass: await tagsForEntities(
-        'class',
-        ownClasses.map((c) => c.id),
-      ),
+      tagsByClass: withExtras
+        ? await tagsForEntities(
+            'class',
+            ownClasses.map((c) => c.id),
+          )
+        : new Map(),
       total: ownClasses.length,
       totalPages: 1,
       flags,
@@ -181,19 +203,25 @@ export async function loadClassroomPageData(
   // subject or tag filter still applies, via `admitted`.
   const [groups, unassigned] = await Promise.all([
     buildGroups(roster.items, admitted),
-    currentPage === 1 && !filters.q ? unassignedClasses(admitted) : Promise.resolve([]),
+    withExtras && currentPage === 1 && !filters.q
+      ? unassignedClasses(admitted)
+      : Promise.resolve({ items: [], total: 0 } as Page<ClassSummary>),
   ])
   return {
     filters: { ...filters, page: currentPage },
     hasActiveFilters,
     groups,
     ownClasses: [],
-    unassigned,
+    unassigned: unassigned.items,
+    unassignedTotal: unassigned.total,
+    unassignedTruncated: unassigned.total > unassigned.items.length,
     groupByStudentView: true,
-    tagsByClass: await tagsForEntities('class', [
-      ...groups.flatMap((g) => g.classes.map((c) => c.id)),
-      ...unassigned.map((c) => c.id),
-    ]),
+    tagsByClass: withExtras
+      ? await tagsForEntities('class', [
+          ...groups.flatMap((g) => g.classes.map((c) => c.id)),
+          ...unassigned.items.map((c) => c.id),
+        ])
+      : new Map(),
     total: roster.total,
     totalPages: totalPages(roster.total, CLASSES_PAGE_SIZE),
     flags,
@@ -213,15 +241,22 @@ export async function loadClassroomPageData(
  * selectVisibleClassIds, an aggregate for the counts) - a truncated either side would
  * invent orphans that do not exist, or hide ones that do.
  */
-async function unassignedClasses(admitted: Set<string> | null): Promise<ClassSummary[]> {
+async function unassignedClasses(admitted: Set<string> | null): Promise<Page<ClassSummary>> {
   const [visibleIds, counts] = await Promise.all([selectVisibleClassIds(), countActiveEnrollmentsPerClass()])
   // The count RPC groups enrolments, so a class with none is simply absent from it - which
   // is exactly the set we want.
   const orphanIds = visibleIds.filter((id) => !counts.has(id) && (!admitted || admitted.has(id)))
-  if (orphanIds.length === 0) return []
+  if (orphanIds.length === 0) return { items: [], total: 0 }
+  // Both reads below scope themselves with `.in(orphanIds)`, which travels in the GET URL
+  // at ~37 bytes per uuid. For an ADMIN `visibleIds` is every class in the academy, so a
+  // freshly-seeded academy - classes created before anyone is enrolled - makes this list
+  // arbitrarily long and eventually breaks the request. The TOTAL is computed above from
+  // two complete, bounded reads, so capping what we FETCH costs no accuracy: the section
+  // states the real count and says it is showing fewer.
+  const shownIds = orphanIds.slice(0, UNASSIGNED_CAP)
   const [classes, tutorPairs] = await Promise.all([
-    selectClassesByIdsAsCaller(orphanIds),
-    selectActiveTutorPairsByClassIds(orphanIds),
+    selectClassesByIdsAsCaller(shownIds),
+    selectActiveTutorPairsByClassIds(shownIds),
   ])
   const names = await getProfileNamesByIds([...new Set(tutorPairs.map((p) => p.tutor_id))])
   const tutorsByClass = new Map<string, { id: string; name: string }[]>()
@@ -231,10 +266,13 @@ async function unassignedClasses(admitted: Set<string> | null): Promise<ClassSum
       { id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' },
     ])
   }
-  return classes.map((c) => {
-    const tutors = tutorsByClass.get(c.id) ?? []
-    return { ...c, tutorCount: tutors.length, studentCount: 0, students: [], tutors }
-  })
+  return {
+    items: classes.map((c) => {
+      const tutors = tutorsByClass.get(c.id) ?? []
+      return { ...c, tutorCount: tutors.length, studentCount: 0, students: [], tutors }
+    }),
+    total: orphanIds.length,
+  }
 }
 
 /** Each rostered student with their classes beneath them, in roster order. */

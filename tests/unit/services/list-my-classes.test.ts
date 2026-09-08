@@ -7,7 +7,6 @@ vi.mock('@/lib/permission/class', () => ({ mentorAuthorityClassIds: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), getProfilesByIds: vi.fn() }))
 vi.mock('@/lib/data/classes', () => ({
   countActiveClasses: vi.fn(),
-  selectAllClassIds: vi.fn(),
   selectVisibleClassIds: vi.fn(),
   selectAllClasses: vi.fn(),
   selectClassById: vi.fn(),

@@ -2,6 +2,8 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertMutated } from './mutation'
+import { fetchAllPaged } from '@/lib/data/paginate'
+import { assertFilterSafeId } from '@/lib/text/filter-values'
 
 /**
  * Table access for `meet_links`. RLS client throughout - a tutor may post a link
@@ -28,16 +30,38 @@ export type MeetLinkRow = {
 
 type MeetLinkInsert = Omit<MeetLinkRow, 'id' | 'created_at'>
 
-/** All links, newest first; inactive ones only when asked for. Not filtered by
- *  class here - the domain applies that, because a class view deliberately
- *  includes academy-wide links too. */
-export async function selectMeetLinks(includeInactive = false): Promise<MeetLinkRow[]> {
+/**
+ * Links, newest first; inactive ones only when asked for.
+ *
+ * `classId` narrows to that class PLUS the academy-wide (null) links, because a class view
+ * deliberately shows both. That filter used to live in the domain, which meant a class page
+ * read every link in the academy and then kept the handful it wanted - a full-table read
+ * sliced in memory, and one PostgREST silently truncated at its row cap, so links vanished
+ * from a class with nothing to say so. Filtering here makes the read match what is rendered.
+ *
+ * Split into two reads rather than one `.or()`: it mirrors selectNewestForClasses, and keeps
+ * the null-check out of a filter string.
+ */
+export async function selectMeetLinks(includeInactive = false, classId?: string): Promise<MeetLinkRow[]> {
   const supabase = await createClient()
-  let query = supabase.from('meet_links').select('*').order('created_at', { ascending: false })
-  if (!includeInactive) query = query.eq('active', true)
-  const { data, error } = await query
-  if (error) throw new Error(`meetLinks.list: ${error.message}`)
-  return (data ?? []) as MeetLinkRow[]
+  const page = (scope: 'all' | 'class' | 'global', tag: string) =>
+    fetchAllPaged<MeetLinkRow>((from, to) => {
+      let query = supabase.from('meet_links').select('*')
+      if (!includeInactive) query = query.eq('active', true)
+      if (scope === 'class') query = query.eq('class_id', classId as string)
+      if (scope === 'global') query = query.is('class_id', null)
+      // created_at is not unique - links added by a script or in one sitting share it - so
+      // `id` carries the tie-break that makes the offset walk a total order.
+      return query.order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)
+    }, tag)
+
+  if (!classId) return page('all', 'meetLinks.list')
+  assertFilterSafeId(classId, 'meetLinks.list')
+  const [forClass, global] = await Promise.all([
+    page('class', 'meetLinks.listForClass'),
+    page('global', 'meetLinks.listGlobal'),
+  ])
+  return [...forClass, ...global].sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id))
 }
 
 /** The newest active links from each source - the given classes, and

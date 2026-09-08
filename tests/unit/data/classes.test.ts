@@ -9,7 +9,6 @@ import { createClient } from '@/lib/supabase/server'
 import {
   selectAllClasses,
   countActiveClasses,
-  selectAllClassIds,
   selectClassesByIds,
   insertClass,
   selectClassStatus,
@@ -35,13 +34,6 @@ describe('classes data layer', () => {
     expect(await countActiveClasses()).toBe(9)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null, count: null }) as any)
     expect(await countActiveClasses()).toBe(0)
-  })
-
-  it('selectAllClassIds maps to a flat id list (service role)', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({ data: [{ id: 'c1' }, { id: 'c2' }], error: null }) as any,
-    )
-    expect(await selectAllClassIds()).toEqual(['c1', 'c2'])
   })
 
   it('selectClassesByIds short-circuits on [] and returns rows otherwise', async () => {
