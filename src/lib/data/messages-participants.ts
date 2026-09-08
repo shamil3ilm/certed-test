@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 
 type ParticipationRow = { conversation_id: string; last_read_at: string | null }
 
@@ -25,14 +26,31 @@ export async function selectParticipantIds(conversationId: string): Promise<stri
   return ((data ?? []) as { profile_id: string }[]).map((row) => row.profile_id)
 }
 
+/**
+ * Every conversation this person is in, with their read watermark.
+ *
+ * COMPLETE, and it has to be: listInbox resolves this id set FIRST and then pages it in
+ * SQL, so a capped read here does not shorten a page - it removes conversations from the
+ * inbox entirely AND from its total, and the unread filter silently stops considering
+ * them. The reader sees a shorter inbox with a confident count, which is indistinguishable
+ * from having fewer conversations.
+ *
+ * `(conversation_id, profile_id)` is UNIQUE, so within one person's rows `conversation_id`
+ * is by itself a total order - exactly what the offset walk needs to avoid repeating one
+ * row and skipping another at a page boundary.
+ */
 export async function selectMyParticipations(profileId: string): Promise<ParticipationRow[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('conversation_participants')
-    .select('conversation_id, last_read_at')
-    .eq('profile_id', profileId)
-  if (error) throw new Error(`data.messages.selectMyParticipations: ${error.message}`)
-  return (data ?? []) as ParticipationRow[]
+  return fetchAllPaged<ParticipationRow>(
+    (from, to) =>
+      admin
+        .from('conversation_participants')
+        .select('conversation_id, last_read_at')
+        .eq('profile_id', profileId)
+        .order('conversation_id', { ascending: true })
+        .range(from, to),
+    'data.messages.selectMyParticipations',
+  )
 }
 
 export async function selectParticipantsForConversations(

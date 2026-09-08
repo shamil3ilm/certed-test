@@ -5,6 +5,7 @@ import { getProfileNamesByIds } from '@/lib/services/users'
 import {
   selectConversationById,
   selectConversationPage,
+  selectConversationReadState,
   selectMessageWindow,
   searchMessages,
   selectMyParticipations,
@@ -55,7 +56,10 @@ function titleFor(kind: ConversationKind, explicit: string | null, otherNames: s
  * Unread is last-message-based: true when the newest message is from someone else
  * and is newer than the caller's read watermark.
  */
-export async function listInbox(actor: Profile, opts: { page: number; pageSize: number }): Promise<Page<InboxItem>> {
+export async function listInbox(
+  actor: Profile,
+  opts: { page: number; pageSize: number; unreadOnly?: boolean },
+): Promise<Page<InboxItem>> {
   const parts = await selectMyParticipations(actor.id)
   if (parts.length === 0) return { items: [], total: 0 }
   const convIds = parts.map((p) => p.conversation_id)
@@ -64,7 +68,28 @@ export async function listInbox(actor: Profile, opts: { page: number; pageSize: 
   // Order and slice in SQL, then resolve names for the PAGE only. This used to load every
   // conversation the caller is in - and every participant of every one of them - to render
   // twenty rows.
-  const { items: conversations, total } = await selectConversationPage(convIds, toRange(opts.page, opts.pageSize))
+  // "Unread" is a property of the caller's participation row (last_read_at) compared with
+  // the conversation's last_message_at, so it cannot be a column filter. Resolving the id
+  // set FIRST and paging that is what keeps the count honest - filtering the fetched page
+  // instead would leave the pager counting read threads it then hides.
+  const unreadIds = opts.unreadOnly
+    ? (await selectConversationReadState(convIds))
+        .filter((c) => {
+          const readAt = lastReadByConv.get(c.id) ?? null
+          // Same predicate the row badge uses below, so the filter and the dot agree.
+          return (
+            c.last_message_at != null &&
+            c.last_message_sender_id !== actor.id &&
+            (readAt == null || c.last_message_at > readAt)
+          )
+        })
+        .map((c) => c.id)
+    : undefined
+  const { items: conversations, total } = await selectConversationPage(
+    convIds,
+    toRange(opts.page, opts.pageSize),
+    unreadIds,
+  )
   const pageIds = conversations.map((c) => c.id)
   const allParts = await selectParticipantsForConversations(pageIds)
 

@@ -3,25 +3,37 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { listInbox } from '@/lib/services/messaging'
 import { listMessageableContacts } from '@/lib/messaging/recipient-policy'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
-import { PageHeader, EmptyState, Badge, Avatar, CARD, PaginationBar, cx } from '@/lib/ui'
+import { Avatar, Badge, CARD, EmptyState, FilterBar, PageHeader, PaginationBar, SelectFilterField, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { NewChatLauncher } from './NewChatLauncher'
 
 const INBOX_PAGE_SIZE = 20
 
-export default async function MessagesPage(props: { searchParams: Promise<{ page?: string }> }) {
-  const { page } = await props.searchParams
+/** An inbox URL carrying the filter, so paging never silently drops it. */
+function inboxUrl(unread: boolean, page: number): string {
+  const sp = new URLSearchParams()
+  if (unread) sp.set('show', 'unread')
+  if (page > 1) sp.set('page', String(page))
+  const query = sp.toString()
+  return query ? `/messages?${query}` : '/messages'
+}
+
+export default async function MessagesPage(props: { searchParams: Promise<{ page?: string; show?: string }> }) {
+  const { page, show } = await props.searchParams
+  const unreadOnly = show === 'unread'
   const me = await requireCapability('viewMessages')
   const requestedPage = parsePageParam(page)
   const [firstRead, contacts] = await Promise.all([
-    listInbox(me, { page: requestedPage, pageSize: INBOX_PAGE_SIZE }),
+    listInbox(me, { page: requestedPage, pageSize: INBOX_PAGE_SIZE, unreadOnly }),
     listMessageableContacts(me),
   ])
   // A stale `?page=99` reads back an empty slice; show the last real page instead of a
   // blank inbox with no way back but editing the URL.
   const currentPage = clampPage(requestedPage, firstRead.total, INBOX_PAGE_SIZE)
   const { items: pagedInbox, total } =
-    currentPage === requestedPage ? firstRead : await listInbox(me, { page: currentPage, pageSize: INBOX_PAGE_SIZE })
+    currentPage === requestedPage
+      ? firstRead
+      : await listInbox(me, { page: currentPage, pageSize: INBOX_PAGE_SIZE, unreadOnly })
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
@@ -29,8 +41,19 @@ export default async function MessagesPage(props: { searchParams: Promise<{ page
 
       <NewChatLauncher contacts={contacts} />
 
+      <FilterBar className="mt-4" clearHref="/messages" showClear={unreadOnly}>
+        <SelectFilterField label="Show" name="show" defaultValue={unreadOnly ? 'unread' : ''}>
+          <option value="">All conversations</option>
+          <option value="unread">Unread only</option>
+        </SelectFilterField>
+      </FilterBar>
+
       {total === 0 ? (
-        <EmptyState>No conversations yet.</EmptyState>
+        <EmptyState>
+          {/* "Nothing unread" is good news; "no conversations yet" is a different state and
+              saying the second reads as though a thread has gone missing. */}
+          {unreadOnly ? 'Nothing unread.' : 'No conversations yet.'}
+        </EmptyState>
       ) : (
         <ul className="space-y-2">
           {pagedInbox.map((c) => (
@@ -74,8 +97,8 @@ export default async function MessagesPage(props: { searchParams: Promise<{ page
         page={currentPage}
         totalPages={totalPages(total, INBOX_PAGE_SIZE)}
         total={total}
-        previousHref={currentPage > 1 ? `/messages?page=${currentPage - 1}` : undefined}
-        nextHref={currentPage < totalPages(total, INBOX_PAGE_SIZE) ? `/messages?page=${currentPage + 1}` : undefined}
+        previousHref={currentPage > 1 ? inboxUrl(unreadOnly, currentPage - 1) : undefined}
+        nextHref={currentPage < totalPages(total, INBOX_PAGE_SIZE) ? inboxUrl(unreadOnly, currentPage + 1) : undefined}
         className="mt-4"
       />
     </main>
