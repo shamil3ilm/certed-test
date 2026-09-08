@@ -213,7 +213,7 @@ DECLARE
   keeps_authenticated CONSTANT text[] := ARRAY[
     'count_active_enrollments_per_class',
     'current_app_role', 'current_profile_id', 'current_status',
-    'finance_totals', 'finance_totals_base',
+    'finance_totals_base',
     'is_active_admin', 'is_active_sub_admin', 'is_conversation_member',
     'is_app_link', 'is_enrolled', 'is_http_link', 'is_self_active',
     'mentors_class', 'mentors_student', 'replace_own_submission',
