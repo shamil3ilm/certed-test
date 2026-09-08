@@ -64,8 +64,6 @@ export function toDoc(kind: FinanceKind, row: Record<string, unknown>): FinanceD
   }
 }
 
-export type FinanceTotal = { currency: string; live_total: number; live_count: number }
-
 export type IssueFinanceDocInput = Omit<
   {
     number: string

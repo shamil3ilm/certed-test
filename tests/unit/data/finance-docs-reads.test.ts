@@ -11,7 +11,6 @@ import {
   selectAllDocs,
   selectRecentDocs,
   selectDocPage,
-  callFinanceTotals,
   callFinanceTotalsBase,
   selectDocById,
   selectDocLines,
@@ -64,23 +63,6 @@ describe('finance-docs-reads data layer', () => {
     expect(page.total).toBe(12)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
     await expect(selectDocPage('receipt', { from: 0, to: 9 } as any)).rejects.toThrow(/receipt.listPage: e/)
-  })
-
-  it('callFinanceTotals maps rpc rows and throws on rpc error', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient(
-        { data: null, error: null },
-        {
-          data: [{ currency: 'USD', live_total: '250', live_count: '2' }],
-          error: null,
-        },
-      ) as any,
-    )
-    expect(await callFinanceTotals('receipt')).toEqual([{ currency: 'USD', live_total: 250, live_count: 2 }])
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({ data: null, error: null }, { data: null, error: { message: 'e' } }) as any,
-    )
-    await expect(callFinanceTotals('receipt')).rejects.toThrow(/receipt.totals: e/)
   })
 
   it('callFinanceTotalsBase shapes the first rpc row with numeric defaults', async () => {

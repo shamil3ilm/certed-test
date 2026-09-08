@@ -3,7 +3,6 @@ import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 import { toRange } from '@/lib/pagination'
 import {
-  callFinanceTotals,
   callFinanceTotalsBase,
   callIssueDoc,
   selectAllDocs,
@@ -17,7 +16,6 @@ import {
   type FinanceDoc,
   type FinanceKind,
   type FinanceLine,
-  type FinanceTotal,
   type FinanceBaseTotal,
   type IssueFinanceDocInput,
 } from '@/lib/data/finance-docs'
@@ -37,7 +35,7 @@ import {
 
 export const FINANCE_DENIED = 'You are not allowed to manage finance documents.'
 
-export type { FinanceDoc, FinanceKind, FinanceLine, FinanceTotal, FinanceBaseTotal, IssueFinanceDocInput }
+export type { FinanceDoc, FinanceKind, FinanceLine, FinanceBaseTotal, IssueFinanceDocInput }
 type PaginatedFinanceDocs = { items: FinanceDoc[]; total: number }
 
 const financeDocIdSchema = z.string().uuid()
@@ -54,9 +52,12 @@ export function validateFinanceDocId(input: unknown): string {
 export async function listMyDocsPage(
   kind: FinanceKind,
   partyId: string,
-  opts: { page: number; pageSize: number },
+  opts: { page: number; pageSize: number; search?: string; status?: 'active' | 'voided' },
 ): Promise<PaginatedFinanceDocs> {
-  return selectDocPageForParty(kind, partyId, toRange(opts.page, opts.pageSize))
+  return selectDocPageForParty(kind, partyId, toRange(opts.page, opts.pageSize), {
+    search: opts.search,
+    status: opts.status,
+  })
 }
 
 /** The three fields the caller's stat cards sum over - the COMPLETE set, not a page. */
@@ -87,11 +88,6 @@ export async function listDocsPage(
     search: opts.search,
     status: opts.status,
   })
-}
-
-/** Per-currency, non-voided totals computed in SQL - no rows shipped to the app. */
-export async function financeTotals(kind: FinanceKind): Promise<FinanceTotal[]> {
-  return callFinanceTotals(kind)
 }
 
 /** Per-kind totals already normalised into the academy base currency, with a

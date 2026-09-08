@@ -26,7 +26,8 @@ import type { FinanceKind } from '@/lib/data/finance-docs'
  */
 
 export interface DraftLine {
-  /** The class name. Stored as receipt_lines.subject / payslip_lines.label. */
+  /** What the line is FOR: the subject the month's sessions recorded, or the class name
+   *  when they name no single subject. Stored as receipt_lines.subject / payslip_lines.label. */
   subject: string
   hours: number
   rate: number
@@ -110,10 +111,14 @@ export async function buildBillingDraft(
   const perClass: Array<{ subject: string; minutes: number }> =
     kind === 'receipt'
       ? studentClasses.flatMap((c) =>
-          c.students.filter((s) => s.studentId === partyId).map((s) => ({ subject: c.className, minutes: s.minutes })),
+          c.students
+            .filter((s) => s.studentId === partyId)
+            .map((s) => ({ subject: c.subjectName ?? c.className, minutes: s.minutes })),
         )
       : tutorClasses.flatMap((c) =>
-          c.tutors.filter((t) => t.tutorId === partyId).map((t) => ({ subject: c.className, minutes: t.minutes })),
+          c.tutors
+            .filter((t) => t.tutorId === partyId)
+            .map((t) => ({ subject: c.subjectName ?? c.className, minutes: t.minutes })),
         )
 
   // A class with recorded sessions but no recorded WINDOW contributes 0 minutes. Billing a

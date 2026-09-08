@@ -1,11 +1,11 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { escapeOrIlike } from '@/lib/text/ilike'
+import { escapeIlike, escapeOrIlike } from '@/lib/text/ilike'
 import { fetchAllPaged } from '@/lib/data/paginate'
 import type { Page } from '@/lib/pagination'
 import type { FinanceDoc, FinanceKind, FinanceLine } from './finance-docs'
-import { docColumns, KIND, toDoc, type FinanceTotal } from './finance-docs-shared'
+import { docColumns, KIND, toDoc } from './finance-docs-shared'
 
 /**
  * ONE page of a party's OWN documents, newest first, with the exact total.
@@ -21,10 +21,11 @@ export async function selectDocPageForParty(
   kind: FinanceKind,
   partyId: string,
   range: { from: number; to: number },
+  filters: { search?: string; status?: 'active' | 'voided' } = {},
 ): Promise<Page<FinanceDoc>> {
   const k = KIND[kind]
   const supabase = await createClient()
-  const { data, error, count } = await supabase
+  let query = supabase
     .from(k.table)
     .select(docColumns(k), { count: 'exact' })
     .eq(k.partyCol, partyId)
@@ -32,7 +33,12 @@ export async function selectDocPageForParty(
     // created_at ties (two documents issued in one run) are otherwise ordered arbitrarily,
     // and an unstable order under paging can repeat or skip a row.
     .order('id', { ascending: true })
-    .range(range.from, range.to)
+  if (filters.status) query = query.eq('voided', filters.status === 'voided')
+  const search = filters.search?.trim()
+  // Only the document NUMBER: the party column is the caller themselves here, so searching
+  // the counterparty name (as the admin ledger does) would match everything or nothing.
+  if (search) query = query.ilike('number', `%${escapeIlike(search)}%`)
+  const { data, error, count } = await query.range(range.from, range.to)
   if (error) throw new Error(`${kind}.listMinePage: ${error.message}`)
   return {
     items: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => toDoc(kind, row)),
@@ -122,17 +128,6 @@ export async function selectPartyDocTotals(
   // Postgres returns numeric as a STRING over PostgREST; left as-is, the per-currency sum
   // would concatenate instead of adding.
   return rows.map((r) => ({ total: Number(r.total), currency: r.currency, voided: r.voided }))
-}
-
-export async function callFinanceTotals(kind: FinanceKind): Promise<FinanceTotal[]> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase.rpc('finance_totals', { p_kind: kind })
-  if (error) throw new Error(`${kind}.totals: ${error.message}`)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
-    currency: row.currency as string,
-    live_total: Number(row.live_total),
-    live_count: Number(row.live_count),
-  }))
 }
 
 export type FinanceBaseTotal = {

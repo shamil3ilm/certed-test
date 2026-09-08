@@ -294,3 +294,50 @@ describe('self-recorded hours warning (C-06)', () => {
     expect(countSelfRecordedSessions, 'the count is not even queried for a receipt').not.toHaveBeenCalled()
   })
 })
+
+/**
+ * A receipt line is stored in receipt_lines.SUBJECT, and until now it carried the CLASS
+ * NAME. For a class named for a level ("C12") that prints a level in a column headed
+ * Subject, and it drifts: rename the class and a newly issued back-dated receipt relabels
+ * work that was taught under the old name. 0104 records the subject each session actually
+ * taught, so the line uses that when the month's sessions agree on one, and falls back to
+ * the class name when they do not - a wrong subject on a fee document being worse than a
+ * blunt one.
+ */
+describe('billing lines are labelled by the subject taught', () => {
+  it('uses the recorded subject in place of the class name', async () => {
+    vi.mocked(getAcademyClassHours).mockResolvedValue(
+      hours({
+        studentClasses: [
+          {
+            classId: 'C1',
+            className: 'C12',
+            subjectName: 'Mathematics',
+            totalMinutes: 90,
+            students: [{ studentId: STUDENT, studentName: 'S', minutes: 90, sessionCount: 1 }],
+          },
+        ],
+      }),
+    )
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
+    expect(draft.lines.map((l) => l.subject)).toEqual(['Mathematics'])
+  })
+
+  it('falls back to the class name when the sessions name no single subject', async () => {
+    vi.mocked(getAcademyClassHours).mockResolvedValue(
+      hours({
+        studentClasses: [
+          {
+            classId: 'C1',
+            className: 'C12',
+            subjectName: null,
+            totalMinutes: 90,
+            students: [{ studentId: STUDENT, studentName: 'S', minutes: 90, sessionCount: 1 }],
+          },
+        ],
+      }),
+    )
+    const draft = await buildBillingDraft(ACTOR, 'receipt', STUDENT, '2026-09')
+    expect(draft.lines.map((l) => l.subject)).toEqual(['C12'])
+  })
+})
