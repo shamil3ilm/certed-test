@@ -1,6 +1,8 @@
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { searchDocuments, type DocumentSearchResult } from '@/lib/services/resources'
 import { isDocumentCategory, type DocumentCategory } from '@/lib/documents/categories'
+import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
+import { getProfileNamesByIds } from '@/lib/services/users'
 
 /**
  * Page data for the global document search - documents across ALL
@@ -31,10 +33,37 @@ export type DocumentSearchParams = {
   sort?: string
 }
 
+/** One student's documents from THIS page of results, in the page's own order. */
+export type DocumentStudentGroup = {
+  /** The student's profile id, or '' for the unattached group. */
+  key: string
+  label: string
+  results: DocumentSearchResult[]
+}
+
 export type DocumentSearchPageData = {
   filters: DocumentSearchFilters
   hasActiveFilters: boolean
   results: DocumentSearchResult[]
+  /**
+   * The same results, grouped under the student whose class owns each document.
+   *
+   * PAGE-LOCAL, and deliberately so - unlike /session-timings, which pages the student
+   * roster precisely so a student's rows are never split. The difference is not an
+   * oversight, it is what the two surfaces are:
+   *
+   *   - A document library answers "what has been added lately". Its order is recency, and
+   *     re-ordering it by student to make groups whole would destroy the question it
+   *     answers.
+   *   - A document has no student column. It belongs to a CLASS, and the search runs
+   *     through the caller's own session so RLS scopes it; there is no student-keyed query
+   *     to page. Grouping resolves class -> student afterwards, for the page's classes only.
+   *
+   * So a student's documents CAN continue on the next page. The grouping is a reading aid
+   * over a recency list, not a claim that a group is complete - which is why the page says
+   * so rather than letting the reader assume otherwise.
+   */
+  groups: DocumentStudentGroup[]
   total: number
   totalPages: number
 }
@@ -96,7 +125,44 @@ export async function loadDocumentSearchPageData(searchParams?: DocumentSearchPa
     filters: { ...filters, page },
     hasActiveFilters,
     results: items,
+    groups: await groupByStudent(items),
     total,
     totalPages: totalPages(total, PAGE_SIZE),
   }
+}
+
+/**
+ * Group one page of results under the student whose class owns each document.
+ *
+ * Bounded by the PAGE: at most PAGE_SIZE documents, so at most that many classes and
+ * students to resolve - two reads regardless of how large the library grows.
+ *
+ * Group order follows first appearance, so the recency of the underlying list survives:
+ * the student with the newest document is first. Documents whose class has no active
+ * student (a shared or archived class) collect in one trailing group rather than being
+ * dropped - the page must show every result it counted.
+ */
+async function groupByStudent(results: DocumentSearchResult[]): Promise<DocumentStudentGroup[]> {
+  if (results.length === 0) return []
+  const classIds = [...new Set(results.map((r) => r.document.class_id))]
+  const refs = await selectActiveEnrollmentRefsByClassIds(classIds)
+  const studentByClass = new Map(refs.map((r) => [r.class_id, r.student_id]))
+  const names = await getProfileNamesByIds([...new Set(refs.map((r) => r.student_id))])
+
+  const order: string[] = []
+  const byStudent = new Map<string, DocumentSearchResult[]>()
+  for (const result of results) {
+    const key = studentByClass.get(result.document.class_id) ?? ''
+    const bucket = byStudent.get(key)
+    if (bucket) bucket.push(result)
+    else {
+      byStudent.set(key, [result])
+      order.push(key)
+    }
+  }
+  return order.map((key) => ({
+    key,
+    label: key ? (names.get(key) ?? 'Unknown') : 'Not linked to a student',
+    results: byStudent.get(key) ?? [],
+  }))
 }

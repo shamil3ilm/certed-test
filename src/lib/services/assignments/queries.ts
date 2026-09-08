@@ -3,6 +3,7 @@ import { toRange, type Page } from '@/lib/pagination'
 import {
   selectAssignmentById,
   selectAssignments,
+  type AssignmentType,
   selectAssignmentPage,
   type AssignmentFilters,
   type AssignmentRow,
@@ -27,8 +28,9 @@ export async function listAssignmentPage(
   classId: string,
   opts: { page: number; pageSize: number },
   visible?: { activeOnly: true; alsoIds: string[] },
+  type?: AssignmentType,
 ): Promise<Page<Assignment>> {
-  return selectAssignmentPage(classId, toRange(opts.page, opts.pageSize), visible)
+  return selectAssignmentPage(classId, toRange(opts.page, opts.pageSize), visible, type)
 }
 
 export async function getAssignment(id: string): Promise<Assignment | null> {

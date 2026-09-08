@@ -5,7 +5,8 @@ import {
   documentCategoryLabel,
   type DocumentCategory,
 } from '@/lib/documents/categories'
-import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
+import { classworkUrl, loadClassworkPageData } from '@/lib/services/page-data/classwork'
+import { AssignmentStateFields } from './sections'
 import {
   AlertBanner,
   ArchivedList,
@@ -135,7 +136,15 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
       <SectionLabel>Documents</SectionLabel>
       {data.canManageContent && <UploadForm classes={data.classList} />}
 
-      <FilterBar clearHref="?" showClear={data.hasActiveFilters} applyLabel="Apply">
+      <FilterBar
+        clearHref={classworkUrl(
+          data,
+          { q: '', category: '', subject: '', from: '', to: '', sort: 'latest' },
+          'materials',
+        )}
+        showClear={data.hasActiveFilters}
+        applyLabel="Apply"
+      >
         <SearchFilterField name="q" defaultValue={filters.q} placeholder="Title, subject, description..." />
         <SelectFilterField label="Category" name="cat" defaultValue={filters.category}>
           <option value="">All categories</option>
@@ -159,6 +168,10 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
           <option value="latest">Latest first</option>
           <option value="oldest">Oldest first</option>
         </SelectFilterField>
+        {/* This GET form submits only its own fields, so the assignment list's page and
+            type travel as hidden ones - otherwise filtering documents would send a reader
+            browsing page 4 of the assignments back to page 1 of an unfiltered list. */}
+        <AssignmentStateFields state={data} />
       </FilterBar>
 
       {/* A capped read has to SAY it is capped, or the filters above imply the view is the

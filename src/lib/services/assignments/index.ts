@@ -22,6 +22,9 @@ export type {
 
 export { listAssignments, listAssignmentPage, getAssignment } from './queries'
 export type { Assignment } from './queries'
+// Re-exported so a page can build its type filter from the same list the query validates
+// against - two hand-kept lists would drift and a dropped option would silently narrow.
+export { ASSIGNMENT_TYPES, type AssignmentType } from '@/lib/data/assignments'
 
 export {
   createAssignment,

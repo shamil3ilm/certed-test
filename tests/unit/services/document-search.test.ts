@@ -2,13 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/data/resources', () => ({ selectDocumentSearchPage: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ listClassesByIds: vi.fn() }))
+vi.mock('@/lib/data/class-membership', () => ({ selectActiveEnrollmentRefsByClassIds: vi.fn() }))
+vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 
 import { selectDocumentSearchPage } from '@/lib/data/resources'
 import { listClassesByIds } from '@/lib/services/classes'
+import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
+import { getProfileNamesByIds } from '@/lib/services/users'
 import { searchDocuments } from '@/lib/services/resources'
 import { documentSearchUrl, loadDocumentSearchPageData } from '@/lib/services/page-data/document-search'
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([])
+  vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map())
+})
 
 describe('searchDocuments', () => {
   it('translates page -> range, forwards filters, and decorates rows with class names', async () => {
@@ -76,5 +84,76 @@ describe('documentSearchUrl', () => {
     expect(documentSearchUrl(base)).toBe('/documents')
     expect(documentSearchUrl(base, { q: 'algebra', page: 2 })).toBe('/documents?page=2&q=algebra')
     expect(documentSearchUrl(base, { sort: 'oldest' })).toBe('/documents?sort=oldest')
+  })
+})
+
+describe('document search: grouping a page under the student who owns the class', () => {
+  const docs = (rows: { id: string; class_id: string }[]) => {
+    vi.mocked(selectDocumentSearchPage).mockResolvedValue({ items: rows as never, total: rows.length })
+    vi.mocked(listClassesByIds).mockResolvedValue(
+      [...new Set(rows.map((r) => r.class_id))].map((id) => ({ id, name: id.toUpperCase() })) as never,
+    )
+  }
+
+  it('groups by student, and orders groups by FIRST APPEARANCE so recency survives', async () => {
+    // The list is newest-first. If groups were sorted by name instead, the newest document
+    // could land halfway down the page - which is the one thing a "what's new" list may
+    // not do.
+    docs([
+      { id: 'd1', class_id: 'cB' },
+      { id: 'd2', class_id: 'cA' },
+      { id: 'd3', class_id: 'cB' },
+    ])
+    vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([
+      { class_id: 'cA', student_id: 'aaa' },
+      { class_id: 'cB', student_id: 'zzz' },
+    ] as never)
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(
+      new Map([
+        ['aaa', 'Ann'],
+        ['zzz', 'Zoe'],
+      ]),
+    )
+
+    const data = await loadDocumentSearchPageData({})
+
+    // Zoe first: she owns d1, the newest document. Alphabetical would have put Ann first.
+    expect(data.groups.map((g) => g.label)).toEqual(['Zoe', 'Ann'])
+    expect(data.groups[0].results.map((r) => r.document.id)).toEqual(['d1', 'd3'])
+    expect(data.groups[1].results.map((r) => r.document.id)).toEqual(['d2'])
+  })
+
+  it('keeps a document whose class has no active student, in a trailing group', async () => {
+    // Dropping it would make the page show fewer documents than the total it just printed.
+    docs([
+      { id: 'd1', class_id: 'cA' },
+      { id: 'd2', class_id: 'cOrphan' },
+    ])
+    vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([{ class_id: 'cA', student_id: 'aaa' }] as never)
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['aaa', 'Ann']]))
+
+    const data = await loadDocumentSearchPageData({})
+
+    expect(data.groups.map((g) => g.label)).toEqual(['Ann', 'Not linked to a student'])
+    // Every result the page counted is still rendered by exactly one group.
+    expect(data.groups.flatMap((g) => g.results)).toHaveLength(data.results.length)
+  })
+
+  it('resolves only the CLASSES ON THIS PAGE, so grouping cannot grow with the library', async () => {
+    docs([
+      { id: 'd1', class_id: 'cA' },
+      { id: 'd2', class_id: 'cA' },
+      { id: 'd3', class_id: 'cB' },
+    ])
+    await loadDocumentSearchPageData({})
+    // De-duplicated to the page's two distinct classes, not one lookup per document.
+    expect(vi.mocked(selectActiveEnrollmentRefsByClassIds).mock.calls[0][0]).toEqual(['cA', 'cB'])
+  })
+
+  it('does not query at all for an empty page', async () => {
+    docs([])
+    const data = await loadDocumentSearchPageData({})
+    expect(data.groups).toEqual([])
+    expect(selectActiveEnrollmentRefsByClassIds).not.toHaveBeenCalled()
   })
 })

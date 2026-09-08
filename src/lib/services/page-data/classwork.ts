@@ -2,7 +2,7 @@ import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
-import { listAssignmentPage, type Assignment } from '@/lib/services/assignments'
+import { ASSIGNMENT_TYPES, listAssignmentPage, type Assignment, type AssignmentType } from '@/lib/services/assignments'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
 import {
   listResourcesPage,
@@ -30,6 +30,7 @@ type ClassworkSearchParams = {
   sort?: string
   error?: string
   aPage?: string
+  aType?: string
 }
 
 type ClassworkAssignmentView = {
@@ -72,22 +73,92 @@ type ClassworkPageData = {
   assignmentPage: number
   assignmentTotal: number
   assignmentTotalPages: number
+  assignmentType: AssignmentType | ''
   archivedDocuments: Document[]
 }
 
-/** Builds a Classwork URL that preserves the current document filters, changing
- *  only the keys passed in `patch` (empty string clears a key). */
-export function documentFilterUrl(current: DocumentFilterState, patch: Partial<DocumentFilterState>): string {
-  const next = { ...current, ...patch }
-  const sp = new URLSearchParams()
-  if (next.q) sp.set('q', next.q)
-  if (next.category) sp.set('cat', next.category)
-  if (next.subject) sp.set('subj', next.subject)
-  if (next.from) sp.set('from', next.from)
-  if (next.to) sp.set('to', next.to)
-  if (next.sort === 'oldest') sp.set('sort', 'oldest')
-  const query = sp.toString()
-  return query ? `?${query}` : '?'
+/** The whole of the Classwork URL state: the document filters AND the assignment list's
+ *  own page and type. One type, because one URL carries both. */
+export type ClassworkUrlState = {
+  filters: DocumentFilterState
+  assignmentType: AssignmentType | ''
+  assignmentPage: number
+}
+
+/**
+ * The query string for a Classwork state, as ordered key/value pairs.
+ *
+ * This is the SINGLE enumeration of the page's URL keys. The link builder and the hidden
+ * form fields both derive from it, and `parseClassworkState` reads the same keys back -
+ * so a new filter cannot be half-added, serialized in links but dropped by the forms.
+ * Default values are omitted, keeping a plain first page free of noise.
+ */
+export function classworkParams(state: ClassworkUrlState): Array<[key: string, value: string]> {
+  const f = state.filters
+  const out: Array<[string, string]> = []
+  if (f.q) out.push(['q', f.q])
+  if (f.category) out.push(['cat', f.category])
+  if (f.subject) out.push(['subj', f.subject])
+  if (f.from) out.push(['from', f.from])
+  if (f.to) out.push(['to', f.to])
+  if (f.sort === 'oldest') out.push(['sort', 'oldest'])
+  if (state.assignmentType) out.push(['aType', state.assignmentType])
+  if (state.assignmentPage > 1) out.push(['aPage', String(state.assignmentPage)])
+  return out
+}
+
+/** Which section owns each key - so each GET form can carry the OTHER section's state. */
+export const DOCUMENT_PARAM_KEYS = ['q', 'cat', 'subj', 'from', 'to', 'sort'] as const
+export const ASSIGNMENT_PARAM_KEYS = ['aType', 'aPage'] as const
+
+/**
+ * Builds a Classwork URL from the CURRENT state, changing only the keys in `patch`
+ * (an empty string, or page 1, clears a key).
+ *
+ * Assignments and Documents share one URL, so a link that rebuilds the query from only its
+ * own keys silently discards the other section's. That is what the assignment pager did:
+ * a reader who had searched the documents lost the search by turning to page 2.
+ *
+ * `section` appends the anchor, so a link from the assignments pager returns the reader to
+ * the assignments rather than the top of the page.
+ */
+export function classworkUrl(
+  current: ClassworkUrlState,
+  patch: Partial<DocumentFilterState> & Partial<Omit<ClassworkUrlState, 'filters'>>,
+  section?: 'assignments' | 'materials',
+): string {
+  const { assignmentType, assignmentPage, ...filterPatch } = patch
+  const next: ClassworkUrlState = {
+    filters: { ...current.filters, ...filterPatch },
+    assignmentType: assignmentType !== undefined ? assignmentType : current.assignmentType,
+    assignmentPage: assignmentPage !== undefined ? assignmentPage : current.assignmentPage,
+  }
+  const query = new URLSearchParams(classworkParams(next)).toString()
+  return (query ? `?${query}` : '?') + (section ? `#${section}` : '')
+}
+
+/**
+ * Read a Classwork state back out of the URL - the inverse of `classworkParams`, and the
+ * one the page itself uses, so the round-trip test exercises the real parser rather than a
+ * copy that could agree with the builder while the page disagrees with both.
+ */
+export function parseClassworkState(searchParams?: ClassworkSearchParams): ClassworkUrlState {
+  return {
+    filters: {
+      q: searchParams?.q?.trim() ?? '',
+      category: isDocumentCategory(searchParams?.cat ?? '') ? (searchParams!.cat as DocumentCategory) : '',
+      subject: searchParams?.subj?.trim() ?? '',
+      from: searchParams?.from ?? '',
+      to: searchParams?.to ?? '',
+      sort: searchParams?.sort === 'oldest' ? 'oldest' : 'latest',
+    },
+    // Unknown values are dropped rather than forwarded, so a stale URL shows every kind
+    // instead of an empty section.
+    assignmentType: ASSIGNMENT_TYPES.includes(searchParams?.aType as AssignmentType)
+      ? (searchParams?.aType as AssignmentType)
+      : '',
+    assignmentPage: parsePageParam(searchParams?.aPage),
+  }
 }
 
 function isoOrUndefined(day: string | undefined, endOfDay = false): string | undefined {
@@ -107,15 +178,10 @@ export async function loadClassworkPageData(
   const canManageContent = canManage && !isArchived
   const classList = [{ id: course.id, name: course.name }]
 
-  const filters: DocumentFilterState = {
-    q: searchParams?.q?.trim() ?? '',
-    category: isDocumentCategory(searchParams?.cat ?? '') ? (searchParams!.cat as DocumentCategory) : '',
-    subject: searchParams?.subj?.trim() ?? '',
-    from: searchParams?.from ?? '',
-    to: searchParams?.to ?? '',
-    sort: searchParams?.sort === 'oldest' ? 'oldest' : 'latest',
-  }
-  const requestedAssignmentPage = parsePageParam(searchParams?.aPage)
+  const urlState = parseClassworkState(searchParams)
+  const filters = urlState.filters
+  const requestedAssignmentPage = urlState.assignmentPage
+  const assignmentType = urlState.assignmentType || undefined
   const hasActiveFilters = Boolean(
     filters.q || filters.category || filters.subject || filters.from || filters.to || filters.sort === 'oldest',
   )
@@ -151,6 +217,7 @@ export async function loadClassworkPageData(
       course.id,
       { page: requestedAssignmentPage, pageSize: ASSIGNMENTS_PAGE_SIZE },
       canManage ? undefined : { activeOnly: true, alsoIds: submittedAssignmentIds },
+      assignmentType,
     ),
   ])
 
@@ -171,6 +238,7 @@ export async function loadClassworkPageData(
           course.id,
           { page: assignmentPageNo, pageSize: ASSIGNMENTS_PAGE_SIZE },
           canManage ? undefined : { activeOnly: true, alsoIds: submittedAssignmentIds },
+          assignmentType,
         )
 
   // No post-filter: the visibility rule went into the query above, so what came back IS
@@ -223,6 +291,7 @@ export async function loadClassworkPageData(
     assignmentPage: assignmentPageNo,
     assignmentTotal: assignmentsOnPage.total,
     assignmentTotalPages: totalPages(assignmentsOnPage.total, ASSIGNMENTS_PAGE_SIZE),
+    assignmentType: assignmentType ?? '',
     assignmentViews: visibleAssignments.map((assignment) => {
       const submission = subByAssignment.get(assignment.id)
       return {

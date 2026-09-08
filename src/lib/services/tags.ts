@@ -108,13 +108,6 @@ export async function createTag(actor: Profile, name: string, color?: string | n
   return created
 }
 
-/** Attach an existing tag to an entity the caller may manage. */
-export async function tagEntity(actor: Profile, type: TaggableType, entityId: string, tagId: string): Promise<void> {
-  await assertCanTagEntity(actor, type, entityId)
-  await insertEntityTag({ tag_id: tagId, entity_type: type, entity_id: entityId, created_by: actor.id })
-  await auditPrivilegedAction(actor, 'tag.attach', type, entityId)
-}
-
 /** Create-or-get a tag by name and attach it - the free-text "add tag" path. */
 export async function applyTagByName(
   actor: Profile,

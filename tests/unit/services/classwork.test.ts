@@ -6,7 +6,12 @@ vi.mock('@/lib/permission/personas', () => ({
   hasPersona: vi.fn(),
   loadPersonaFlags: vi.fn(),
 }))
-vi.mock('@/lib/services/assignments', () => ({ listAssignmentPage: vi.fn() }))
+vi.mock('@/lib/services/assignments', () => ({
+  listAssignmentPage: vi.fn(),
+  // The page-data validates ?aType against this list, so the mock has to carry the real
+  // values - a stubbed empty array would make every type silently invalid.
+  ASSIGNMENT_TYPES: ['assignment', 'exam', 'quiz', 'test', 'project'],
+}))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
 vi.mock('@/lib/services/resources', () => ({
   listResourcesPage: vi.fn(),
@@ -20,7 +25,13 @@ vi.mock('@/lib/services/submissions', () => ({
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { canManageClass } from '@/lib/permission'
 import { listAssignmentPage } from '@/lib/services/assignments'
-import { loadClassworkPageData, documentFilterUrl, type DocumentFilterState } from '@/lib/services/page-data/classwork'
+import {
+  loadClassworkPageData,
+  classworkUrl,
+  classworkParams,
+  parseClassworkState,
+  type DocumentFilterState,
+} from '@/lib/services/page-data/classwork'
 import { listCommentsForEntities } from '@/lib/services/comments'
 import { listResourcesPage } from '@/lib/services/resources'
 import { listMyActiveSubmissions, listMySupersededSubmissions } from '@/lib/services/submissions'
@@ -45,11 +56,50 @@ beforeEach(() => {
   vi.mocked(canManageClass).mockImplementation(async (profile: { id: string }) => profile.id !== 'student-1')
 })
 
-describe('documentFilterUrl', () => {
+/**
+ * Assignments and Documents share ONE Classwork URL, so every link either carries the whole
+ * state or silently discards the other section's. Paging assignments used to rebuild the
+ * query from scratch with only aType/aPage, wiping a reader's document search mid-browse -
+ * the docstring above it even said it must not. This is the single builder both sections
+ * use, so the two cannot drift apart again.
+ */
+describe('classworkUrl', () => {
+  const STATE = { filters: BASE_FILTERS, assignmentType: '' as const, assignmentPage: 1 }
+
   it('builds filter URLs, omitting defaults and clearing on empty', () => {
-    expect(documentFilterUrl(BASE_FILTERS, {})).toBe('?')
-    expect(documentFilterUrl(BASE_FILTERS, { category: 'question_papers' })).toBe('?cat=question_papers')
-    expect(documentFilterUrl(BASE_FILTERS, { q: 'notes', sort: 'oldest' })).toBe('?q=notes&sort=oldest')
+    expect(classworkUrl(STATE, {})).toBe('?')
+    expect(classworkUrl(STATE, { category: 'question_papers' })).toBe('?cat=question_papers')
+    expect(classworkUrl(STATE, { q: 'notes', sort: 'oldest' })).toBe('?q=notes&sort=oldest')
+  })
+
+  it('KEEPS the document filters when paging assignments', () => {
+    const withFilters = { ...STATE, filters: { ...BASE_FILTERS, q: 'algebra', category: 'question_papers' as const } }
+    const url = classworkUrl(withFilters, { assignmentPage: 3 }, 'assignments')
+    expect(url).toContain('q=algebra')
+    expect(url).toContain('cat=question_papers')
+    expect(url).toContain('aPage=3')
+    expect(url.endsWith('#assignments')).toBe(true)
+  })
+
+  it('KEEPS the assignment page and type when a document filter changes', () => {
+    const browsing = { filters: BASE_FILTERS, assignmentType: 'exam' as const, assignmentPage: 4 }
+    const url = classworkUrl(browsing, { q: 'notes' }, 'materials')
+    expect(url).toContain('aType=exam')
+    expect(url).toContain('aPage=4')
+    expect(url).toContain('q=notes')
+  })
+
+  it('omits aPage on page 1, so a plain first page has no noise in the URL', () => {
+    expect(classworkUrl({ ...STATE, assignmentPage: 1 }, {})).toBe('?')
+  })
+
+  it('clears one section without disturbing the other', () => {
+    const both = { filters: { ...BASE_FILTERS, q: 'algebra' }, assignmentType: 'quiz' as const, assignmentPage: 2 }
+    // "Clear" on the assignments bar drops the type and returns to page 1, keeping the docs.
+    const cleared = classworkUrl(both, { assignmentType: '', assignmentPage: 1 }, 'assignments')
+    expect(cleared).toContain('q=algebra')
+    expect(cleared).not.toContain('aType')
+    expect(cleared).not.toContain('aPage')
   })
 })
 
@@ -102,7 +152,25 @@ describe('loadClassworkPageData', () => {
       activeOnly: true,
       alsoIds: ['a1'],
     })
+    // No type filter requested -> undefined, so the query is not narrowed.
+    expect(vi.mocked(listAssignmentPage).mock.calls[0][3]).toBeUndefined()
     expect(result.assignmentViews[0].submissionHistory.map((s) => s.id)).toEqual(['s0'])
+  })
+
+  it('forwards a valid ?aType to the query and drops an unknown one', async () => {
+    vi.mocked(listResourcesPage).mockResolvedValue({ items: [], total: 0 } as any)
+    vi.mocked(listAssignmentPage).mockResolvedValue({ items: [], total: 0 } as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
+    const course = { id: 'class-1', name: 'Math', status: 'active' } as any
+    const tutor = { id: 'tutor-1', role: 'tutor' } as any
+
+    await loadClassworkPageData(tutor, course, { aType: 'exam' })
+    expect(vi.mocked(listAssignmentPage).mock.calls[0][3]).toBe('exam')
+
+    vi.mocked(listAssignmentPage).mockClear()
+    // A stale or hand-edited value must show every type rather than an empty section.
+    await loadClassworkPageData(tutor, course, { aType: 'nonsense' })
+    expect(vi.mocked(listAssignmentPage).mock.calls[0][3]).toBeUndefined()
   })
 
   it('reads the filter state from search params', async () => {
@@ -166,5 +234,61 @@ describe('loadClassworkPageData', () => {
     expect(result.canManage).toBe(true)
     expect(result.canManageContent).toBe(false)
     expect(result.isArchived).toBe(true)
+  })
+})
+
+/**
+ * The guard that makes the shared-URL bug non-recurring.
+ *
+ * Every piece of Classwork state has to survive a trip through the URL and back. Adding a
+ * filter to the builder but not the parser (or vice versa) fails here, which is the failure
+ * mode that produced the original bug: the pager serialized its own keys and silently
+ * dropped everyone else's. Using the page's REAL parser matters - a copy could agree with
+ * the builder while the page disagreed with both.
+ */
+describe('Classwork URL state survives a round trip', () => {
+  const parseUrl = (url: string) => Object.fromEntries(new URLSearchParams(url.split('#')[0].slice(1)))
+
+  it('carries every key back out again', () => {
+    const state = {
+      filters: {
+        q: 'algebra',
+        category: 'question_papers' as const,
+        subject: 'Maths',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        sort: 'oldest' as const,
+      },
+      assignmentType: 'exam' as const,
+      assignmentPage: 3,
+    }
+    expect(parseClassworkState(parseUrl(classworkUrl(state, {})))).toEqual(state)
+  })
+
+  it('round-trips the empty state to itself', () => {
+    const empty = { filters: BASE_FILTERS, assignmentType: '' as const, assignmentPage: 1 }
+    expect(parseClassworkState(parseUrl(classworkUrl(empty, {})))).toEqual(empty)
+  })
+
+  it('serializes every key the parser reads - neither side may know a key the other does not', () => {
+    const full = {
+      filters: {
+        q: 'a',
+        category: 'question_papers' as const,
+        subject: 'b',
+        from: '2026-01-01',
+        to: '2026-02-02',
+        sort: 'oldest' as const,
+      },
+      assignmentType: 'quiz' as const,
+      assignmentPage: 2,
+    }
+    const serialized = classworkParams(full)
+      .map(([key]) => key)
+      .sort()
+    const parsedBack = parseClassworkState(parseUrl(classworkUrl(full, {})))
+    // Nothing was dropped in transit, and nothing arrived that was never sent.
+    expect(parsedBack).toEqual(full)
+    expect(serialized).toEqual(['aPage', 'aType', 'cat', 'from', 'q', 'sort', 'subj', 'to'])
   })
 })

@@ -110,6 +110,9 @@ export async function selectAssignmentPage(
   classId: string,
   range: { from: number; to: number },
   visible?: { activeOnly: true; alsoIds: string[] },
+  /** Narrow to one kind of work. A class accumulates every type over years, and "show me
+   *  the exams" is the question a reader actually arrives with. */
+  type?: AssignmentType,
 ): Promise<Page<AssignmentRow>> {
   const supabase = await createClient()
   let query = supabase
@@ -128,6 +131,7 @@ export async function selectAssignmentPage(
       ? query.or(`status.eq.active,id.in.(${visible.alsoIds.join(',')})`)
       : query.eq('status', 'active')
   }
+  if (type) query = query.eq('type', type)
   const { data, error, count } = await query.range(range.from, range.to)
   if (error) throw new Error(`assignments.page: ${error.message}`)
   return { items: (data ?? []) as AssignmentRow[], total: count ?? 0 }

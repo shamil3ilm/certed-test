@@ -21,7 +21,7 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getResource } from '@/lib/services/resources'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { selectAllTags, insertTag, insertEntityTag, deleteEntityTag } from '@/lib/data/tags'
-import { createTag, tagEntity, applyTagByName, untagEntity } from '@/lib/services/tags'
+import { createTag, applyTagByName, untagEntity } from '@/lib/services/tags'
 import { PermissionError, ValidationError, NotFoundError } from '@/lib/errors'
 
 const staff = { id: 'tutor-1' } as any
@@ -56,16 +56,28 @@ describe('createTag', () => {
   })
 })
 
-describe('tagEntity', () => {
+/**
+ * These cover assertCanTagEntity, the shared gate. They ran through tagEntity - the
+ * attach-an-existing-tag-by-id path - which was removed with no caller: the UI applies tags
+ * BY NAME, so applyTagByName is the only way in. Re-pointed rather than deleted, because
+ * the gate is what matters here and it is the same gate.
+ */
+describe('assertCanTagEntity (via applyTagByName)', () => {
+  const existingTag = () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isTutor: true } as any)
+    vi.mocked(selectAllTags).mockResolvedValueOnce([{ id: 't1', name: 'Priority', color: null }])
+  }
+
   it('rejects tagging a class the actor cannot write (tutor-only)', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(false)
-    await expect(tagEntity(staff, 'class', 'class-1', 't1')).rejects.toBeInstanceOf(PermissionError)
+    await expect(applyTagByName(staff, 'class', 'class-1', 'Priority')).rejects.toBeInstanceOf(PermissionError)
     expect(insertEntityTag).not.toHaveBeenCalled()
   })
 
   it('attaches + audits for a class the actor manages', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
-    await tagEntity(staff, 'class', 'class-1', 't1')
+    existingTag()
+    await applyTagByName(staff, 'class', 'class-1', 'Priority')
     expect(insertEntityTag).toHaveBeenCalledWith({
       tag_id: 't1',
       entity_type: 'class',
@@ -77,7 +89,7 @@ describe('tagEntity', () => {
 
   it('routes a resource tag through canDocument, 404ing a missing document', async () => {
     vi.mocked(getResource).mockResolvedValueOnce(null)
-    await expect(tagEntity(staff, 'resource', 'res-1', 't1')).rejects.toBeInstanceOf(NotFoundError)
+    await expect(applyTagByName(staff, 'resource', 'res-1', 'Priority')).rejects.toBeInstanceOf(NotFoundError)
     expect(assertCanDocument).not.toHaveBeenCalled()
   })
 })
@@ -99,6 +111,6 @@ describe('applyTagByName + untagEntity', () => {
   })
 
   it('rejects an unsupported entity type', async () => {
-    await expect(tagEntity(staff, 'widget' as any, 'x', 't1')).rejects.toBeInstanceOf(ValidationError)
+    await expect(applyTagByName(staff, 'widget' as any, 'x', 'Priority')).rejects.toBeInstanceOf(ValidationError)
   })
 })

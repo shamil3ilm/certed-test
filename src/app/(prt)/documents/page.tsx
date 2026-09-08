@@ -28,7 +28,8 @@ import { LocalTime } from '../LocalTime'
 export default async function DocumentsPage(props: { searchParams: Promise<DocumentSearchParams> }) {
   const searchParams = await props.searchParams
   await requireCapability('viewClasses')
-  const { filters, hasActiveFilters, results, total, totalPages } = await loadDocumentSearchPageData(searchParams)
+  const { filters, hasActiveFilters, results, groups, total, totalPages } =
+    await loadDocumentSearchPageData(searchParams)
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
@@ -68,30 +69,48 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
           {hasActiveFilters ? 'No documents match these filters.' : 'No documents available yet.'}
         </EmptyState>
       ) : (
-        <ul className="mt-4 space-y-2">
-          {results.map(({ document, className }) => (
-            <li key={document.id}>
-              <Card className="flex flex-wrap items-center gap-3 p-4">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-slate-900">{document.title}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                    <Badge tone="primary">{className}</Badge>
-                    <Badge>{documentCategoryLabel(document.category)}</Badge>
-                    {document.subject && <Badge>{document.subject}</Badge>}
-                    {document.file_type && <Badge>{document.file_type}</Badge>}
-                  </div>
-                  <p className="mt-1.5 text-xs text-slate-600">
-                    <LocalTime iso={document.created_at} mode="date" /> - {document.download_count} download
-                    {document.download_count === 1 ? '' : 's'}
-                  </p>
-                </div>
-                <ExternalActionLink href={`/api/resources/${document.id}/download`} className="shrink-0">
-                  Open
-                </ExternalActionLink>
-              </Card>
-            </li>
+        <div className="mt-4 space-y-5">
+          {groups.map((group) => (
+            <section key={group.key || '_unattached'}>
+              <h2 className="mb-2 flex items-baseline gap-2 text-sm font-semibold text-slate-800">
+                {group.label}
+                <span className="text-xs font-normal text-slate-600">{group.results.length} on this page</span>
+              </h2>
+              <ul className="space-y-2">
+                {group.results.map(({ document, className }) => (
+                  <li key={document.id}>
+                    <Card className="flex flex-wrap items-center gap-3 p-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-slate-900">{document.title}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                          <Badge tone="primary">{className}</Badge>
+                          <Badge>{documentCategoryLabel(document.category)}</Badge>
+                          {document.subject && <Badge>{document.subject}</Badge>}
+                          {document.file_type && <Badge>{document.file_type}</Badge>}
+                        </div>
+                        <p className="mt-1.5 text-xs text-slate-600">
+                          <LocalTime iso={document.created_at} mode="date" /> - {document.download_count} download
+                          {document.download_count === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                      <ExternalActionLink href={`/api/resources/${document.id}/download`} className="shrink-0">
+                        Open
+                      </ExternalActionLink>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+          {/* The grouping is a reading aid over a RECENCY list, not a per-student archive:
+              the page is still 20 documents ordered by date, so a student's documents can
+              continue on the next page. Saying "on this page" above, and this line, is what
+              keeps a reader from treating a group as that student's complete set. */}
+          <p className="text-xs text-slate-600">
+            Grouped by student within this page - newest first. A student&apos;s documents may continue on the next
+            page.
+          </p>
+        </div>
       )}
 
       <PaginationBar

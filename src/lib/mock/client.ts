@@ -52,19 +52,6 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     )
     return { data: teaches || mentorsClass, error: null }
   }
-  if (fn === 'finance_totals') {
-    const rows = table(args.p_kind === 'receipt' ? 'receipts' : 'payslips')
-    const byCur = new Map<string, { currency: string; live_total: number; live_count: number }>()
-    for (const r of rows) {
-      if (r.voided) continue
-      const cur = String(r.currency)
-      const e = byCur.get(cur) ?? { currency: cur, live_total: 0, live_count: 0 }
-      e.live_total += Number(r.total)
-      e.live_count += 1
-      byCur.set(cur, e)
-    }
-    return { data: [...byCur.values()], error: null }
-  }
   if (fn === 'finance_totals_base') {
     // Mirrors migration 0056's finance_totals_base: per-kind totals already
     // normalised into the CURRENT base currency, never mixing currencies. A doc

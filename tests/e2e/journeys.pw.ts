@@ -116,11 +116,14 @@ test('TUTOR -- create an EXAM (in-person) + record a mark from the roster', asyn
   const exam = attemptName('E2E Midterm Exam', testInfo)
   await loginAs(page, 'tutor@mock.test')
 
-  // Create an EXAM-type classwork in the Math classwork tab. Located by the type
-  // <select> (stable) - the form heading flips to "Create exam" once the type changes.
+  // Create an EXAM-type classwork in the Math classwork tab. Scoped by the form's own
+  // "Create ..." heading rather than by "the form containing a select with an exam option":
+  // the assignments list gained a TYPE FILTER whose select offers the same options, so that
+  // structural locator now matches two forms. The heading text flips to "Create exam" once
+  // the type changes, hence the prefix match.
   await page.goto(`/classroom/${SEED.math}/classwork`)
-  const af = page.locator('form:has(select:has(option[value="exam"]))')
-  await af.locator('select:has(option[value="exam"])').selectOption('exam')
+  const af = page.locator('form').filter({ has: page.getByRole('heading', { name: /^Create / }) })
+  await af.locator('select').first().selectOption('exam')
   await af.getByPlaceholder('e.g. Chapter 4 worksheet').fill(exam)
   // Exam shows a "Starts" datetime (first) + an optional "Ends"; fill just the start.
   await af.locator('input[type=datetime-local]').first().fill('2026-12-05T10:00')
