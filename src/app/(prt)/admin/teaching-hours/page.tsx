@@ -96,9 +96,22 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
         <tbody>
           {classes.map((c) =>
             c.tutors.map((t, i) => (
-              <tr key={`${c.classId}:${t.tutorId ?? 'unassigned'}`} className="border-t">
-                {/* The class name prints once per group; the repeat would be noise. */}
-                <td className="p-2 font-medium text-slate-800">{i === 0 ? c.className : ''}</td>
+              <tr key={`${c.classId}:${c.subjectName ?? ''}:${t.tutorId ?? 'unassigned'}`} className="border-t">
+                {/* The class name prints once per group; the repeat would be noise. A class
+                    that taught two subjects this month is TWO groups, so the subject is
+                    named underneath - otherwise the rows read as an unexplained duplicate. */}
+                <td className="p-2 font-medium text-slate-800">
+                  {i === 0 ? (
+                    <>
+                      {c.className}
+                      {c.subjectName && (
+                        <span className="block text-xs font-normal text-slate-500">{c.subjectName}</span>
+                      )}
+                    </>
+                  ) : (
+                    ''
+                  )}
+                </td>
                 <td className="p-2 text-slate-600">{t.tutorName}</td>
                 <Num>{t.sessionCount}</Num>
                 <Num>{formatMinutes(t.minutes)}</Num>
@@ -145,8 +158,21 @@ function ClassStudentTable({ classes, month }: { classes: AcademyClassHours['stu
         <tbody>
           {classes.map((c) =>
             c.students.map((s, i) => (
-              <tr key={`${c.classId}:${s.studentId}`} className="border-t">
-                <td className="p-2 font-medium text-slate-800">{i === 0 ? c.className : ''}</td>
+              <tr key={`${c.classId}:${c.subjectName ?? ''}:${s.studentId}`} className="border-t">
+                {/* Subject named for the same reason as the tutor table: one class can be
+                    two rows now, and without it they read as a duplicate. */}
+                <td className="p-2 font-medium text-slate-800">
+                  {i === 0 ? (
+                    <>
+                      {c.className}
+                      {c.subjectName && (
+                        <span className="block text-xs font-normal text-slate-500">{c.subjectName}</span>
+                      )}
+                    </>
+                  ) : (
+                    ''
+                  )}
+                </td>
                 <td className="p-2 text-slate-600">{s.studentName}</td>
                 <Num>{s.sessionCount}</Num>
                 <Num>{formatMinutes(s.minutes)}</Num>

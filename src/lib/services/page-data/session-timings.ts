@@ -5,11 +5,15 @@ import { isUuid } from '@/lib/validation/id'
 import { isCalendarDate } from '@/lib/time/format'
 import {
   listMenteeSessionTimings,
+  listSessionTimingsByStudents,
   type MenteeSessionTiming,
   type SessionTimingFilters,
+  type StudentSessionGroup,
 } from '@/lib/services/mentor-session-timings'
 import { selectActiveSubjects } from '@/lib/data/subjects'
-import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
+import { selectActiveClassIdsForStudent, selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
+import { selectProfilePage } from '@/lib/data/profiles-directory'
+import { mentoringScopeClassIds, isMentoringOversight } from '@/lib/permission/class'
 import { listActiveByRole } from '@/lib/services/users'
 
 /**
@@ -25,6 +29,15 @@ import { listActiveByRole } from '@/lib/services/users'
  */
 
 const PAGE_SIZE = 20
+
+/** Students per page in the GROUPED view. Matches /classroom's roster page so the two
+ *  student-first lists page at the same rate. */
+const ROSTER_PAGE_SIZE = 12
+
+/** Sessions shown inside one student's group before it defers to "See all".
+ *  The group is a summary, not the archive - the archive is one click away, and capping
+ *  here is what keeps a student with a year of daily sessions from filling the screen. */
+const PER_STUDENT = 5
 
 export type SessionTimingSearchParams = {
   page?: string
@@ -49,7 +62,16 @@ export type SessionTimingFilterState = {
 export type SessionTimingsPageData = {
   filters: SessionTimingFilterState
   hasActiveFilters: boolean
+  /** Flat rows - the drill-in view for ONE student, and what a student-filtered URL opens.
+   *  Empty in the grouped view. */
   items: MenteeSessionTiming[]
+  /** Student-first groups - the default view. Empty once a student filter is applied. */
+  groups: StudentSessionGroup[]
+  /** True while showing groups; false in the flat per-student drill-in. */
+  groupView: boolean
+  /** Rows shown per group before "See all" - the page states its own cap rather than
+   *  silently truncating. */
+  perStudent: number
   total: number
   totalPages: number
   options: {
@@ -85,6 +107,20 @@ const uuidParam = (raw?: string): string => (raw && isUuid(raw) ? raw : '')
 
 /** Same idea for a date: anything that is not 'YYYY-MM-DD' is ignored. */
 const dateParam = (raw?: string): string => (raw && isCalendarDate(raw) ? raw : '')
+
+/**
+ * The students this actor's grouped view may page through - or null for "every student",
+ * which is what an academy-wide reader gets.
+ *
+ * Null is not a shortcut: an admin must NOT travel as a list of every student id, or the
+ * roster query carries one uuid per student in its URL. That is the same rule /classroom
+ * follows, and the same reason the filter bar offers Student rather than Class.
+ */
+async function rosterStudentIds(actor: Profile): Promise<string[] | null> {
+  if (await isMentoringOversight(actor.id)) return null
+  const classIds = await mentoringScopeClassIds(actor)
+  return [...new Set(await selectActiveStudentIdsByClassIds(classIds))]
+}
 
 export async function loadSessionTimingsPageData(
   actor: Profile,
@@ -128,29 +164,78 @@ export async function loadSessionTimingsPageData(
           filters: studentClassIds ? { ...query, studentClassIds } : query,
         })
 
-  const [page, subjects, tutors, students] = await Promise.all([
-    fetchPage(filters.page),
+  const [subjects, tutors, students] = await Promise.all([
     selectActiveSubjects(),
     listActiveByRole('tutor'),
     listActiveByRole('student'),
   ])
+  const options = {
+    students,
+    subjects: subjects.map((sub) => ({ id: sub.id, name: sub.name })),
+    tutors,
+  }
 
-  // Fold a stale `?page=999` back onto the last real page rather than showing a blank list
-  // with no way back but editing the URL. Costs a second read ONLY when the param was out
-  // of range, which is a hand-edited or bookmarked URL, not the normal path.
-  const currentPage = clampPage(filters.page, page.total, PAGE_SIZE)
-  const items = currentPage === filters.page ? page.items : (await fetchPage(currentPage)).items
+  // FLAT VIEW - one student's full history, newest first. This is what a group's "See all"
+  // opens, and it is why the groups can afford to cap: nothing is unreachable, it is one
+  // click away. Paging here counts SESSIONS, because the reader has already narrowed to a
+  // single student and recency is the question they are asking.
+  if (filters.student) {
+    const page = await fetchPage(filters.page)
+    // Fold a stale `?page=999` back onto the last real page rather than showing a blank
+    // list with no way back but editing the URL. Costs a second read ONLY when the param
+    // was out of range - a hand-edited or bookmarked URL, not the normal path.
+    const currentPage = clampPage(filters.page, page.total, PAGE_SIZE)
+    const items = currentPage === filters.page ? page.items : (await fetchPage(currentPage)).items
+    return {
+      filters: { ...filters, page: currentPage },
+      hasActiveFilters,
+      items,
+      groups: [],
+      groupView: false,
+      perStudent: PER_STUDENT,
+      total: page.total,
+      totalPages: totalPages(page.total, PAGE_SIZE),
+      options,
+    }
+  }
+
+  // GROUPED VIEW - the default. Paging counts STUDENTS, not sessions, which is what buys
+  // the property a session-paged list could never have: a student's sessions are never
+  // split across a page boundary, because the page IS a set of students. Same reasoning
+  // /classroom records for its roster paging.
+  const scopedIds = await rosterStudentIds(actor)
+  const readRoster = (page: number) =>
+    selectProfilePage('student', {
+      page,
+      pageSize: ROSTER_PAGE_SIZE,
+      ...(scopedIds ? { ids: scopedIds } : {}),
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+  const firstRoster = await readRoster(filters.page)
+  const currentPage = clampPage(filters.page, firstRoster.total, ROSTER_PAGE_SIZE)
+  const roster = currentPage === filters.page ? firstRoster : await readRoster(currentPage)
+
+  // The filters travel INTO the groups: every per-student read below carries `query`, so
+  // subject / tutor / date narrow what each student shows and that student's total alike.
+  // A student with nothing matching still renders - as an explicit "no sessions match"
+  // row, not a blank card - because dropping them would make the roster pager lie about
+  // how many students the page holds.
+  const groups = await listSessionTimingsByStudents(actor, {
+    studentIds: roster.items.map((r) => r.id),
+    perStudent: PER_STUDENT,
+    filters: query,
+  })
 
   return {
     filters: { ...filters, page: currentPage },
     hasActiveFilters,
-    items,
-    total: page.total,
-    totalPages: totalPages(page.total, PAGE_SIZE),
-    options: {
-      students,
-      subjects: subjects.map((s) => ({ id: s.id, name: s.name })),
-      tutors,
-    },
+    items: [],
+    groups,
+    groupView: true,
+    perStudent: PER_STUDENT,
+    total: roster.total,
+    totalPages: totalPages(roster.total, ROSTER_PAGE_SIZE),
+    options,
   }
 }

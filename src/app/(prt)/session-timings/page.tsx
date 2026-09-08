@@ -1,5 +1,6 @@
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadSessionTimingsPageData, type SessionTimingSearchParams } from '@/lib/services/page-data/session-timings'
+import type { MenteeSessionTiming as SessionTimingRow } from '@/lib/services/mentor-session-timings'
 import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
@@ -29,7 +30,7 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
   const tz = await getInstituteTimeZone()
   const month = todayInZone(tz).slice(0, 7)
   const [data, hours] = await Promise.all([loadSessionTimingsPageData(me, searchParams), getClassTutorHours(me, month)])
-  const { filters, items, total, totalPages: pages } = data
+  const { filters, items, groups, groupView, total, totalPages: pages } = data
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
@@ -96,65 +97,49 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
           )}
         </EmptyState>
       ) : (
-        <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
-          <table className="data-table w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-600">
-                <th scope="col" className="p-2">
-                  Student
-                </th>
-                <th scope="col" className="p-2">
-                  Class
-                </th>
-                <th scope="col" className="p-2">
-                  Subject
-                </th>
-                <th scope="col" className="p-2">
-                  Tutor
-                </th>
-                <th scope="col" className="p-2">
-                  Date
-                </th>
-                <th scope="col" className="p-2">
-                  Session times
-                </th>
-                <th scope="col" className="p-2">
-                  Student entry
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row) => (
-                <tr key={row.sessionId} className="border-t">
-                  <td className="p-2 font-medium text-slate-800">{row.studentName}</td>
-                  <td className="p-2 text-slate-600">{row.className}</td>
-                  <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-300">-</span>}</td>
-                  <td className="p-2 text-slate-600">
-                    {row.tutorName ?? <span className="text-slate-600">Unassigned</span>}
-                  </td>
-                  <td className="p-2 text-slate-600">{row.sessionDate}</td>
-                  <td className="p-2">
-                    <EditSessionTimes
-                      sessionId={row.sessionId}
-                      classId={row.classId}
-                      sessionDate={row.sessionDate}
-                      startAt={row.startAt}
-                      endAt={row.endAt}
-                      updatedAt={row.updatedAt}
-                    />
-                  </td>
-                  <td className="p-2">
-                    <EditJoinTime
-                      sessionId={row.sessionId}
-                      classId={row.classId}
-                      sessionDate={row.sessionDate}
-                      studentJoinAt={row.studentEntryAt}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-2 space-y-4">
+          {groupView ? (
+            groups.map((group) => (
+              <section key={group.studentId} className={cx(CARD, 'overflow-hidden')}>
+                <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 p-3">
+                  <h2 className="font-medium text-slate-800">{group.studentName}</h2>
+                  <p className="text-xs text-slate-600">
+                    {group.total === 0 ? (
+                      // Filtered to nothing for THIS student. The group still renders: the
+                      // pager counts students, so dropping it would make the page claim a
+                      // roster size it is not showing.
+                      'No sessions match these filters'
+                    ) : (
+                      <>
+                        {group.total} session{group.total === 1 ? '' : 's'}
+                        {group.total > group.sessions.length ? (
+                          <>
+                            {' - showing the latest '}
+                            {group.sessions.length}.{' '}
+                            <a
+                              className="link"
+                              href={sessionTimingsPageHref({ ...filters, student: group.studentId }, 1)}
+                            >
+                              See all
+                            </a>
+                          </>
+                        ) : null}
+                      </>
+                    )}
+                  </p>
+                </header>
+                {group.sessions.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <SessionRows rows={group.sessions} showStudent={false} />
+                  </div>
+                ) : null}
+              </section>
+            ))
+          ) : (
+            <div className={cx(CARD, 'overflow-x-auto')}>
+              <SessionRows rows={items} showStudent />
+            </div>
+          )}
         </div>
       )}
 
@@ -162,10 +147,85 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
         page={filters.page}
         totalPages={pages}
         total={total}
+        /* In the grouped view this counts STUDENTS, not sessions - the page is a set of
+           students, which is what keeps a student's sessions off two pages at once. */
         previousHref={filters.page > 1 ? sessionTimingsPageHref(filters, filters.page - 1) : undefined}
         nextHref={filters.page < pages ? sessionTimingsPageHref(filters, filters.page + 1) : undefined}
         className="mt-4"
       />
     </main>
+  )
+}
+
+/**
+ * The session rows themselves, shared by both views.
+ *
+ * `showStudent` is the only difference between them: inside a group the student's name is
+ * the heading, so repeating it in every row would be noise. The edit controls, the column
+ * order and the empty-value styling stay identical, so a reader who drills from a group
+ * into one student's full history is looking at the same table.
+ */
+function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimingRow[]; showStudent?: boolean }) {
+  return (
+    <table className="data-table w-full text-sm">
+      <thead>
+        <tr className="text-left text-slate-600">
+          {showStudent ? (
+            <th scope="col" className="p-2">
+              Student
+            </th>
+          ) : null}
+          <th scope="col" className="p-2">
+            Class
+          </th>
+          <th scope="col" className="p-2">
+            Subject
+          </th>
+          <th scope="col" className="p-2">
+            Tutor
+          </th>
+          <th scope="col" className="p-2">
+            Date
+          </th>
+          <th scope="col" className="p-2">
+            Session times
+          </th>
+          <th scope="col" className="p-2">
+            Student entry
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.sessionId} className="border-t">
+            {showStudent ? <td className="p-2 font-medium text-slate-800">{row.studentName}</td> : null}
+            <td className="p-2 text-slate-600">{row.className}</td>
+            <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-300">-</span>}</td>
+            <td className="p-2 text-slate-600">
+              {row.tutorName ?? <span className="text-slate-600">Unassigned</span>}
+            </td>
+            <td className="p-2 text-slate-600">{row.sessionDate}</td>
+            <td className="p-2">
+              <EditSessionTimes
+                sessionId={row.sessionId}
+                classId={row.classId}
+                sessionDate={row.sessionDate}
+                startAt={row.startAt}
+                endAt={row.endAt}
+                updatedAt={row.updatedAt}
+              />
+            </td>
+            <td className="p-2">
+              <EditJoinTime
+                sessionId={row.sessionId}
+                classId={row.classId}
+                sessionDate={row.sessionDate}
+                studentJoinAt={row.studentEntryAt}
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }

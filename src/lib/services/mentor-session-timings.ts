@@ -5,7 +5,10 @@ import { selectClassesByIds, selectArchivedClassIds } from '@/lib/data/classes'
 import { assertClassActive } from '@/lib/permission'
 import { isCalendarDate } from '@/lib/time/format'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
-import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
+import {
+  selectActiveEnrollmentRefsByClassIds,
+  selectActiveEnrollmentPairsByStudentIds,
+} from '@/lib/data/class-membership'
 import { toRange, type Page } from '@/lib/pagination'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import {
@@ -120,10 +123,22 @@ export async function listMenteeSessionTimings(
     { excludeClassIds: scope.excludeClassIds, classIds: scopedClassIds, ...rest },
     toRange(opts.page, opts.pageSize),
   )
-  if (sessions.length === 0) return { items: [], total }
+  return { items: await enrichSessions(sessions), total }
+}
 
-  // Everything below is keyed to the ROWS ON THIS PAGE - at most pageSize of them - so the
-  // per-row lookups no longer scale with the size of the academy.
+/**
+ * Turn raw session rows into display rows: names, class, subject, and the student's
+ * recorded entry time.
+ *
+ * Extracted so the FLAT list and the STUDENT-GROUPED list enrich identically. The grouped
+ * view reads a small page per student, then hands the union here - one set of lookups for
+ * the whole screen rather than one set per group, which is what made per-group enrichment
+ * worth avoiding.
+ *
+ * Every lookup is keyed to the rows PASSED IN, so none of them scales with the academy.
+ */
+async function enrichSessions(sessions: ClassSessionRow[]): Promise<MenteeSessionTiming[]> {
+  if (sessions.length === 0) return []
   const pageClassIds = [...new Set(sessions.map((s) => s.class_id))]
   const [joinRows, enrollRefs, classes] = await Promise.all([
     selectJoinRowsForSessionsAsService(sessions.map((s) => s.id)),
@@ -168,7 +183,86 @@ export async function listMenteeSessionTimings(
       updatedAt: session.updated_at,
     }
   })
-  return { items, total }
+  return items
+}
+
+/** One student's slice of the session list: their most recent matching sessions, plus how
+ *  many matched in total, so the group can say what it is not showing. */
+export type StudentSessionGroup = {
+  studentId: string
+  studentName: string
+  sessions: MenteeSessionTiming[]
+  /** Matching sessions for this student across ALL pages of their own history - what the
+   *  "See all" link opens. `sessions` is capped; this is not. */
+  total: number
+}
+
+/**
+ * The session list GROUPED BY STUDENT, for a page of the student roster.
+ *
+ * WHY PER-STUDENT READS RATHER THAN ONE BIG ONE: the rows are capped PER GROUP, and
+ * "the newest N rows for each of these students" is a per-partition limit that PostgREST
+ * cannot express - there is no window function over the wire. Reading one bounded page per
+ * student is the honest version: each read carries its own `.range()`, so the cap holds
+ * for every student independently and a chatty student cannot starve a quiet one out of
+ * their own group. The roster page bounds how many of these run (CLASSES-page sized), and
+ * they run in parallel.
+ *
+ * The filters are applied INSIDE each group, not to a pre-sliced list: `filters` reaches
+ * selectSessionPage on every per-student read, so narrowing by subject, tutor or date
+ * narrows what each student shows and the per-student total alike.
+ *
+ * Scope is preserved exactly as the flat list applies it - a mentor's class scope is
+ * INTERSECTED with the student's classes, so a student outside their mentees yields an
+ * empty group rather than a widened one.
+ */
+export async function listSessionTimingsByStudents(
+  actor: Profile,
+  opts: {
+    studentIds: readonly string[]
+    /** Rows shown inside each group before it defers to "See all". */
+    perStudent: number
+    filters?: Omit<SessionTimingFilters, 'studentClassIds'>
+  },
+): Promise<StudentSessionGroup[]> {
+  if (opts.studentIds.length === 0) return []
+  const scope = await scopeFilter(actor)
+
+  // One read for the whole roster page's enrollments, not one per student.
+  const pairs = await selectActiveEnrollmentPairsByStudentIds([...opts.studentIds])
+  const classesByStudent = new Map<string, string[]>()
+  for (const pair of pairs) {
+    const list = classesByStudent.get(pair.student_id)
+    if (list) list.push(pair.class_id)
+    else classesByStudent.set(pair.student_id, [pair.class_id])
+  }
+
+  const pages = await Promise.all(
+    opts.studentIds.map(async (studentId) => {
+      const own = classesByStudent.get(studentId) ?? []
+      // Intersect with a mentor's scope; an oversight reader has no classIds and is
+      // narrowed by excludeClassIds instead, exactly as the flat list does it.
+      const classIds = scope.classIds ? own.filter((id) => scope.classIds?.includes(id)) : own
+      if (classIds.length === 0) return { studentId, rows: [] as ClassSessionRow[], total: 0 }
+      const { items, total } = await selectSessionPage(
+        { excludeClassIds: scope.excludeClassIds, classIds, ...(opts.filters ?? {}) },
+        toRange(1, opts.perStudent),
+      )
+      return { studentId, rows: items, total }
+    }),
+  )
+
+  // ONE enrichment pass over every group's rows together.
+  const enriched = await enrichSessions(pages.flatMap((p) => p.rows))
+  const bySession = new Map(enriched.map((row) => [row.sessionId, row]))
+  const names = await getProfileNamesByIds([...opts.studentIds])
+
+  return pages.map((p) => ({
+    studentId: p.studentId,
+    studentName: names.get(p.studentId) ?? 'Unknown',
+    sessions: p.rows.map((r) => bySession.get(r.id)).filter((r): r is MenteeSessionTiming => r != null),
+    total: p.total,
+  }))
 }
 
 export type UpdateStudentJoinInput = {
