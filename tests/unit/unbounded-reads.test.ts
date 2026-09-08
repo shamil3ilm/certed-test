@@ -21,6 +21,14 @@ import { join, relative, sep } from 'node:path'
  * A function passes by BOUNDING its read - `.range()`, `.limit()`, `fetchAllPaged`,
  * `.single()`, `.maybeSingle()`, `count: 'exact'` - or by appearing below with the reason
  * its result set cannot grow. "It's small" is not a reason; name the thing that bounds it.
+ *
+ * AND THE ID SET COUNTS. "Bounded by a NAMED set passed in" is only true if that SET is
+ * bounded - the read inherits its caller's scope, it does not create one. The grading queue
+ * is what taught this: `selectUngradedByAssignments` was declared bounded because it takes
+ * an assignment-id list, while the caller built that list from EVERY class in the academy.
+ * The declaration read as a considered decision and hid the case that mattered. So a reason
+ * resting on a named set has to say what bounds the set, and where an academy-wide caller
+ * exists, say so rather than leaving it implied.
  */
 
 /** Tables whose row count only ever goes up. Reads over anything else are out of scope. */
@@ -48,6 +56,35 @@ const EVER_GROWING = [
   'mentee_notes',
   'attachments',
   'entity_tags',
+  // `classes` is not time-accumulating, but it grows with the ACADEMY and never shrinks -
+  // archived classes stay rows. A 1:1 academy carries a class per student per subject, so
+  // this is the table whose id list outgrows a GET URL first. Its absence here is what let
+  // selectAllClasses sit unbounded behind the Classes list and the calendar's class picker,
+  // where a capped read drops classes out of a dropdown with nothing to say so.
+  'classes',
+  // Third sweep. `classes` above was found only because a read on it slipped through, so the
+  // rest of the schema was diffed against this list rather than sampled: these all grow with
+  // the ROSTER or with TIME and never shrink (an inactive enrolment, a departed profile and a
+  // closed mentorship all stay rows), which is the same shape as everything above.
+  'profiles',
+  'enrollments',
+  'class_tutors',
+  'persona_assignments',
+  'mentorships',
+  'guardians',
+  'consents',
+  'resources',
+  'meet_links',
+  'timetable_slots',
+  'receipt_lines',
+  'payslip_lines',
+  'conversation_participants',
+  // DELIBERATELY NOT WATCHED, having now been diffed rather than assumed: billing_rates,
+  // capability_overrides, document_counters, exchange_rates, org_settings, subjects, tags.
+  // These are CURATED - an admin maintains them, they are sized by the academy's structure
+  // rather than its history, and none of them accumulates a row per person or per event.
+  // Watching them would add noise without a failure mode behind it. Move one here the moment
+  // that stops being true (a per-user capability override row is the likeliest to go first).
 ]
 
 /** Constructs that bound a read, whatever the table. */
@@ -61,6 +98,73 @@ const WRITE = /\.(insert|update|upsert|delete)\(|\.rpc\(/
 /** Reads allowed to be unbounded, each with WHY the set cannot grow without limit.
  *  Keyed by "file:functionName". */
 const BOUNDED_BY_DESIGN: Record<string, string> = {
+  'src/lib/data/class-membership.ts:selectActiveClassIdsForTutor':
+    'ONE person own membership - the classes they are enrolled in, or the ones they teach. Bounded by how much a single human can study or teach, the smallest scope in the schema.',
+  'src/lib/data/class-membership.ts:selectActiveClassIdsForStudent':
+    'ONE person own membership - the classes they are enrolled in, or the ones they teach. Bounded by how much a single human can study or teach, the smallest scope in the schema.',
+  'src/lib/data/class-membership.ts:selectActiveTutorRowsForClass':
+    'ONE class and its tutors - a class has a handful, and co-teaching is the exception.',
+  'src/lib/data/class-membership.ts:selectActiveEnrollmentRowsForClass':
+    'ONE class roster. Bounded by class size; this academy is largely 1:1.',
+  'src/lib/data/class-membership.ts:selectActiveClassIdsForStudents':
+    'The classes of a NAMED student set, and the only caller passes the mentees of ONE mentor (mentorAuthorityClassIds). Bounded by a mentoring load, not by the academy.',
+  'src/lib/data/class-membership.ts:selectActiveEnrollmentsForStudents':
+    'Enrolments for a NAMED student set - the mentee dashboard passes its own mentees.',
+  'src/lib/data/class-membership.ts:selectActiveEnrollmentPairsByStudentIds':
+    'The (student, class) edges for a NAMED student set: ONE PAGE of the /classroom roster, so bounded by the page size.',
+  'src/lib/data/class-membership.ts:selectActiveEnrollmentPairsByClassIds':
+    'The (student, class) edges of a NAMED class set. Both callers pass the classes ONE tutor teaches - messaging recipients, and the tutor roster on a user page.',
+  'src/lib/data/class-membership.ts:selectActiveTutorIdsByClassIds':
+    'The tutors of a NAMED class set; the only caller passes the classes of ONE student, to resolve who that student may message.',
+  'src/lib/data/class-membership.ts:selectActiveTutorRefsByClassIds':
+    'Tutors of a NAMED class set, for listMyClasses - which now runs only on the STUDENT branch of /classroom, so the set is the subjects of one student.',
+  'src/lib/data/class-membership.ts:selectActiveEnrollmentRefsByClassIds':
+    'Enrolments of a NAMED class set: same single caller, same bound as selectActiveTutorRefsByClassIds.',
+  'src/lib/data/class-membership.ts:selectActiveTutorPairsByClassIds':
+    'Tutors of a NAMED class set, and both callers are bounded by an explicit number: ONE PAGE of the roster, and the studentless-classes section, which slices to UNASSIGNED_CAP.',
+  'src/lib/data/class-membership.ts:selectActiveStudentIdsByClassIds':
+    'Students of a NAMED class set. The academy-wide readers of both callers (/classroom and /session-timings) resolve to NULL and page the profile directory instead, so this never receives every class - only a mentor-sized set.',
+  'src/lib/data/class-membership.ts:selectActiveTeachingProfileIds':
+    'Of a NAMED profile set, which of them teach. Bounded by the set passed in: a page of the user directory.',
+  'src/lib/data/guardians.ts:selectGuardiansByStudent':
+    'The guardians of ONE student - a person has very few, and this table is only ever asked per student.',
+  'src/lib/data/mentorships.ts:selectActiveMenteeIds': 'The active mentees of ONE mentor. Bounded by a mentoring load.',
+  'src/lib/data/mentorships.ts:selectActiveMentorIdsForStudent':
+    'The mentors of ONE student - typically one; there is no bulk-assignment path.',
+  'src/lib/data/mentorships.ts:selectActiveMentorshipsForStudents':
+    'Mentorships for a NAMED student set: a page of the roster, or the mentees of one mentor.',
+  'src/lib/data/messages-participants.ts:selectParticipantIds':
+    'The participants of ONE conversation. Bounded by the thread.',
+  'src/lib/data/messages-participants.ts:selectParticipantsForConversations':
+    'Participants of a NAMED conversation set - the page of threads being rendered.',
+  'src/lib/data/personas.ts:selectScopedMenteeIds':
+    'The student-scoped persona rows of ONE mentor. Bounded by mentee count.',
+  'src/lib/data/personas.ts:selectActivePersonaAssignments':
+    'The personas of ONE profile - a handful, fixed at creation.',
+  'src/lib/data/personas.ts:selectOwnActivePersonas': 'The personas of the CALLER. Same bound, read through RLS.',
+  'src/lib/data/personas.ts:selectActivePersonaAssignmentsByProfileIds':
+    'Personas for a NAMED profile set - a page of the user directory, each holding a handful.',
+  'src/lib/data/profiles-auth.ts:selectActiveIdsAmong':
+    'Of a NAMED id set, which are active. Bounded by the set passed in, and its widest caller (the persona expansion) is itself paged.',
+  'src/lib/data/profiles-directory.ts:selectProfilesLiteByIds':
+    'Name and email for a NAMED id set - the ids already on the page being rendered.',
+  'src/lib/data/classes.ts:selectClassesByIds':
+    'A NAMED class set, and both callers bound it: listMyClasses now runs only on the ' +
+    "STUDENT branch of /classroom (their own subjects), and the calendar's picker passes a " +
+    "tutor's own classes - its academy-wide reader takes the myClassScope null path instead " +
+    'of listing ids.',
+  'src/lib/data/classes.ts:selectClassNamesByIdsAsService':
+    "Label lookup for ONE student's report card: their enrolments plus the classes their own " +
+    'graded assignments belong to. Bounded by one student, not by the academy.',
+  'src/lib/data/classes.ts:selectActiveClassIdsAmong':
+    'Trims a NAMED set to its active members, and every caller passes a bounded one: a ' +
+    "mentor's mentee classes, or a tutor's own. The academy-wide readers of both callers " +
+    'resolve to null (no predicate) before reaching here - see myClassScope.',
+  'src/lib/data/classes.ts:selectClassesByIdsAsCaller':
+    'Two callers, both bounded by an explicit number. The roster pass takes the classes of ' +
+    'ONE PAGE of students. The studentless-classes section used to pass every orphan an ' +
+    'admin could see - not a bounded quantity - and now slices to UNASSIGNED_CAP, reporting ' +
+    'the true total beside it so the cap is stated rather than silent.',
   'src/lib/data/attendance.ts:selectForClassDate':
     'One class on ONE date - at most one mark per enrolled student. Bounded by the roster.',
   'src/lib/data/attendance.ts:selectMarkedClassIds':
@@ -91,7 +195,9 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
   'src/lib/data/submissions-reads.ts:selectSupersededByAssignment':
     'One assignment - roster x resubmissions of that single assignment.',
   'src/lib/data/submissions-reads.ts:selectUngradedByAssignments':
-    'The ungraded submissions of a NAMED assignment set, one per student each.',
+    'The ungraded submissions of a NAMED assignment set, one per student each. The SET is ' +
+    'now bounded too: the grading queue resolves one class before reading, so an admin no ' +
+    'longer arrives here with every assignment in the academy (see page-data/grading).',
   'src/lib/data/submissions-reads.ts:selectActiveByStudent':
     'The active submissions of ONE student: one per assignment ever set for them, so ' +
     'bounded by the assignments of the classes they are enrolled in.',
@@ -103,7 +209,8 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'Version history for a NAMED set of documents. Bounded by how often those documents ' +
     'are re-uploaded, not by academy-wide time.',
   'src/lib/data/submissions-reads.ts:selectActiveByAssignments':
-    'Active submissions for a NAMED assignment set - at most one per enrolled student each.',
+    'Active submissions for a NAMED assignment set - at most one per enrolled student each. ' +
+    "Callers pass one class's assignments or one student's, both roster-bounded.",
   'src/lib/data/submissions-service-reads.ts:selectActiveSubmissionsForStudentAsService':
     'The active submissions of ONE student - one per assignment they were set.',
   'src/lib/data/submissions-writes.ts:selectActiveSubmissionIdForStudent':
@@ -115,13 +222,21 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'list, the one caller that read a class whole history, now uses selectAssignmentPage.',
   'src/lib/data/assignments.ts:selectActiveAssignmentsByClassIdsAsService':
     'ACTIVE assignments for a named class set - work in hand, which drains as assignments ' +
-    'close, rather than a history that accumulates.',
+    'close, rather than a history that accumulates. The SET is bounded at both callers, ' +
+    'traced rather than assumed: the mentor dashboard passes the classes of ONE mentor own ' +
+    'mentees (studentIdsOfMentor -> selectScopedMenteeIds, no oversight branch), and the ' +
+    'mentee list passes one student classes.',
   'src/lib/data/assignments.ts:selectAssignmentsByIdsAsService':
     'Bounded by the ids passed in, which come from a page of submissions.',
   'src/lib/data/class-sessions.ts:selectSessionsByIds':
     'Bounded by construction: at most one PAGE of attendance-record rows supplies the ids. ' +
     'It exists to replace a flat newest-N read that gave the record pager and its session ' +
     'context different horizons.',
+  'src/lib/data/messages-conversations.ts:selectConversationReadState':
+    'Three narrow columns over the caller OWN conversation ids, passed in - the same bounded ' +
+    'set selectMyParticipations returns. It exists to resolve "unread" before paging, ' +
+    'because unread compares a conversation last_message_at against the reader own ' +
+    'watermark and so cannot be a column filter.',
   'src/lib/data/comments.ts:selectForEntities':
     'Comments on a NAMED entity set - every caller passes a page of documents, or one ' +
     'student own submissions. Bounded by the page above it, not by time.',
