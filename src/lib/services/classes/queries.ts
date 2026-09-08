@@ -94,6 +94,29 @@ export async function myClassIds(profile: Profile): Promise<string[]> {
   return myClassIdsByProfileId(profile.id)
 }
 
+/**
+ * The caller's class scope for a QUERY: their class ids, or NULL meaning "every class -
+ * no class predicate at all".
+ *
+ * Use this instead of myClassIds() whenever the result is pushed into a read. For an
+ * admin or sub_admin myClassIds() is the WHOLE academy, and spending that as an `.in()`
+ * list puts one uuid per class in a GET URL that grows until the request is rejected -
+ * the ceiling selectSessionPage and the teaching-hours report were already changed to
+ * avoid. Null is the same row set without the ceiling.
+ *
+ * Null is safe here, not a widening: `classes_read` is `is_active_admin() OR
+ * teaches_class(id) OR is_enrolled(id)`, and `teaches_class()` ends in
+ * `is_active_sub_admin()`, so both personas can read every class through RLS anyway.
+ * Dropping the predicate hands them the set the database would have given them. For
+ * everyone else the id list IS the scope and must stay a list - returning null there
+ * would show a tutor the academy.
+ */
+export async function myClassScope(profile: Profile): Promise<string[] | null> {
+  const { isAdmin, isSubAdmin } = await loadPersonaFlags(profile.id)
+  if (isAdmin || isSubAdmin) return null
+  return myClassIdsByProfileId(profile.id)
+}
+
 /** Groups member ids by class, resolving each to a display name. */
 function groupMembers(
   refs: Array<{ class_id: string; member_id: string }>,

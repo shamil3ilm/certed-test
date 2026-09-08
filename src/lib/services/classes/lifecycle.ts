@@ -5,10 +5,8 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { insertClass, updateClassName, updateClassStatus, type ClassRow } from '@/lib/data/classes'
 import {
   validateClassIdInput,
-  validateCreateClassInput,
   validateRenameClassInput,
   type ClassIdActionInput,
-  type CreateClassActionInput,
   type RenameClassActionInput,
 } from './validation'
 
@@ -22,16 +20,20 @@ import {
  * audit. Reads live in ./queries.
  */
 
-export async function createClass(actor: Profile, name: string, subjectId: string | null = null): Promise<ClassRow> {
+/**
+ * A class IS a student's subject - it is created from the student's page by "Add subject",
+ * and every list, receipt line and hours report reads it that way. So `subjectId` is
+ * REQUIRED rather than defaulted to null: a class without one is a class nothing can label,
+ * which is how "C12" came to print as the subject on a fee document.
+ *
+ * The action-input wrapper that created classes with no subject went with this change - it
+ * had no caller, and it was the only way to make one.
+ */
+export async function createClass(actor: Profile, name: string, subjectId: string): Promise<ClassRow> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   const created = await insertClass(name, subjectId)
   await auditPrivilegedAction(actor, 'class.create', 'class', created.id)
   return created
-}
-
-export async function createClassFromActionInput(actor: Profile, input: CreateClassActionInput): Promise<ClassRow> {
-  const parsed = validateCreateClassInput(input)
-  return createClass(actor, parsed.name)
 }
 
 export async function renameClass(actor: Profile, id: string, name: string): Promise<void> {

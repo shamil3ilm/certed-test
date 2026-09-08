@@ -6,8 +6,8 @@
  *
  * Table access lives in src/lib/data/classes and src/lib/data/class-membership.
  */
-export { validateCreateClassInput, validateRenameClassInput, validateClassIdInput } from './validation'
-export type { CreateClassActionInput, RenameClassActionInput, ClassIdActionInput } from './validation'
+export { validateRenameClassInput, validateClassIdInput } from './validation'
+export type { RenameClassActionInput, ClassIdActionInput } from './validation'
 
 export {
   listClasses,
@@ -15,6 +15,7 @@ export {
   countActiveClasses,
   getClass,
   myClassIds,
+  myClassScope,
   listMyClasses,
   getClassMembers,
   mentorsByStudent,
@@ -26,7 +27,6 @@ export type { ClassStudentGroup } from './grouping'
 
 export {
   createClass,
-  createClassFromActionInput,
   renameClass,
   renameClassFromActionInput,
   archiveClass,

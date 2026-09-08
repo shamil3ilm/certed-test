@@ -18,7 +18,6 @@ import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import {
   createClass,
-  createClassFromActionInput,
   renameClass,
   renameClassFromActionInput,
   archiveClass,
@@ -27,22 +26,26 @@ import {
   restoreClassFromActionInput,
   countActiveClasses,
   myClassIds,
-  validateCreateClassInput,
+  myClassScope,
   validateRenameClassInput,
   validateClassIdInput,
 } from '@/lib/services/classes'
-import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
+import { PermissionError, NotFoundError } from '@/lib/errors'
 
 const admin = { id: 'admin-1', email: 'a@x.c', role: 'admin', status: 'active' } as any
 const tutor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'active' } as any
 const classRow = { id: 'class-1', name: 'Math', status: 'active', created_at: 't' }
+
+// A class is always created FOR a subject (createClass requires it), so the tests pass
+// one rather than exercising a shape the domain no longer allows.
+const SUBJECT_ID = '3e68ffdc-2b4c-4253-b450-312cc6edd82e'
 
 beforeEach(() => vi.clearAllMocks())
 
 describe('class lifecycle is admin-only', () => {
   it('createClass rejects a non-admin, without a DB write or audit', async () => {
     vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('Admin only.'))
-    await expect(createClass(tutor, 'New class')).rejects.toBeInstanceOf(PermissionError)
+    await expect(createClass(tutor, 'New class', SUBJECT_ID)).rejects.toBeInstanceOf(PermissionError)
     expect(createAdminClient).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -62,7 +65,7 @@ describe('class lifecycle is admin-only', () => {
   it('createClass creates and audits class.create for an admin', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: classRow, error: null }) as any)
-    const created = await createClass(admin, 'Math')
+    const created = await createClass(admin, 'Math', SUBJECT_ID)
     expect(created.id).toBe('class-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -150,15 +153,46 @@ describe('myClassIds derives membership from explicit personas', () => {
   })
 })
 
+/**
+ * myClassScope is myClassIds for a QUERY, and the difference is the whole point: for an
+ * admin or sub_admin myClassIds() is every class in the academy, and spending that as an
+ * `.in()` list puts one uuid per class in a GET URL that grows until the request is
+ * rejected. Null says "no class predicate" instead - the same rows, no ceiling.
+ *
+ * Null is not a widening. `classes_read` is `is_active_admin() OR teaches_class(id) OR
+ * is_enrolled(id)` and `teaches_class()` ends in `is_active_sub_admin()`, so both personas
+ * already read every class through RLS. For anyone else the ids ARE the scope, and
+ * returning null there would show a tutor the whole academy - so that case is asserted
+ * just as hard as the academy-wide one.
+ */
+describe('myClassScope turns an academy-wide scope into "no predicate", not a uuid list', () => {
+  it('an admin gets null, and the class ids are never even read', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: true, isSubAdmin: false } as any)
+    expect(await myClassScope({ id: 'scope-admin' } as any)).toBeNull()
+    // Not merely "the list is not sent" - it is never fetched. A read here would be the
+    // academy-wide round trip this exists to remove.
+    expect(createClient).not.toHaveBeenCalled()
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('a sub_admin gets null too - 0092 widened teaches_class() to them', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({ isAdmin: false, isSubAdmin: true } as any)
+    expect(await myClassScope({ id: 'scope-sub' } as any)).toBeNull()
+  })
+
+  it('a TUTOR still gets their own ids - null here would hand them the academy', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: false,
+      isTutor: true,
+      isStudent: false,
+    } as any)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ class_id: 'c1' }], error: null }) as any)
+    expect(await myClassScope({ id: 'scope-tutor' } as any)).toEqual(['c1'])
+  })
+})
+
 describe('class action-input validation', () => {
-  it('validates and trims class-create input', () => {
-    expect(validateCreateClassInput({ name: ' Math ' })).toEqual({ name: 'Math' })
-  })
-
-  it('rejects invalid class-create input with a typed validation error', () => {
-    expect(() => validateCreateClassInput({ name: '' })).toThrow(ValidationError)
-  })
-
   it('validates rename payloads with id + trimmed name', () => {
     expect(
       validateRenameClassInput({
@@ -179,16 +213,6 @@ describe('class action-input validation', () => {
 })
 
 describe('class action-input delegation', () => {
-  it('createClassFromActionInput delegates validated data into createClass', async () => {
-    vi.mocked(loadActivePersonas).mockResolvedValueOnce([
-      { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
-    ] as any)
-    vi.mocked(hasPersona).mockReturnValueOnce(true)
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: classRow, error: null }) as any)
-    const created = await createClassFromActionInput(admin, { name: ' Math ' })
-    expect(created.id).toBe('class-1')
-  })
-
   it('rename/archive/restore action helpers delegate after validation', async () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([
       { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
