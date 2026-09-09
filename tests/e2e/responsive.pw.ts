@@ -54,8 +54,48 @@ const PAGES: Record<string, string[]> = {
   ],
 }
 
+/**
+ * Measure horizontal overflow ONCE THE LAYOUT HAS SETTLED.
+ *
+ * This used to be a bare read after `waitForTimeout(120)`, which made the sweep flaky: the
+ * page is navigated with `domcontentloaded`, so a measurement can land before webfonts have
+ * swapped in and before the last layout pass - and a fixed 120ms is a guess that gets
+ * thinner the more workers are competing for the machine. A mid-layout read reports overflow
+ * no real reader would ever see, and it fails a DIFFERENT page each time, which is what made
+ * it look random.
+ *
+ * So wait for the things that actually change metrics - fonts - and then require two
+ * consecutive animation frames to agree before believing the number. Bounded, so a genuinely
+ * unstable page (an animation) still returns rather than hanging.
+ */
 async function measure(page: Page) {
-  return page.evaluate(() => {
+  // Some of these paths redirect after `domcontentloaded` (a persona reaching a route it
+  // does not hold, which bounces to /dashboard). Settling across frames means we are still
+  // inside page.evaluate when that lands, and the execution context is torn out from under
+  // us. That is not a layout problem, so retry and measure the page the reader ACTUALLY ends
+  // up on rather than failing the sweep.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await measureOnce(page)
+    } catch (error) {
+      if (attempt >= 2 || !String(error).includes('Execution context was destroyed')) throw error
+      await page.waitForLoadState('domcontentloaded').catch(() => null)
+    }
+  }
+}
+
+async function measureOnce(page: Page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready
+    const width = () => document.documentElement.scrollWidth - window.innerWidth
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    let previous = width()
+    for (let i = 0; i < 30; i++) {
+      await nextFrame()
+      const current = width()
+      if (current === previous) break
+      previous = current
+    }
     const inner = window.innerWidth
     const overflow = document.documentElement.scrollWidth - inner
     let offenders: string[] = []
@@ -85,7 +125,7 @@ for (const [role, paths] of Object.entries(PAGES)) {
       await page.setViewportSize({ width: w, height: 880 })
       for (const path of paths) {
         await page.goto(path, { waitUntil: 'domcontentloaded' }).catch(() => null)
-        await page.waitForTimeout(120) // let layout settle
+        // No sleep: measure() waits for fonts and a stable frame pair itself.
         const { overflow, offenders } = await measure(page)
         if (overflow > 2) {
           failures.push(`${path} @ ${w}px  -> +${overflow}px  [${offenders.join('  |  ')}]`)
