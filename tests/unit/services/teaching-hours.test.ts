@@ -417,11 +417,10 @@ describe('getAcademyClassHours', () => {
   })
 
   it('returns an empty report when the month has no sessions', async () => {
-    // This used to assert "no active classes -> no session query", short-circuiting on a
-    // count of every active class. The academy-wide scope is now expressed by EXCLUDING
-    // archived classes rather than listing active ones, so there is no count to short
-    // -circuit on - and asking for one purely to skip a query would reintroduce the
-    // academy-sized id list the change removed. The OUTCOME is what matters.
+    // Asserts the OUTCOME, not "no active classes -> no session query". The academy-wide
+    // scope is expressed by EXCLUDING archived classes rather than by listing active ones,
+    // so there is no active-class count to short-circuit on - and asking for one purely to
+    // skip a query would reintroduce an academy-sized id list.
     vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([])
 
     const report = await getAcademyClassHours(ACTOR, '2026-08')

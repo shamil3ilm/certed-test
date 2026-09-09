@@ -240,13 +240,14 @@ describe('editMeetLinkFromActionInput', () => {
 })
 
 /**
- * listMeetLinks used to read EVERY link in the academy and then keep the ones for this
- * class. Two things were wrong with that: the request grew with the academy, and the answer
- * depended on PostgREST's row cap - past it, links silently stopped appearing on a class
- * page, which looks like "the tutor never posted one" rather than like an error.
+ * listMeetLinks must narrow to the class IN THE QUERY, never by reading every link in the
+ * academy and keeping the ones that match. Two things break if it does: the request grows
+ * with the academy, and the answer depends on PostgREST's row cap - past it, links silently
+ * stop appearing on a class page, which reads as "the tutor never posted one" rather than
+ * as an error.
  *
- * So the test asserts where the filtering HAPPENS, not just what comes back: a result-shape
- * test passes either way, which is exactly why this regressed unnoticed.
+ * These assert where the filtering HAPPENS, not just what comes back. A result-shape
+ * assertion passes under either implementation, so it cannot protect this property.
  */
 describe('listMeetLinks filters in the QUERY, not in memory', () => {
   it('asks the database for this class AND the academy-wide links', async () => {
@@ -261,7 +262,7 @@ describe('listMeetLinks filters in the QUERY, not in memory', () => {
     expect(client.from).toHaveBeenCalledTimes(2)
     expect(builder.eq).toHaveBeenCalledWith('class_id', VALID_ID)
     expect(builder.is).toHaveBeenCalledWith('class_id', null)
-    // Bounded, not a bare select: this is the read that used to have no ceiling at all.
+    // Bounded, not a bare select: without a ceiling this read is capped silently.
     expect(builder.range).toHaveBeenCalled()
   })
 

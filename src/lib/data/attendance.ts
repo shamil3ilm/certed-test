@@ -65,10 +65,10 @@ export async function selectForClassDate(classId: string, date: string): Promise
 /**
  * ONE page of a class's attendance history, newest first, with the exact total.
  *
- * This used to return a flat newest-200 with no pager and no total, under a heading that
- * reads as the whole history and beside filters that make it look authoritative. A 1:1
- * class reaches 200 marks in about eighteen months, after which filtering to "absent"
- * across a year silently searched only the recent slice.
+ * Paged rather than a flat newest-N: a 1:1 class reaches a few hundred marks inside two
+ * years, and this sits under a heading that reads as the whole history, beside filters that
+ * make it look authoritative. Without a pager and a true total, filtering to "absent" across
+ * a year would silently search only the most recent slice and still look complete.
  */
 export async function selectHistoryPageForClass(
   classId: string,

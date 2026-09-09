@@ -72,12 +72,11 @@ export const selectClassById = cache(async (id: string): Promise<ClassRow | null
 /**
  * Class ids the CALLER can actually read, through their own RLS session.
  *
- * The Classes list used to be built, for an admin or sub_admin, from a SERVICE-ROLE read of
- * every class id, so it listed every class regardless of what the database would let that
- * person open. The detail page reads through RLS, so the moment the app layer and RLS
- * disagreed the list offered links that answered "This page doesn't exist, or you don't
- * have access to it." Observed on staging: a sub_admin was shown both classes and refused
- * both, because that database predates 0092's widening of teaches_class.
+ * Deliberately NOT a service-role read of every class id. The detail page reads through
+ * RLS, so a list built with wider privilege than the page it links to can offer links the
+ * database then refuses - "This page doesn't exist, or you don't have access to it" - and
+ * the two disagree whenever the app's idea of a persona's reach is ahead of the policy on
+ * that database.
  *
  * Reading the list through the SAME gate as the detail makes that impossible by
  * construction: a link can only appear if the row is readable. A real admin still sees

@@ -76,8 +76,8 @@ const COLUMNS =
 const MANAGER_COLUMNS = `${COLUMNS}, staff_note`
 
 /** EVERY session recorded for a class on one date, oldest first. A class may hold
- *  several sessions in a day (0093 dropped the old one-per-day uniqueness), so this
- *  returns a list - never `.maybeSingle()`, which would ERROR the moment a second
+ *  several sessions in a day - there is no one-per-day uniqueness (0093) - so this
+ *  returns a list, never `.maybeSingle()`, which would ERROR the moment a second
  *  session exists. RLS client, so it never returns staff_note (that column is not
  *  granted to the caller's role). */
 export async function selectSessionsForDate(classId: string, date: string): Promise<ClassSessionRow[]> {

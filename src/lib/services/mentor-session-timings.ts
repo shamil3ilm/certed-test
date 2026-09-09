@@ -35,9 +35,9 @@ import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
  */
 
 export type MenteeSessionTiming = {
-  /** The recorded session's own id - what an edit targets. Never null: every row IS a
-   *  session now, since attendance.session_id has been NOT NULL and backfilled since 0094
-   *  (see listMenteeSessionTimings on why the attendance-without-a-session row is gone). */
+  /** The recorded session's own id - what an edit targets. Never null: attendance.session_id
+   *  is NOT NULL (0094), so every row IS a session (see listMenteeSessionTimings for why a
+   *  mark without a session cannot exist). */
   sessionId: string
   classId: string
   className: string
@@ -100,13 +100,14 @@ async function scopeFilter(actor: Profile): Promise<Pick<SessionPageFilter, 'cla
 /**
  * One page of session timings across the actor's scope, newest first, with the exact total.
  *
- * WHY THE ATTENDANCE UNION IS GONE: this used to add a row for a (class, date) that had
- * attendance but no recorded session. That case cannot occur any more - 0094 made
- * attendance.session_id NOT NULL after backfilling a session for every orphan mark, 0099
- * bound it to (class_id, session_date), and deleting a session CASCADEs its marks away. The
- * branch only ever fired on the OLD list's own bug: when its unbounded fetch was silently
- * truncated at the PostgREST row cap, marks whose session fell outside the truncated page
- * looked like orphans and were listed as "Not recorded".
+ * EVERY ROW IS A SESSION, so there is no orphan-mark case to fold in: attendance.session_id
+ * is NOT NULL (0094), bound to (class_id, session_date) (0099), and deleting a session
+ * CASCADEs its marks away. A mark without a session cannot exist, so a "(class, date) with
+ * attendance but nothing recorded" row would be unreachable code.
+ *
+ * The read is bounded. An unbounded fetch here is silently truncated at the PostgREST row
+ * cap, which understates the total and makes older sessions unreachable - and marks whose
+ * session fell outside the truncation would look like orphans.
  */
 export async function listMenteeSessionTimings(
   actor: Profile,
@@ -269,9 +270,9 @@ export type UpdateStudentJoinInput = {
   classId: string
   sessionDate: string
   joinAt: string | null
-  /** The session whose mark is being edited. Since 0094 a mark belongs to a session, so
-   *  this names the ROW to update as well as the window to validate against. Optional for
-   *  callers that predate the per-session list; those fall back to the day's first. */
+  /** The session whose mark is being edited. A mark belongs to a session (0094), so this
+   *  names the ROW to update as well as the window to validate against. Optional: a caller
+   *  that does not identify one falls back to the day's first session. */
   sessionId?: string | null
 }
 

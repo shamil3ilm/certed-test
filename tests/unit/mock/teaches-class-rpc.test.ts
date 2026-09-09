@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest'
  *
  * After 0082, `teaches_class` (READ scope, tutor OR mentor-of-enrolled-student, 0043) and
  * `teaches_class_write` (WRITE scope, tutor only, 0079) genuinely diverge. The E2E suite runs
- * against MOCK mode, so if the mock collapses them (as it used to) a mentor's calendar
+ * against MOCK mode, so if the mock collapses them a mentor's calendar
  * create/edit is wrongly refused (403) in mock while production RLS allows it - the spec then
  * neither confirms nor refutes real behaviour. This locks the two scopes apart in the mock.
  */

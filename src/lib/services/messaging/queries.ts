@@ -65,9 +65,8 @@ export async function listInbox(
   const convIds = parts.map((p) => p.conversation_id)
   const lastReadByConv = new Map(parts.map((p) => [p.conversation_id, p.last_read_at]))
 
-  // Order and slice in SQL, then resolve names for the PAGE only. This used to load every
-  // conversation the caller is in - and every participant of every one of them - to render
-  // twenty rows.
+  // Order and slice in SQL, then resolve names for the PAGE only - rendering twenty rows
+  // must not cost every conversation the caller is in plus every participant of each.
   // "Unread" is a property of the caller's participation row (last_read_at) compared with
   // the conversation's last_message_at, so it cannot be a column filter. Resolving the id
   // set FIRST and paging that is what keeps the count honest - filtering the fetched page

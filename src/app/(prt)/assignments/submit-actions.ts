@@ -11,7 +11,8 @@ import {
 
 /**
  * Submit work as a Google Drive link - the pasted-link fallback kept alongside the
- * primary custodial file upload (the old client-side Drive Picker is gone).
+ * primary custodial file upload, and the only Drive path offered (a client-side Picker
+ * would share the file "anyone with the link").
  * RLS enforces enrolled + own; the status is computed server-side vs the due date.
  *
  * DELIBERATE role guard, not capability drift: submitting is inherently a student

@@ -25,8 +25,8 @@ export default async function StudentsPage(props: { searchParams: Promise<{ page
   const requestedPage = parsePageParam(page)
 
   // The roster is ordered and searched in SQL, and only this page's students get their
-  // profile and class-list subtitle resolved - it used to build a subtitle for every
-  // mentee in the academy in order to render twenty of them.
+  // profile and class-list subtitle resolved - rendering twenty rows must not cost a
+  // subtitle for every mentee in the academy.
   const first = await getMenteeListView(me, { page: requestedPage, pageSize: MENTEES_PAGE_SIZE, search })
   // Fold a stale `?page=99` back onto the last real page instead of a blank list.
   const currentPage = clampPage(requestedPage, first.total, MENTEES_PAGE_SIZE)

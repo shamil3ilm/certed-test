@@ -33,11 +33,11 @@ describe('nav ordering by persona', () => {
     // (the bank/IFSC fields the DB restricts to is_active_admin(), 0017), so despite
     // holding manageUsers a sub_admin does NOT get the Organization item.
     //
-    // "Session times" IS here. It used to be filtered out of the sub-admin nav because
-    // the page came back empty - but that emptiness was a scope bug, not a decision: the
-    // page tested `isAdmin` for oversight while /students tested `!hasMentorAuthority`,
-    // so the same persona counted as oversight on one page and not the other. Both now
-    // share mentoringScopeClassIds, so the item earns its place.
+    // "Session times" IS here. A sub_admin is oversight on the mentoring surfaces, and
+    // /students and /session-timings resolve that through the SAME predicate
+    // (mentoringScopeClassIds), so the two pages describe one population. Omitting the item
+    // would only make sense if the page were empty for a sub_admin, and an empty page there
+    // would be a scope bug to fix rather than a nav entry to drop.
     expect(labelsFor(['sub_admin'])).toEqual([
       'Dashboard',
       'Classes',

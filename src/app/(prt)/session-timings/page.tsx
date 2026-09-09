@@ -15,10 +15,17 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
  *  class end) across the mentor's mentees' sessions, with an inline edit for the
  *  student joined time, filterable by student, subject, tutor and date.
  *
- *  The list is paged and filtered IN SQL. It used to fetch every session in scope and
- *  slice the array - for an oversight reader that was every session in the academy on
- *  each page view, and PostgREST silently capped the fetch at its Max rows, so past that
- *  the totals understated and older sessions could not be reached at all. */
+ *  TWO SHAPES. By default the page is a set of STUDENTS, each group showing that
+ *  student's latest few sessions - so paging counts students and a student's sessions can
+ *  never be split across a page boundary. Picking a student drills into the flat view:
+ *  their whole history, newest first, paged by session. That is what a group's "See all"
+ *  opens, and it is why a group can afford to cap.
+ *
+ *  Both shapes page and filter IN SQL, and the filters reach INSIDE the groups - each
+ *  student's rows are read already narrowed, never sliced afterwards. Slicing in memory is
+ *  not available here: for an oversight reader the unsliced set is every session in the
+ *  academy, and PostgREST caps a response at its Max rows without saying so, which would
+ *  understate the totals and leave older sessions unreachable. */
 export default async function SessionTimingsPage(props: { searchParams: Promise<SessionTimingSearchParams> }) {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewMentees')

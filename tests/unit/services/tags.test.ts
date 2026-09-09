@@ -57,10 +57,9 @@ describe('createTag', () => {
 })
 
 /**
- * These cover assertCanTagEntity, the shared gate. They ran through tagEntity - the
- * attach-an-existing-tag-by-id path - which was removed with no caller: the UI applies tags
- * BY NAME, so applyTagByName is the only way in. Re-pointed rather than deleted, because
- * the gate is what matters here and it is the same gate.
+ * These cover assertCanTagEntity, the shared gate, exercised through applyTagByName - the
+ * only way in, because the UI applies tags BY NAME rather than by id. The gate is what
+ * matters here, and it is the same gate whichever path reaches it.
  */
 describe('assertCanTagEntity (via applyTagByName)', () => {
   const existingTag = () => {

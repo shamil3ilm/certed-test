@@ -11,11 +11,11 @@ import { AlertBanner } from '@/lib/ui'
  * Sign-in form.
  *
  * The fields are UNCONTROLLED and the submitted values are read from the form itself.
- * They used to be controlled inputs seeded `useState('')`, which silently dropped
- * anything entered before this island hydrated: React does not adopt a DOM value written
- * before it attaches, so the state stayed empty and the submit posted empty strings.
- * Supabase answered `400 validation_failed - missing email or phone`, and the user was
- * told "Wrong email or password." while looking at a form they could see was filled in.
+ * Controlled inputs seeded `useState('')` are not usable here: React does not adopt a DOM
+ * value written before it attaches, so anything entered before this island hydrates is
+ * dropped - the state stays empty and the submit posts empty strings. Supabase answers
+ * `400 validation_failed - missing email or phone`, and the user is told "Wrong email or
+ * password." while looking at a form they can see is filled in.
  *
  * That window is not an edge case - a password manager or browser autofill writes both
  * fields the instant the markup exists, which on a cold or throttled load is routinely

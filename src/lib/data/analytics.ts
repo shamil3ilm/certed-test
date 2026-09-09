@@ -47,10 +47,9 @@ export function countAuditByActorAction(actorId: string, action: string): Promis
  *  log, so it stays O(documents). */
 export async function sumResourceDownloads(): Promise<number> {
   const admin = createAdminClient()
-  // Summed in Postgres (0103), not here. This used to page EVERY active resource row out
-  // of the database and reduce it in JavaScript - O(documents) rows over the wire to
-  // produce one integer, and growing for as long as the academy adds documents. The figure
-  // is unchanged; only the work moved.
+  // Summed in Postgres, not here: reducing this in JavaScript would pull every active
+  // resource row over the wire to produce one integer, and that cost grows for as long as
+  // the academy adds documents.
   const { data, error } = await admin.rpc('sum_active_resource_downloads')
   if (error) throw new Error(`analytics.sumResourceDownloads: ${error.message}`)
   return Number(data ?? 0)

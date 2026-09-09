@@ -61,8 +61,8 @@ export {
  * The MEMBERSHIP comes from `mentorships` - an id-only read, so it stays one small column
  * however large the academy is - but the ORDER and the SEARCH belong to `profiles`, so both
  * run in SQL via selectProfilePage. Only the page's own students then get their full
- * profile and the class-list subtitle, which is the expensive part: this used to build a
- * subtitle for every mentee in the academy to render twenty.
+ * profile and the class-list subtitle, which is the expensive part: rendering twenty rows
+ * must not cost a subtitle for every mentee in the academy.
  */
 export async function getMenteeListView(
   me: Profile,

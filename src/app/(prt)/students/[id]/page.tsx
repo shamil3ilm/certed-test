@@ -47,9 +47,9 @@ export default async function MenteePage(props: {
   const { hasMentorAuthority } = await loadPersonaFlags(me.id)
   const { classes, submissions, overdue, evaluations } = data.overview
 
-  // The pastoral record is paged. It used to be a flat newest-200 with no pager: a mentor
-  // writing weekly reaches that in four years, after which the older notes simply stopped
-  // existing as far as this page was concerned.
+  // The pastoral record is paged, not a flat newest-N: a mentor writing weekly accumulates
+  // a few hundred notes within a few years, and without a pager everything older than the
+  // cut would simply not exist as far as this page is concerned.
   const requestedNotePage = parsePageParam(searchParams?.notePage)
   const firstNotes = await listMenteeNotes(me, params.id, {
     page: requestedNotePage,

@@ -92,9 +92,9 @@ describe('markAttendance', () => {
   })
 
   it('records the mark against the NAMED session, so a day can hold one mark per session', async () => {
-    // The gap this closes: attendance used to be keyed (class, student, DATE), so a student
-    // present for the morning session and absent for the afternoon could not be recorded -
-    // the second mark overwrote the first.
+    // The mark is keyed by SESSION, not by (class, student, DATE). Keyed by date, a student
+    // present for the morning session and absent for the afternoon cannot be recorded at
+    // all - the second mark overwrites the first.
     const OTHER = 'c5000000-0000-4000-8000-000000000002'
     vi.mocked(canManageClass).mockResolvedValue(true)
     vi.mocked(getClassMembers).mockResolvedValue(roster as any)

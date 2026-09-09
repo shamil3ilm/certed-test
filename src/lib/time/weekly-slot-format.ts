@@ -17,12 +17,11 @@ export type WeeklySlotTimes = {
  * zone may see it cross midnight - so both weekdays are shown when the start and
  * end land on different days for the viewer (e.g. "Mon 23:30 - Tue 00:30").
  *
- * A null/absent slot zone (a row predating 0060) falls back to `academyTz` - the CONFIGURED
- * org_settings.timezone, which is what expandSlots anchors those rows to. It used to fall
- * back to the DISPLAY_TZ constant ('Asia/Kolkata') instead, which format.ts explicitly
- * reserves for display and calls "never the source for date logic": for any academy on a
- * different zone, a legacy slot was then LISTED at one time and EXPANDED into the calendar
- * at another.
+ * A slot with no zone of its own falls back to `academyTz` - the CONFIGURED
+ * org_settings.timezone, which is what expandSlots anchors those rows to. It must NOT fall
+ * back to the DISPLAY_TZ constant ('Asia/Kolkata'), which format.ts reserves for display and
+ * calls "never the source for date logic": for any academy on a different zone that would
+ * LIST such a slot at one time and EXPAND it into the calendar at another.
  */
 export function formatWeeklySlotInZone(slot: WeeklySlotTimes, viewerTz: string, academyTz: string): string {
   const fromTz = slot.timezone || academyTz

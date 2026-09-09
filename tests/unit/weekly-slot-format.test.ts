@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { formatWeeklySlotInZone } from '@/lib/time/weekly-slot-format'
 
-// The CONFIGURED org_settings.timezone, passed in explicitly. It used to be a hardcoded
-// DISPLAY_TZ fallback inside the formatter, which diverged from expandSlots for any
-// academy not on Asia/Kolkata.
+// The CONFIGURED org_settings.timezone, passed in explicitly rather than defaulted inside
+// the formatter: a hardcoded DISPLAY_TZ fallback there would diverge from expandSlots for
+// any academy not on Asia/Kolkata.
 const ACADEMY_TZ = 'Asia/Kolkata'
 
 describe('formatWeeklySlotInZone', () => {

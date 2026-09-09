@@ -34,10 +34,11 @@ type MeetLinkInsert = Omit<MeetLinkRow, 'id' | 'created_at'>
  * Links, newest first; inactive ones only when asked for.
  *
  * `classId` narrows to that class PLUS the academy-wide (null) links, because a class view
- * deliberately shows both. That filter used to live in the domain, which meant a class page
- * read every link in the academy and then kept the handful it wanted - a full-table read
- * sliced in memory, and one PostgREST silently truncated at its row cap, so links vanished
- * from a class with nothing to say so. Filtering here makes the read match what is rendered.
+ * deliberately shows both. The filter belongs HERE, in the query, not in the domain: keeping
+ * it above would make a class page read every link in the academy and slice the handful it
+ * wants in memory, and PostgREST truncates such a read at its row cap without saying so, so
+ * links would vanish from a class silently. Filtering here makes the read match what is
+ * rendered.
  *
  * Split into two reads rather than one `.or()`: it mirrors selectNewestForClasses, and keeps
  * the null-check out of a filter string.

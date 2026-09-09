@@ -204,8 +204,8 @@ describe('archiveDocument / restoreDocument', () => {
 describe('recordDownload', () => {
   it('enforces canDocument("download"), increments the counter, audits, and returns the doc', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // getResource
-    // The counter is bumped by an RPC now, not a read-then-write: two concurrent
-    // downloads used to read the same value and both write value+1, counting once.
+    // The counter is bumped by an RPC, not a read-then-write: two concurrent downloads
+    // would otherwise read the same value and both write value+1, counting once.
     const adminClient = makeClient({ data: docRow, error: null }, { data: null, error: null })
     vi.mocked(createAdminClient).mockReturnValue(adminClient as any)
     const doc = await recordDownload(actor, 'res-1')

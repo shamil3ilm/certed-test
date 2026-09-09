@@ -12,9 +12,9 @@ import { startSubmissionAction, submitLinkAction } from './submit-actions'
 
 /**
  * Submit work by UPLOADING a file the academy keeps (custodial storage), with a
- * Google Drive link kept only as a de-emphasized fallback. The old "Attach from
- * Drive" Picker - which shared the file "anyone with the link" - is gone. The first
- * upload creates the (empty) submission and subsequent files attach to the same one.
+ * Google Drive link kept only as a de-emphasized fallback. There is deliberately no
+ * client-side "Attach from Drive" Picker: it shares the file "anyone with the link". The
+ * first upload creates the (empty) submission and subsequent files attach to the same one.
  */
 export function SubmitForm({
   assignmentId,

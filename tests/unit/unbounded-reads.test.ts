@@ -44,9 +44,10 @@ const EVER_GROWING = [
   'rate_limit_counters',
   'reminders',
   'resource_versions',
-  // Added after a sweep found the original list covered 11 of the schema's 39 tables, and
-  // that the gap was not arbitrary: these all accumulate with TIME rather than with the
-  // roster, which is exactly the shape this gate exists to catch.
+  // The inclusion rule for everything below: it accumulates with TIME rather than with the
+  // roster. A roster-bounded table stops growing when the academy stops growing; these do
+  // not, which is exactly the shape this gate exists to catch. Keep this list in step with
+  // the schema - a table added here is watched, and one left off is silently exempt.
   'comments',
   'messages',
   'conversations',
