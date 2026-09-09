@@ -19,9 +19,10 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // the class AND enrols her AND assigns the tutor in one step (the subject-as-class model).
   await page.goto(`/admin/users/${SEED.sara}`)
   await page.locator('input[name=subject]').fill('Physics')
-  await page.locator('form:has(button:has-text("Add subject")) select[name=tutor_id]').selectOption({
-    label: 'Tarun Tutor',
-  })
+  // By VALUE, not by label: the option text carries the person's role ("Tarun Tutor - Tutor")
+  // so an admin can tell a tutor from a mentor in one list, and that wording is presentation
+  // this test should not pin down. The id is what the form actually submits.
+  await page.locator('form:has(button:has-text("Add subject")) select[name=tutor_id]').selectOption(SEED.tutor)
   await submitAndReload(page, () => page.getByRole('button', { name: 'Add subject' }).click())
 
   // Open the new class from the list (named "Sara Student - Physics").
@@ -162,7 +163,10 @@ test('STUDENT -- submit an assignment (custodial file upload)', async ({ page })
       mimeType: 'application/pdf',
       buffer: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
     })
-  await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
+  // Anchored to the submission line, not a bare status word: "Late" alone appears elsewhere
+  // on this page, and the point of the assertion is that THIS submission was accepted and
+  // is now reported back with its delivery status.
+  await expect(page.getByText(/Your submission: (On time|Late)/).first()).toBeVisible()
 })
 
 test('MENTOR -- sees assigned mentees and can reach their classes', async ({ page }) => {

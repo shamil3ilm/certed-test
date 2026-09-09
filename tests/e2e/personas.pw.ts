@@ -203,7 +203,10 @@ test('STUDENT -- full journey: timetable, submit homework, materials, grade, att
       mimeType: 'application/pdf',
       buffer: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
     })
-  await expect(page.getByText(/On time|Submitted late/).first()).toBeVisible()
+  // Anchored to the submission line, not a bare status word: "Late" alone appears elsewhere
+  // on this page, and the point of the assertion is that THIS submission was accepted and
+  // is now reported back with its delivery status.
+  await expect(page.getByText(/Your submission: (On time|Late)/).first()).toBeVisible()
 
   // See the tutor's material + the grade in Math
   await page.goto(`/classroom/${SEED.math}/classwork`)

@@ -44,6 +44,11 @@ const EVER_GROWING = [
   'rate_limit_counters',
   'reminders',
   'resource_versions',
+  // Effective-DATED: one row per currency pair per date a rate changed, so it grows
+  // with the calendar rather than with the roster. Every converted figure in the app
+  // is derived from this table, which makes a silently truncated read a wrong NUMBER
+  // rather than a short list.
+  'exchange_rates',
   // The inclusion rule for everything below: it accumulates with TIME rather than with the
   // roster. A roster-bounded table stops growing when the academy stops growing; these do
   // not, which is exactly the shape this gate exists to catch. Keep this list in step with
@@ -316,5 +321,79 @@ describe('reads over ever-growing tables are bounded', () => {
     const live = new Set(unboundedGrowingReads().map((f) => f.key))
     const stale = Object.keys(BOUNDED_BY_DESIGN).filter((k) => !live.has(k))
     expect(stale, 'Allowlisted reads that no longer exist or are now bounded - delete them').toEqual([])
+  })
+})
+
+/**
+ * Tables that do NOT grow with time, each with the thing that bounds them.
+ *
+ * This list exists so the watch list above cannot silently fall behind the schema. It was
+ * hand-maintained against a schema that kept growing, and `exchange_rates` sat outside it
+ * unnoticed - effective-dated, read whole, and feeding every converted figure in the app.
+ * Nothing failed, because nothing was checking that the two lists together covered
+ * everything. Now a new table forces a decision: watch it, or say here why it is bounded.
+ */
+const ROSTER_OR_CATALOGUE_BOUNDED: Record<string, string> = {
+  billing_rates: 'One row per profile - profile_id IS the primary key. Bounded by the roster.',
+  capability_overrides: 'One row per (profile, capability). Bounded by the roster.',
+  document_counters: 'One row per (doc_type, year) - two a year, and allocated by RPC, never scanned.',
+  org_settings: 'A singleton; the id column is CHECKed to a single true value.',
+  subjects: 'The subject catalogue, name-unique. Bounded by what the academy teaches.',
+  tags: 'The tag catalogue, name-unique. Bounded by what staff create.',
+}
+
+/** Every table the migration chain creates, renames followed and drops honoured. */
+function tablesCreatedInChain(): string[] {
+  const live = new Set<string>()
+  for (const file of readdirSync('supabase/migrations')
+    .filter((f) => f.endsWith('.sql'))
+    .sort()) {
+    const sql = readFileSync(`supabase/migrations/${file}`, 'utf8')
+    for (const m of sql.matchAll(/create table\s+(?:if not exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+      live.add(m[1].toLowerCase())
+    }
+    for (const m of sql.matchAll(/drop table\s+(?:if exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+      live.delete(m[1].toLowerCase())
+    }
+    for (const m of sql.matchAll(
+      /alter table\s+(?:if exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s+rename to\s+"?([a-z_][a-z0-9_]*)"?/gi,
+    )) {
+      const [from, to] = [m[1].toLowerCase(), m[2].toLowerCase()]
+      if (live.delete(from)) live.add(to)
+    }
+  }
+  // A guard on the SCAN, not on the schema. Both tests below reason about what this set does
+  // NOT contain - a table nobody watches, a listed table the chain no longer creates - so an
+  // incomplete read does not fail them honestly, it fails them with the wrong reason and
+  // sends the reader to edit a correct list. The chain creates dozens of tables and only ever
+  // grows, so a handful means the read was short, not that the schema shrank.
+  if (live.size < 20) {
+    throw new Error(
+      `Migration scan found only ${live.size} tables, which cannot be right - treat the two ` +
+        'assertions below as unreliable rather than editing the lists they name.',
+    )
+  }
+  return [...live].sort()
+}
+
+describe('the watch list keeps up with the schema', () => {
+  it('every table in the chain is either watched or declared bounded', () => {
+    const watched = new Set<string>(EVER_GROWING)
+    const undecided = tablesCreatedInChain().filter((t) => !watched.has(t) && !(t in ROSTER_OR_CATALOGUE_BOUNDED))
+    expect(
+      undecided,
+      'These tables are in the migration chain but appear in neither list, so reads over them ' +
+        'are exempt from this gate by accident rather than by decision. Add each to ' +
+        'EVER_GROWING (it accumulates with time) or to ROSTER_OR_CATALOGUE_BOUNDED with the ' +
+        'thing that bounds it.',
+    ).toEqual([])
+  })
+
+  it('nothing is declared bounded that is also watched, and neither list names a dead table', () => {
+    const inChain = new Set(tablesCreatedInChain())
+    const both = EVER_GROWING.filter((t) => t in ROSTER_OR_CATALOGUE_BOUNDED)
+    expect(both, 'A table cannot be both watched and declared bounded').toEqual([])
+    const dead = [...EVER_GROWING, ...Object.keys(ROSTER_OR_CATALOGUE_BOUNDED)].filter((t) => !inChain.has(t))
+    expect(dead, 'Listed tables that the chain no longer creates - delete them').toEqual([])
   })
 })
