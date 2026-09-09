@@ -12,6 +12,9 @@ import {
   type ClassSession,
 } from '@/lib/services/attendance'
 import { getClassMembers } from '@/lib/services/classes'
+import { selectActiveClassIdsForStudents } from '@/lib/data/class-membership'
+import { selectClassesByIds, selectClassById } from '@/lib/data/classes'
+import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { isCalendarDate, todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
@@ -80,6 +83,29 @@ type ManagerAttendancePageData = {
   historyTotalPages: number
   hasHistoryFilters: boolean
   history: AttendanceHistoryRow[]
+  /** The OTHER classes these same students attend, that this actor may also manage.
+   *
+   *  A session belongs to a class, and 0099's composite FK binds every mark to a session of
+   *  its own class - so "record the Physics session" means recording it on the Physics
+   *  class, not relabelling a Maths one. That makes this a navigation problem rather than a
+   *  field on the form, and this list is what the switcher offers. */
+  switchableClasses: { id: string; name: string }[]
+  /** Subject id -> name for the sessions on this page.
+   *
+   *  A session carries its OWN subject_id (0104), stamped from the class when recorded, so
+   *  re-pointing a class does not relabel its history. That means a session's subject is not
+   *  always the class's CURRENT one, and the record view has to read the session's own value
+   *  rather than the class's. Resolved by id - including subjects since deactivated, which
+   *  still name the sessions that reference them. */
+  subjectNames: Map<string, string>
+  /** The subject a NEW session on this class would be stamped with (the class's current
+   *  one), so the blank record form can say what it is about to record. Distinct from the
+   *  per-session names above, which are what each PAST session actually taught.
+   *
+   *  Null means the class has no subject: every session it records is unlabelled for good,
+   *  invisible to the subject filter and to the by-subject hours breakdown, and there is no
+   *  UI to repair it afterwards. The form says so rather than letting it happen quietly. */
+  classSubjectName: string | null
 }
 
 type ClassAttendancePageData = StudentAttendancePageData | ManagerAttendancePageData
@@ -103,6 +129,36 @@ export function attendanceHistoryPageUrl(date: string, filters: AttendanceHistor
  *  institute's configured timezone (not a hardcoded zone). */
 export function attendanceSessionDate(candidate: string | undefined, instituteTz: string): string {
   return isCalendarDate(candidate ?? '') ? (candidate as string) : todayInZone(instituteTz)
+}
+
+/**
+ * The other classes of THIS class's students that `me` may also manage.
+ *
+ * Scoped to the current roster rather than to everything the actor teaches: the case this
+ * serves is "Sam has Maths and Physics and I am on the wrong one", so the students in front
+ * of you decide the candidates. That also bounds it - a roster times its subjects - where
+ * "every class I manage" would be the whole academy for an admin.
+ *
+ * Each candidate is then put through canManageClass, the SAME gate the target page applies.
+ * Filtering on anything cheaper would let the switcher offer a class that then refuses to
+ * open, which is the one-gate rule the class list already learned the hard way.
+ */
+async function switchableClassesFor(
+  me: Profile,
+  currentClassId: string,
+  studentIds: string[],
+): Promise<{ id: string; name: string }[]> {
+  if (studentIds.length === 0) return []
+  const candidateIds = [...new Set(await selectActiveClassIdsForStudents(studentIds))].filter(
+    (id) => id !== currentClassId,
+  )
+  if (candidateIds.length === 0) return []
+  const classes = (await selectClassesByIds(candidateIds)).filter((c) => c.status === 'active')
+  const allowed = await Promise.all(classes.map((c) => canManageClass(me, c.id)))
+  return classes
+    .filter((_, i) => allowed[i])
+    .map((c) => ({ id: c.id, name: c.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function loadClassAttendancePageData(
@@ -185,6 +241,23 @@ export async function loadClassAttendancePageData(
       }
     })
   const historyStudentIds = [...new Set(historyRows.map((row) => row.student_id))]
+  const switchableClasses = await switchableClassesFor(
+    me,
+    courseId,
+    students.map((s) => s.id),
+  )
+  // Names for the subjects THESE sessions recorded. Deactivated subjects included: one still
+  // labels the sessions already pointing at it, and omitting it would blank the column.
+  // The class's OWN subject is resolved alongside the sessions' - one read, and the blank
+  // record form needs it even when the day has no sessions at all.
+  const classSubjectId = (await selectClassById(courseId))?.subject_id ?? null
+  const sessionSubjectIds = [
+    ...new Set([...sessions.map((s) => s.subject_id), classSubjectId].filter((id): id is string => Boolean(id))),
+  ]
+  const subjectNames = new Map(
+    (await selectSubjectsByIds(sessionSubjectIds)).map((s) => [s.id, s.name] as [string, string]),
+  )
+  const classSubjectName = classSubjectId ? (subjectNames.get(classSubjectId) ?? null) : null
   const historicalNames = await getProfileNamesByIds(historyStudentIds)
   const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
 
@@ -192,6 +265,9 @@ export async function loadClassAttendancePageData(
     kind: 'manager',
     date,
     sessions,
+    switchableClasses,
+    subjectNames,
+    classSubjectName,
     historyFilters,
     hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
     historyPage,

@@ -4,6 +4,7 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/class-tutor-validation', () => ({ assertClassTutor: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveTutorRowsForClass: vi.fn() }))
+vi.mock('@/lib/data/classes', () => ({ selectClassSubjectIdAsService: vi.fn() }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectRecentSessions: vi.fn(),
   selectTutorOverlappingSessions: vi.fn(),
@@ -21,6 +22,7 @@ import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
+import { selectClassSubjectIdAsService } from '@/lib/data/classes'
 import {
   insertSession,
   selectSessionByIdAsService,
@@ -40,6 +42,52 @@ beforeEach(() => {
   vi.mocked(canManageClass).mockResolvedValue(true)
   vi.mocked(insertSession).mockResolvedValue({ id: 's1' } as any)
   vi.mocked(selectTutorOverlappingSessions).mockResolvedValue([])
+  vi.mocked(selectClassSubjectIdAsService).mockResolvedValue(null)
+})
+
+describe('saveSessionTimes - the session records WHICH subject was taught', () => {
+  beforeEach(() => {
+    vi.mocked(selectActiveTutorRowsForClass).mockResolvedValue([{ id: 'ct1', tutor_id: ACTOR }] as any)
+  })
+
+  it('stamps the class subject onto a NEW session, rather than leaving it to the DB trigger', async () => {
+    // A tutor teaches several subjects, so "who taught" does not say "what was taught" - the
+    // session has to carry the subject itself. 0104 has a BEFORE INSERT trigger that fills it,
+    // but mock mode runs no triggers: leaving it to the database means the subject column and
+    // the subject filter behave differently in E2E than in production. Setting it here makes
+    // the two agree, and the trigger stays as the backstop for any writer that forgets.
+    vi.mocked(selectClassSubjectIdAsService).mockResolvedValue('sub-physics')
+
+    await saveSessionTimes(actor, {
+      ...base,
+      actual_start: '2026-08-05T09:00:00.000Z',
+      actual_end: '2026-08-05T10:00:00.000Z',
+    } as any)
+
+    expect(vi.mocked(insertSession).mock.calls[0][0]).toMatchObject({ subject_id: 'sub-physics' })
+  })
+
+  it('does NOT relabel an existing session when the class is later re-pointed', async () => {
+    // The whole point of the session carrying its own subject: editing yesterday's times must
+    // not rewrite what yesterday taught. The trigger is BEFORE INSERT only, and the update
+    // must match it by leaving the column alone.
+    vi.mocked(selectClassSubjectIdAsService).mockResolvedValue('sub-new')
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: 'e0000000-0000-4000-8000-000000000009',
+      class_id: 'class-1',
+      subject_id: 'sub-old',
+    } as any)
+    vi.mocked(updateSessionById).mockResolvedValue({ id: 'e0000000-0000-4000-8000-000000000009' } as any)
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: 'e0000000-0000-4000-8000-000000000009',
+      actual_start: '2026-08-05T09:00:00.000Z',
+      actual_end: '2026-08-05T10:00:00.000Z',
+    } as any)
+
+    expect(Object.keys(vi.mocked(updateSessionById).mock.calls[0][1])).not.toContain('subject_id')
+  })
 })
 
 describe('saveSessionTimes - each recording is its own record', () => {

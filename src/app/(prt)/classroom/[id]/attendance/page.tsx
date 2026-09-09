@@ -213,12 +213,37 @@ export default async function AttendancePage(props: {
           </button>
         </form>
 
+        {data.switchableClasses.length > 0 && (
+          // A session belongs to its class, so recording the Physics hour means going TO
+          // Physics rather than picking a subject on this form. Carries the date across so
+          // the switch lands on the same day the reader was looking at.
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="text-xs font-medium text-slate-600">Same students, another class:</span>
+            {data.switchableClasses.map((c) => (
+              // max-w-full: a long "Student - Subject" name wraps inside the row rather than
+              // pushing the page sideways on a 320px phone.
+              <a
+                key={c.id}
+                href={`/classroom/${c.id}/attendance?date=${data.date}`}
+                className="btn btn-sm btn-soft max-w-full"
+              >
+                {c.name}
+              </a>
+            ))}
+          </div>
+        )}
+
         {sessionsForForm.map((session, index) => (
           <div key={session.id} className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <SectionLabel>
-                Session {index + 1} of {sessionsForForm.length}
-              </SectionLabel>
+              <div className="flex flex-wrap items-center gap-2">
+                <SectionLabel>
+                  Session {index + 1} of {sessionsForForm.length}
+                </SectionLabel>
+                {/* The SESSION's subject, stamped when it was recorded (0104) - so a class
+                    re-pointed to a new subject keeps its history labelled correctly. */}
+                {session.subject_id && <Badge>{data.subjectNames.get(session.subject_id) ?? 'Subject'}</Badge>}
+              </div>
               <form action={deleteSessionAction}>
                 <input type="hidden" name="class_id" value={course.id} />
                 <input type="hidden" name="session_id" value={session.id} />
@@ -272,7 +297,24 @@ export default async function AttendancePage(props: {
         ))}
 
         <div className="space-y-2">
-          <SectionLabel>{sessionsForForm.length > 0 ? 'Record another session' : 'Record the session'}</SectionLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            <SectionLabel>{sessionsForForm.length > 0 ? 'Record another session' : 'Record the session'}</SectionLabel>
+            {/* Say WHAT this will be recorded as before it is recorded. A tutor teaching
+                several subjects is on one class per subject, so the only thing separating
+                "the Physics hour" from "the Maths hour" is which class they are on. */}
+            {data.classSubjectName && <Badge>{data.classSubjectName}</Badge>}
+          </div>
+          {!data.classSubjectName && (
+            // The legacy NULL-subject case, surfaced at the point it starts costing something.
+            // Stamping happens at INSERT, so sessions recorded now stay unlabelled for good -
+            // absent from the subject filter and the by-subject hours breakdown - and no screen
+            // can repair them afterwards.
+            <p className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
+              This class has no subject set, so sessions recorded here will not appear under any subject filter or in
+              the by-subject hours breakdown. An admin can set the subject on the class; sessions already recorded keep
+              whatever they were recorded with.
+            </p>
+          )}
           <SessionTimesForm classId={course.id} date={data.date} session={null} canEditStaffNote={canManageContent} />
         </div>
 

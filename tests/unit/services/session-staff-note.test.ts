@@ -16,6 +16,9 @@ vi.mock('@/lib/data/class-sessions', () => ({
   writeStudentSessionFeedback: vi.fn(),
 }))
 vi.mock('@/lib/data/attendance', () => ({ studentHasAttendance: vi.fn() }))
+// The session write stamps WHAT was taught onto a new row; this file is about the staff
+// note, so the subject is simply absent rather than asserted here (see session-times).
+vi.mock('@/lib/data/classes', () => ({ selectClassSubjectIdAsService: vi.fn(async () => null) }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'

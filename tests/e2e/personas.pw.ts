@@ -125,6 +125,38 @@ test('TUTOR -- marks attendance and adds a reminder', async ({ page }, testInfo)
   await expect(page.getByText(reminder)).toBeVisible()
 })
 
+test('TUTOR -- one tutor, two subjects: the session shows the subject it taught', async ({ page }) => {
+  // The seeded tutor teaches BOTH Mathematics and Physics, which is how the model carries a
+  // multi-subject tutor: one class per (student, subject, tutor) pairing. So "what was taught"
+  // has to come off the SESSION, not off the tutor.
+  //
+  // This runs in mock mode, where no DB triggers fire - which is the point. 0104's trigger
+  // fills class_sessions.subject_id in production, so a session write that relied on it looked
+  // right there and left the subject blank here. The Maths session was recorded through the
+  // real write path by the test above, so asserting its label in mock is what keeps the two
+  // environments honest.
+  await loginAs(page, 'tutor@mock.test', { clearCookies: true })
+
+  await page.goto(`/classroom/${SEED.math}/attendance`)
+  await ensureRecordedSession(page)
+  await expect(page.getByText('Mathematics', { exact: true }).first()).toBeVisible()
+
+  // Recording the Physics hour means GOING to Physics - a session belongs to its class, so
+  // the switcher is navigation rather than a subject field on the form.
+  const toPhysics = page.getByRole('link', { name: 'Physics - Grade 10' })
+  await expect(toPhysics).toBeVisible()
+  await toPhysics.click()
+
+  // Physics has no session on this date, so there is nothing recorded to label - but the
+  // BLANK form still has to say what it is about to record, which is the whole point for a
+  // tutor who teaches two subjects.
+  await expect(page.getByRole('heading', { name: 'Record the session' })).toBeVisible()
+  await expect(page.getByText('Physics', { exact: true }).first()).toBeVisible()
+  // And the Maths label must not follow the reader across, which it would if the subject
+  // were read from anywhere but the class/session in front of them.
+  await expect(page.getByText('Mathematics', { exact: true })).toHaveCount(0)
+})
+
 test('SUB ADMIN -- lands on a real dashboard and can reach settings (no blank lock-out)', async ({ page }) => {
   await loginAs(page, 'subadmin@mock.test')
 
