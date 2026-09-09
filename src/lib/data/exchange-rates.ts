@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import type { ExchangeRate } from '@/lib/finance/fx'
 
 /**
@@ -12,15 +13,33 @@ import type { ExchangeRate } from '@/lib/finance/fx'
 
 export type ExchangeRateRow = ExchangeRate & { note: string | null; created_at: string }
 
+/**
+ * EVERY rate, oldest currency first and newest effective date first within each.
+ *
+ * Paged rather than a bare select. The table is effective-DATED - one row per currency pair
+ * per date a rate changed - so it accumulates for as long as the academy operates, and a
+ * bare select is silently truncated at the PostgREST row cap. The caller re-prices documents
+ * from this set, so a truncated read does not shorten a list, it prices the back catalogue
+ * off a rate table with the older entries missing.
+ *
+ * `id` makes the order TOTAL. Currency + effective_from does not: two rows tie whenever the
+ * same currency has rates against different bases on one date, and an offset walk over a
+ * non-total order duplicates some rows and skips others.
+ */
 export async function selectExchangeRates(): Promise<ExchangeRateRow[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('exchange_rates')
-    .select('id, currency, base_currency, rate, effective_from, note, created_at')
-    .order('currency', { ascending: true })
-    .order('effective_from', { ascending: false })
-  if (error) throw new Error(`exchange_rates.select: ${error.message}`)
-  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+  const data = await fetchAllPaged<Record<string, unknown>>(
+    (from, to) =>
+      admin
+        .from('exchange_rates')
+        .select('id, currency, base_currency, rate, effective_from, note, created_at')
+        .order('currency', { ascending: true })
+        .order('effective_from', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to),
+    'exchange_rates.select',
+  )
+  return data.map((r) => ({
     id: r.id as string,
     currency: r.currency as string,
     base_currency: r.base_currency as string,
