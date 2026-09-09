@@ -11,7 +11,8 @@ import { createClass, archiveClass } from '@/lib/services/classes/lifecycle'
 import { enrolStudent } from '@/lib/services/enrollments'
 import { addTutor } from '@/lib/services/class-tutors'
 import type { AddSubjectInput } from '@/lib/validation/class-subject'
-import { ValidationError } from '@/lib/errors'
+import { ValidationError, PermissionError } from '@/lib/errors'
+import { canManageClass } from '@/lib/permission'
 
 /**
  * A student's SUBJECT is modelled as one of their 1:1 classes (the class already
@@ -68,12 +69,21 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
  * recorded none - both guarded in the query, not just here, so a concurrent write cannot slip
  * between the check and the update. A class that already names a subject is refused rather
  * than re-pointed, because that would rewrite what its past sessions taught.
+ *
+ * Gated on canManageClass rather than the academy-wide manageClasses that the rest of this
+ * file uses. Assigning subjects across the academy stays with an admin; naming the missing
+ * one on a class you already record sessions for is the same authority as recording them,
+ * and the people who meet this problem are the tutor and mentor on that class. Withholding
+ * it from them leaves the data broken until an admin happens to notice, which is how it got
+ * this far. Narrowness is what makes that safe: fill-only, never re-point, and audited.
  */
 export async function setMissingClassSubject(
   actor: Profile,
   input: { classId: string; subjectId: string },
 ): Promise<{ sessionsLabelled: number }> {
-  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
+  if (!(await canManageClass(actor, input.classId))) {
+    throw new PermissionError('You are not allowed to manage this class.')
+  }
   const subject = await selectSubjectById(input.subjectId)
   if (!subject) throw new ValidationError('Unknown subject.')
 

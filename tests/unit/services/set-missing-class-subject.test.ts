@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
+vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/data/subjects', () => ({ selectSubjectById: vi.fn() }))
 vi.mock('@/lib/data/classes', () => ({ updateClassSubjectWhenUnset: vi.fn() }))
 vi.mock('@/lib/data/class-sessions', () => ({ backfillSessionSubjects: vi.fn() }))
@@ -11,12 +12,13 @@ vi.mock('@/lib/services/enrollments', () => ({ enrolStudent: vi.fn() }))
 vi.mock('@/lib/services/class-tutors', () => ({ addTutor: vi.fn() }))
 
 import { requireActorCapability } from '@/lib/services/authorization'
+import { canManageClass } from '@/lib/permission'
 import { selectSubjectById } from '@/lib/data/subjects'
 import { updateClassSubjectWhenUnset } from '@/lib/data/classes'
 import { backfillSessionSubjects } from '@/lib/data/class-sessions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { setMissingClassSubject } from '@/lib/services/class-subjects'
-import { ValidationError } from '@/lib/errors'
+import { ValidationError, PermissionError } from '@/lib/errors'
 
 /**
  * Naming the subject of a class that has none is the ONLY repair for a gap nothing else can
@@ -29,6 +31,7 @@ const input = { classId: 'class-1', subjectId: 'sub-1' }
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(requireActorCapability).mockResolvedValue(undefined as never)
+  vi.mocked(canManageClass).mockResolvedValue(true)
   vi.mocked(selectSubjectById).mockResolvedValue({ id: 'sub-1', name: 'Physics' } as never)
   vi.mocked(updateClassSubjectWhenUnset).mockResolvedValue(true)
   vi.mocked(backfillSessionSubjects).mockResolvedValue(15)
@@ -62,12 +65,21 @@ describe('setMissingClassSubject', () => {
     expect(updateClassSubjectWhenUnset).not.toHaveBeenCalled()
   })
 
-  it('requires manageClasses before reading or writing anything', async () => {
-    vi.mocked(requireActorCapability).mockRejectedValue(new Error('nope'))
+  it('requires authority over THIS class, and checks it before reading or writing', async () => {
+    // canManageClass, not the academy-wide manageClasses: the tutor and mentor who record
+    // sessions on this class can name its missing subject, because that is the same
+    // authority as recording them. Someone with no authority over it cannot.
+    vi.mocked(canManageClass).mockResolvedValue(false)
 
-    await expect(setMissingClassSubject(actor, input)).rejects.toThrow('nope')
+    await expect(setMissingClassSubject(actor, input)).rejects.toThrow(PermissionError)
     expect(selectSubjectById).not.toHaveBeenCalled()
     expect(updateClassSubjectWhenUnset).not.toHaveBeenCalled()
+    expect(backfillSessionSubjects).not.toHaveBeenCalled()
+  })
+
+  it('scopes that check to the class being repaired', async () => {
+    await setMissingClassSubject(actor, input)
+    expect(vi.mocked(canManageClass).mock.calls[0][1]).toBe('class-1')
   })
 
   it('records how much history it relabelled, so the change can be reviewed', async () => {

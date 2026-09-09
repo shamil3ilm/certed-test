@@ -12,6 +12,7 @@ import {
   saveSessionFeedback,
   type MarkAttendanceInput,
 } from '@/lib/services/attendance'
+import { setMissingClassSubject } from '@/lib/services/class-subjects'
 import { PermissionError, ServiceError } from '@/lib/errors'
 
 /**
@@ -135,6 +136,37 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
     if (e instanceof PermissionError) return
     // Carry the session date back so the banner shows on the SAME roster the
     // manager was clearing, not a reset to today's default date.
+    if (e instanceof ServiceError) {
+      redirect(`/classroom/${classId}/attendance?${new URLSearchParams({ date, error: '1' }).toString()}`)
+    }
+    throw e
+  }
+}
+
+/**
+ * Name the subject of the class being recorded against, when it has none.
+ *
+ * manageAttendance at the transport and canManageClass inside the service - the same pair
+ * that guards recording a session, because this is the same authority: whoever records what
+ * happened in a class can say which subject it was. It fills an empty subject only; a class
+ * that already names one is refused by the service, so this cannot re-point history.
+ */
+export async function setClassSubjectAction(formData: FormData): Promise<void> {
+  const me = await requireCapability('manageAttendance')
+  const classId = String(formData.get('class_id') ?? '')
+  const subjectId = String(formData.get('subject_id') ?? '')
+  const date = String(formData.get('session_date') ?? '')
+  if (!classId || !subjectId) return
+
+  try {
+    await setMissingClassSubject(me, { classId, subjectId })
+    revalidatePath(`/classroom/${classId}/attendance`)
+  } catch (e) {
+    // Same shape as clearAttendanceAction: a denial is a silent no-op (the control is not
+    // rendered to someone who cannot manage this class, so reaching here is defence in
+    // depth), a ServiceError is user-correctable and returns to the same date with a banner,
+    // and anything else is an unexpected fault worth surfacing.
+    if (e instanceof PermissionError) return
     if (e instanceof ServiceError) {
       redirect(`/classroom/${classId}/attendance?${new URLSearchParams({ date, error: '1' }).toString()}`)
     }

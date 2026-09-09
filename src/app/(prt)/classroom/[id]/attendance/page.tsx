@@ -8,7 +8,7 @@ import {
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { SessionTimesForm } from './SessionTimesForm'
 import { SessionFeedbackForm } from './SessionFeedbackForm'
-import { clearAttendanceAction, deleteSessionAction } from './actions'
+import { clearAttendanceAction, deleteSessionAction, setClassSubjectAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
   AlertBanner,
@@ -245,7 +245,7 @@ export default async function AttendancePage(props: {
                 <input type="hidden" name="session_id" value={session.id} />
                 <input type="hidden" name="session_date" value={data.date} />
                 <ConfirmSubmit
-                  className="btn btn-sm btn-ghost text-red-600"
+                  className="btn btn-sm btn-ghost text-danger-ink"
                   title="Remove this session?"
                   message="Every attendance mark for this session is deleted with it, and its hours drop out of the monthly total. Other sessions on this date are unaffected."
                   confirmLabel="Remove session"
@@ -279,7 +279,7 @@ export default async function AttendancePage(props: {
                 <input type="hidden" name="session_date" value={data.date} />
                 <input type="hidden" name="session_id" value={session.id} />
                 <ConfirmSubmit
-                  className="btn btn-sm btn-ghost text-red-600"
+                  className="btn btn-sm btn-ghost text-danger-ink"
                   title="Clear this session's marks?"
                   message="This removes every mark for THIS session only. Other sessions on this date, and the recorded times, are unaffected."
                   confirmLabel="Clear marks"
@@ -301,15 +301,47 @@ export default async function AttendancePage(props: {
             {data.classSubjectName && <Badge>{data.classSubjectName}</Badge>}
           </div>
           {!data.classSubjectName && (
-            // The legacy NULL-subject case, surfaced at the point it starts costing something.
-            // Stamping happens at INSERT, so sessions recorded now stay unlabelled for good -
-            // absent from the subject filter and the by-subject hours breakdown - and no screen
-            // can repair them afterwards.
-            <p className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
-              This class has no subject set, so sessions recorded here will not appear under any subject filter or in
-              the by-subject hours breakdown. An admin can set the subject on the class; sessions already recorded keep
-              whatever they were recorded with.
-            </p>
+            // Surfaced at the point it starts costing something, and fixable there too.
+            // Stamping happens at INSERT, so sessions recorded while this is unset stay
+            // unlabelled - absent from the subject filter and the by-subject hours breakdown.
+            <div className="space-y-2 rounded-lg border border-warning-border bg-warning-surface/60 px-3 py-2 text-xs text-warning-ink">
+              <p>
+                This class has no subject set, so sessions recorded here will not appear under any subject filter or in
+                the by-subject hours breakdown.
+              </p>
+              {/* Fixed HERE, by whoever records the sessions. Sending them off to find an admin
+                  is what leaves a class unlabelled for months, and naming the subject of a class
+                  you already record is the same authority as recording it. A choice from the
+                  managed list rather than free text: adding to the academy's subject catalogue
+                  is a separate thing, and stays with an admin. */}
+              <form action={setClassSubjectAction} className="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="class_id" value={course.id} />
+                <input type="hidden" name="session_date" value={data.date} />
+                <label className="sr-only" htmlFor="set-class-subject">
+                  Subject for this class
+                </label>
+                <select
+                  id="set-class-subject"
+                  name="subject_id"
+                  required
+                  defaultValue=""
+                  className="rounded-lg border border-warning-border bg-white px-2 py-1 text-xs text-slate-800"
+                >
+                  <option value="" disabled>
+                    Choose the subject...
+                  </option>
+                  {data.subjectOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className="btn btn-sm btn-soft">
+                  Set subject
+                </button>
+              </form>
+              <p>Sessions already recorded here are labelled with it too; nothing else changes.</p>
+            </div>
           )}
           <SessionTimesForm classId={course.id} date={data.date} session={null} canEditStaffNote={canManageContent} />
         </div>

@@ -14,7 +14,7 @@ import {
 import { getClassMembers } from '@/lib/services/classes'
 import { selectActiveClassIdsForStudents } from '@/lib/data/class-membership'
 import { selectClassesByIds, selectClassById } from '@/lib/data/classes'
-import { selectSubjectsByIds } from '@/lib/data/subjects'
+import { selectSubjectsByIds, selectActiveSubjects } from '@/lib/data/subjects'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { isCalendarDate, todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
@@ -106,6 +106,11 @@ type ManagerAttendancePageData = {
    *  invisible to the subject filter and to the by-subject hours breakdown, and there is no
    *  UI to repair it afterwards. The form says so rather than letting it happen quietly. */
   classSubjectName: string | null
+  /** Subjects offerable when this class has none - empty otherwise, because the picker only
+   *  exists to repair that. A CHOICE from the managed list, not free text: naming the class's
+   *  subject is within the authority of whoever records its sessions, but adding to the
+   *  academy's subject catalogue is not. */
+  subjectOptions: { id: string; name: string }[]
 }
 
 type ClassAttendancePageData = StudentAttendancePageData | ManagerAttendancePageData
@@ -258,6 +263,8 @@ export async function loadClassAttendancePageData(
     (await selectSubjectsByIds(sessionSubjectIds)).map((s) => [s.id, s.name] as [string, string]),
   )
   const classSubjectName = classSubjectId ? (subjectNames.get(classSubjectId) ?? null) : null
+  // Only read when there is something to repair; the common case pays nothing for it.
+  const subjectOptions = classSubjectId ? [] : await selectActiveSubjects()
   const historicalNames = await getProfileNamesByIds(historyStudentIds)
   const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
 
@@ -268,6 +275,7 @@ export async function loadClassAttendancePageData(
     switchableClasses,
     subjectNames,
     classSubjectName,
+    subjectOptions,
     historyFilters,
     hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
     historyPage,

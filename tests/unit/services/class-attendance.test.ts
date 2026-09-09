@@ -20,7 +20,10 @@ vi.mock('@/lib/data/classes', () => ({
   selectClassesByIds: vi.fn(async () => []),
   selectClassById: vi.fn(async () => ({ id: 'class-1', subject_id: null })),
 }))
-vi.mock('@/lib/data/subjects', () => ({ selectSubjectsByIds: vi.fn(async () => []) }))
+vi.mock('@/lib/data/subjects', () => ({
+  selectSubjectsByIds: vi.fn(async () => []),
+  selectActiveSubjects: vi.fn(async () => []),
+}))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 vi.mock('@/lib/time/format', () => ({ isCalendarDate: vi.fn(), todayInZone: vi.fn() }))
 vi.mock('@/lib/services/finance/org-settings', () => ({ getInstituteTimeZone: vi.fn(async () => 'Asia/Kolkata') }))
@@ -243,6 +246,9 @@ describe('loadClassAttendancePageData', () => {
       switchableClasses: [],
       subjectNames: new Map(),
       classSubjectName: null,
+      // Populated only when the class has no subject - this fixture's class has none, and
+      // the mocked catalogue is empty.
+      subjectOptions: [],
       // The session carries the marks; `roster` is the unmarked base used when a date has
       // no session yet.
       sessionRosters: [
