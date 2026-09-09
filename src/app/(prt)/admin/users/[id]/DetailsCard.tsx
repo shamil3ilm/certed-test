@@ -1,13 +1,9 @@
-import { Card, Badge, roleLabel, statusLabel } from '@/lib/ui'
+import { Card, Badge, profileStatusTone, roleLabel, statusLabel } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../../../form'
 import { EscapableDetails } from '../../../EscapableDetails'
 import { COMMON_COUNTRIES } from '@/lib/geo/countries'
 import type { ProfileDetails } from '@/lib/services/users/directory'
 import { editDetailsAction } from './actions'
-
-function statusTone(status: string): 'success' | 'warning' | 'danger' {
-  return status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'danger'
-}
 
 function DetailRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null
@@ -35,7 +31,7 @@ export function DetailsCard({ profile }: { profile: ProfileDetails }) {
           <h1 className="text-lg font-semibold text-slate-900">{profile.full_name ?? profile.email}</h1>
           <p className="mt-0.5 text-xs text-slate-600">
             {profile.email} - {roleLabel(profile.role)} - status:{' '}
-            <Badge tone={statusTone(profile.status)}>{statusLabel(profile.status)}</Badge>
+            <Badge tone={profileStatusTone(profile.status)}>{statusLabel(profile.status)}</Badge>
           </p>
         </div>
 

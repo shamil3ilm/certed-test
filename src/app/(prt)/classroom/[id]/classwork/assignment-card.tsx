@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { formatMark } from '@/lib/grades'
 import { loadClassworkPageData } from '@/lib/services/page-data/classwork'
-import { Badge, Card, statusLabel } from '@/lib/ui'
+import { Badge, Card, statusLabel, submissionLabel, submissionTone } from '@/lib/ui'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { SubmitButton } from '../../../form'
 import { EditAssignment } from '../../../assignments/EditAssignment'
@@ -135,10 +135,8 @@ export async function AssignmentCard({
             <div className="text-sm">
               <p>
                 Your submission:{' '}
-                <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
-                  {submission.status === 'late' ? 'Submitted late' : 'On time'}
-                </Badge>{' '}
-                (<LocalTime iso={submission.submitted_at} />)
+                <Badge tone={submissionTone(submission.status)}>{submissionLabel(submission.status)}</Badge> (
+                <LocalTime iso={submission.submitted_at} />)
                 {submission.score == null && assignment.status === 'active' && !deadlineClosed && (
                   <> - resubmit below to replace, or withdraw it.</>
                 )}

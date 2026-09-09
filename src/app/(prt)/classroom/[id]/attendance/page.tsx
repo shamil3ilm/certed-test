@@ -1,6 +1,5 @@
 import { requireClassAccess } from '../../access'
 import { getActorContext } from '@/lib/session/actor-context'
-import { type AttendanceStatus } from '@/lib/services/attendance'
 import {
   attendanceHistoryPageUrl,
   attendanceRecordPageUrl,
@@ -24,6 +23,7 @@ import {
   PaginationBar,
   SelectFilterField,
   cx,
+  attendanceTone,
   statusLabel,
 } from '@/lib/ui'
 import {
@@ -33,10 +33,6 @@ import {
   studentMetrics,
   type SessionTimes,
 } from '@/lib/attendance/hours'
-
-function statusTone(s: AttendanceStatus): 'success' | 'warning' | 'danger' {
-  return s === 'present' ? 'success' : s === 'late' ? 'warning' : 'danger'
-}
 
 const EMPTY_SESSION_TIMES: SessionTimes = {
   scheduled_start: null,
@@ -109,7 +105,7 @@ export default async function AttendancePage(props: {
                     <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
                     <span className="flex items-center gap-2">
                       {learning != null && <span className="text-xs text-slate-600">{formatMinutes(learning)}</span>}
-                      <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
+                      <Badge tone={attendanceTone(row.status)}>{statusLabel(row.status)}</Badge>
                     </span>
                   </div>
                   <details className="border-t border-slate-100 px-4 py-2">
@@ -393,7 +389,7 @@ export default async function AttendancePage(props: {
                       </td>
                       <td className="whitespace-nowrap text-slate-600">{row.name}</td>
                       <td className="whitespace-nowrap">
-                        <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
+                        <Badge tone={attendanceTone(row.status)}>{statusLabel(row.status)}</Badge>
                       </td>
                       <td className="whitespace-nowrap text-slate-600">
                         {learned != null ? formatMinutes(learned) : '-'}

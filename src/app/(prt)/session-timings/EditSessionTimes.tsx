@@ -75,7 +75,7 @@ export function EditSessionTimes({
         aria-label="Session start time"
         className={control}
       />
-      <span className="text-slate-300">-</span>
+      <span className="text-slate-500">-</span>
       <input
         type="time"
         value={end}

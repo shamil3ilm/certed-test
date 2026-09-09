@@ -67,8 +67,11 @@ export default function About() {
               understand beyond exams.
             </p>
           </div>
-          <div className="flex h-64 flex-1 items-center justify-center rounded-3xl bg-gradient-to-br from-secondary to-primary shadow-lg transition-transform duration-500 hover:scale-105 md:h-80">
-            <p className="max-w-lg px-8 text-center text-2xl font-bold text-white opacity-90">
+          {/* Starts from the DARK end: the gradient runs to-br and the quote sits across the
+              middle, so reversed the text began on #50b5e1 at 2.32:1 - under even the 3:1
+              large-text floor - and opacity-90 took it lower again. */}
+          <div className="flex h-64 flex-1 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-secondary shadow-lg transition-transform duration-500 hover:scale-105 md:h-80">
+            <p className="max-w-lg px-8 text-center text-2xl font-bold text-white">
               &quot;Building confidence and long-term academic success.&quot;
             </p>
           </div>

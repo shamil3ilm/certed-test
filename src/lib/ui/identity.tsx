@@ -42,14 +42,24 @@ export function roleTone(role?: string | null): { avatar: string; bubble: string
   }
 }
 
-/** Deterministic on-brand gradient for a class banner, keyed by class id. */
+/**
+ * Deterministic on-brand gradient for a class banner, keyed by class id.
+ *
+ * Two rules, both enforced by tests/unit/class-banner-contrast.test.ts:
+ *
+ *  - The gradient runs top-left to bottom-right and the card's white title and subtitle sit
+ *    at the TOP-LEFT, so the `from-` colour is what that text is read against and must
+ *    carry white at 4.5:1. The `to-` end takes the light accent - no text reaches it.
+ *  - No entry may be another reversed. The same two colours flipped read as a rendering
+ *    fault rather than variety, because nothing about the card explains the difference.
+ */
 const CLASS_BANNERS = [
   'from-primary to-secondary',
-  'from-secondary to-primary',
-  'from-sky-500 to-primary',
+  'from-indigo-600 to-secondary',
+  'from-violet-600 to-primary',
+  'from-rose-600 to-primary',
+  'from-secondary-ink to-teal-500',
   'from-primary to-emerald-500',
-  'from-violet-500 to-primary',
-  'from-secondary to-teal-500',
 ]
 
 export function classBanner(id: string): string {

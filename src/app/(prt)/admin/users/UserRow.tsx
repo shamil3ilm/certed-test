@@ -2,16 +2,12 @@ import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
 import { revokeUserAction, restoreUserAction, eraseUserAction, editUserAction } from './actions'
 import { MessageUserButton } from '../../messages/MessageUserButton'
-import { Badge, Card, Avatar, staffRoleLabel, statusLabel } from '@/lib/ui'
+import { Badge, Card, Avatar, profileStatusTone, staffRoleLabel, statusLabel } from '@/lib/ui'
 import { Input, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { EscapableDetails } from '../../EscapableDetails'
 
 /** Map an account status to the shared Badge tone (the canonical status chip). */
-function statusChipTone(status: string): 'success' | 'warning' | 'danger' {
-  return status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'danger'
-}
-
 /**
  * One person in the users list, with their management controls.
  *
@@ -71,7 +67,7 @@ export function UserRow({
             </p>
             <p className="truncate text-xs text-slate-600">
               {p.email} - {visibleRoleLabel} - status:{' '}
-              <Badge tone={statusChipTone(p.status)}>{statusLabel(p.status)}</Badge>
+              <Badge tone={profileStatusTone(p.status)}>{statusLabel(p.status)}</Badge>
               {mentorSubtitle ? ` - ${mentorSubtitle}` : ''}
             </p>
           </div>

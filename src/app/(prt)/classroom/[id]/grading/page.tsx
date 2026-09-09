@@ -3,7 +3,17 @@ import { requireClassAccess } from '../../access'
 import { getActorContext } from '@/lib/session/actor-context'
 import { canManageClass } from '@/lib/permission'
 import { loadGradingQueuePageData } from '@/lib/services/page-data/grading'
-import { Avatar, Badge, EmptyState, FilterBar, ListRow, SearchFilterField, SectionLabel } from '@/lib/ui'
+import {
+  Avatar,
+  Badge,
+  EmptyState,
+  FilterBar,
+  ListRow,
+  SearchFilterField,
+  SectionLabel,
+  submissionLabel,
+  submissionTone,
+} from '@/lib/ui'
 import { LocalTime } from '../../../LocalTime'
 
 export default async function ClassGradingPage(props: {
@@ -60,7 +70,11 @@ export default async function ClassGradingPage(props: {
                     submitted <LocalTime iso={item.submittedAt} />
                   </>
                 }
-                trailing={item.status === 'late' ? <Badge tone="danger">late</Badge> : undefined}
+                trailing={
+                  item.status === 'late' ? (
+                    <Badge tone={submissionTone(item.status)}>{submissionLabel(item.status)}</Badge>
+                  ) : undefined
+                }
               />
             </li>
           ))}

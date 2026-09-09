@@ -127,7 +127,16 @@ export default async function AdminUsersPage(props: {
                   />
                 )
               })}
-              {data.tabProfiles.length === 0 && <EmptyState as="li">No people match these filters.</EmptyState>}
+              {data.tabProfiles.length === 0 && (
+                <EmptyState as="li">
+                  {/* The inverse of the usual mistake: blaming filters that are not set sends
+                      the reader hunting for a filter to clear on a tab that is simply empty.
+                      `tab` is navigation, not a filter. */}
+                  {data.filters.q || data.filters.status || data.filters.role !== 'all'
+                    ? 'No people match these filters.'
+                    : 'No people here yet.'}
+                </EmptyState>
+              )}
             </ul>
             <UsersPagination
               tab={data.filters.tab}

@@ -18,6 +18,10 @@ export { initials, roleTone, classBanner, Avatar } from './identity'
 export {
   roleLabel,
   statusLabel,
+  profileStatusTone,
+  attendanceTone,
+  submissionTone,
+  submissionLabel,
   mentoringSectionLabel,
   staffRoleLabel,
   personaLabel,
@@ -25,6 +29,7 @@ export {
   SectionLabel,
   ACADEMY_WIDE_LABEL,
 } from './labels'
+export type { BadgeTone } from './labels'
 export { AlertBanner, BackLink, Card, EmptyState, PageHeader, Panel, StatGrid, StatCard, PaginationBar } from './layout'
 export { ListRow, RowChevron } from './list'
 export { ArchivedList } from './archived-list'

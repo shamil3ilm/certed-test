@@ -49,7 +49,7 @@ export const REPORT_TYPES: ReportTypeDef[] = [
   {
     // A payslip IS the salary slip - one document, two common names.
     type: 'payslip',
-    label: 'Payslip / Salary Slip',
+    label: 'Pay slip / Salary Slip',
     scope: 'finance',
     pdfPath: (id) => `/api/payslips/${id}/pdf`,
   },

@@ -1,5 +1,5 @@
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
-import { Badge, Panel, statusLabel } from '@/lib/ui'
+import { attendanceTone, Badge, Panel, statusLabel, submissionLabel, submissionTone } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
 import { DriveLink, EmptyLine } from './detail-shared'
 
@@ -79,9 +79,7 @@ export function EvaluationPanels({ evaluations }: { evaluations: Overview['evalu
                   <p className="truncate font-medium text-slate-800">{row.classLabel}</p>
                   <p className="text-xs text-slate-600">{row.sessionDate}</p>
                 </div>
-                <Badge tone={row.status === 'present' ? 'success' : row.status === 'late' ? 'warning' : 'danger'}>
-                  {statusLabel(row.status)}
-                </Badge>
+                <Badge tone={attendanceTone(row.status)}>{statusLabel(row.status)}</Badge>
               </li>
             ))}
           </ul>
@@ -111,9 +109,7 @@ export function RecentSubmissionsPanel({ submissions }: { submissions: Overview[
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
-                    {submission.status === 'late' ? 'Late' : 'On time'}
-                  </Badge>
+                  <Badge tone={submissionTone(submission.status)}>{submissionLabel(submission.status)}</Badge>
                   <DriveLink href={submission.driveLink} />
                 </div>
               </li>

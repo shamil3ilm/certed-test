@@ -3,7 +3,18 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignment-detail-page'
 import { CommentThread } from '../../CommentThread'
 import { LocalTime } from '../../LocalTime'
-import { Avatar, Badge, BackLink, Card, EmptyState, ExternalActionLink, PageHeader, statusLabel } from '@/lib/ui'
+import {
+  Avatar,
+  Badge,
+  BackLink,
+  Card,
+  EmptyState,
+  ExternalActionLink,
+  PageHeader,
+  statusLabel,
+  submissionLabel,
+  submissionTone,
+} from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 import { ResultGradeForm } from '../ResultGradeForm'
 import { safeExternalHref } from '@/lib/validation/url'
@@ -75,9 +86,7 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                   <p className="text-xs text-slate-600">
                     Submitted <LocalTime iso={submission.submitted_at} />
                     {' - '}
-                    <Badge tone={submission.status === 'late' ? 'danger' : 'success'}>
-                      {statusLabel(submission.status)}
-                    </Badge>
+                    <Badge tone={submissionTone(submission.status)}>{submissionLabel(submission.status)}</Badge>
                     {/* The delivery status (on time / late) does not change when a mark is
                         recorded, so on its own it leaves a graded submission still reading
                         "Submitted". Add the marking state alongside it - keeping the late

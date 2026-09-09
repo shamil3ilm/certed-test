@@ -24,6 +24,49 @@ export function statusLabel(status?: string | null): string {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
+/** The tones a Badge accepts, named once so a tone helper cannot drift from it. */
+export type BadgeTone = 'slate' | 'primary' | 'success' | 'warning' | 'danger'
+
+/**
+ * Badge tone for an ACCOUNT status (active / pending / anything else).
+ *
+ * The single source. This mapping was written out twice - once as `statusChipTone` on the
+ * Users list and once as `statusTone` on the user detail card - byte-identical but free to
+ * diverge, and the second name collided with a THIRD `statusTone` that meant attendance.
+ * One name, one meaning.
+ */
+export function profileStatusTone(status?: string | null): BadgeTone {
+  if (status === 'active') return 'success'
+  if (status === 'pending') return 'warning'
+  return 'danger'
+}
+
+/**
+ * Badge tone for an ATTENDANCE mark.
+ *
+ * Late is a WARNING, not a failure: the student came. Deliberately the same tone the
+ * submission helper below gives a late hand-in, because a reader meeting both badges on one
+ * page (the student detail page shows attendance above submissions) cannot be expected to
+ * learn that amber and red both mean "late" depending on which list they are in.
+ */
+export function attendanceTone(status?: string | null): BadgeTone {
+  if (status === 'present') return 'success'
+  if (status === 'late') return 'warning'
+  return 'danger'
+}
+
+/** Badge tone for a SUBMISSION's delivery: on time, or late. See attendanceTone for why
+ *  late is amber in both. */
+export function submissionTone(status?: string | null): BadgeTone {
+  return status === 'late' ? 'warning' : 'success'
+}
+
+/** The words for that badge. Written three ways before this existed - "Submitted late",
+ *  "Late" and a lowercase "late" - for one state. */
+export function submissionLabel(status?: string | null): string {
+  return status === 'late' ? 'Late' : 'On time'
+}
+
 /** Label for the /students section - the SINGLE source shared by the nav and the
  *  page header so they never disagree. An oversight admin sees the mentoring
  *  PROGRAMME ("Mentoring"); a mentor sees their own people ("Mentees"). */
@@ -71,7 +114,7 @@ export function Badge({
   className = '',
   children,
 }: {
-  tone?: 'slate' | 'primary' | 'success' | 'warning' | 'danger'
+  tone?: BadgeTone
   className?: string
   children: ReactNode
 }) {
@@ -109,7 +152,10 @@ export function SectionLabel({
   return (
     <h2 className={cx('text-sm font-semibold uppercase tracking-wide text-slate-600', className)}>
       {children}
-      {count != null && <span className="text-slate-300"> - {count}</span>}
+      {/* slate-500, not 300: this is the section COUNT, and slate-300 on white is 1.48:1 -
+          present in the DOM and absent to the reader. Muted is lighter than the label, not
+          invisible. */}
+      {count != null && <span className="text-slate-500"> - {count}</span>}
     </h2>
   )
 }

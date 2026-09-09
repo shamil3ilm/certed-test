@@ -34,9 +34,9 @@ export function GuardiansPanel({ studentId, guardians }: { studentId: string; gu
                 )}
                 {g.relationship && <span className="ml-2 text-xs text-slate-600">{g.relationship}</span>}
                 <div className="mt-0.5 text-xs text-slate-600">
-                  {g.phone || <span className="text-slate-300">no phone</span>}
+                  {g.phone || <span className="text-slate-500">no phone</span>}
                   {' · '}
-                  {g.email || <span className="text-slate-300">no email</span>}
+                  {g.email || <span className="text-slate-500">no email</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2">
