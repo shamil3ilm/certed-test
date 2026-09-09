@@ -8,7 +8,7 @@ export default async function HistoryPage(props: {
 }) {
   const searchParams = await props.searchParams
   const me = await requireCapability('viewHistory')
-  const { filters, rows, total, totalPages } = await loadHistoryPageData(me, searchParams)
+  const { filters, hasActiveFilters, rows, total, totalPages } = await loadHistoryPageData(me, searchParams)
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
@@ -33,7 +33,13 @@ export default async function HistoryPage(props: {
       </FilterBar>
 
       {rows.length === 0 ? (
-        <EmptyState>No activity recorded yet.</EmptyState>
+        <EmptyState>
+          {hasActiveFilters
+            ? // An audit trail that answers "no activity recorded" to a narrowed search
+              // reads as records having been deleted. Name the filter instead.
+              'No activity matches these filters. Try a different actor or action, or clear them.'
+            : 'No activity recorded yet.'}
+        </EmptyState>
       ) : (
         <div className={cx(CARD, 'mt-4 overflow-x-auto')}>
           <table className="data-table w-full text-sm">

@@ -67,7 +67,13 @@ function DocTable({
       </FilterBar>
 
       {rows.length === 0 ? (
-        <EmptyState>No {kind === 'receipts' ? 'receipts' : 'pay slips'} yet.</EmptyState>
+        <EmptyState>
+          {filters.q || filters.status
+            ? // On a financial ledger "no receipts yet" in answer to a status or name
+              // filter reads as the documents having gone missing.
+              `No ${kind === 'receipts' ? 'receipts' : 'pay slips'} match these filters.`
+            : `No ${kind === 'receipts' ? 'receipts' : 'pay slips'} yet.`}
+        </EmptyState>
       ) : (
         <div className="mt-2 overflow-x-auto">
           <table className="data-table">

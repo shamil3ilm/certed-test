@@ -50,6 +50,10 @@ type HistoryViewRow = {
 
 type HistoryPageData = {
   filters: HistoryFilters
+  /** Whether the reader has narrowed the log. An empty RESULT and an empty LOG are
+   *  different states, and on an audit trail saying the second when the first is true
+   *  reads as records having been lost. */
+  hasActiveFilters: boolean
   rows: HistoryViewRow[]
   total: number
   totalPages: number
@@ -133,6 +137,7 @@ export async function loadHistoryPageData(
 
   return {
     filters,
+    hasActiveFilters: Boolean(filters.action || filters.actor),
     rows,
     total,
     totalPages: totalPages(total, PAGE_SIZE),
