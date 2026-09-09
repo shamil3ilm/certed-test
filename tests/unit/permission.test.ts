@@ -21,9 +21,6 @@ function adminClientReturning(row: unknown) {
   return builder
 }
 
-// `cache` from 'react' is stubbed globally in vitest.setup.ts (React 18.2.0
-// doesn't actually export it — see that file for why).
-
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/capability-overrides', () => ({ selectActiveGlobalOverrides: vi.fn(async () => []) }))
 vi.mock('@/lib/permission/personas', async (importOriginal) => {
