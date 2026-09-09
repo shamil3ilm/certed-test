@@ -118,28 +118,18 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                       'No sessions match these filters'
                     ) : (
                       <>
-                        {group.total} session{group.total === 1 ? '' : 's'}
-                        {group.total > group.sessions.length ? (
-                          <>
-                            {' - showing the latest '}
-                            {group.sessions.length}.{' '}
-                            <a
-                              className="link"
-                              href={sessionTimingsPageHref({ ...filters, student: group.studentId }, 1)}
-                            >
-                              See all
-                            </a>
-                          </>
-                        ) : null}
+                        {group.total} session{group.total === 1 ? '' : 's'}.{' '}
+                        <a className="link" href={sessionTimingsPageHref({ ...filters, student: group.studentId }, 1)}>
+                          View sessions
+                        </a>
                       </>
                     )}
                   </p>
                 </header>
-                {group.sessions.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <SessionRows rows={group.sessions} showStudent={false} />
-                  </div>
-                ) : null}
+                {/* The roster stays a LIST OF STUDENTS. Rendering each one's latest sessions here
+                    put editable time fields and Save buttons for every student on one screen -
+                    a page of controls to scroll past before finding the student you wanted.
+                    Sessions open when a student is chosen, which is the flat view below. */}
               </section>
             ))
           ) : (
@@ -207,7 +197,7 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
           <tr key={row.sessionId} className="border-t">
             {showStudent ? <td className="p-2 font-medium text-slate-800">{row.studentName}</td> : null}
             <td className="p-2 text-slate-600">{row.className}</td>
-            <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-300">-</span>}</td>
+            <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-500">-</span>}</td>
             <td className="p-2 text-slate-600">
               {row.tutorName ?? <span className="text-slate-600">Unassigned</span>}
             </td>

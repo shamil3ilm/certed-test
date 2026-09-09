@@ -34,10 +34,15 @@ const PAGE_SIZE = 20
  *  student-first lists page at the same rate. */
 const ROSTER_PAGE_SIZE = 12
 
-/** Sessions shown inside one student's group before it defers to "See all".
- *  The group is a summary, not the archive - the archive is one click away, and capping
- *  here is what keeps a student with a year of daily sessions from filling the screen. */
-const PER_STUDENT = 5
+/**
+ * Rows fetched per student for the grouped roster.
+ *
+ * The roster renders NO sessions - it lists students, and choosing one opens their history -
+ * so the rows themselves are never displayed. It stays at 1 rather than 0 because the total
+ * each group reports comes back from this same paged read, and a page of zero rows has no
+ * range to ask for. Fetching more would be a row per student per page that nothing renders.
+ */
+const PER_STUDENT = 1
 
 export type SessionTimingSearchParams = {
   page?: string

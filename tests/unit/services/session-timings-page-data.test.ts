@@ -135,16 +135,18 @@ describe('session-timings: grouped view (the default)', () => {
     expect(data.groups[0].total).toBe(0)
   })
 
-  it('caps what a group shows and reports the true total, so "See all" is honest', async () => {
+  it('reports the TRUE total for a group without fetching sessions the roster never renders', async () => {
+    // The roster is a list of students; a student's sessions open when they are chosen. So
+    // the count has to be the real one - a year of daily sessions is still 240, not the
+    // number of rows that came back - and the read must not pull rows to reach it.
     vi.mocked(listSessionTimingsByStudents).mockResolvedValue([
-      { studentId: 's1', studentName: 'Ann', sessions: [{}, {}, {}, {}, {}], total: 240 },
+      { studentId: 's1', studentName: 'Ann', sessions: [{}], total: 240 },
     ] as never)
     const data = await loadSessionTimingsPageData(ACTOR, {})
-    expect(data.perStudent).toBe(5)
-    expect(data.groups[0].sessions).toHaveLength(5)
-    // The group must not claim 5 - a year of daily sessions is still 240.
     expect(data.groups[0].total).toBe(240)
-    expect(vi.mocked(listSessionTimingsByStudents).mock.calls[0][1].perStudent).toBe(5)
+    // One row per student is the floor the paged read needs to return a count at all;
+    // anything above it is a row per student per page that nothing puts on screen.
+    expect(vi.mocked(listSessionTimingsByStudents).mock.calls[0][1].perStudent).toBe(1)
   })
 
   it('an ADMIN pages every student, and does not travel as a list of every student id', async () => {
