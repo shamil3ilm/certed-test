@@ -18,7 +18,9 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // A class is created only as a student's SUBJECT: adding "Physics" to Sara creates
   // the class AND enrols her AND assigns the tutor in one step (the subject-as-class model).
   await page.goto(`/admin/users/${SEED.sara}`)
-  await page.locator('input[name=subject]').fill('Physics')
+  // Scoped to the ADD form: a student who also has a subject-less class gets a second
+  // subject input on this page, the one that repairs that class.
+  await page.locator('form:has(button:has-text("Add subject")) input[name=subject]').fill('Physics')
   // By VALUE, not by label: the option text carries the person's role ("Tarun Tutor - Tutor")
   // so an admin can tell a tutor from a mentor in one list, and that wording is presentation
   // this test should not pin down. The id is what the form actually submits.
@@ -204,4 +206,30 @@ test('DASHBOARD -- student "Due work" + tutor "Submissions to review" panels ren
   await loginAs(page, 'tutor@mock.test')
   await page.goto('/dashboard')
   await expect(page.getByRole('heading', { name: 'Submissions to review' })).toBeVisible()
+})
+
+test('ADMIN -- finds a class with no subject, names it, and labels its history', async ({ page }) => {
+  // A class fixes its subject at creation and sessions copy it when recorded, so a class
+  // that never had one records sessions no subject filter can reach - and no screen could
+  // set it afterwards. Both halves of the repair are covered here, because the flag is
+  // useless without the fix and the fix is unreachable without the flag.
+  await loginAs(page, 'admin@mock.test', { clearCookies: true })
+
+  // FOUND: the class list is where you learn which classes need this. Without the flag it
+  // means opening students one at a time and guessing.
+  await page.goto('/classroom')
+  await expect(page.getByText('No subject set').first()).toBeVisible()
+
+  // FIXED: the repair lives with the student's subjects, because a subject IS one of their
+  // classes.
+  await page.goto(`/admin/users/${SEED.sara}`)
+  const repair = page.locator('form:has(button:has-text("Set subject"))')
+  await expect(repair).toBeVisible()
+  await repair.locator('input[name=subject]').fill('Chemistry')
+  await repair.getByRole('button', { name: 'Set subject' }).click()
+
+  // The class now names a subject, so the repair form is gone and nothing on the page still
+  // reports it as unset.
+  await expect(page.locator('form:has(button:has-text("Set subject"))')).toHaveCount(0)
+  await expect(page.getByText('No subject set')).toHaveCount(0)
 })

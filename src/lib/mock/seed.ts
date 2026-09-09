@@ -21,6 +21,10 @@ export const IDS = {
   tutorMentor: 'a0000000-0000-4000-8000-000000000007',
   math: 'c0000000-0000-4000-8000-000000000001',
   science: 'c0000000-0000-4000-8000-000000000002',
+  // A class with NO subject - the shape the app can no longer create (insertClass requires
+  // one) but that existing academies still hold. It is what the "No subject set" flag and
+  // the Set-subject repair are for, and neither can be exercised without one.
+  legacyNoSubject: 'c0000000-0000-4000-8000-000000000003',
 } as const
 
 const NOW = '2026-06-20T08:00:00.000Z'
@@ -158,6 +162,13 @@ export function buildSeed(): MockDb {
         status: 'active',
         created_at: NOW,
       },
+      {
+        id: IDS.legacyNoSubject,
+        name: 'Sara Student - Legacy',
+        subject_id: null,
+        status: 'active',
+        created_at: NOW,
+      },
     ],
     enrollments: [
       {
@@ -178,6 +189,13 @@ export function buildSeed(): MockDb {
         id: 'e0000000-0000-4000-8000-000000000003',
         student_id: IDS.student2,
         class_id: IDS.math,
+        active: true,
+        created_at: NOW,
+      },
+      {
+        id: 'e0000000-0000-4000-8000-000000000004',
+        student_id: IDS.student,
+        class_id: IDS.legacyNoSubject,
         active: true,
         created_at: NOW,
       },

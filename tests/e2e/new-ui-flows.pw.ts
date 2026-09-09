@@ -55,8 +55,13 @@ test('a subject can show and manage multiple tutors for the same student', async
 
   // The seed gives Sara's Maths class two tutors - both must render on the subject.
   const subjects = page.getByRole('heading', { name: 'Subjects & tutors' }).locator('..')
-  await expect(subjects.getByText('Tarun Tutor', { exact: false }).first()).toBeVisible()
-  await expect(subjects.getByText('Tessa Tutor-Mentor', { exact: false }).first()).toBeVisible()
+  // visible: true - the assignable-staff <select> on each subject carries every tutor as an
+  // <option> ("Tarun Tutor - Tutor"), so a bare text match can resolve to a hidden option in
+  // some other subject's picker rather than the chip naming who teaches THIS one.
+  await expect(subjects.getByText('Tarun Tutor', { exact: false }).filter({ visible: true }).first()).toBeVisible()
+  await expect(
+    subjects.getByText('Tessa Tutor-Mentor', { exact: false }).filter({ visible: true }).first(),
+  ).toBeVisible()
 
   // An "Add tutor…" picker is available per subject (multi-tutor add path).
   await expect(subjects.getByRole('button', { name: 'Add' }).first()).toBeVisible()
