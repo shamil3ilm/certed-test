@@ -80,7 +80,7 @@ function ClassCard({
           // else says which classes need it. Sessions copy the subject when they are recorded,
           // so until this is set every session this class records is missing from the subject
           // filter and the by-subject hours breakdown.
-          <p className="mt-1 inline-flex rounded-full bg-amber-100/95 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+          <p className="mt-1 inline-flex rounded-full bg-amber-100/95 px-2 py-0.5 text-meta font-semibold text-amber-900">
             No subject set
           </p>
         )}
