@@ -13,6 +13,7 @@ export const SEED = {
   science: 'c0000000-0000-4000-8000-000000000002', // tutor teaches this too
   asgMath: 'a5000000-0000-4000-8000-000000000001', // "Problem set 3", Sara has a seeded submission
   sara: 'a0000000-0000-4000-8000-000000000003',
+  tutor: 'a0000000-0000-4000-8000-000000000002',
 }
 
 /**

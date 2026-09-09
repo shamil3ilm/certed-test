@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { ServiceError } from '@/lib/errors'
 import { createOrReuseSubject } from '@/lib/services/subjects'
-import { addSubjectToStudent } from '@/lib/services/class-subjects'
+import { addSubjectToStudent, setMissingClassSubject } from '@/lib/services/class-subjects'
 import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/services/class-tutors'
 import { archiveClassFromActionInput } from '@/lib/services/classes/lifecycle'
 import { editUserFromActionInput } from '@/lib/services/users'
@@ -28,6 +28,22 @@ export async function addSubjectAction(formData: FormData) {
       subjectId: subject.id,
       tutorId: String(formData.get('tutor_id') ?? '').trim() || undefined,
     })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(errorUrl(studentId))
+    throw error
+  }
+  revalidatePath(`/admin/users/${studentId}`)
+}
+
+/** Name the subject of a class that has none, and label the sessions it already recorded.
+ *  Free-typed against the same datalist as "Add subject", so a typed-new subject resolves
+ *  into the master list rather than duplicating it. */
+export async function setClassSubjectAction(formData: FormData) {
+  const me = await requireCapability('manageClasses')
+  const studentId = String(formData.get('student_id') ?? '')
+  try {
+    const subject = await createOrReuseSubject(me, { name: formData.get('subject') })
+    await setMissingClassSubject(me, { classId: String(formData.get('class_id') ?? ''), subjectId: subject.id })
   } catch (error) {
     if (error instanceof ServiceError) redirect(errorUrl(studentId))
     throw error

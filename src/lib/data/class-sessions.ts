@@ -135,6 +135,25 @@ export async function selectSessionByIdAsService(id: string): Promise<ClassSessi
  *  Resolved HERE, next to the trigger it mirrors, rather than at each of the two callers -
  *  a third caller would otherwise be one more place to remember. Shares the caller's admin
  *  client rather than building a second one for the lookup. */
+/**
+ * Give a class's UNLABELLED sessions a subject. Returns how many rows changed.
+ *
+ * Only rows whose subject_id is null are touched, so a session that recorded a subject keeps
+ * the one it recorded. Safe only for a class that had no subject until now: such sessions
+ * cannot have taught anything else, because the class has only ever taught one thing.
+ */
+export async function backfillSessionSubjects(classId: string, subjectId: string): Promise<number> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('class_sessions')
+    .update({ subject_id: subjectId })
+    .eq('class_id', classId)
+    .is('subject_id', null)
+    .select('id')
+  if (error) throw new Error(`data.classSessions.backfillSubjects: ${error.message}`)
+  return (data ?? []).length
+}
+
 export async function insertSession(row: ClassSessionUpsert): Promise<ClassSessionRow> {
   const admin = createAdminClient()
   const subjectId = row.subject_id !== undefined ? row.subject_id : await selectClassSubjectId(admin, row.class_id)

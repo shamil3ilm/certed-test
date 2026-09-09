@@ -144,7 +144,7 @@ export async function getProfileRole(id: string): Promise<Profile['role'] | null
 export async function listActiveProfilesByRoles(
   roles: string[],
   opts?: { search?: string; limit?: number },
-): Promise<{ id: string; full_name: string | null; email: string }[]> {
+): Promise<{ id: string; full_name: string | null; email: string; role: string | null }[]> {
   return selectActiveProfilesByRoles(roles, opts)
 }
 

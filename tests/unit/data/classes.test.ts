@@ -47,7 +47,7 @@ describe('classes data layer', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: cls, error: null }) as any)
     expect(await insertClass('Math', 'subj1')).toEqual(cls)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'dup' } }) as any)
-    await expect(insertClass('Math')).rejects.toThrow(/classes.create: dup/)
+    await expect(insertClass('Math', 'subj1')).rejects.toThrow(/classes.create: dup/)
   })
 
   it('selectClassStatus returns the status or null (service role)', async () => {

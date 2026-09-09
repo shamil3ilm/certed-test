@@ -186,7 +186,16 @@ export async function selectClassesByIds(ids: string[]): Promise<ClassRow[]> {
 
 /** Explicit status (don't rely on the DB default) so mock mode also marks it active.
  *  `subjectId` links the subject this 1:1 class teaches (null when unknown/legacy). */
-export async function insertClass(name: string, subjectId: string | null = null): Promise<ClassRow> {
+/**
+ * Create a class. The subject is REQUIRED and has no default.
+ *
+ * A class is one (student, subject, tutor) pairing, and its subject is fixed here for good:
+ * sessions copy it at record time and no screen can set it afterwards. A class created
+ * without one therefore records sessions that are invisible to the subject filter and to the
+ * by-subject hours breakdown, permanently. Making the argument explicit means that outcome
+ * can only be chosen, never inherited from a default.
+ */
+export async function insertClass(name: string, subjectId: string): Promise<ClassRow> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('classes')
@@ -207,6 +216,26 @@ export async function updateClassName(id: string, name: string): Promise<void> {
   const admin = createAdminClient()
   const result = await admin.from('classes').update({ name }).eq('id', id).select('id')
   assertMutated(result, 'classes.rename', 'Class not found.')
+}
+
+/**
+ * Set a class's subject ONLY when it has none. Returns whether a row changed.
+ *
+ * The `is('subject_id', null)` guard is the point: a class that already names a subject keeps
+ * it, because sessions copy the subject at record time and re-pointing the class would leave
+ * that history describing a subject the class no longer teaches. Filling an EMPTY subject
+ * carries no such risk - there is no earlier answer to contradict.
+ */
+export async function updateClassSubjectWhenUnset(classId: string, subjectId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('classes')
+    .update({ subject_id: subjectId })
+    .eq('id', classId)
+    .is('subject_id', null)
+    .select('id')
+  if (error) throw new Error(`classes.setSubjectWhenUnset: ${error.message}`)
+  return (data ?? []).length > 0
 }
 
 export async function updateClassStatus(id: string, status: ClassRow['status']): Promise<void> {

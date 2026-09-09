@@ -16,7 +16,9 @@ export type ProfileLiteRow = {
   class_level?: string | null
 }
 
-type NamedProfileRow = { id: string; full_name: string | null; email: string }
+/** `role` travels with the name because the staff pickers offer tutors and mentors in one
+ *  list, and a name alone does not say which. */
+type NamedProfileRow = { id: string; full_name: string | null; email: string; role: string | null }
 type ProfilePage = { items: Profile[]; total: number }
 
 export type ProfilePageOptions = {
@@ -192,7 +194,7 @@ export async function selectActiveProfilesByRoles(
   opts?: { search?: string; limit?: number },
 ): Promise<NamedProfileRow[]> {
   const admin = createAdminClient()
-  let query = admin.from('profiles').select('id, full_name, email').eq('status', 'active')
+  let query = admin.from('profiles').select('id, full_name, email, role').eq('status', 'active')
   query = roles.length === 1 ? query.eq('role', roles[0]) : query.in('role', roles)
 
   const search = opts?.search?.trim()

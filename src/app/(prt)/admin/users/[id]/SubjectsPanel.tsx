@@ -1,11 +1,27 @@
 'use client'
-import { Card, EmptyState } from '@/lib/ui'
+import { Card, EmptyState, roleLabel } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import type { StudentSubject } from '@/lib/services/page-data/user-detail'
-import { addSubjectAction, addSubjectTutorAction, removeSubjectTutorAction, removeSubjectAction } from './actions'
+import {
+  addSubjectAction,
+  addSubjectTutorAction,
+  removeSubjectTutorAction,
+  removeSubjectAction,
+  setClassSubjectAction,
+} from './actions'
 
-type TutorOption = { id: string; name: string }
+type TutorOption = { id: string; name: string; role?: string | null }
+
+/** Name plus role for the assignable-staff options.
+ *
+ *  This one list holds tutors and mentors, and picking either assigns them to TEACH the
+ *  subject - their sessions are attributed to them and their hours reach payslips. The role
+ *  is shown so that is a decision rather than a guess at whose name is whose.
+ */
+function staffPickerLabel(option: TutorOption): string {
+  return option.role ? `${option.name} - ${roleLabel(option.role)}` : option.name
+}
 
 /**
  * Manage a student's subjects (each = one of their 1:1 classes) - add a subject with
@@ -35,7 +51,17 @@ export function SubjectsPanel({
           {subjects.map((s) => (
             <li key={s.classId} className="py-2 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="min-w-[8rem] font-medium text-slate-900">{s.subjectName}</span>
+                <span className="min-w-[8rem] font-medium text-slate-900">
+                  {s.subjectId ? (
+                    s.subjectName
+                  ) : (
+                    // With no subject, the list falls back to the class name, which reads as a
+                    // subject and hides the problem. Name it, because every session this class
+                    // records is absent from the subject filter and the by-subject hours
+                    // breakdown until it is set.
+                    <span className="text-amber-800">No subject set</span>
+                  )}
+                </span>
                 <form action={removeSubjectAction}>
                   <input type="hidden" name="student_id" value={studentId} />
                   <input type="hidden" name="class_id" value={s.classId} />
@@ -51,6 +77,28 @@ export function SubjectsPanel({
                   </ConfirmSubmit>
                 </form>
               </div>
+              {!s.subjectId && (
+                // The only screen that can set this. Sessions copy the subject when they are
+                // recorded, so naming it here also labels the ones already recorded against
+                // this class - they can only have taught this subject, the class has never
+                // had another.
+                <form action={setClassSubjectAction} className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="student_id" value={studentId} />
+                  <input type="hidden" name="class_id" value={s.classId} />
+                  <Input
+                    name="subject"
+                    list="subject-list"
+                    placeholder="Name the subject…"
+                    autoComplete="off"
+                    required
+                    aria-label="Subject for this class"
+                    className="max-w-[14rem]"
+                  />
+                  <button type="submit" className="btn btn-sm btn-soft">
+                    Set subject
+                  </button>
+                </form>
+              )}
               {/* A subject may have SEVERAL tutors: list each with its own remove, and an
                   add-tutor picker that never touches the others. */}
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -104,7 +152,7 @@ export function SubjectsPanel({
                     </option>
                     {tutors.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.name}
+                        {staffPickerLabel(t)}
                       </option>
                     ))}
                   </Select>
@@ -128,7 +176,7 @@ export function SubjectsPanel({
             <option value="">Assign later</option>
             {tutors.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.name}
+                {staffPickerLabel(t)}
               </option>
             ))}
           </Select>

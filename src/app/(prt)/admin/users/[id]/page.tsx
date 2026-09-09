@@ -63,7 +63,10 @@ async function StudentSubjects({ studentId }: { studentId: string }) {
     <SubjectsPanel
       studentId={studentId}
       subjects={subjects}
-      tutors={tutors.map((t) => ({ id: t.id, name: t.full_name ?? t.email }))}
+      // The picker offers tutors AND mentors, so it carries the role: assigning someone to
+      // teach a subject attributes their sessions and their hours, which reach payslips, and
+      // a name on its own does not say which kind of account is being chosen.
+      tutors={tutors.map((t) => ({ id: t.id, name: t.full_name ?? t.email, role: t.role }))}
       subjectNames={subjectList.map((s) => s.name)}
     />
   )

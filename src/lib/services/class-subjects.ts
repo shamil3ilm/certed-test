@@ -1,6 +1,9 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import type { ClassRow } from '@/lib/data/classes'
+import { updateClassSubjectWhenUnset } from '@/lib/data/classes'
+import { backfillSessionSubjects } from '@/lib/data/class-sessions'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { selectSubjectById } from '@/lib/data/subjects'
@@ -50,4 +53,39 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
     throw error
   }
   return created
+}
+
+/**
+ * Give a class that has NO subject the one it teaches, and label the sessions it has already
+ * recorded.
+ *
+ * A class fixes its subject at creation and sessions copy it at record time, so a class
+ * created without one records sessions that no subject filter and no by-subject hours
+ * breakdown can see. Nothing else can repair that: the session write only stamps on insert,
+ * and there is no other screen that sets a class's subject.
+ *
+ * Scope is deliberately narrow. It fills an EMPTY subject and relabels only sessions that
+ * recorded none - both guarded in the query, not just here, so a concurrent write cannot slip
+ * between the check and the update. A class that already names a subject is refused rather
+ * than re-pointed, because that would rewrite what its past sessions taught.
+ */
+export async function setMissingClassSubject(
+  actor: Profile,
+  input: { classId: string; subjectId: string },
+): Promise<{ sessionsLabelled: number }> {
+  await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
+  const subject = await selectSubjectById(input.subjectId)
+  if (!subject) throw new ValidationError('Unknown subject.')
+
+  const applied = await updateClassSubjectWhenUnset(input.classId, subject.id)
+  if (!applied) throw new ValidationError('That class already has a subject.')
+
+  // Only reached once the class's subject went from none to this one, which is what makes
+  // relabelling its unlabelled history correct rather than a guess.
+  const sessionsLabelled = await backfillSessionSubjects(input.classId, subject.id)
+  await auditPrivilegedAction(actor, 'class.setSubject', 'class', input.classId, {
+    subject_id: subject.id,
+    sessions_labelled: sessionsLabelled,
+  })
+  return { sessionsLabelled }
 }
