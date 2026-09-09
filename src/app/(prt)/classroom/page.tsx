@@ -75,6 +75,15 @@ function ClassCard({
         <p className="mt-0.5 text-xs font-medium text-white/80">
           {c.status === 'archived' ? 'Archived' : 'Active class'}
         </p>
+        {!c.subject_id && (
+          // Findable from the list, because the repair is on the STUDENT's page and nothing
+          // else says which classes need it. Sessions copy the subject when they are recorded,
+          // so until this is set every session this class records is missing from the subject
+          // filter and the by-subject hours breakdown.
+          <p className="mt-1 inline-flex rounded-full bg-amber-100/95 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+            No subject set
+          </p>
+        )}
         <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
           {c.name.slice(0, 1).toUpperCase()}
         </span>
