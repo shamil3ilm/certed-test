@@ -1,6 +1,7 @@
 import 'server-only'
 import { z } from 'zod'
 import { requireActorCapability } from '@/lib/services/authorization'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { ValidationError } from '@/lib/errors'
 import { SUPPORTED_CURRENCIES } from '@/lib/money'
 import {
@@ -74,6 +75,15 @@ export async function addExchangeRate(actorId: string, input: unknown): Promise<
     note: parsed.data.note ?? null,
     created_by: actorId,
   })
+  // The recompute below audits `fx.recompute`, but that records only that a re-pricing
+  // ran - not what provoked it. A rate is what every converted figure is derived from, so
+  // the CHANGE is recorded with its own entry and its own values.
+  await auditPrivilegedAction({ id: actorId }, 'fx.rate_add', 'exchange_rates', null, {
+    currency: parsed.data.currency,
+    base_currency: org.base_currency,
+    rate: parsed.data.rate,
+    effective_from: parsed.data.effective_from,
+  })
   await recomputeConversions(actorId)
 }
 
@@ -81,6 +91,7 @@ export async function removeExchangeRate(actorId: string, id: string): Promise<v
   await requireActorCapability(actorId, 'manageAdminTier', FX_DENIED)
   if (!id) throw new ValidationError('No rate selected.')
   await deleteExchangeRate(id)
+  await auditPrivilegedAction({ id: actorId }, 'fx.rate_remove', 'exchange_rates', id)
   await recomputeConversions(actorId)
 }
 
@@ -89,6 +100,11 @@ export async function setBaseCurrency(actorId: string, currency: unknown): Promi
   const parsed = currencySchema.safeParse(currency)
   if (!parsed.success) throw new ValidationError('Choose a supported currency.')
   await updateBaseCurrency(parsed.data)
+  // The currency every other figure is expressed in. Recorded by name: "fx.recompute"
+  // alone cannot tell an auditor which base the numbers before and after were in.
+  await auditPrivilegedAction({ id: actorId }, 'fx.base_currency', 'org_settings', null, {
+    base_currency: parsed.data,
+  })
   // Every document re-bases to the new currency; anything without a rate to it
   // becomes unconverted and shows up on the to-do list.
   await recomputeConversions(actorId)

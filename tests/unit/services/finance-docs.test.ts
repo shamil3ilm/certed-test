@@ -4,9 +4,11 @@ import { makeClient } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
+vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireActorCapability } from '@/lib/services/authorization'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { issueDocRecord, listDocsPage, validateFinanceDocId, voidDoc } from '@/lib/services/finance/finance-docs'
 import { PermissionError, ValidationError } from '@/lib/errors'
 
@@ -176,5 +178,68 @@ describe('finance mutations enforce their own permission check', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'r-1' }], error: null }) as any)
     await expect(voidDoc('admin-1', 'receipt', 'r-1')).resolves.toBe(true)
     expect(requireActorCapability).toHaveBeenCalledWith('admin-1', 'manageAdminTier', expect.any(String))
+  })
+})
+
+/**
+ * Issuing and voiding a financial document are recorded in the audit log.
+ *
+ * This surface is the system of record for receipts and pay slips, and every other
+ * privileged write in the app is audited - down to a document DOWNLOAD and a pastoral-note
+ * VIEW. Minting or voiding money documents being the exception would leave the one question
+ * an auditor actually asks - who issued this, and who cancelled it - answerable only from
+ * the row itself, which a void leaves looking the same either way.
+ */
+describe('finance documents are audited', () => {
+  const issueInput = {
+    prefix: 'CEA-R',
+    billing_period: null,
+    party_id: 'stud-1',
+    party_name: 'Sara Student',
+    class_level: 'Grade 10',
+    issue_date: '2026-06-01',
+    currency: 'INR',
+    note: null,
+    subtotal: 5000,
+    discount: null,
+    total: 5000,
+    created_by: 'admin-1',
+    lines: [],
+  } as never
+
+  it('records the ISSUE with the number and party, not just the row id', async () => {
+    // The number and party are what identify the document to a human. Reading them back
+    // off the row later is not equivalent: the row can be voided, superseded or reissued.
+    vi.mocked(createAdminClient).mockReturnValueOnce({
+      rpc: vi.fn(async () => ({ data: receiptRow, error: null })),
+    } as never)
+    await issueDocRecord('admin-1', 'receipt', issueInput)
+    expect(auditPrivilegedAction).toHaveBeenCalledWith(
+      { id: 'admin-1' },
+      'receipt.issue',
+      'receipt',
+      'r-1',
+      expect.objectContaining({ number: 'CEA-R-2026-0001', party_id: 'stud-1' }),
+    )
+  })
+
+  it('records the VOID', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'r-1' }], error: null }) as never)
+    await voidDoc('admin-1', 'receipt', 'r-1')
+    expect(auditPrivilegedAction).toHaveBeenCalledWith({ id: 'admin-1' }, 'receipt.void', 'receipt', 'r-1')
+  })
+
+  it('does NOT record a void that voided nothing', async () => {
+    // updateDocVoided returns false for an unknown id or one already void. Auditing those
+    // would fill the trail with cancellations that never happened.
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as never)
+    await expect(voidDoc('admin-1', 'receipt', 'missing')).resolves.toBe(false)
+    expect(auditPrivilegedAction).not.toHaveBeenCalled()
+  })
+
+  it('audits nothing when the capability check refuses', async () => {
+    vi.mocked(requireActorCapability).mockRejectedValueOnce(new PermissionError('nope'))
+    await expect(voidDoc('not-an-admin', 'receipt', 'r-1')).rejects.toBeInstanceOf(PermissionError)
+    expect(auditPrivilegedAction).not.toHaveBeenCalled()
   })
 })

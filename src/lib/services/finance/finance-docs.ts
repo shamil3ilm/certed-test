@@ -1,4 +1,5 @@
 import { requireActorCapability } from '@/lib/services/authorization'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 import { toRange } from '@/lib/pagination'
@@ -116,7 +117,18 @@ export async function issueDocRecord(
   doc: IssueFinanceDocInput,
 ): Promise<FinanceDoc> {
   await requireActorCapability(actorId, 'manageAdminTier', FINANCE_DENIED)
-  return callIssueDoc(kind, doc)
+  const issued = await callIssueDoc(kind, doc)
+  // Minting a financial document is the most consequential act on this surface, so it is
+  // recorded like every other privileged write. The number and party go in the metadata:
+  // an auditor asking "who issued CEA-R-0042, and to whom" must not have to infer it from
+  // the row, which a later void leaves looking the same either way.
+  await auditPrivilegedAction({ id: actorId }, `${kind}.issue`, kind, issued.id, {
+    number: issued.number,
+    party_id: doc.party_id,
+    total: issued.total,
+    currency: issued.currency,
+  })
+  return issued
 }
 
 /**
@@ -126,5 +138,10 @@ export async function issueDocRecord(
  */
 export async function voidDoc(actorId: string, kind: FinanceKind, id: string): Promise<boolean> {
   await requireActorCapability(actorId, 'manageAdminTier', FINANCE_DENIED)
-  return updateDocVoided(kind, id)
+  const voided = await updateDocVoided(kind, id)
+  // Only a real transition is audited. updateDocVoided returns false for an unknown id or
+  // one already void, and recording those would fill the trail with events that never
+  // happened - the same reason a disclosure that discloses nothing is not audited.
+  if (voided) await auditPrivilegedAction({ id: actorId }, `${kind}.void`, kind, id)
+  return voided
 }
