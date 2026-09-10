@@ -280,9 +280,13 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
                   are taught, so the name carries a heading's weight rather than reading as a
                   label above a grid. The count states how many subjects without the reader
                   tallying cards - the same set the switcher inside a class moves between. */}
-              <div className="mb-2 flex items-baseline gap-2">
-                <h2 className="text-base font-bold text-slate-800">{g.label}</h2>
-                <span className="text-xs font-medium text-slate-500">
+              {/* Sized ABOVE the cards it owns. Each card is bold white on a saturated
+                  banner, so a heading at body weight loses to its own children and the page
+                  reads as a wall of subjects that happen to be near a name - when the reader
+                  is looking for a person first, then which of their subjects. */}
+              <div className="mb-3 flex items-baseline gap-2 border-b border-slate-200 pb-2">
+                <h2 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{g.label}</h2>
+                <span className="text-meta font-medium text-slate-500">
                   {g.classes.length} {g.classes.length === 1 ? 'subject' : 'subjects'}
                 </span>
               </div>
