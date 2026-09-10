@@ -21,7 +21,13 @@ import {
   selectVersionsForResources,
   type ResourceVersionRow,
 } from '@/lib/data/resource-versions'
-import { documentCategoryLabel, type DocumentCategory } from '@/lib/documents/categories'
+import {
+  documentCategoryLabel,
+  DOCUMENT_CATEGORY_VALUES,
+  DOCUMENT_VISIBILITY_VALUES,
+  type DocumentCategory,
+  type DocumentVisibility,
+} from '@/lib/documents/categories'
 import { isAllowedDriveUrl } from '@/lib/drive-link'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { assertClassActive } from '@/lib/permission'
@@ -159,8 +165,10 @@ export function validateResourceIdInput(input: { id?: FormDataEntryValue | null 
 }
 
 // Shared metadata validation for both create and edit flows.
-const categoryField = z.enum(['question_papers', 'practice_sheets', 'academic_resources', 'general_documents'])
-const visibilityField = z.enum(['class', 'staff'])
+// Both derived from the taxonomy rather than written out again: the UI offers what those
+// lists hold, and a value the UI can offer must not be one validation rejects.
+const categoryField = z.enum(DOCUMENT_CATEGORY_VALUES as [DocumentCategory, ...DocumentCategory[]])
+const visibilityField = z.enum(DOCUMENT_VISIBILITY_VALUES as [DocumentVisibility, ...DocumentVisibility[]])
 const optionalText = (max: number) =>
   z
     .string()

@@ -32,6 +32,6 @@ export const DOCUMENT_VISIBILITIES = [
 
 export type DocumentVisibility = (typeof DOCUMENT_VISIBILITIES)[number]['value']
 
-export function isDocumentVisibility(value: string): value is DocumentVisibility {
-  return value === 'class' || value === 'staff'
-}
+/** The values alone, for validators. Derived from the list above rather than written out a
+ *  second time, so a new visibility cannot be offered by the UI and rejected by validation. */
+export const DOCUMENT_VISIBILITY_VALUES = DOCUMENT_VISIBILITIES.map((v) => v.value) as DocumentVisibility[]
