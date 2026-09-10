@@ -4,7 +4,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { loadClassroomPageData } from '@/lib/services/page-data/classroom'
 import {
-  classBanner,
+  CLASS_BANNER,
   CARD,
   EmptyState,
   FilterBar,
@@ -21,7 +21,7 @@ function GradingClassCard({ id, name, status }: { id: string; name: string; stat
       href={`/classroom/${id}/grading`}
       className={cx(CARD, 'group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md')}
     >
-      <div className={`relative bg-gradient-to-br ${classBanner(id)} p-4 sm:p-5`}>
+      <div className={`relative bg-gradient-to-br ${CLASS_BANNER} p-4 sm:p-5`}>
         <h3 className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{name}</h3>
         <p className="mt-0.5 text-xs font-medium text-white/80">
           {status === 'archived' ? 'Archived' : 'Active class'}

@@ -11,10 +11,12 @@ import { readFileSync } from 'node:fs'
  * reaches that corner. `from-secondary` (#50b5e1) put white on light sky at 2.32:1, under
  * even the 3:1 large-text floor, and the subtitle is text-xs at white/80 - worse again.
  *
- * The second rule is about looking DELIBERATE. The palette held both
- * `from-primary to-secondary` and `from-secondary to-primary` - the same two brand colours
- * reversed. Two cards side by side then differ in a way a reader cannot attribute to
- * anything, which reads as a rendering fault rather than variety.
+ * The second rule is UNIFORMITY: one gradient, for every class. A per-class palette gave
+ * each card a colour the reader could not attribute to anything - two classes for the same
+ * student, side by side, differing for no reason the card explained. It could not be made
+ * to look like a set either: `secondary` is the only LIGHT brand token, so a variant not
+ * ending there had nowhere to travel and rendered nearly flat (L* 13) beside one that did
+ * (L* 47.6). A class is named by its title and subject; the banner is brand furniture.
  *
  * axe cannot catch either: it measures a computed background colour, and a gradient has
  * none. So the check lives here, against the source of truth.
@@ -52,17 +54,29 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
 }
 
+/** Perceptual lightness (CIE L*), which is what "does this look like a gradient" tracks -
+ *  relative luminance alone understates how flat a dark-to-dark sweep appears. */
+function lightness(hex: string): number {
+  const y = relativeLuminance(hex)
+  return y <= 0.008856 ? 903.3 * y : 116 * Math.cbrt(y) - 16
+}
+
 /** Contrast of a colour against WHITE text. */
 function contrastWithWhite(hex: string): number {
   return 1.05 / (relativeLuminance(hex) + 0.05)
 }
 
-/** The palette as written in the component, so the test reads the real source. */
-function banners(): string[] {
+/** The gradient as written in the component, so the test reads the real source. */
+function banner(): string {
   const source = readFileSync(SOURCE, 'utf8')
-  const block = source.match(/const CLASS_BANNERS = \[([\s\S]*?)\]/)
-  expect(block, `CLASS_BANNERS not found in ${SOURCE} - has it been renamed?`).not.toBeNull()
-  return [...block![1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+  const m = source.match(/export const CLASS_BANNER = '([^']+)'/)
+  expect(m, `CLASS_BANNER not found in ${SOURCE} - has it been renamed?`).not.toBeNull()
+  return m![1]
+}
+
+/** The whole source, for the check that no per-class palette has crept back in. */
+function source(): string {
+  return readFileSync(SOURCE, 'utf8')
 }
 
 function fromColour(banner: string): string {
@@ -78,21 +92,36 @@ function toColour(banner: string): string {
 }
 
 describe('class banner gradients', () => {
-  it('has a palette to check', () => {
+  it('has a gradient to check', () => {
     // Guards the scanner: a regex that matched nothing would make every assertion below
     // vacuously true.
-    expect(banners().length).toBeGreaterThan(1)
+    expect(banner()).toMatch(/from-\S+\s+to-\S+/)
+  })
+
+  it('is ONE gradient, shared by every class', () => {
+    // The uniformity rule itself. A per-class palette is what this replaced: an array of
+    // variants picked by hashing the class id, which gave two cards in one group different
+    // colours for a reason nothing on the card explained.
+    const src = source()
+    expect(
+      /CLASS_BANNERS|const\s+CLASS_BANNER\s*=\s*\[/.test(src),
+      'The banner is uniform. Do not reintroduce a per-class palette: a class is identified ' +
+        'by its name and subject, and with four brand tokens the variants cannot be made to ' +
+        'look like a set.',
+    ).toBe(false)
+    expect(
+      /charCodeAt|% CLASS_BANNER/.test(src),
+      'A hash of the class id means the colour varies per class again.',
+    ).toBe(false)
   })
 
   it('uses BRAND tokens only - no borrowed Tailwind hues', () => {
     // A class card is a large, repeated block of colour. A borrowed indigo/violet/rose puts
     // a hue on screen that appears nowhere else in the product, so the cards stop reading as
     // this brand - which is a design decision, not a contrast one, and nothing else checks it.
-    const offBrand = banners()
-      .flatMap((b) => [fromColour(b), toColour(b)])
-      .filter((c) => !BRAND_TOKENS.has(c))
+    const offBrand = [fromColour(banner()), toColour(banner())].filter((c) => !BRAND_TOKENS.has(c))
     expect(
-      [...new Set(offBrand)],
+      offBrand,
       'Class banners may only use the brand tokens defined in globals.css ' +
         `(${[...BRAND_TOKENS].join(', ')}). Re-brand by editing :root, not by reaching for a ` +
         'Tailwind palette colour here.',
@@ -100,40 +129,29 @@ describe('class banner gradients', () => {
   })
 
   it('every colour used is one this gate knows the hex for', () => {
-    const unknown = banners()
-      .flatMap((b) => [fromColour(b), toColour(b)])
-      .filter((c) => !(c in HEX))
-    expect(unknown, `add these to HEX so their contrast can be checked: ${[...new Set(unknown)].join(', ')}`).toEqual(
-      [],
-    )
+    const unknown = [fromColour(banner()), toColour(banner())].filter((c) => !(c in HEX))
+    expect(unknown, `add these to HEX so their contrast can be checked: ${unknown.join(', ')}`).toEqual([])
   })
 
-  it('starts every gradient from a colour that carries white text at 4.5:1', () => {
-    const failures = banners()
-      .map((b) => ({ banner: b, colour: fromColour(b) }))
-      .map((x) => ({ ...x, ratio: contrastWithWhite(HEX[x.colour]) }))
-      .filter((x) => x.ratio < 4.5)
-      .map((x) => `${x.banner} - white on ${x.colour} is ${x.ratio.toFixed(2)}:1`)
+  it('starts from a colour that carries white text at 4.5:1', () => {
+    const colour = fromColour(banner())
+    const ratio = contrastWithWhite(HEX[colour])
     expect(
-      failures,
-      'The title and subtitle sit at the from- corner. Below 4.5:1 the class name is hard ' +
-        'to read; the to- end is unconstrained, so put the light accent there instead.',
-    ).toEqual([])
+      ratio,
+      `The title and subtitle sit at the from- corner. White on ${colour} is ${ratio.toFixed(2)}:1; ` +
+        'below 4.5:1 the class name is hard to read. The to- end is unconstrained, so put the ' +
+        'light accent there instead.',
+    ).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('holds no gradient that is another one reversed', () => {
-    const seen = new Map<string, string>()
-    const reversals: string[] = []
-    for (const banner of banners()) {
-      const key = [fromColour(banner), toColour(banner)].sort().join('~')
-      const twin = seen.get(key)
-      if (twin) reversals.push(`"${banner}" is "${twin}" reversed`)
-      else seen.set(key, banner)
-    }
+  it('travels far enough to read as a gradient rather than a flat block', () => {
+    // `secondary` is the only LIGHT brand token, so ending anywhere else leaves the gradient
+    // with nowhere to travel - which is exactly how a card came to look unpainted.
+    const delta = lightness(HEX[toColour(banner())]) - lightness(HEX[fromColour(banner())])
     expect(
-      reversals,
-      'Two cards then differ in a way the reader cannot attribute to anything, which looks ' +
-        'like a fault rather than variety. Use a different hue instead.',
-    ).toEqual([])
+      delta,
+      `${banner()} spans only L* ${delta.toFixed(1)}. Under 20 it reads as a flat block. ` +
+        'End the gradient at `secondary` (L* 69.6), the only light brand token.',
+    ).toBeGreaterThanOrEqual(20)
   })
 })

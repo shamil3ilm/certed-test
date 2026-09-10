@@ -43,37 +43,30 @@ export function roleTone(role?: string | null): { avatar: string; bubble: string
 }
 
 /**
- * Deterministic on-brand gradient for a class banner, keyed by class id.
+ * The class-banner gradient. ONE gradient, for every class.
  *
- * BRAND TOKENS ONLY. Every colour here is one of the four in globals.css - a class card is
- * a large, repeated block of colour, so borrowing Tailwind's indigo/violet/rose/teal put
- * hues on screen that appear nowhere else in the product and read as a different brand.
- * Variety comes from which brand blues are paired and in which direction, not from adding
- * colours.
+ * Deliberately not keyed by class id. A per-class palette gives each card a colour the
+ * reader cannot attribute to anything - two classes for the same student, side by side in
+ * one group, differed in a way that nothing on the card explained. And with only four brand
+ * tokens the variants could not be made to look like a set: the sole LIGHT token is
+ * `secondary` (L* 69.6, the rest sit between L* 22 and 45), so a gradient not ending there
+ * has nowhere to travel. `primary -> secondary-ink` spanned L* 13 next to another's 47.6,
+ * which read as a card that had failed to paint rather than as variety.
  *
- * Three rules, all enforced by tests/unit/class-banner-contrast.test.ts:
+ * A class is identified by its NAME and subject, which the card already carries. The banner
+ * is brand furniture, and uniform is what furniture should be.
  *
- *  - Only `primary`, `primary-strong`, `secondary` and `secondary-ink` may appear.
+ * Two rules, both enforced by tests/unit/class-banner-contrast.test.ts:
+ *
+ *  - Brand tokens only. A class card is a large, repeated block of colour, so borrowing
+ *    Tailwind's indigo/violet/rose/teal puts hues on screen that appear nowhere else in the
+ *    product and read as a different brand.
  *  - The gradient runs top-left to bottom-right and the card's white title and subtitle sit
- *    at the TOP-LEFT, so the `from-` colour is what that text is read against and must
- *    carry white at 4.5:1. That is why `secondary` (#50b5e1, 2.32:1 against white) is only
- *    ever a `to-` colour: it is the decorative end, where no text reaches.
- *  - No entry may be another reversed. The same two colours flipped read as a rendering
- *    fault rather than variety, because nothing about the card explains the difference.
+ *    at the TOP-LEFT, so `from-` is what that text is read against and must carry white at
+ *    4.5:1. `secondary` (#50b5e1) is 2.32:1 against white, so it can only ever be the `to-`
+ *    end - the decorative corner, where no text reaches.
  */
-const CLASS_BANNERS = [
-  'from-primary to-secondary',
-  'from-primary-strong to-secondary',
-  'from-secondary-ink to-secondary',
-  'from-primary to-secondary-ink',
-  'from-primary-strong to-secondary-ink',
-]
-
-export function classBanner(id: string): string {
-  let h = 0
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
-  return CLASS_BANNERS[h % CLASS_BANNERS.length]
-}
+export const CLASS_BANNER = 'from-primary to-secondary'
 
 /** Round initials chip, tinted by the member's role. */
 export function Avatar({

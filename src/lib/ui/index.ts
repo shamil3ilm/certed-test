@@ -14,7 +14,7 @@
  * These are presentation only: no domain, data or Supabase imports.
  */
 export { cx, CARD, ARCHIVED_ROW } from './core'
-export { initials, roleTone, classBanner, Avatar } from './identity'
+export { initials, roleTone, CLASS_BANNER, Avatar } from './identity'
 export {
   roleLabel,
   statusLabel,
