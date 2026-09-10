@@ -18,6 +18,17 @@ const holder = globalThis as unknown as Holder
 
 function load(): MockDb {
   if (holder[KEY]) return holder[KEY]!
+  // A UNIT test gets a private, in-memory database: no file, and no claim.
+  //
+  // The claim below exists to stop two mock SERVERS sharing .mock-db.json. A vitest run is
+  // not a second server - it is a third party that wants a database of its own - so taking
+  // the claim made the unit suite fail whenever a dev server happened to be running, on
+  // tests that touch the store for entirely unrelated reasons. Seeded fresh per process,
+  // which is what a test that pushes its own rows in wants anyway.
+  if (process.env.VITEST) {
+    holder[KEY] = buildSeed()
+    return holder[KEY]!
+  }
   // First touch in this process: take the single-writer claim before reading, so a second
   // mock server fails HERE with a message naming the holder rather than silently sharing
   // the file and corrupting whatever the first one is doing.
