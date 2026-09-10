@@ -80,24 +80,46 @@ function ClassCard({
       href={`/classroom/${c.id}`}
       className={cx(CARD, 'group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md')}
     >
-      <div className={`relative bg-gradient-to-br ${classBanner(c.id)} p-4 sm:p-5`}>
-        <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{title}</Title>
-        <p className="mt-0.5 text-xs font-medium text-white/80">
-          {c.status === 'archived' ? 'Archived' : 'Active class'}
-        </p>
-        {!c.subject_id && (
-          // Findable from the list, because the repair is on the STUDENT's page and nothing
-          // else says which classes need it. Sessions copy the subject when they are recorded,
-          // so until this is set every session this class records is missing from the subject
-          // filter and the by-subject hours breakdown.
-          <p className="mt-1 inline-flex rounded-full bg-warning-tint/95 px-2 py-0.5 text-meta font-semibold text-warning-ink">
-            No subject set
+      {/* Under a student heading the card is the MINOR unit, so the colour that would fill a
+          banner is spent on a rule instead: enough to tell one subject from the next, not
+          enough to outrank the person they belong to. Everywhere else - a student's own list,
+          the unassigned section - the subject IS the unit and keeps the full banner. */}
+      {grouped ? (
+        <div className="relative px-4 py-3 sm:px-5">
+          <span
+            aria-hidden="true"
+            className={cx('absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b', classBanner(c.id))}
+          />
+          <Title className="text-base font-semibold leading-snug text-slate-900">{title}</Title>
+          <p className="mt-0.5 text-meta font-medium text-slate-600">
+            {c.status === 'archived' ? 'Archived' : 'Active class'}
           </p>
-        )}
-        <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
-          {title.slice(0, 1).toUpperCase()}
-        </span>
-      </div>
+          {!c.subject_id && (
+            <p className="mt-1 inline-flex rounded-full bg-warning-tint px-2 py-0.5 text-meta font-semibold text-warning-ink">
+              No subject set
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className={`relative bg-gradient-to-br ${classBanner(c.id)} p-4 sm:p-5`}>
+          <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{title}</Title>
+          <p className="mt-0.5 text-xs font-medium text-white/80">
+            {c.status === 'archived' ? 'Archived' : 'Active class'}
+          </p>
+          {!c.subject_id && (
+            // Findable from the list, because the repair is on the STUDENT's page and nothing
+            // else says which classes need it. Sessions copy the subject when they are recorded,
+            // so until this is set every session this class records is missing from the subject
+            // filter and the by-subject hours breakdown.
+            <p className="mt-1 inline-flex rounded-full bg-warning-tint/95 px-2 py-0.5 text-meta font-semibold text-warning-ink">
+              No subject set
+            </p>
+          )}
+          <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
+            {title.slice(0, 1).toUpperCase()}
+          </span>
+        </div>
+      )}
       <div className="px-4 py-3 sm:px-5">
         <div className="flex items-center gap-4 text-xs text-slate-600">
           {!grouped && (
@@ -284,7 +306,16 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
                   banner, so a heading at body weight loses to its own children and the page
                   reads as a wall of subjects that happen to be near a name - when the reader
                   is looking for a person first, then which of their subjects. */}
-              <div className="mb-3 flex items-baseline gap-2 border-b border-slate-200 pb-2">
+              <div className="mb-3 flex items-center gap-3 border-b border-slate-200 pb-2">
+                {/* The person carries the weight the cards used to: an initial in the brand
+                    tint, the name at heading size. What is one student with two subjects
+                    should look like one thing, not two things near a caption. */}
+                <span
+                  aria-hidden="true"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary ring-1 ring-primary/20"
+                >
+                  {g.label.slice(0, 1).toUpperCase()}
+                </span>
                 <h2 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{g.label}</h2>
                 <span className="text-meta font-medium text-slate-500">
                   {g.classes.length} {g.classes.length === 1 ? 'subject' : 'subjects'}
