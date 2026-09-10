@@ -24,6 +24,32 @@ const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 const BLOCKING = new Set(['serious', 'critical'])
 const BASELINED_RULES: string[] = []
 
+/**
+ * Open a page, and REFUSE to audit one the server never rendered.
+ *
+ * axe measures whatever is in the browser, and a server that failed to boot still returns a
+ * document - an error page. That page has no `<title>` and no `lang` attribute, so scanning
+ * it reports `document-title` and `html-has-lang` as SERIOUS violations. Six of those once
+ * arrived at once, across all five marketing pages and the login screen, and read as an
+ * accessibility regression; the cause was a missing `.next/server/middleware-manifest.json`
+ * - the webserver had not started.
+ *
+ * A guard that fails dishonestly is worse than no guard: it sends the reader hunting a
+ * defect that was never there, and it does so in the vocabulary of the thing being guarded,
+ * which is what makes it convincing. Checking the status first makes a dead server fail AS
+ * a dead server.
+ */
+async function open(page: Page, url: string): Promise<void> {
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded' })
+  const status = response?.status() ?? 0
+  expect(
+    status,
+    `${url} returned HTTP ${status || '(no response)'}, so there is no rendered page to audit. ` +
+      "Any axe violations below would be the error page's, not the app's - check the " +
+      '[WebServer] output for a build or boot failure before believing an a11y regression.',
+  ).toBeLessThan(400)
+}
+
 async function seriousViolations(page: Page): Promise<string[]> {
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).disableRules(BASELINED_RULES).analyze()
   return violations
@@ -34,21 +60,32 @@ async function seriousViolations(page: Page): Promise<string[]> {
 test.describe('accessibility - no serious/critical WCAG 2 A/AA violations', () => {
   for (const path of ['/', '/about', '/classes', '/contact', '/blogs']) {
     test(`marketing ${path}`, async ({ page }) => {
-      await page.goto(`${MARKETING}${path}`, { waitUntil: 'domcontentloaded' })
+      await open(page, `${MARKETING}${path}`)
       const found = await seriousViolations(page)
       expect(found, found.join('\n')).toEqual([])
     })
   }
 
+  test('the gate refuses to audit a page the server did not render', async ({ page }) => {
+    // Keeps `open` honest. Forced rather than provoked through the app: an unknown path is
+    // redirected to a real page and answers 200, which proves nothing. Fulfilling the
+    // response directly reproduces the case that actually misled us - an error STATUS
+    // carrying a document with no <title>, which axe scores as a serious violation.
+    await page.route('**/guard-probe', (route) =>
+      route.fulfill({ status: 503, contentType: 'text/html', body: '<html><body>boom</body></html>' }),
+    )
+    await expect(open(page, `${MARKETING}/guard-probe`)).rejects.toThrow(/returned HTTP 503/)
+  })
+
   test('portal login', async ({ page }) => {
-    await page.goto(`${PORTAL}/login`, { waitUntil: 'domcontentloaded' })
+    await open(page, `${PORTAL}/login`)
     const found = await seriousViolations(page)
     expect(found, found.join('\n')).toEqual([])
   })
 
   test('portal dashboard (authenticated)', async ({ page }) => {
     await loginAs(page, 'admin@mock.test')
-    await page.goto(`${PORTAL}/dashboard`, { waitUntil: 'domcontentloaded' })
+    await open(page, `${PORTAL}/dashboard`)
     const found = await seriousViolations(page)
     expect(found, found.join('\n')).toEqual([])
   })
