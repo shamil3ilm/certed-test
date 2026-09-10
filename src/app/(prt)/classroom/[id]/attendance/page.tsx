@@ -8,7 +8,7 @@ import {
 import { MarkAttendanceForm } from './MarkAttendanceForm'
 import { SessionTimesForm } from './SessionTimesForm'
 import { SessionFeedbackForm } from './SessionFeedbackForm'
-import { clearAttendanceAction, deleteSessionAction, setClassSubjectAction } from './actions'
+import { clearAttendanceAction, deleteSessionAction, nameClassSubjectAction } from './actions'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import {
   AlertBanner,
@@ -209,26 +209,6 @@ export default async function AttendancePage(props: {
           </button>
         </form>
 
-        {data.switchableClasses.length > 0 && (
-          // A session belongs to its class, so recording the Physics hour means going TO
-          // Physics rather than picking a subject on this form. Carries the date across so
-          // the switch lands on the same day the reader was looking at.
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="text-xs font-medium text-slate-600">Same students, another class:</span>
-            {data.switchableClasses.map((c) => (
-              // max-w-full: a long "Student - Subject" name wraps inside the row rather than
-              // pushing the page sideways on a 320px phone.
-              <a
-                key={c.id}
-                href={`/classroom/${c.id}/attendance?date=${data.date}`}
-                className="btn btn-sm btn-soft max-w-full"
-              >
-                {c.name}
-              </a>
-            ))}
-          </div>
-        )}
-
         {sessionsForForm.map((session, index) => (
           <div key={session.id} className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -314,7 +294,7 @@ export default async function AttendancePage(props: {
                   you already record is the same authority as recording it. A choice from the
                   managed list rather than free text: adding to the academy's subject catalogue
                   is a separate thing, and stays with an admin. */}
-              <form action={setClassSubjectAction} className="flex flex-wrap items-center gap-2">
+              <form action={nameClassSubjectAction} className="flex flex-wrap items-center gap-2">
                 <input type="hidden" name="class_id" value={course.id} />
                 <input type="hidden" name="session_date" value={data.date} />
                 <label className="sr-only" htmlFor="set-class-subject">
@@ -342,6 +322,24 @@ export default async function AttendancePage(props: {
               </form>
               <p>Sessions already recorded here are labelled with it too; nothing else changes.</p>
             </div>
+          )}
+          {!data.classHasTutor && (
+            // The same shape as the subject warning, and the more expensive one: a session
+            // records WHO taught it from the class's assigned tutors, stamped at insert. With
+            // nobody assigned it stamps null, those hours land in the "Unassigned" bucket the
+            // payslip drafts are built from, and assigning a tutor later does not go back and
+            // claim them.
+            //
+            // No control offered here, unlike the subject above. Naming what a class teaches
+            // is within the authority of whoever records it; putting a person on a class
+            // grants them that class's data and its pay, which is an admin's decision - so
+            // this one really does have to say "an admin".
+            <p className="rounded-lg border border-warning-border bg-warning-surface/60 px-3 py-2 text-xs text-warning-ink">
+              Nobody is assigned to teach this class, so hours recorded here are credited to no one and will show as
+              &ldquo;Unassigned&rdquo; in the teaching-hours report. Assigning a tutor does not claim hours already
+              recorded, so it is worth doing before this session. An admin can assign one on the student&rsquo;s
+              Subjects &amp; tutors panel.
+            </p>
           )}
           <SessionTimesForm classId={course.id} date={data.date} session={null} canEditStaffNote={canManageContent} />
         </div>

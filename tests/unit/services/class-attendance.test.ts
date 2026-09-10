@@ -44,8 +44,7 @@ import {
   attendanceSessionDate,
 } from '@/lib/services/page-data/class-attendance'
 import { getClassMembers } from '@/lib/services/classes'
-import { selectActiveClassIdsForStudents } from '@/lib/data/class-membership'
-import { selectClassesByIds, selectClassById } from '@/lib/data/classes'
+import { selectClassById } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { isCalendarDate, todayInZone } from '@/lib/time/format'
@@ -136,6 +135,7 @@ describe('loadClassAttendancePageData', () => {
         { id: 's1', name: 'Sara Student' },
         { id: 's2', name: 'Sam Student' },
       ],
+      tutors: [{ id: 't1', name: 'Tarun Tutor' }],
     } as any)
     vi.mocked(listManagerSessionsForDate).mockResolvedValueOnce([session] as any)
     vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([] as any)
@@ -185,32 +185,6 @@ describe('loadClassAttendancePageData', () => {
     expect((data as { classSubjectName: string | null }).classSubjectName).toBeNull()
   })
 
-  it('offers only the OTHER classes of these students that the actor may also manage', async () => {
-    // The switcher exists because a session belongs to its class: recording the Physics hour
-    // means navigating to Physics. Offering a class the target page would then refuse is the
-    // one-gate rule the class list already learned, so each candidate goes through
-    // canManageClass - the same gate the destination applies.
-    managerFixture({ id: 'ses1', class_id: 'class-1', session_date: '2026-07-16', subject_id: null })
-    vi.mocked(selectActiveClassIdsForStudents).mockResolvedValueOnce([
-      'class-1', // the class being viewed
-      'class-2', // active + manageable -> the only offer
-      'class-3', // archived
-      'class-4', // active but not manageable by this actor
-    ])
-    vi.mocked(selectClassesByIds).mockResolvedValueOnce([
-      { id: 'class-2', name: 'Physics', status: 'active' },
-      { id: 'class-3', name: 'Retired Maths', status: 'archived' },
-      { id: 'class-4', name: 'Someone Else', status: 'active' },
-    ] as any)
-    vi.mocked(canManageClass).mockImplementation(async (_me: any, id: string) => id !== 'class-4')
-
-    const data = await loadClassAttendancePageData({ id: 'tutor-1' } as any, 'class-1', { date: '2026-07-16' })
-
-    expect((data as any).switchableClasses).toEqual([{ id: 'class-2', name: 'Physics' }])
-    // The class in front of the reader is never offered as somewhere to switch to.
-    expect(vi.mocked(selectClassesByIds).mock.calls[0][0]).not.toContain('class-1')
-  })
-
   it('loads the manager attendance view model with normalized date and roster status mapping', async () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'tutor', status: 'active' }] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
@@ -221,6 +195,7 @@ describe('loadClassAttendancePageData', () => {
         { id: 's1', name: 'Sara Student' },
         { id: 's2', name: 'Sam Student' },
       ],
+      tutors: [{ id: 't1', name: 'Tarun Tutor' }],
     } as any)
     // 0094: a mark belongs to a session, so the day has one and the mark names it.
     vi.mocked(listManagerSessionsForDate).mockResolvedValueOnce([
@@ -243,12 +218,12 @@ describe('loadClassAttendancePageData', () => {
       sessions: [{ id: 'ses1', class_id: 'c1', session_date: '2026-07-16' }],
       // No other class shares this roster, and the session carries no subject, so both
       // are empty here - the populated cases are asserted on their own below.
-      switchableClasses: [],
       subjectNames: new Map(),
       classSubjectName: null,
       // Populated only when the class has no subject - this fixture's class has none, and
       // the mocked catalogue is empty.
       subjectOptions: [],
+      classHasTutor: true,
       // The session carries the marks; `roster` is the unmarked base used when a date has
       // no session yet.
       sessionRosters: [
@@ -279,6 +254,7 @@ describe('loadClassAttendancePageData', () => {
     vi.mocked(isCalendarDate).mockReturnValueOnce(true as any)
     vi.mocked(getClassMembers).mockResolvedValueOnce({
       students: [{ id: 's1', name: 'Sara Student' }],
+      tutors: [],
     } as any)
     vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([] as any)
     vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValueOnce({
@@ -295,5 +271,27 @@ describe('loadClassAttendancePageData', () => {
       kind: 'manager',
       history: [{ session_date: '2026-07-16', status: 'late', name: 'Past Student', join_at: null, leave_at: null }],
     })
+  })
+})
+
+describe('loadClassAttendancePageData - a class nobody is assigned to teach', () => {
+  it('reports it, so the page can warn before hours are recorded against no one', async () => {
+    // A session records WHO taught it from the class's assigned tutors, stamped at insert.
+    // With nobody assigned it stamps null, and those hours land in the "Unassigned" bucket
+    // the payslip drafts are built from - assigning a tutor afterwards does not claim them.
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'tutor', status: 'active' }] as never)
+    vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
+    vi.mocked(isCalendarDate).mockImplementation(((v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')) as never)
+    vi.mocked(getClassMembers).mockResolvedValueOnce({
+      students: [{ id: 's1', name: 'Sara Student' }],
+      tutors: [],
+    } as never)
+    vi.mocked(listManagerSessionsForDate).mockResolvedValueOnce([] as never)
+    vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([] as never)
+    vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValueOnce({ items: [], total: 0 } as never)
+
+    const data = await loadClassAttendancePageData({ id: 'tutor-1' } as never, 'class-1', { date: '2026-07-16' })
+
+    expect((data as { classHasTutor: boolean }).classHasTutor).toBe(false)
   })
 })

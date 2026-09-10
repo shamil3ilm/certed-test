@@ -151,7 +151,7 @@ export async function clearAttendanceAction(formData: FormData): Promise<void> {
  * happened in a class can say which subject it was. It fills an empty subject only; a class
  * that already names one is refused by the service, so this cannot re-point history.
  */
-export async function setClassSubjectAction(formData: FormData): Promise<void> {
+export async function nameClassSubjectAction(formData: FormData): Promise<void> {
   const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
   const subjectId = String(formData.get('subject_id') ?? '')

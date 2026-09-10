@@ -19,7 +19,6 @@ import {
   type ClassSessionRow,
 } from '@/lib/data/class-sessions'
 import { selectActiveClassIdsForStudent, selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
-import { selectClassSubjectIdAsService } from '@/lib/data/classes'
 import { studentHasAttendance } from '@/lib/data/attendance'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { validateUuidField } from '@/lib/validation/id'
@@ -171,24 +170,12 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     summary: noteField.parse(String(input.summary ?? '')),
     ...(canEditStaffNote ? { staff_note: noteField.parse(String(input.staff_note ?? '')) } : {}),
   }
-  // WHAT was taught, captured at record time. A tutor may teach several subjects, so the
-  // session cannot be read back through its tutor - and it must not be read back through the
-  // CLASS either, because re-pointing a class at another subject would then rewrite what past
-  // sessions taught. Hence a column on the session, set on INSERT only: an edit deliberately
-  // leaves it alone so correcting yesterday's times never relabels yesterday's subject.
-  //
-  // 0104 also fills this with a BEFORE INSERT trigger, which stays as the backstop for any
-  // other writer. Setting it explicitly here is what makes MOCK MODE agree with production:
-  // mock runs no triggers, so leaving it to the database gave the E2E suite blank subjects
-  // and a subject filter that matched nothing.
+  // WHAT was taught is stamped by insertSession, from the class, for every writer rather
+  // than only this one - so it is deliberately NOT passed here. An edit leaves it alone,
+  // which is the point: correcting yesterday's times must never relabel yesterday's subject.
   const saved = before
     ? await updateSessionById(before.id, fields)
-    : await insertSession({
-        class_id: classId,
-        session_date: sessionDate,
-        subject_id: await selectClassSubjectIdAsService(classId),
-        ...fields,
-      })
+    : await insertSession({ class_id: classId, session_date: sessionDate, ...fields })
 
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId, {
     session_id: saved.id,

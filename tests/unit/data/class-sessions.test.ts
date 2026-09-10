@@ -92,3 +92,33 @@ describe('class-sessions data layer', () => {
     )
   })
 })
+
+describe('insertSession stamps WHAT was taught', () => {
+  // A tutor teaches several subjects, so a session cannot be read back through its tutor -
+  // and it must not be read back through the CLASS either, because re-pointing a class would
+  // rewrite what past sessions taught. Hence a column on the session, filled here so EVERY
+  // writer gets it rather than only the one that remembers to.
+  it('fills the subject from the class when the caller does not supply one', async () => {
+    const client = makeClient({ data: { subject_id: 'sub-1' }, error: null })
+    // Second call is the insert itself; the first resolves the class's subject.
+    const inserted = makeClient({ data: session, error: null })
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(client as never)
+      .mockReturnValueOnce(inserted as never)
+
+    await insertSession({ class_id: 'c1', session_date: '2026-06-20' } as never)
+
+    expect(client.from).toHaveBeenCalledWith('classes')
+  })
+
+  it('keeps an EXPLICIT subject, including a deliberate null', async () => {
+    // An explicit value is a decision the caller has already made; re-deriving it from the
+    // class would quietly overrule them.
+    const client = makeClient({ data: session, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    await insertSession({ class_id: 'c1', session_date: '2026-06-20', subject_id: null } as never)
+
+    expect(client.from).not.toHaveBeenCalledWith('classes')
+  })
+})
