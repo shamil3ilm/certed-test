@@ -142,19 +142,19 @@ test('TUTOR -- one tutor, two subjects: the session shows the subject it taught'
   await expect(page.getByText('Mathematics', { exact: true }).first()).toBeVisible()
 
   // Recording the Physics hour means GOING to Physics - a session belongs to its class, so
-  // the switcher is navigation rather than a subject field on the form.
-  const toPhysics = page.getByRole('link', { name: 'Physics - Grade 10' })
-  await expect(toPhysics).toBeVisible()
-  await toPhysics.click()
+  // moving subject is navigation rather than a subject field on the form.
+  await page.goto(`/classroom/${SEED.science}/attendance`)
 
   // Physics has no session on this date, so there is nothing recorded to label - but the
   // BLANK form still has to say what it is about to record, which is the whole point for a
   // tutor who teaches two subjects.
   await expect(page.getByRole('heading', { name: 'Record the session' })).toBeVisible()
   await expect(page.getByText('Physics', { exact: true }).first()).toBeVisible()
-  // And the Maths label must not follow the reader across, which it would if the subject
-  // were read from anywhere but the class/session in front of them.
-  await expect(page.getByText('Mathematics', { exact: true })).toHaveCount(0)
+  // And the Maths label must not follow the reader across, which it would if the subject were
+  // read from anywhere but the class/session in front of them. Scoped to the recording
+  // section: the subject switcher in the class header names every subject this student takes,
+  // Mathematics among them, which is the point of it.
+  await expect(page.locator('#mark-attendance').getByText('Mathematics', { exact: true })).toHaveCount(0)
 })
 
 test('SUB ADMIN -- lands on a real dashboard and can reach settings (no blank lock-out)', async ({ page }) => {

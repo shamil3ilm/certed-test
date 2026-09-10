@@ -3,7 +3,9 @@ import { requireClassAccess } from '../access'
 import { getActorContext } from '@/lib/session/actor-context'
 import { canManageClass } from '@/lib/permission'
 import { BackLink, PageHeader } from '@/lib/ui'
+import { subjectSwitcherFor } from '@/lib/services/classes/subject-switcher'
 import { ClassTabs } from './ClassTabs'
+import { SubjectSwitcher } from './SubjectSwitcher'
 
 export default async function ClassLayout(props: { params: Promise<{ id: string }>; children: ReactNode }) {
   const params = await props.params
@@ -18,11 +20,21 @@ export default async function ClassLayout(props: { params: Promise<{ id: string 
   // shown a Grading tab on X.
   const canGrade = actor.capabilities.allowed.has('viewGrading') && (await canManageClass(me, course.id))
 
+  // The student's OTHER subjects, scoped to what this viewer teaches. Null when there is
+  // nothing to switch to - one subject, or a class that is not a single student.
+  const switcher = await subjectSwitcherFor(me, course.id)
+
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <BackLink href="/classroom">Back to classes</BackLink>
 
       <PageHeader title={course.name} description={course.status === 'archived' ? 'Archived class' : 'Class'} />
+
+      {switcher && (
+        <div className="mt-3">
+          <SubjectSwitcher studentName={switcher.studentName} options={switcher.options} classId={course.id} />
+        </div>
+      )}
 
       <div className="mt-4 border-b border-slate-200">
         <ClassTabs id={course.id} canGrade={canGrade} />
