@@ -16,7 +16,7 @@ import {
   CARD,
   FilterBar,
   SelectFilterField,
-  classBanner,
+  CLASS_BANNER,
   cx,
 } from '@/lib/ui'
 
@@ -80,16 +80,13 @@ function ClassCard({
       href={`/classroom/${c.id}`}
       className={cx(CARD, 'group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md')}
     >
-      {/* Under a student heading the card is the MINOR unit, so the colour that would fill a
-          banner is spent on a rule instead: enough to tell one subject from the next, not
-          enough to outrank the person they belong to. Everywhere else - a student's own list,
-          the unassigned section - the subject IS the unit and keeps the full banner. */}
+      {/* Under a student heading the card is the MINOR unit, so the banner narrows to a rule:
+          the same brand gradient, at a width that marks the card as one of a set without
+          competing with the person it belongs to. Everywhere else - a student's own list, the
+          unassigned section - the subject IS the unit and keeps the full banner. */}
       {grouped ? (
         <div className="relative px-4 py-3 sm:px-5">
-          <span
-            aria-hidden="true"
-            className={cx('absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b', classBanner(c.id))}
-          />
+          <span aria-hidden="true" className={cx('absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b', CLASS_BANNER)} />
           <Title className="text-base font-semibold leading-snug text-slate-900">{title}</Title>
           <p className="mt-0.5 text-meta font-medium text-slate-600">
             {c.status === 'archived' ? 'Archived' : 'Active class'}
@@ -101,7 +98,7 @@ function ClassCard({
           )}
         </div>
       ) : (
-        <div className={`relative bg-gradient-to-br ${classBanner(c.id)} p-4 sm:p-5`}>
+        <div className={`relative bg-gradient-to-br ${CLASS_BANNER} p-4 sm:p-5`}>
           <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{title}</Title>
           <p className="mt-0.5 text-xs font-medium text-white/80">
             {c.status === 'archived' ? 'Archived' : 'Active class'}
@@ -186,6 +183,7 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
     unassignedTotal,
     unassignedTruncated,
     groupByStudentView,
+    hasActiveFilters,
     tagsByClass,
     subjectByClass,
     total,
@@ -298,42 +296,63 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
           )}
           {groups.map((g) => (
             <section key={g.key} aria-label={g.label}>
-              {/* The STUDENT is the unit here and the cards beneath are the subjects they
-                  are taught, so the name carries a heading's weight rather than reading as a
-                  label above a grid. The count states how many subjects without the reader
-                  tallying cards - the same set the switcher inside a class moves between. */}
-              {/* Sized ABOVE the cards it owns. Each card is bold white on a saturated
-                  banner, so a heading at body weight loses to its own children and the page
-                  reads as a wall of subjects that happen to be near a name - when the reader
-                  is looking for a person first, then which of their subjects. */}
-              <div className="mb-3 flex items-center gap-3 border-b border-slate-200 pb-2">
-                {/* The person carries the weight the cards used to: an initial in the brand
-                    tint, the name at heading size. What is one student with two subjects
-                    should look like one thing, not two things near a caption. */}
-                <span
-                  aria-hidden="true"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary ring-1 ring-primary/20"
-                >
-                  {g.label.slice(0, 1).toUpperCase()}
-                </span>
-                <h2 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{g.label}</h2>
-                <span className="text-meta font-medium text-slate-500">
-                  {g.classes.length} {g.classes.length === 1 ? 'subject' : 'subjects'}
-                </span>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {g.classes.map((c) => (
-                  <ClassCard
-                    key={c.id}
-                    c={c}
-                    viewerIsStudent={false}
-                    viewerIsTutor={isTeacher}
-                    grouped
-                    subjectName={subjectByClass.get(c.id)}
-                    tags={tagsByClass.get(c.id) ?? []}
-                  />
-                ))}
-              </div>
+              {/* A page of STUDENTS, each opening onto the subjects they take.
+                  <details> rather than a client component: this is disclosure, not state
+                  worth hydrating for, and the native element brings its own keyboard and
+                  screen-reader behaviour.
+
+                  Open when a filter is ACTIVE. A reader who narrowed to a subject or typed a
+                  name asked a question whose answer is inside these groups, and making them
+                  open each one to read it is the page ignoring what they just said. */}
+              <details open={hasActiveFilters} className={cx(CARD, 'group/disclosure overflow-hidden')}>
+                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
+                  <span
+                    aria-hidden="true"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary ring-1 ring-primary/20"
+                  >
+                    {g.label.slice(0, 1).toUpperCase()}
+                  </span>
+                  <h2 className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+                    {g.label}
+                  </h2>
+                  <span className="shrink-0 text-meta font-medium text-slate-500">
+                    {g.classes.length} {g.classes.length === 1 ? 'subject' : 'subjects'}
+                  </span>
+                  {/* Anything ACTIONABLE inside has to show on the closed row, or collapsing
+                      the group hides it: a subject-less class records sessions no filter can
+                      reach, and it is found by scanning this list. A count nobody can act on
+                      from here would be noise; this one is the reason to open the group. */}
+                  {g.classes.some((c) => !c.subject_id) && (
+                    <span className="shrink-0 rounded-full bg-warning-tint px-2 py-0.5 text-meta font-semibold text-warning-ink">
+                      No subject set
+                    </span>
+                  )}
+                  {/* Rotates with the disclosure, so the control says which way it goes. */}
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open/disclosure:rotate-90"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </summary>
+                <div className="grid gap-4 border-t border-slate-200 bg-slate-50/50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {g.classes.map((c) => (
+                    <ClassCard
+                      key={c.id}
+                      c={c}
+                      viewerIsStudent={false}
+                      viewerIsTutor={isTeacher}
+                      grouped
+                      subjectName={subjectByClass.get(c.id)}
+                      tags={tagsByClass.get(c.id) ?? []}
+                    />
+                  ))}
+                </div>
+              </details>
             </section>
           ))}
         </div>

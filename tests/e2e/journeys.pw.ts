@@ -27,8 +27,10 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   await page.locator('form:has(button:has-text("Add subject")) select[name=tutor_id]').selectOption(SEED.tutor)
   await submitAndReload(page, () => page.getByRole('button', { name: 'Add subject' }).click())
 
-  // Open the new class from the list (named "Sara Student - Physics").
+  // Open the new class from the list. The list is a page of STUDENTS now, each opening onto
+  // the subjects they take, so the subject link lives inside Sara's group.
   await page.goto('/classroom')
+  await page.getByRole('group').filter({ hasText: 'Sara Student' }).first().locator('summary').click()
   await page
     .getByRole('link', { name: /Physics/ })
     .first()
@@ -215,10 +217,11 @@ test('ADMIN -- finds a class with no subject, names it, and labels its history',
   // useless without the fix and the fix is unreachable without the flag.
   await loginAs(page, 'admin@mock.test', { clearCookies: true })
 
-  // FOUND: the class list is where you learn which classes need this. Without the flag it
-  // means opening students one at a time and guessing.
+  // FOUND: the class list is where you learn which classes need this - and it has to be
+  // legible WITHOUT opening anything, or the disclosure just moves the guessing inside.
   await page.goto('/classroom')
-  await expect(page.getByText('No subject set').first()).toBeVisible()
+  const collapsedRow = page.locator('summary').filter({ hasText: 'Sara Student' }).first()
+  await expect(collapsedRow.getByText('No subject set')).toBeVisible()
 
   // FIXED: the repair lives with the student's subjects, because a subject IS one of their
   // classes.
