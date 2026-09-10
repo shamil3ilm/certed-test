@@ -125,7 +125,7 @@ export function MeetCard({
               onClick={handleDelete}
               disabled={isDeleting}
               aria-label={`Remove meeting link ${link.title}`}
-              className="grid h-8 w-8 place-items-center rounded-lg text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              className="grid h-8 w-8 place-items-center rounded-lg text-slate-600 transition-colors hover:bg-danger-surface hover:text-danger-ink disabled:opacity-50"
               title="Delete link"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

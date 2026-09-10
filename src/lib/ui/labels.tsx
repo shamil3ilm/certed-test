@@ -121,9 +121,9 @@ export function Badge({
   const tones: Record<string, string> = {
     slate: 'bg-slate-100 text-slate-600',
     primary: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-100 text-emerald-700',
-    warning: 'bg-amber-100 text-amber-700',
-    danger: 'bg-red-100 text-red-700',
+    success: 'bg-success-tint text-success-ink',
+    warning: 'bg-warning-tint text-warning-ink',
+    danger: 'bg-danger-tint text-danger-ink',
   }
   return (
     <span

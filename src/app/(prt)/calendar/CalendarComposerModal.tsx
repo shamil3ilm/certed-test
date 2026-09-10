@@ -101,7 +101,7 @@ export function CalendarComposerModal({
 
   return (
     <Modal open onClose={onClose} title={`Add to ${date}`}>
-      {loadError && <p className="mt-2 text-sm text-red-600">{loadError}</p>}
+      {loadError && <p className="mt-2 text-sm text-danger-ink">{loadError}</p>}
 
       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
         <p className="font-medium text-slate-600">On this day</p>

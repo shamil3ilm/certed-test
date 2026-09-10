@@ -63,7 +63,7 @@ export function ProfileMenu({ name, email, roleLabel }: { name: string; email: s
             </svg>
             Profile &amp; settings
           </Link>
-          <LogoutForm className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 transition hover:bg-red-50">
+          <LogoutForm className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-danger-ink transition hover:bg-danger-surface">
             <svg
               className="h-4 w-4"
               viewBox="0 0 24 24"

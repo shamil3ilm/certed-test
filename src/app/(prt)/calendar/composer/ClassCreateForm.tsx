@@ -93,7 +93,7 @@ export function ClassCreateForm({
 
   return (
     <form onSubmit={submit} className="mt-4 grid gap-3 sm:grid-cols-2">
-      {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+      {error && <p className="text-sm text-danger-ink sm:col-span-2">{error}</p>}
 
       <div className="inline-flex rounded-lg border border-slate-200 p-0.5 sm:col-span-2" role="tablist">
         {[

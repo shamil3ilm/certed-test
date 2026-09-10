@@ -15,6 +15,7 @@ import {
   selectActiveTutorPairsByClassIds,
 } from '@/lib/data/class-membership'
 import { getProfileNamesByIds } from '@/lib/services/users'
+import { selectSubjectsByIds } from '@/lib/data/subjects'
 import type { Tag } from '@/lib/services/tags'
 
 /**
@@ -67,6 +68,9 @@ export type ClassroomPageData = {
   unassignedTruncated: boolean
   groupByStudentView: boolean
   tagsByClass: Map<string, Tag[]>
+  /** class id -> SUBJECT name, for classes that name one. Absent means no subject is set,
+   *  and the card falls back to its own name (C12 stays "C12"). */
+  subjectByClass: Map<string, string>
   /** Students matching the filters (staff view) - what the pager counts. */
   total: number
   totalPages: number
@@ -121,6 +125,31 @@ async function scopeStudentIds(me: Profile, isAcademyWide: boolean): Promise<str
   return [...new Set(await selectActiveStudentIdsByClassIds(await myClassIds(me)))]
 }
 
+/**
+ * class id -> subject NAME for the classes being rendered.
+ *
+ * Under a student heading the card names the SUBJECT: the class name is `student - subject`
+ * by construction, so printing it whole repeats the student the heading has already named
+ * and pushes the one part that differs between the cards onto a second line.
+ *
+ * Resolved rather than sliced off the front of the name, because C12 does not follow that
+ * convention and string surgery on it would produce nonsense. A class naming no subject is
+ * simply absent from the map, so its card keeps its own name.
+ *
+ * Bounded by the page: only the classes already being rendered go in.
+ */
+async function subjectNameByClassId(classes: ClassSummary[]): Promise<Map<string, string>> {
+  const subjectIds = [...new Set(classes.map((c) => c.subject_id).filter((id): id is string => id != null))]
+  if (subjectIds.length === 0) return new Map()
+  const byId = new Map((await selectSubjectsByIds(subjectIds)).map((row) => [row.id, row.name]))
+  return new Map(
+    classes.flatMap((c) => {
+      const name = c.subject_id ? byId.get(c.subject_id) : undefined
+      return name ? [[c.id, name] as [string, string]] : []
+    }),
+  )
+}
+
 export async function loadClassroomPageData(
   me: Profile,
   searchParams?: ClassroomSearchParams,
@@ -167,6 +196,9 @@ export async function loadClassroomPageData(
             ownClasses.map((c) => c.id),
           )
         : new Map(),
+      // A student's own list is all their own subjects, so the student is implied by context
+      // here too and the cards name the subject rather than repeating it.
+      subjectByClass: await subjectNameByClassId(ownClasses),
       total: ownClasses.length,
       totalPages: 1,
       flags,
@@ -222,6 +254,9 @@ export async function loadClassroomPageData(
           ...unassigned.items.map((c) => c.id),
         ])
       : new Map(),
+    // Grouped cards only: the unassigned section has no student heading above it, so those
+    // classes keep their full name rather than reducing to a bare subject that names nobody.
+    subjectByClass: await subjectNameByClassId(groups.flatMap((g) => g.classes)),
     total: roster.total,
     totalPages: totalPages(roster.total, CLASSES_PAGE_SIZE),
     flags,

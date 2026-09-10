@@ -59,7 +59,7 @@ export async function loginAs(page: Page, persona: Persona): Promise<void> {
   // failure rather than a bare navigation timeout.
   await page.waitForURL(/\/dashboard/, { timeout: 45_000 }).catch(async () => {
     const banner = await page
-      .locator('[role="alert"], .text-red-600, [data-error]')
+      .locator('[role="alert"], .text-danger-ink, [data-error]')
       .first()
       .textContent()
       .catch(() => null)

@@ -47,7 +47,7 @@ test('LOGIN-EDGE: credentials entered before hydration are still submitted', asy
     .catch(() => false)
 
   const banner = await page
-    .locator('[role="alert"], .text-red-600')
+    .locator('[role="alert"], .text-danger-ink')
     .first()
     .textContent()
     .catch(() => null)

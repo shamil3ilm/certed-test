@@ -40,7 +40,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
         <p
           className={cx(
             'rounded-lg px-3 py-2 text-sm',
-            note.tone === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
+            note.tone === 'ok' ? 'bg-success-surface text-success-ink' : 'bg-danger-surface text-danger-ink',
           )}
         >
           {note.text}
@@ -100,9 +100,9 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
 
       {/* Currencies awaiting a rate */}
       {data.needingRate.length > 0 && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <h2 className="text-sm font-semibold text-amber-800">Currencies awaiting a rate</h2>
-          <p className="mt-1 text-sm text-amber-700">
+        <section className="rounded-2xl border border-warning-border bg-warning-surface p-4">
+          <h2 className="text-sm font-semibold text-warning-ink">Currencies awaiting a rate</h2>
+          <p className="mt-1 text-sm text-warning-ink">
             Documents in {data.needingRate.join(', ')} are not yet converted to {data.baseCurrency}. Add a rate below,
             effective on or before their issue date.
           </p>
@@ -184,7 +184,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
                           rate and effective date. */}
                       <button
                         type="button"
-                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                        className="text-xs font-medium text-danger-ink hover:underline disabled:opacity-50"
                         disabled={pending}
                         onClick={async () => {
                           const ok = await confirm({

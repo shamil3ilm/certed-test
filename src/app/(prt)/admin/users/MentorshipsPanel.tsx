@@ -78,7 +78,7 @@ export function MentorshipsPanel({
                     <form action={removeMentorAction} className="inline-flex">
                       <input type="hidden" name="id" value={l.id} />
                       <ConfirmSubmit
-                        className="grid h-6 w-6 -my-1 place-items-center rounded-full text-red-500 hover:bg-red-50 hover:text-red-700"
+                        className="grid h-6 w-6 -my-1 place-items-center rounded-full text-danger-ink hover:bg-danger-surface hover:text-danger-ink"
                         title="Remove mentor?"
                         message={`${data.mentorNames.get(l.mentor_id) ?? 'This mentor'} will lose access to this student.`}
                         confirmLabel="Remove"

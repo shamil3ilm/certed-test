@@ -36,28 +36,28 @@ function MdxAnchor({ href = '', children, ...rest }: ComponentPropsWithoutRef<'a
 
 const components: MDXComponents = {
   h2: (props) => <h2 className="text-3xl font-bold mt-10 mb-6 text-primary" {...props} />,
-  h3: (props) => <h3 className="text-2xl font-semibold mt-8 mb-4 text-gray-900" {...props} />,
-  h4: (props) => <h4 className="text-xl font-semibold mt-6 mb-3 text-gray-900" {...props} />,
-  p: (props) => <p className="text-gray-700 leading-relaxed my-4" {...props} />,
-  ul: (props) => <ul className="list-disc pl-6 space-y-2 my-4 marker:text-primary text-gray-700" {...props} />,
-  ol: (props) => <ol className="list-decimal pl-6 space-y-2 my-4 marker:text-primary text-gray-700" {...props} />,
+  h3: (props) => <h3 className="text-2xl font-semibold mt-8 mb-4 text-slate-900" {...props} />,
+  h4: (props) => <h4 className="text-xl font-semibold mt-6 mb-3 text-slate-900" {...props} />,
+  p: (props) => <p className="text-slate-700 leading-relaxed my-4" {...props} />,
+  ul: (props) => <ul className="list-disc pl-6 space-y-2 my-4 marker:text-primary text-slate-700" {...props} />,
+  ol: (props) => <ol className="list-decimal pl-6 space-y-2 my-4 marker:text-primary text-slate-700" {...props} />,
   li: (props) => <li className="leading-relaxed" {...props} />,
   a: MdxAnchor,
-  strong: (props) => <strong className="font-semibold text-gray-900" {...props} />,
+  strong: (props) => <strong className="font-semibold text-slate-900" {...props} />,
   em: (props) => <em className="italic" {...props} />,
-  hr: () => <hr className="my-10 border-gray-200" />,
+  hr: () => <hr className="my-10 border-slate-200" />,
   blockquote: (props) => (
-    <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-6" {...props} />
+    <blockquote className="border-l-4 border-slate-300 pl-4 italic text-slate-600 my-6" {...props} />
   ),
   table: (props) => (
     <div className="overflow-x-auto my-6">
-      <table className="min-w-full border-collapse border border-gray-200 bg-white" {...props} />
+      <table className="min-w-full border-collapse border border-slate-200 bg-white" {...props} />
     </div>
   ),
   th: (props) => (
-    <th className="border border-gray-200 px-6 py-3 text-left font-bold text-gray-900 bg-gray-50" {...props} />
+    <th className="border border-slate-200 px-6 py-3 text-left font-bold text-slate-900 bg-slate-50" {...props} />
   ),
-  td: (props) => <td className="border border-gray-200 px-6 py-4 text-gray-700" {...props} />,
+  td: (props) => <td className="border border-slate-200 px-6 py-4 text-slate-700" {...props} />,
   Callout,
   Lead,
 }

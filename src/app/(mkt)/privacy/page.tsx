@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h2 className="mb-3 text-2xl font-bold text-gray-900">{title}</h2>
-      <div className="space-y-3 text-gray-700 leading-relaxed">{children}</div>
+      <h2 className="mb-3 text-2xl font-bold text-slate-900">{title}</h2>
+      <div className="space-y-3 text-slate-700 leading-relaxed">{children}</div>
     </section>
   )
 }
@@ -27,16 +27,16 @@ export default function PrivacyPolicy() {
       <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <div
           role="note"
-          className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          className="mb-8 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning-ink"
         >
           <strong>Draft: pending legal review.</strong> This policy is being finalised with legal counsel and is not yet
           in force.
         </div>
 
-        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-gray-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Privacy Policy</h1>
+        <p className="mt-2 text-sm text-slate-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
-        <p className="mt-6 text-gray-700 leading-relaxed">
+        <p className="mt-6 text-slate-700 leading-relaxed">
           Cert-Ed Academia (&ldquo;we&rdquo;, &ldquo;us&rdquo;), operated by <strong>[legal entity name]</strong>,
           provides an online tuition platform. This policy explains what personal data we handle and your rights under
           India&rsquo;s Digital Personal Data Protection Act, 2023, and, where applicable, the data-protection laws of
@@ -141,7 +141,7 @@ export default function PrivacyPolicy() {
           <p>We will post updates here and, for material changes, ask you to re-accept.</p>
         </Section>
 
-        <p className="mt-10 text-sm text-gray-600">
+        <p className="mt-10 text-sm text-slate-600">
           See also our{' '}
           <Link href="/terms" className="text-primary underline hover:no-underline">
             Terms of Use

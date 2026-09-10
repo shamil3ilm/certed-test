@@ -45,13 +45,17 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </Link>
           </div>
 
-          <header className="mb-12 border-b border-gray-100 pb-8">
+          <header className="mb-12 border-b border-slate-100 pb-8">
             <div className="flex items-center text-sm text-secondary-ink font-semibold uppercase tracking-wide mb-4">
               <span>{post.category}</span>
-              <span className="mx-2 text-gray-300">•</span>
-              <span className="text-gray-600">{post.date}</span>
+              {/* aria-hidden: a separator between meta items, not something to announce.
+                  slate-400 rather than 300 so it is actually visible as one. */}
+              <span aria-hidden="true" className="mx-2 text-slate-400">
+                •
+              </span>
+              <span className="text-slate-600">{post.date}</span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">{post.heading}</h1>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-tight">{post.heading}</h1>
           </header>
 
           <article className="max-w-none">

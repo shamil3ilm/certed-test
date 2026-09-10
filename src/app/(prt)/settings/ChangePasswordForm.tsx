@@ -48,7 +48,7 @@ export function ChangePasswordForm({ action, helpText }: { action: (formData: Fo
         />
       </Field>
       {mismatch && (
-        <p role="alert" className="text-xs text-red-600 sm:col-span-2">
+        <p role="alert" className="text-xs text-danger-ink sm:col-span-2">
           Passwords do not match.
         </p>
       )}

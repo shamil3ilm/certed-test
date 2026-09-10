@@ -41,6 +41,10 @@ const HEX: Record<string, string> = {
   'indigo-600': '#4f46e5',
 }
 
+/** The design system's own colours (globals.css `:root`). The palette may use nothing else;
+ *  HEX above stays wider so the contrast maths still works if one is ever proposed. */
+const BRAND_TOKENS = new Set(['primary', 'primary-strong', 'secondary', 'secondary-ink'])
+
 function relativeLuminance(hex: string): number {
   const channels = [1, 3, 5]
     .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -78,6 +82,21 @@ describe('class banner gradients', () => {
     // Guards the scanner: a regex that matched nothing would make every assertion below
     // vacuously true.
     expect(banners().length).toBeGreaterThan(1)
+  })
+
+  it('uses BRAND tokens only - no borrowed Tailwind hues', () => {
+    // A class card is a large, repeated block of colour. A borrowed indigo/violet/rose puts
+    // a hue on screen that appears nowhere else in the product, so the cards stop reading as
+    // this brand - which is a design decision, not a contrast one, and nothing else checks it.
+    const offBrand = banners()
+      .flatMap((b) => [fromColour(b), toColour(b)])
+      .filter((c) => !BRAND_TOKENS.has(c))
+    expect(
+      [...new Set(offBrand)],
+      'Class banners may only use the brand tokens defined in globals.css ' +
+        `(${[...BRAND_TOKENS].join(', ')}). Re-brand by editing :root, not by reaching for a ` +
+        'Tailwind palette colour here.',
+    ).toEqual([])
   })
 
   it('every colour used is one this gate knows the hex for', () => {

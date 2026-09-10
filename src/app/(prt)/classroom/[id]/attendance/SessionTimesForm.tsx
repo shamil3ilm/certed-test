@@ -132,7 +132,7 @@ export function SessionTimesForm({
             rows={3}
             maxLength={2000}
             placeholder="For staff eyes only - concerns, follow-ups, context the student should not see."
-            className="mt-1 block w-full rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1.5 text-sm"
+            className="mt-1 block w-full rounded-lg border border-warning-border bg-warning-surface/40 px-2 py-1.5 text-sm"
           />
         </label>
       )}

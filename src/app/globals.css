@@ -13,6 +13,29 @@
      Use `secondary` for decorative fills/tints/icons, `secondary-ink` for text and
      solid buttons. Do not swap them back; tests/e2e/a11y.pw.ts enforces contrast. */
   --secondary-ink: #15719b;
+
+  /* Status colours. Four roles each, because that is how a status is actually drawn:
+     a tinted panel, a stronger tint for a chip, a border, and the text on top.
+
+     The INK is the 700 step in every family, chosen by measurement rather than taste: the
+     600 step fails 4.5:1 against its own -100 tint (red 3.95, emerald 3.32, amber 2.86) and
+     amber-600 fails even on white at 3.19:1. Since a status chip is precisely ink-on-tint,
+     600 could never be the ink here. One ink per status also settles the drift that had
+     text-red-500/600/700/800 all meaning "danger" in different places. */
+  --success-surface: #ecfdf5;
+  --success-tint: #d1fae5;
+  --success-border: #a7f3d0;
+  --success-ink: #047857;
+
+  --warning-surface: #fffbeb;
+  --warning-tint: #fef3c7;
+  --warning-border: #fde68a;
+  --warning-ink: #b45309;
+
+  --danger-surface: #fef2f2;
+  --danger-tint: #fee2e2;
+  --danger-border: #fecaca;
+  --danger-ink: #b91c1c;
 }
 
 @theme inline {
@@ -22,6 +45,18 @@
   --color-primary-strong: var(--primary-strong);
   --color-secondary: var(--secondary);
   --color-secondary-ink: var(--secondary-ink);
+  --color-success-surface: var(--success-surface);
+  --color-success-tint: var(--success-tint);
+  --color-success-border: var(--success-border);
+  --color-success-ink: var(--success-ink);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-tint: var(--warning-tint);
+  --color-warning-border: var(--warning-border);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-tint: var(--danger-tint);
+  --color-danger-border: var(--danger-border);
+  --color-danger-ink: var(--danger-ink);
   --font-sans: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
   /* Temporary: use Louis George Cafe (brand sans) everywhere, including headings.
      Restore Dagger Square by putting var(--font-brand-display) first again. */

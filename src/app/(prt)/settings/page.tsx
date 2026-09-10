@@ -155,7 +155,7 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
             <p className="text-sm text-slate-600">We have no record of your policy acceptance yet.</p>
           )}
           {data.consent.withdrawnAt && (
-            <p className="mt-2 text-sm text-amber-700">
+            <p className="mt-2 text-sm text-warning-ink">
               You withdrew this consent on <LocalTime iso={data.consent.withdrawnAt} mode="date" />. Your acceptance
               stays on record as history; accepting again below restores it.
             </p>

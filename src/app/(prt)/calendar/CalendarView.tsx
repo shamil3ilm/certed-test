@@ -169,7 +169,7 @@ export function CalendarView({
         onQuickAdd={openComposer}
       />
 
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-danger-ink">{error}</p>}
 
       <div className={cx(CARD, 'p-2 sm:p-3')}>
         {!deviceTz ? (

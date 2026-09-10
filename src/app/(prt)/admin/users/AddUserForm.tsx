@@ -115,7 +115,7 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
         <div
           role="status"
           aria-live="polite"
-          className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800"
+          className="mt-3 rounded-lg border border-success-border bg-success-surface px-3 py-3 text-sm text-success-ink"
         >
           <p className="font-medium">Added {state.email}.</p>
           <p className="mt-1">
@@ -123,11 +123,11 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
             <code className="rounded bg-white px-1 py-0.5">/register</code> - or they can just sign in with Google.
           </p>
           <p className="mt-2 text-center">
-            <code className="rounded bg-white px-3 py-1 text-lg font-bold tracking-widest text-emerald-900 ring-1 ring-emerald-200">
+            <code className="rounded bg-white px-3 py-1 text-lg font-bold tracking-widest text-success-ink ring-1 ring-success-border">
               {state.code}
             </code>
           </p>
-          <p className="mt-1 text-xs text-emerald-700">Valid 7 days - shown once.</p>
+          <p className="mt-1 text-xs text-success-ink">Valid 7 days - shown once.</p>
         </div>
       )}
       <p className="mt-3 text-xs text-slate-600">

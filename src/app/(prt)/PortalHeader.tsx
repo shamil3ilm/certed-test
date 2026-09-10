@@ -18,7 +18,7 @@ export async function PortalHeader() {
   const unread = await countUnreadNotifications(profile.id)
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/80 backdrop-blur-md">
       <div className="mx-auto max-w-6xl px-4">
         {/* Row 1: logo + account (hamburger drawer on small screens). */}
         <div className="flex h-16 items-center justify-between gap-3 md:h-20">

@@ -172,7 +172,7 @@ export function DashboardCharts({ series, title = 'Charts' }: { series: ChartSer
         ) : (
           <MiniBars data={chartData} format={format} />
         )}
-        {chartNote && <p className="mt-2 text-xs text-amber-600">{chartNote}</p>}
+        {chartNote && <p className="mt-2 text-xs text-warning-ink">{chartNote}</p>}
       </div>
     </Panel>
   )

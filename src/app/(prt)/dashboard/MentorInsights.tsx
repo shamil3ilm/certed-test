@@ -92,7 +92,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
                 <li key={mentee.id}>
                   <Link href={menteeHref(mentee.id)} className={rowLink}>
                     <span className="min-w-0 truncate text-sm font-medium text-slate-700">{mentee.name}</span>
-                    <span className="shrink-0 text-xs font-medium text-red-600">{mentee.reasons.join(' - ')}</span>
+                    <span className="shrink-0 text-xs font-medium text-danger-ink">{mentee.reasons.join(' - ')}</span>
                   </Link>
                 </li>
               ))}
@@ -137,7 +137,7 @@ export async function MentorInsights({ me }: { me: Profile }) {
                       <span className="text-slate-600"> - {row.assignmentTitle}</span>
                     </span>
                     <span
-                      className={`shrink-0 text-xs font-semibold ${row.overdue ? 'text-red-600' : 'text-slate-600'}`}
+                      className={`shrink-0 text-xs font-semibold ${row.overdue ? 'text-danger-ink' : 'text-slate-600'}`}
                     >
                       {row.overdue ? 'overdue - ' : 'due '}
                       <LocalTime iso={row.dueDate} mode="date" />

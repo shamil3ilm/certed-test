@@ -57,7 +57,7 @@ export default async function ThreadPage(props: {
             <form action={leaveConversationAction} className="shrink-0 pt-1">
               <input type="hidden" name="conversation_id" value={params.id} />
               <ConfirmSubmit
-                className="btn btn-sm btn-ghost text-red-600"
+                className="btn btn-sm btn-ghost text-danger-ink"
                 title="Leave conversation?"
                 message="It disappears from your inbox and you can no longer read or reply. Others keep the thread."
                 confirmLabel="Leave"

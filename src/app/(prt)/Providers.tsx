@@ -90,9 +90,9 @@ export function PortalProviders({ children }: { children: ReactNode }) {
               key={t.id}
               className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg ${
                 t.type === 'success'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  ? 'border-success-border bg-success-surface text-success-ink'
                   : t.type === 'error'
-                    ? 'border-red-200 bg-red-50 text-red-800'
+                    ? 'border-danger-border bg-danger-surface text-danger-ink'
                     : 'border-slate-200 bg-white text-slate-700'
               }`}
             >

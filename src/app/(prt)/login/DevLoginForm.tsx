@@ -6,7 +6,7 @@ export function DevLoginForm({ error }: { error?: boolean }) {
   return (
     <form action="/api/dev/login" method="post" className="space-y-4">
       {error && (
-        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm font-medium text-red-600 border border-red-100">
+        <p className="rounded-xl bg-danger-surface px-3.5 py-2.5 text-sm font-medium text-danger-ink border border-danger-border">
           Incorrect email or password.
         </p>
       )}

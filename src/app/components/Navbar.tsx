@@ -21,7 +21,7 @@ const Navbar = () => {
   const isActive = (path: string) => pathname === path
 
   return (
-    <nav className="w-full bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-gray-100 transition-all duration-300">
+    <nav className="w-full bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-slate-100 transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           <div className="flex-shrink-0 flex items-center">
@@ -46,7 +46,7 @@ const Navbar = () => {
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border ${
                   isActive(link.href)
                     ? 'bg-primary text-white border-primary shadow-sm hover:bg-primary/90 hover:shadow-md'
-                    : 'text-gray-700 hover:bg-primary/5 hover:text-primary border-transparent hover:border-primary/20'
+                    : 'text-slate-700 hover:bg-primary/5 hover:text-primary border-transparent hover:border-primary/20'
                 }`}
               >
                 {link.name}
@@ -62,7 +62,7 @@ const Navbar = () => {
               aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
               aria-expanded={isOpen}
               aria-controls="marketing-mobile-menu"
-              className="rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="rounded-md p-2 text-slate-700 hover:bg-slate-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -73,7 +73,7 @@ const Navbar = () => {
       {/* Mobile Menu */}
       <div
         id="marketing-mobile-menu"
-        className={`md:hidden bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-lg absolute left-0 top-full w-full overflow-hidden transition-all duration-300 ease-in-out ${
+        className={`md:hidden bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-lg absolute left-0 top-full w-full overflow-hidden transition-all duration-300 ease-in-out ${
           isOpen ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
@@ -86,7 +86,7 @@ const Navbar = () => {
               className={`block px-4 py-3 rounded-lg text-base font-medium border transition-all duration-200 ${
                 isActive(link.href)
                   ? 'bg-primary text-white border-primary hover:bg-primary/90 hover:shadow-md'
-                  : 'text-gray-700 hover:bg-primary/5 hover:text-primary border-transparent'
+                  : 'text-slate-700 hover:bg-primary/5 hover:text-primary border-transparent'
               }`}
             >
               {link.name}

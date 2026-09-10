@@ -147,7 +147,7 @@ export async function AssignmentCard({
                 </div>
               )}
               {submission.score != null && (
-                <p className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-800">
+                <p className="mt-2 rounded-lg bg-success-surface px-2.5 py-1.5 text-success-ink">
                   <span className="font-semibold">
                     Marked:{' '}
                     {formatMark(
@@ -156,7 +156,7 @@ export async function AssignmentCard({
                     )}
                   </span>
                   {submission.feedback && (
-                    <span className="mt-0.5 block text-emerald-700">&quot;{submission.feedback}&quot;</span>
+                    <span className="mt-0.5 block text-success-ink">&quot;{submission.feedback}&quot;</span>
                   )}
                 </p>
               )}

@@ -86,7 +86,9 @@ export function ResultGradeForm({
         {busy ? 'Saving...' : 'Save mark'}
       </button>
       {maxMarks == null && (
-        <p className="w-full text-xs text-amber-600">No max marks set - edit the assignment to grade out of a total.</p>
+        <p className="w-full text-xs text-warning-ink">
+          No max marks set - edit the assignment to grade out of a total.
+        </p>
       )}
     </form>
   )

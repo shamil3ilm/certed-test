@@ -73,16 +73,16 @@ export default function Contact() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-slate-50">
       <SectionWrapper>
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Get in Touch</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">Get in Touch</h1>
+          <p className="text-xl text-slate-600 max-w-2xl mx-auto">
             Have questions about our curriculum or pricing? We are here to help you.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
           {/* Contact Information & Map */}
           <div className="bg-primary text-white p-8 md:p-12 flex flex-col justify-between">
             <div>
@@ -92,7 +92,7 @@ export default function Contact() {
                   <Mail className="w-6 h-6 mr-4 mt-1 opacity-80" />
                   <div>
                     <h3 className="font-semibold text-lg">Email</h3>
-                    <a href="mailto:info@certedacademia.com" className="text-blue-100 hover:underline">
+                    <a href="mailto:info@certedacademia.com" className="text-white hover:underline">
                       info@certedacademia.com
                     </a>
                   </div>
@@ -101,10 +101,10 @@ export default function Contact() {
                   <Phone className="w-6 h-6 mr-4 mt-1 opacity-80" />
                   <div>
                     <h3 className="font-semibold text-lg">Phone</h3>
-                    <a href="tel:+917025237833" className="block text-blue-100 hover:underline">
+                    <a href="tel:+917025237833" className="block text-white hover:underline">
                       +91 7025 237 833
                     </a>
-                    <a href="tel:+971568900796" className="block text-blue-100 hover:underline">
+                    <a href="tel:+971568900796" className="block text-white hover:underline">
                       +971 56 890 0796
                     </a>
                   </div>
@@ -125,8 +125,8 @@ export default function Contact() {
 
           {/* Contact Form */}
           <div className="p-8 md:p-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a Message</h2>
-            <p className="mb-6 text-sm leading-relaxed text-gray-600">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Send us a Message</h2>
+            <p className="mb-6 text-sm leading-relaxed text-slate-600">
               We use your details only to respond to your enquiry. Please don&rsquo;t include sensitive personal
               information in your message. See our{' '}
               <Link href="/privacy" className="text-primary underline hover:no-underline">
@@ -138,7 +138,7 @@ export default function Contact() {
               <div
                 role="status"
                 aria-live="polite"
-                className="bg-green-50 border border-green-200 text-green-700 px-4 py-8 rounded-lg text-center"
+                className="bg-success-surface border border-success-border text-success-ink px-4 py-8 rounded-lg text-center"
               >
                 <h3 className="text-xl font-bold mb-2">Message Sent!</h3>
                 <p>Thank you for contacting us. We will get back to you within 24 hours.</p>
@@ -151,7 +151,7 @@ export default function Contact() {
                     }
                     setStatus('idle')
                   }}
-                  className="mt-4 text-green-700 underline font-medium hover:text-green-800"
+                  className="mt-4 text-success-ink underline font-medium hover:text-success-ink"
                 >
                   Send another message
                 </button>
@@ -161,7 +161,7 @@ export default function Contact() {
                 {status === 'error' && (
                   <div
                     role="alert"
-                    className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
+                    className="bg-danger-surface border border-danger-border text-danger-ink px-4 py-3 rounded-lg text-sm"
                   >
                     {errorMessage}
                   </div>
@@ -178,7 +178,7 @@ export default function Contact() {
                   className="absolute left-[-9999px] h-0 w-0 opacity-0"
                 />
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
                     Full Name
                   </label>
                   <input
@@ -188,23 +188,23 @@ export default function Contact() {
                     onChange={handleChange}
                     required
                     disabled={status === 'loading'}
-                    className="w-full px-4 py-4 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     placeholder="John Doe"
                   />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-1">
                     Phone Number
                   </label>
-                  <div className="flex bg-white rounded-lg border border-gray-300 focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all overflow-hidden">
-                    <div className="flex items-center pl-2 pr-1 border-r border-gray-200 bg-gray-50 flex-shrink-0">
+                  <div className="flex bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all overflow-hidden">
+                    <div className="flex items-center pl-2 pr-1 border-r border-slate-200 bg-slate-50 flex-shrink-0">
                       <select
                         id="countryCode"
                         aria-label="Country dialing code"
                         value={formData.countryCode}
                         onChange={handleChange}
                         disabled={status === 'loading'}
-                        className="bg-transparent border-none outline-none text-gray-700 text-base focus:ring-0 cursor-pointer disabled:cursor-not-allowed font-medium w-20 px-1"
+                        className="bg-transparent border-none outline-none text-slate-700 text-base focus:ring-0 cursor-pointer disabled:cursor-not-allowed font-medium w-20 px-1"
                       >
                         <option value="+91">+91</option>
                         <option value="+971">+971</option>
@@ -224,13 +224,13 @@ export default function Contact() {
                       value={formData.phone}
                       onChange={handleChange}
                       disabled={status === 'loading'}
-                      className="w-full px-4 py-4 bg-transparent border-none outline-none placeholder-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full px-4 py-4 bg-transparent border-none outline-none placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                       placeholder="9876543210"
                     />
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
                     Email Address
                   </label>
                   <input
@@ -240,12 +240,12 @@ export default function Contact() {
                     onChange={handleChange}
                     required
                     disabled={status === 'loading'}
-                    className="w-full px-4 py-4 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                     placeholder="john@example.com"
                   />
                 </div>
                 <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="message" className="block text-sm font-medium text-slate-700 mb-1">
                     Your Message
                   </label>
                   <textarea
@@ -255,7 +255,7 @@ export default function Contact() {
                     rows={6}
                     required
                     disabled={status === 'loading'}
-                    className="w-full px-4 py-4 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder-gray-400 resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder-slate-400 resize-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                     placeholder="Maths Class 10 Admission enquiry"
                   ></textarea>
                 </div>

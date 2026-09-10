@@ -100,7 +100,7 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
         <p className="mt-0.5 text-xs text-slate-600">Upload a file the academy keeps, and categorise it.</p>
       </div>
 
-      {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+      {error && <div className="rounded-xl bg-danger-surface p-3 text-sm text-danger-ink">{error}</div>}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {!single && (
@@ -206,12 +206,12 @@ export function UploadForm({ classes }: { classes: ClassRow[] }) {
             disabled={isPending}
           />
           {linkCheck === 'folder' && (
-            <p className="text-amber-600">
+            <p className="text-warning-ink">
               That looks like a Drive <span className="font-medium">folder</span> link - link the specific file instead.
             </p>
           )}
           {linkCheck === 'not-drive' && (
-            <p className="text-amber-600">
+            <p className="text-warning-ink">
               Not a Drive link - fine for Docs/YouTube/a website. Make sure it opens for students who aren&apos;t signed
               in as you.
             </p>

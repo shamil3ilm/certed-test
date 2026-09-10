@@ -152,7 +152,7 @@ export function IssueLineItems({
               type="button"
               onClick={() => onRemoveLine(index)}
               aria-label={`Remove line ${index + 1}`}
-              className="min-h-11 min-w-11 rounded-md px-3 text-slate-600 transition hover:bg-red-50 hover:text-red-600"
+              className="min-h-11 min-w-11 rounded-md px-3 text-slate-600 transition hover:bg-danger-surface hover:text-danger-ink"
             >
               Remove
             </button>

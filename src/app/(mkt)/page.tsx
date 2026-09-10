@@ -18,10 +18,10 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <section className="relative overflow-hidden bg-white px-4 py-8 text-slate-900 md:py-12">
-        <div className="pointer-events-none absolute left-0 top-0 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-100/50 blur-3xl" />
-        <div className="pointer-events-none absolute right-0 top-0 h-[500px] w-[500px] translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-100/50 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 left-0 h-[500px] w-[500px] -translate-x-1/2 translate-y-1/3 rounded-full bg-blue-100/50 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-0 h-[500px] w-[500px] translate-x-1/3 translate-y-1/3 rounded-full bg-blue-100/50 blur-3xl" />
+        <div className="pointer-events-none absolute left-0 top-0 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-secondary/20 blur-3xl" />
+        <div className="pointer-events-none absolute right-0 top-0 h-[500px] w-[500px] translate-x-1/3 -translate-y-1/2 rounded-full bg-secondary/20 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-0 h-[500px] w-[500px] -translate-x-1/2 translate-y-1/3 rounded-full bg-secondary/20 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-0 h-[500px] w-[500px] translate-x-1/3 translate-y-1/3 rounded-full bg-secondary/20 blur-3xl" />
 
         <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-center gap-8 md:flex-row md:gap-16">
           <div className="flex-1 text-center md:text-left">
@@ -61,10 +61,10 @@ export default function Home() {
 
       <SectionWrapper className="bg-white text-center">
         <div className="mx-auto max-w-4xl">
-          <h2 className="mb-6 text-3xl font-bold text-gray-900 md:text-4xl">
+          <h2 className="mb-6 text-3xl font-bold text-slate-900 md:text-4xl">
             Help your child build confidence and scores with one-to-one tuition
           </h2>
-          <p className="text-xl leading-relaxed text-gray-600">
+          <p className="text-xl leading-relaxed text-slate-600">
             Our personalised classes focus on concept clarity, regular progress tracking, and parent communication.
             Ideal for busy families in India and the Gulf.
           </p>
@@ -80,10 +80,10 @@ export default function Home() {
         </div>
       </SectionWrapper>
 
-      <SectionWrapper id="features" className="border-l-8 border-primary bg-gray-50">
+      <SectionWrapper id="features" className="border-l-8 border-primary bg-slate-50">
         <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-gray-900 md:text-4xl">Key Features</h2>
-          <p className="mx-auto max-w-2xl text-lg text-gray-600">
+          <h2 className="mb-4 text-3xl font-bold text-slate-900 md:text-4xl">Key Features</h2>
+          <p className="mx-auto max-w-2xl text-lg text-slate-600">
             Why thousands of parents trust us with their child&apos;s education.
           </p>
         </div>
@@ -97,15 +97,15 @@ export default function Home() {
 
       <SectionWrapper className="bg-white">
         <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-gray-900 md:text-4xl">What Parents & Students Say</h2>
+          <h2 className="mb-4 text-3xl font-bold text-slate-900 md:text-4xl">What Parents & Students Say</h2>
         </div>
 
         <TestimonialSlider testimonials={MARKETING_TESTIMONIALS} />
       </SectionWrapper>
 
-      <SectionWrapper className="bg-gray-100">
+      <SectionWrapper className="bg-slate-100">
         <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-gray-900 md:text-4xl">Frequently Asked Questions</h2>
+          <h2 className="mb-4 text-3xl font-bold text-slate-900 md:text-4xl">Frequently Asked Questions</h2>
         </div>
 
         <div className="mx-auto max-w-3xl">
@@ -123,7 +123,7 @@ export default function Home() {
 
           <Link
             href="/contact"
-            className="inline-flex items-center gap-2 rounded-full bg-white px-12 py-4 text-lg font-bold text-primary shadow-xl transition-all duration-300 hover:scale-105 hover:bg-gray-100 hover:shadow-2xl"
+            className="inline-flex items-center gap-2 rounded-full bg-white px-12 py-4 text-lg font-bold text-primary shadow-xl transition-all duration-300 hover:scale-105 hover:bg-slate-100 hover:shadow-2xl"
           >
             Book Demo <ArrowRight size={20} />
           </Link>

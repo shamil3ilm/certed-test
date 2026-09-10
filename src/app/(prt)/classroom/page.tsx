@@ -45,6 +45,7 @@ function ClassCard({
   viewerIsStudent,
   viewerIsTutor = false,
   grouped = false,
+  subjectName,
   tags,
 }: {
   c: ClassSummary
@@ -55,6 +56,9 @@ function ClassCard({
   // Rendered under a per-student heading (tutor/mentor/admin views): the student is
   // already named by the heading, so the card drops its leading person line.
   grouped?: boolean
+  // The class's SUBJECT, where it names one. Used as the title wherever the student is
+  // already named by context, so the card does not repeat them.
+  subjectName?: string
   tags: Tag[]
 }) {
   // The person a card leads with depends on who's looking: a student wants to see
@@ -65,13 +69,19 @@ function ClassCard({
   // Under a per-student heading (h2) the card title is one level down; the flat
   // view has no such heading, so it stays h2 to avoid skipping a level.
   const Title = grouped ? 'h3' : 'h2'
+  // A class is named `student - subject`, so under a student heading - or in a student's own
+  // list, where the student is the reader - the whole name says the student twice and pushes
+  // the subject, the only part that differs between the cards, onto a second line. The
+  // unassigned section has no such context, so its cards keep the full name.
+  const studentIsImplied = grouped || viewerIsStudent
+  const title = studentIsImplied ? (subjectName ?? c.name) : c.name
   return (
     <Link
       href={`/classroom/${c.id}`}
       className={cx(CARD, 'group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md')}
     >
       <div className={`relative bg-gradient-to-br ${classBanner(c.id)} p-4 sm:p-5`}>
-        <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{c.name}</Title>
+        <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{title}</Title>
         <p className="mt-0.5 text-xs font-medium text-white/80">
           {c.status === 'archived' ? 'Archived' : 'Active class'}
         </p>
@@ -80,12 +90,12 @@ function ClassCard({
           // else says which classes need it. Sessions copy the subject when they are recorded,
           // so until this is set every session this class records is missing from the subject
           // filter and the by-subject hours breakdown.
-          <p className="mt-1 inline-flex rounded-full bg-amber-100/95 px-2 py-0.5 text-meta font-semibold text-amber-900">
+          <p className="mt-1 inline-flex rounded-full bg-warning-tint/95 px-2 py-0.5 text-meta font-semibold text-warning-ink">
             No subject set
           </p>
         )}
         <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
-          {c.name.slice(0, 1).toUpperCase()}
+          {title.slice(0, 1).toUpperCase()}
         </span>
       </div>
       <div className="px-4 py-3 sm:px-5">
@@ -155,6 +165,7 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
     unassignedTruncated,
     groupByStudentView,
     tagsByClass,
+    subjectByClass,
     total,
     totalPages: pages,
     flags,
@@ -265,7 +276,16 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
           )}
           {groups.map((g) => (
             <section key={g.key} aria-label={g.label}>
-              <h2 className="mb-2 text-sm font-semibold text-slate-600">{g.label}</h2>
+              {/* The STUDENT is the unit here and the cards beneath are the subjects they
+                  are taught, so the name carries a heading's weight rather than reading as a
+                  label above a grid. The count states how many subjects without the reader
+                  tallying cards - the same set the switcher inside a class moves between. */}
+              <div className="mb-2 flex items-baseline gap-2">
+                <h2 className="text-base font-bold text-slate-800">{g.label}</h2>
+                <span className="text-xs font-medium text-slate-500">
+                  {g.classes.length} {g.classes.length === 1 ? 'subject' : 'subjects'}
+                </span>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {g.classes.map((c) => (
                   <ClassCard
@@ -274,6 +294,7 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
                     viewerIsStudent={false}
                     viewerIsTutor={isTeacher}
                     grouped
+                    subjectName={subjectByClass.get(c.id)}
                     tags={tagsByClass.get(c.id) ?? []}
                   />
                 ))}
@@ -284,7 +305,13 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ownClasses.map((c) => (
-            <ClassCard key={c.id} c={c} viewerIsStudent={isStudent} tags={tagsByClass.get(c.id) ?? []} />
+            <ClassCard
+              key={c.id}
+              c={c}
+              viewerIsStudent={isStudent}
+              subjectName={subjectByClass.get(c.id)}
+              tags={tagsByClass.get(c.id) ?? []}
+            />
           ))}
         </div>
       )}

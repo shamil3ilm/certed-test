@@ -50,7 +50,7 @@ function DocumentCard({
   return (
     <Card as="li" className="p-5">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary/15 text-secondary-ink">
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path
               strokeLinecap="round"

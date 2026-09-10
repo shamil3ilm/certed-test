@@ -63,10 +63,10 @@ export default function CookieNotice() {
     <div
       role="region"
       aria-label="Cookie notice"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg"
     >
       <div className="mx-auto flex max-w-5xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm leading-relaxed text-gray-700">
+        <p className="text-sm leading-relaxed text-slate-700">
           We use essential cookies to keep you signed in. We use no tracking or advertising cookies. See our{' '}
           <Link href="/privacy" className="text-primary underline hover:no-underline">
             Privacy Policy

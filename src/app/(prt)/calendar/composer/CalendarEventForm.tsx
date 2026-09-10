@@ -83,7 +83,7 @@ export function CalendarEventForm({
 
   return (
     <form onSubmit={submit} className="mt-4 grid gap-3 sm:grid-cols-2">
-      {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+      {error && <p className="text-sm text-danger-ink sm:col-span-2">{error}</p>}
       <label className="text-sm sm:col-span-2">
         {kindMeta.titleLabel}
         <Input

@@ -31,8 +31,35 @@ const eslintConfig = defineConfig([
           message:
             'No arbitrary font size (text-[Npx]). Use a scale token (text-micro/text-meta/text-xs/...) or add a step to @theme in globals.css.',
         },
+        // The palette is OURS. Every colour a screen paints comes from the tokens in
+        // globals.css - the brand blues, the three status families, and the slate
+        // neutral ramp. A borrowed Tailwind hue puts a colour on screen that appears
+        // nowhere else in the product, and reaching for one is also how the same idea
+        // ends up drawn four ways: text-red-500/600/700/800 all meant "danger".
+        //
+        // `slate` is deliberately absent from the blocked list - design-system.md 4.6
+        // names it the neutral ramp.
+        {
+          selector:
+            'Literal[value=/\\b(bg|text|border|ring|divide|fill|stroke|placeholder|from|to|via|outline|decoration|accent)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|gray|zinc|neutral|stone)-[0-9]/]',
+          message:
+            'Use the design system, not a borrowed Tailwind hue. Brand: primary / primary-strong / secondary / secondary-ink. Status: success|warning|danger with -surface / -tint / -border / -ink. Neutral: the slate ramp. See docs/design-system.md 1.',
+        },
+        {
+          selector:
+            'TemplateElement[value.raw=/\\b(bg|text|border|ring|divide|fill|stroke|placeholder|from|to|via|outline|decoration|accent)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|gray|zinc|neutral|stone)-[0-9]/]',
+          message:
+            'Use the design system, not a borrowed Tailwind hue. Brand: primary / primary-strong / secondary / secondary-ink. Status: success|warning|danger with -surface / -tint / -border / -ink. Neutral: the slate ramp. See docs/design-system.md 1.',
+        },
       ],
     },
+  },
+  {
+    // The tag palette is a USER-CHOSEN colour vocabulary: a person picks a colour to tell
+    // their own tags apart, so it needs more distinct hues than the product's own palette
+    // carries. It is the one place a borrowed hue is the point rather than a lapse.
+    files: ['src/app/(prt)/tags/tone.ts'],
+    rules: { 'no-restricted-syntax': 'off' },
   },
   {
     // Layering guard: the app layer talks to services, never straight to the data layer.

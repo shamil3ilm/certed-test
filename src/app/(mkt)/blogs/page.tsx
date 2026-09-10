@@ -10,11 +10,11 @@ export const metadata: Metadata = {
 
 export default function Blogs() {
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-slate-50">
       <SectionWrapper>
         <div className="mb-16 text-center">
-          <h1 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl">Our Latest Insights</h1>
-          <p className="mx-auto max-w-2xl text-xl text-gray-600">
+          <h1 className="mb-6 text-4xl font-bold text-slate-900 md:text-5xl">Our Latest Insights</h1>
+          <p className="mx-auto max-w-2xl text-xl text-slate-600">
             Stay updated with the latest trends in education, study tips, and success stories.
           </p>
         </div>

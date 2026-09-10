@@ -100,7 +100,7 @@ export function ColumnChart({ data, format }: { data: ChartPoint[]; format?: Fmt
                 <div
                   className={cx(
                     'absolute inset-x-0',
-                    isNeg ? 'rounded-b-sm bg-rose-400/80' : 'rounded-t-sm bg-gradient-to-t from-primary to-secondary',
+                    isNeg ? 'rounded-b-sm bg-danger-ink/80' : 'rounded-t-sm bg-gradient-to-t from-primary to-secondary',
                   )}
                   style={
                     isNeg

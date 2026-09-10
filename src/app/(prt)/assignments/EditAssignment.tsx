@@ -158,7 +158,7 @@ export function EditAssignment({
         </label>
       )}
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger-ink">
           {error}
         </p>
       )}

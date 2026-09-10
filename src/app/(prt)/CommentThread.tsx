@@ -184,7 +184,7 @@ function CommentThreadBody({
                       type="button"
                       onClick={() => handleDelete(comment)}
                       disabled={isPending}
-                      className="mt-0.5 text-meta text-slate-600 transition-colors hover:text-red-600 hover:underline disabled:opacity-50"
+                      className="mt-0.5 text-meta text-slate-600 transition-colors hover:text-danger-ink hover:underline disabled:opacity-50"
                     >
                       Delete
                     </button>

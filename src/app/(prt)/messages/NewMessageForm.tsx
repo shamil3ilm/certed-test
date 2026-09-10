@@ -176,7 +176,9 @@ export function NewMessageForm({ contacts }: { contacts: Contact[] }) {
                           <span className="block truncate text-xs text-slate-600">{contact.relationLabel}</span>
                         )}
                         {incompatible && (
-                          <span className="block truncate text-xs text-red-500">Not related to the current group</span>
+                          <span className="block truncate text-xs text-danger-ink">
+                            Not related to the current group
+                          </span>
                         )}
                       </span>
                       {active && <Badge tone="primary">Selected</Badge>}

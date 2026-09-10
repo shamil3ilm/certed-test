@@ -59,7 +59,7 @@ export function SubjectsPanel({
                     // subject and hides the problem. Name it, because every session this class
                     // records is absent from the subject filter and the by-subject hours
                     // breakdown until it is set.
-                    <span className="text-amber-800">No subject set</span>
+                    <span className="text-warning-ink">No subject set</span>
                   )}
                 </span>
                 <form action={removeSubjectAction}>
@@ -103,7 +103,7 @@ export function SubjectsPanel({
                   add-tutor picker that never touches the others. */}
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 {s.tutors.length === 0 ? (
-                  <span className="text-xs text-amber-600">No tutor yet</span>
+                  <span className="text-xs text-warning-ink">No tutor yet</span>
                 ) : (
                   s.tutors.map((t) => (
                     <span
@@ -120,7 +120,7 @@ export function SubjectsPanel({
                             mentor account left with no classes - an audited privilege
                             change - and this was the smallest click target on the page. */}
                         <ConfirmSubmit
-                          className="text-slate-600 hover:text-red-600"
+                          className="text-slate-600 hover:text-danger-ink"
                           aria-label={`Remove ${t.name}`}
                           title="Remove this tutor?"
                           message={`${t.name} stops teaching ${s.subjectName}. If they are a mentor account with no other classes, their tutor access is removed too.`}

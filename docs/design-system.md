@@ -12,12 +12,13 @@ The app is **light-theme only** — there is no `dark:` variant in use. Do not a
 
 Tailwind v4 turns each `--*` in the `@theme` block into a utility. Change a value in one place; every utility follows.
 
-| Token(s)                                                         | Utilities                                | Notes                                                                                                                                                                                                                                                                                                                    |
-| ---------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--color-primary`, `--color-primary-strong`, `--color-secondary` | `text-primary`, `bg-primary`, …          | Brand blues. Also `--color-background`/`foreground`.                                                                                                                                                                                                                                                                     |
-| `--color-secondary-ink`                                          | `text-secondary-ink`, `bg-secondary-ink` | The brand sky blue darkened to pass WCAG AA. `--color-secondary` (#50b5e1) is 2.32:1 on white, so it fails as TEXT and as a solid button behind white text; `secondary-ink` (#15719b) is the same 199° hue at 5.43:1. Use `secondary` for decorative fills, tints and icons; `secondary-ink` for text and solid buttons. |
-| `--font-sans`, `--font-display`, `--font-mono`                   | `font-sans`, `font-display`, …           | Brand sans everywhere today (display == sans).                                                                                                                                                                                                                                                                           |
-| `--text-micro` (10px), `--text-meta` (11px)                      | `text-micro`, `text-meta`                | The two steps **below** Tailwind's `text-xs`.                                                                                                                                                                                                                                                                            |
+| Token(s)                                                         | Utilities                                  | Notes                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--color-primary`, `--color-primary-strong`, `--color-secondary` | `text-primary`, `bg-primary`, …            | Brand blues. Also `--color-background`/`foreground`.                                                                                                                                                                                                                                                                                   |
+| `--color-secondary-ink`                                          | `text-secondary-ink`, `bg-secondary-ink`   | The brand sky blue darkened to pass WCAG AA. `--color-secondary` (#50b5e1) is 2.32:1 on white, so it fails as TEXT and as a solid button behind white text; `secondary-ink` (#15719b) is the same 199° hue at 5.43:1. Use `secondary` for decorative fills, tints and icons; `secondary-ink` for text and solid buttons.               |
+| `--color-{success,warning,danger}-{surface,tint,border,ink}`     | `bg-success-surface`, `text-danger-ink`, … | The three status families, four roles each: `surface` (panel tint), `tint` (chip), `border`, `ink` (the text). The ink is the 700 step in every family because the 600 step fails 4.5:1 on its own `-100` tint (red 3.95, emerald 3.32, amber 2.86) and amber-600 fails on white at 3.19:1 — and a status chip is exactly ink-on-tint. |
+| `--font-sans`, `--font-display`, `--font-mono`                   | `font-sans`, `font-display`, …             | Brand sans everywhere today (display == sans).                                                                                                                                                                                                                                                                                         |
+| `--text-micro` (10px), `--text-meta` (11px)                      | `text-micro`, `text-meta`                  | The two steps **below** Tailwind's `text-xs`.                                                                                                                                                                                                                                                                                          |
 
 Raw brand hexes live on `:root` and are aliased into `@theme` — edit `:root` to re-brand.
 
@@ -66,10 +67,22 @@ Rule of thumb: **anything a user reads is ≥ `text-meta` (11px)**; only `text-m
 3. **Reach for a primitive before a `<div>`.** New surface → `Card`/`Panel`; new list → `ListRow`; new page → `PageHeader`.
 4. **Merge classes with `cx()`**, not string concatenation.
 5. **Responsive:** every page must survive 320px with no horizontal overflow (`html` clips stray overflow; verify at mobile width — see application-standards §12).
-6. **Colours** come from the brand tokens; avoid one-off hexes in `className`. Muted text
-   is `text-slate-600`: `slate-400` is 2.56:1 on white and `slate-500` drops to 4.34:1 on
-   `bg-slate-100`, so both fail AA where they carry real text. `tests/e2e/a11y.pw.ts`
-   enforces contrast with an empty baseline — a regression fails CI rather than accruing.
+6. **Colours come from the tokens — no borrowed Tailwind hues.** Brand: `primary`,
+   `primary-strong`, `secondary`, `secondary-ink`. Status: the `success`/`warning`/`danger`
+   families. Neutral: the **slate** ramp (`gray`/`zinc`/`stone` are a second ramp for the
+   same job and are blocked). Everything else — `emerald-600`, `indigo-50`, `violet-100` —
+   is an **eslint error** (`no-restricted-syntax`), because a borrowed hue puts a colour on
+   screen that appears nowhere else in the product, and it is how one idea ends up drawn
+   four ways (`text-red-500/600/700/800` all meant "danger"). One file is exempt:
+   `src/app/(prt)/tags/tone.ts`, where the extra hues ARE the feature — a person picks a
+   colour to tell their own tags apart.
+
+   Avoid one-off hexes in `className`. Muted text is `text-slate-600`: `slate-400` is 2.56:1
+   on white and `slate-500` drops to 4.34:1 on `bg-slate-100`, so both fail AA where they
+   carry real text. `tests/e2e/a11y.pw.ts` enforces contrast with an empty baseline — a
+   regression fails CI rather than accruing. Class-banner gradients have their own gate,
+   `tests/unit/class-banner-contrast.test.ts`: brand tokens only, and the `from-` end must
+   carry white at 4.5:1.
 
 ## 5. Extending the system
 

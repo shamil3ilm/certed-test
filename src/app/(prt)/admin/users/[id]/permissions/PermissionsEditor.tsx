@@ -191,7 +191,7 @@ function SourceBadge({
 function AccessDot({ effective }: { effective: boolean }) {
   return (
     <span className="inline-flex items-center gap-1 text-meta font-medium text-slate-600">
-      <span className={`h-1.5 w-1.5 rounded-full ${effective ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+      <span className={`h-1.5 w-1.5 rounded-full ${effective ? 'bg-success-ink' : 'bg-slate-300'}`} />
       {effective ? 'has access' : 'no access'}
     </span>
   )

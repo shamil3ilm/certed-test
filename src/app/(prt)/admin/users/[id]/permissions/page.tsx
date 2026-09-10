@@ -19,7 +19,7 @@ export default async function UserPermissionsPage(props: { params: Promise<{ id:
       />
 
       {scopedMentorCount > 0 && (
-        <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+        <p className="mt-4 rounded-2xl border border-secondary/40 bg-secondary/10 p-4 text-sm text-secondary-ink">
           This user also mentors {scopedMentorCount} student{scopedMentorCount === 1 ? '' : 's'}. That access comes from
           their mentorship assignments, not from the global capabilities below, so it is not shown or changed here -
           manage it from the Users hub&apos;s Mentors tab.
@@ -27,7 +27,7 @@ export default async function UserPermissionsPage(props: { params: Promise<{ id:
       )}
 
       {target.id === me.id ? (
-        <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <p className="mt-6 rounded-2xl border border-warning-border bg-warning-surface p-4 text-sm text-warning-ink">
           You can&apos;t edit your own permissions here - ask another admin if a change to your own access is needed.
         </p>
       ) : (

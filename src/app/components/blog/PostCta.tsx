@@ -11,7 +11,7 @@ export default function PostCta({ cta }: { cta: BlogMeta['cta'] }) {
       <p className="text-lg opacity-90 mb-8 max-w-2xl mx-auto">{cta.body}</p>
       <Link
         href="/contact"
-        className="inline-block bg-white text-primary font-bold px-8 py-4 rounded-full hover:bg-gray-100 transition-colors shadow-sm text-lg"
+        className="inline-block bg-white text-primary font-bold px-8 py-4 rounded-full hover:bg-slate-100 transition-colors shadow-sm text-lg"
       >
         {cta.label}
       </Link>

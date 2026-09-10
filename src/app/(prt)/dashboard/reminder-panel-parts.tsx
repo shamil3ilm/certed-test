@@ -104,11 +104,11 @@ export function ReminderItems({
           <li
             key={reminder.id}
             className={`flex items-start gap-3 rounded-xl border p-2.5 transition hover:shadow-sm ${
-              overdue ? 'border-red-200 bg-red-50' : 'border-slate-100 bg-slate-50'
+              overdue ? 'border-danger-border bg-danger-surface' : 'border-slate-100 bg-slate-50'
             }`}
           >
             <svg
-              className={`mt-0.5 h-4 w-4 shrink-0 ${overdue ? 'text-red-500' : 'text-primary'}`}
+              className={`mt-0.5 h-4 w-4 shrink-0 ${overdue ? 'text-danger-ink' : 'text-primary'}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -122,7 +122,7 @@ export function ReminderItems({
               <p className="truncate text-sm font-medium text-slate-800">
                 {reminder.title}
                 {assigned && (
-                  <span className="ml-2 inline-block rounded-full bg-indigo-50 px-1.5 py-0.5 align-middle text-micro font-semibold text-indigo-600">
+                  <span className="ml-2 inline-block rounded-full bg-primary/10 px-1.5 py-0.5 align-middle text-micro font-semibold text-primary">
                     Assigned
                   </span>
                 )}
@@ -130,7 +130,7 @@ export function ReminderItems({
               {reminder.description && <p className="mt-0.5 truncate text-xs text-slate-600">{reminder.description}</p>}
               <p
                 suppressHydrationWarning
-                className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-red-600' : 'text-slate-600'}`}
+                className={`mt-0.5 text-xs ${overdue ? 'font-semibold text-danger-ink' : 'text-slate-600'}`}
               >
                 {label}
               </p>
@@ -151,7 +151,7 @@ export function ReminderItems({
               onClick={() => onMarkDone(reminder)}
               disabled={isPending}
               aria-label="Mark reminder done"
-              className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-50"
+              className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-success-tint hover:text-success-ink disabled:opacity-50"
             >
               Done
             </button>
@@ -161,7 +161,7 @@ export function ReminderItems({
                 onClick={() => onDelete(reminder.id)}
                 disabled={isPending}
                 aria-label="Delete reminder"
-                className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
+                className="shrink-0 rounded-full p-2 text-slate-600 transition hover:bg-danger-tint hover:text-danger-ink disabled:opacity-50"
               >
                 Delete
               </button>

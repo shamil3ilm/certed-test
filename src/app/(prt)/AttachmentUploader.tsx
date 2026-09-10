@@ -98,7 +98,7 @@ export function AttachmentUploader({
       />
       {state === 'uploading' && <p className="text-xs text-slate-600">Uploading...</p>}
       {state === 'failed' && error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger-ink">
           {error}{' '}
           <button type="button" onClick={() => inputRef.current?.click()} className="font-medium underline">
             Retry

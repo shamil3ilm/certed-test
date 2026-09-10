@@ -49,9 +49,9 @@ export function AlertBanner({
   children: ReactNode
 }) {
   const tones: Record<string, string> = {
-    error: 'bg-red-50 text-red-700',
-    warning: 'border border-amber-200 bg-amber-50 text-amber-700',
-    success: 'bg-emerald-50 text-emerald-700',
+    error: 'bg-danger-surface text-danger-ink',
+    warning: 'border border-warning-border bg-warning-surface text-warning-ink',
+    success: 'bg-success-surface text-success-ink',
   }
   return (
     <p

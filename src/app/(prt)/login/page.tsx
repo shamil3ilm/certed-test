@@ -42,7 +42,7 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to your account.">
       {data.showRegisteredBanner && (
-        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <p className="mb-4 rounded-lg border border-success-border bg-success-surface px-3 py-2 text-sm text-success-ink">
           Account created - sign in below.
         </p>
       )}

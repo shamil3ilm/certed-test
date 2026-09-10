@@ -10,8 +10,8 @@ export function NeedsAttentionPanel({ overdue }: { overdue: Overview['overdue'] 
 
   return (
     <section className="mt-6">
-      <Panel title="Needs attention" className="border-red-200 bg-red-50/40">
-        <ul className="divide-y divide-red-100/70">
+      <Panel title="Needs attention" className="border-danger-border bg-danger-surface/40">
+        <ul className="divide-y divide-danger-border/70">
           {overdue.map((item) => (
             <li
               key={item.assignmentId}

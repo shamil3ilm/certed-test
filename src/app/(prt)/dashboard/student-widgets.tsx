@@ -30,10 +30,10 @@ export async function GradeTrajectoryWidget({ studentId }: { studentId: string }
           <div className="flex items-baseline gap-2">
             <p className="text-3xl font-bold text-slate-800">{t.average}%</p>
             {t.direction === 'up' && (
-              <span className="text-xs font-medium text-emerald-700">&#9650; {Math.abs(t.delta ?? 0)} pts</span>
+              <span className="text-xs font-medium text-success-ink">&#9650; {Math.abs(t.delta ?? 0)} pts</span>
             )}
             {t.direction === 'down' && (
-              <span className="text-xs font-medium text-red-600">&#9660; {Math.abs(t.delta ?? 0)} pts</span>
+              <span className="text-xs font-medium text-danger-ink">&#9660; {Math.abs(t.delta ?? 0)} pts</span>
             )}
             {t.direction === 'flat' && <span className="text-xs font-medium text-slate-600">steady</span>}
           </div>
@@ -139,7 +139,7 @@ export async function DueWorkWidget({
                   <span
                     className={cx(
                       'shrink-0 text-xs transition group-hover:text-inherit',
-                      overdue ? 'font-medium text-red-500' : 'text-slate-600',
+                      overdue ? 'font-medium text-danger-ink' : 'text-slate-600',
                     )}
                   >
                     {overdue ? (

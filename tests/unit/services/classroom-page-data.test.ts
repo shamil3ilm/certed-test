@@ -16,6 +16,7 @@ vi.mock('@/lib/data/class-membership', () => ({
   selectActiveTutorPairsByClassIds: vi.fn(),
 }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/data/subjects', () => ({ selectSubjectsByIds: vi.fn() }))
 
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { myClassIds, listMyClasses } from '@/lib/services/classes'
@@ -29,6 +30,7 @@ import {
   selectActiveTutorPairsByClassIds,
 } from '@/lib/data/class-membership'
 import { getProfileNamesByIds } from '@/lib/services/users'
+import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { loadClassroomPageData, classroomUrl } from '@/lib/services/page-data/classroom'
 
 /**
@@ -62,6 +64,7 @@ beforeEach(() => {
   vi.mocked(selectProfilePage).mockResolvedValue({ items: [], total: 0 } as never)
   vi.mocked(selectActiveEnrollmentPairsByStudentIds).mockResolvedValue([])
   vi.mocked(selectActiveTutorPairsByClassIds).mockResolvedValue([])
+  vi.mocked(selectSubjectsByIds).mockResolvedValue([])
   vi.mocked(selectClassesByIdsAsCaller).mockResolvedValue([])
   vi.mocked(selectActiveStudentIdsByClassIds).mockResolvedValue([])
   vi.mocked(myClassIds).mockResolvedValue([])
@@ -331,5 +334,48 @@ describe('classes with NO active student still appear', () => {
     const data = await loadClassroomPageData(ME, {})
     expect(data.unassigned).toEqual([])
     expect(selectVisibleClassIds).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Under a student heading the card should name the SUBJECT, because the class name is
+ * `${student} - ${subject}` and the heading has already said the student. Rendering the
+ * whole name there prints the student's name twice and pushes the subject - the one part
+ * that differs between the cards - onto a second line.
+ *
+ * The subject is resolved rather than sliced off the front of the name: C12 does not follow
+ * that naming convention, and string surgery on it would produce nonsense.
+ */
+describe('subject names for the grouped cards', () => {
+  beforeEach(() => {
+    flags({ isClassAdmin: true })
+    vi.mocked(selectProfilePage).mockResolvedValue({
+      items: [{ id: 's1', full_name: 'Aarav', email: 'a@x.c' }],
+      total: 1,
+    } as never)
+    vi.mocked(selectActiveEnrollmentPairsByStudentIds).mockResolvedValue([
+      { student_id: 's1', class_id: 'c1' },
+    ] as never)
+  })
+
+  it('maps each class to its subject name', async () => {
+    vi.mocked(selectClassesByIdsAsCaller).mockResolvedValue([
+      { id: 'c1', name: 'Sam - Maths', subject_id: 's-m' },
+    ] as never)
+    vi.mocked(selectSubjectsByIds).mockResolvedValue([{ id: 's-m', name: 'Mathematics' }] as never)
+
+    const data = await loadClassroomPageData(ME, {})
+
+    expect(data.subjectByClass.get('c1')).toBe('Mathematics')
+  })
+
+  it('leaves a class with no subject unmapped, so the card falls back to its own name', async () => {
+    vi.mocked(selectClassesByIdsAsCaller).mockResolvedValue([{ id: 'c1', name: 'C12', subject_id: null }] as never)
+
+    const data = await loadClassroomPageData(ME, {})
+
+    expect(data.subjectByClass.has('c1')).toBe(false)
+    // and nothing was asked of the subjects table for a class that names no subject
+    expect(selectSubjectsByIds).not.toHaveBeenCalled()
   })
 })

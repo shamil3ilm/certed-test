@@ -50,7 +50,7 @@ export function ReminderCreateForm({
 
   return (
     <form onSubmit={submit} className="mt-4 grid gap-3">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger-ink">{error}</p>}
       <label className="text-sm">
         Reminder title
         <input

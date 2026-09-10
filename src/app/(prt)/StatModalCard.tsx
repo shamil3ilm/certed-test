@@ -118,7 +118,7 @@ export function StatModalCard({
         }
       >
         {showLoading && <p className="py-6 text-center text-sm text-slate-600">Loading...</p>}
-        {showError && <p className="py-6 text-center text-sm text-red-500">Couldn&apos;t load this - try again.</p>}
+        {showError && <p className="py-6 text-center text-sm text-danger-ink">Couldn&apos;t load this - try again.</p>}
         {!isPending &&
           groups.map((g, gi) => (
             <div key={sectionKey(g, gi)} className="mt-4 first:mt-0">

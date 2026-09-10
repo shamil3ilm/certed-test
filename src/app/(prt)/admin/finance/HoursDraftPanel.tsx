@@ -90,7 +90,7 @@ export function HoursDraftPanel({
       {warnings.map((warning) => (
         // A warning is not an error: the figures are filled in and issuing is still
         // allowed. It exists so a duplicate month is a decision, not an accident.
-        <p key={warning} role="alert" className="mt-2 text-xs font-medium text-amber-700">
+        <p key={warning} role="alert" className="mt-2 text-xs font-medium text-warning-ink">
           {warning}
         </p>
       ))}

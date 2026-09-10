@@ -199,7 +199,7 @@ export function StreamComposer({ courseId, isAdmin }: { courseId: string; isAdmi
       </details>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger-ink">
           {error}
         </p>
       )}

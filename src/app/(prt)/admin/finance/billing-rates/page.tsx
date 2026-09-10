@@ -33,7 +33,7 @@ export default async function BillingRatesPage() {
       />
 
       {missing > 0 && (
-        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="mt-3 rounded-xl border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
           {missing} {missing === 1 ? 'person has' : 'people have'} no rate set. A document cannot be generated from
           hours for them until one is.
         </p>

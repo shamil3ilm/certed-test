@@ -57,7 +57,7 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
       <button
         type="button"
         onClick={prevTestimonial}
-        className="absolute left-[-16px] top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-gray-100 bg-white p-3 text-primary shadow-md transition-all hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:left-0 sm:flex"
+        className="absolute left-[-16px] top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-100 bg-white p-3 text-primary shadow-md transition-all hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:left-0 sm:flex"
         aria-label="Previous testimonial"
       >
         <ChevronLeft size={24} />
@@ -66,14 +66,14 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
       <button
         type="button"
         onClick={nextTestimonial}
-        className="absolute right-[-16px] top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-gray-100 bg-white p-3 text-primary shadow-md transition-all hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:right-0 sm:flex"
+        className="absolute right-[-16px] top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-100 bg-white p-3 text-primary shadow-md transition-all hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:right-0 sm:flex"
         aria-label="Next testimonial"
       >
         <ChevronRight size={24} />
       </button>
 
       {/* Card Container */}
-      <div className="bg-gray-50 p-8 sm:p-12 md:p-16 rounded-[2rem] border border-gray-100 relative shadow-sm min-h-[350px] flex flex-col justify-center transition-all duration-300">
+      <div className="bg-slate-50 p-8 sm:p-12 md:p-16 rounded-[2rem] border border-slate-100 relative shadow-sm min-h-[350px] flex flex-col justify-center transition-all duration-300">
         <div className="text-primary text-6xl font-serif absolute top-6 left-8 opacity-10">&ldquo;</div>
 
         <div
@@ -82,7 +82,7 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
           aria-live="polite"
           aria-atomic="true"
         >
-          <p className="text-gray-600 text-base md:text-lg italic mb-10 pt-4 leading-relaxed font-medium max-w-4xl mx-auto">
+          <p className="text-slate-600 text-base md:text-lg italic mb-10 pt-4 leading-relaxed font-medium max-w-4xl mx-auto">
             &ldquo;{currentT.quote}&rdquo;
           </p>
 
@@ -90,9 +90,9 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
             <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xl mb-4 shadow-sm">
               {currentT.author.charAt(0)}
             </div>
-            <p className="font-bold text-gray-900 text-lg">{currentT.author}</p>
+            <p className="font-bold text-slate-900 text-lg">{currentT.author}</p>
             {currentT.role && (
-              <p className="text-sm md:text-sm text-gray-600 font-medium whitespace-pre-wrap mt-2 leading-relaxed">
+              <p className="text-sm md:text-sm text-slate-600 font-medium whitespace-pre-wrap mt-2 leading-relaxed">
                 {currentT.role}
               </p>
             )}
@@ -106,7 +106,7 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
           <button
             type="button"
             onClick={prevTestimonial}
-            className="rounded-full border border-gray-200 bg-white p-3 text-primary shadow-md transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="rounded-full border border-slate-200 bg-white p-3 text-primary shadow-md transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             aria-label="Previous testimonial"
           >
             <ChevronLeft size={24} />
@@ -114,7 +114,7 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
           <button
             type="button"
             onClick={nextTestimonial}
-            className="rounded-full border border-gray-200 bg-white p-3 text-primary shadow-md transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="rounded-full border border-slate-200 bg-white p-3 text-primary shadow-md transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             aria-label="Next testimonial"
           >
             <ChevronRight size={24} />
@@ -129,7 +129,7 @@ export default function TestimonialSlider({ testimonials }: TestimonialSliderPro
               type="button"
               onClick={() => goToTestimonial(idx)}
               className={`flex min-h-11 min-w-11 items-center justify-center rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                idx === currentIndex ? 'text-primary' : 'text-gray-300 hover:text-gray-400'
+                idx === currentIndex ? 'text-primary' : 'text-slate-500 hover:text-slate-700'
               }`}
               aria-label={`Go to testimonial ${idx + 1}`}
               aria-current={idx === currentIndex ? 'true' : undefined}

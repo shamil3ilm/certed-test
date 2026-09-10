@@ -46,7 +46,7 @@ export function MenteeNotesPanel({
           rows={2}
           maxLength={2000}
           placeholder="Add a note about this student..."
-          className="block w-full rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1.5 text-sm"
+          className="block w-full rounded-lg border border-warning-border bg-warning-surface/40 px-2 py-1.5 text-sm"
         />
         <SubmitButton className="btn-sm btn-primary" pendingLabel="Saving...">
           Add note

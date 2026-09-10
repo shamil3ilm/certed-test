@@ -109,13 +109,13 @@ export function SubmitForm({
             {isPending ? 'Submitting...' : 'Submit link'}
           </button>
           {linkCheck === 'folder' && (
-            <p className="text-amber-600">
+            <p className="text-warning-ink">
               That looks like a Drive <span className="font-medium">folder</span> link - share the specific file so your
               tutor sees just your work.
             </p>
           )}
           {linkCheck === 'not-drive' && (
-            <p className="text-amber-600">
+            <p className="text-warning-ink">
               That does not look like a Google Drive link. Make sure it opens for your tutor, not only for you.
             </p>
           )}
@@ -126,7 +126,7 @@ export function SubmitForm({
       </details>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger-ink">
           {error}
         </p>
       )}

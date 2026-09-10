@@ -57,7 +57,7 @@ export function TimetableManager({ classes, tutors, isAdmin, academyTz }: Props)
           </button>
         ))}
       </div>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-danger-ink">{error}</p>}
 
       {tab === 'slot' ? (
         <>

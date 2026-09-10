@@ -5,7 +5,7 @@
 export default function PortalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center p-6 text-center">
-      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-red-500">
+      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-danger-surface text-danger-ink">
         <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path
             strokeLinecap="round"

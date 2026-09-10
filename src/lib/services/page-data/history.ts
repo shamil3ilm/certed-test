@@ -13,21 +13,21 @@ const NON_ADMIN_ROLES = ['student', 'tutor', 'mentor'] as const
 const ADMIN_TIER_ROLES = new Set(['admin', 'sub_admin'])
 
 const VERB_TONE: Record<string, string> = {
-  add: 'text-emerald-700',
-  create: 'text-emerald-700',
-  restore: 'text-emerald-700',
-  assign: 'text-emerald-700',
-  issue: 'text-emerald-700',
+  add: 'text-success-ink',
+  create: 'text-success-ink',
+  restore: 'text-success-ink',
+  assign: 'text-success-ink',
+  issue: 'text-success-ink',
   update: 'text-slate-700',
   edit: 'text-slate-700',
   grade: 'text-slate-700',
   password: 'text-slate-700',
   mark: 'text-slate-700',
-  revoke: 'text-red-700',
-  delete: 'text-red-700',
-  archive: 'text-red-700',
-  remove: 'text-red-700',
-  void: 'text-red-700',
+  revoke: 'text-danger-ink',
+  delete: 'text-danger-ink',
+  archive: 'text-danger-ink',
+  remove: 'text-danger-ink',
+  void: 'text-danger-ink',
 }
 
 type HistoryFilters = {

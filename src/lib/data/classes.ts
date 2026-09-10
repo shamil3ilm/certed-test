@@ -252,20 +252,6 @@ export async function selectClassStatus(id: string): Promise<ClassRow['status'] 
   return (data as { status: ClassRow['status'] } | null)?.status ?? null
 }
 
-/**
- * The subject a class currently teaches, read as SERVICE ROLE.
- *
- * Used by the session write to stamp `class_sessions.subject_id` at record time. Service
- * role because the caller has already passed canManageClass and the rest of that write runs
- * the same way - an RLS read here would add a second, different gate to one operation.
- */
-export async function selectClassSubjectIdAsService(classId: string): Promise<string | null> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.from('classes').select('subject_id').eq('id', classId).maybeSingle()
-  if (error) throw new Error(`data.classes.selectClassSubjectIdAsService: ${error.message}`)
-  return (data as { subject_id: string | null } | null)?.subject_id ?? null
-}
-
 /** Class id -> name for a set of ids, SERVICE-ROLE. THROWS on error, unlike
  *  selectClassesByIds, because the report card must fail loudly rather than
  *  render rows labelled "Class". */

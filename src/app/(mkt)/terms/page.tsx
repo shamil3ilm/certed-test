@@ -54,25 +54,25 @@ export default function TermsOfUse() {
       <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <div
           role="note"
-          className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          className="mb-8 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning-ink"
         >
           <strong>Draft: pending legal review.</strong> These terms are being finalised with legal counsel and are not
           yet in force.
         </div>
 
-        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Terms of Use</h1>
-        <p className="mt-2 text-sm text-gray-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Terms of Use</h1>
+        <p className="mt-2 text-sm text-slate-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
         <div className="mt-6 space-y-6">
           {TERMS.map((t) => (
             <section key={t.title}>
-              <h2 className="mb-2 text-xl font-bold text-gray-900">{t.title}</h2>
-              <p className="text-gray-700 leading-relaxed">{t.body}</p>
+              <h2 className="mb-2 text-xl font-bold text-slate-900">{t.title}</h2>
+              <p className="text-slate-700 leading-relaxed">{t.body}</p>
             </section>
           ))}
         </div>
 
-        <p className="mt-10 text-sm text-gray-600">
+        <p className="mt-10 text-sm text-slate-600">
           See also our{' '}
           <Link href="/privacy" className="text-primary underline hover:no-underline">
             Privacy Policy

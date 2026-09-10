@@ -8,14 +8,14 @@ import { markAllNotificationsReadAction } from './actions'
 /** Per-kind chip. Plain ASCII text (no emoji/glyphs) so the feed renders
  *  identically everywhere, per the portal's text standard. */
 const KIND_META: Record<string, { label: string; className: string }> = {
-  message: { label: 'Message', className: 'bg-sky-50 text-sky-700' },
-  grade: { label: 'Grade', className: 'bg-emerald-50 text-emerald-700' },
-  announcement: { label: 'Announcement', className: 'bg-amber-50 text-amber-700' },
-  assignment: { label: 'Assignment', className: 'bg-violet-50 text-violet-700' },
-  submission: { label: 'Submission', className: 'bg-indigo-50 text-indigo-700' },
-  resource: { label: 'Document', className: 'bg-indigo-50 text-indigo-700' },
-  attendance: { label: 'Attendance', className: 'bg-teal-50 text-teal-700' },
-  schedule: { label: 'Schedule', className: 'bg-rose-50 text-rose-700' },
+  message: { label: 'Message', className: 'bg-secondary/15 text-secondary-ink' },
+  grade: { label: 'Grade', className: 'bg-success-surface text-success-ink' },
+  announcement: { label: 'Announcement', className: 'bg-warning-surface text-warning-ink' },
+  assignment: { label: 'Assignment', className: 'bg-primary/10 text-primary' },
+  submission: { label: 'Submission', className: 'bg-slate-100 text-slate-700' },
+  resource: { label: 'Document', className: 'bg-slate-100 text-slate-700' },
+  attendance: { label: 'Attendance', className: 'bg-success-surface text-success-ink' },
+  schedule: { label: 'Schedule', className: 'bg-danger-surface text-danger-ink' },
 }
 
 /** The read-state filter travels as `state`, NOT `read`: `?read=1` already means "the mark
