@@ -19,7 +19,7 @@ vi.mock('@/lib/data/classes', () => ({
   // Archived-class filter: by default pass every given id through as active.
   selectActiveClassIdsAmong: vi.fn(async (ids: string[]) => ids),
 }))
-vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), getProfileLabelsByIds: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ myClassScope: vi.fn() }))
 
 import { mentoringScopeClassIds, isMentoringOversight } from '@/lib/permission/class'
@@ -32,7 +32,7 @@ import {
 } from '@/lib/data/analytics'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { selectClassesByIds, selectActiveClassIds } from '@/lib/data/classes'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfileNamesByIds, getProfileLabelsByIds } from '@/lib/services/users'
 import { myClassScope } from '@/lib/services/classes'
 import {
   aggregateClassStudentHours,
@@ -151,7 +151,7 @@ describe('getClassTutorHours (mentor scope isolation)', () => {
     vi.clearAllMocks()
     vi.mocked(getInstituteTimeZone).mockResolvedValue('Asia/Kolkata')
     vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'C1', name: 'Maths' }] as never)
-    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['T1', 'Tutor One']]))
+    vi.mocked(getProfileLabelsByIds).mockResolvedValue(new Map([['T1', { name: 'Tutor One', role: 'tutor' }]]))
     // An explicit default. Left undefined it merely READ as false, so the oversight branch
     // was untested and any test that set it leaked into the next.
     vi.mocked(isMentoringOversight).mockResolvedValue(false)
@@ -188,7 +188,12 @@ describe('getClassTutorHours (mentor scope isolation)', () => {
     expect(passedClassIds).toEqual(['C1'])
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ classId: 'C1', className: 'Maths', totalMinutes: 90 })
-    expect(result[0].tutors[0]).toMatchObject({ tutorId: 'T1', tutorName: 'Tutor One', minutes: 90 })
+    expect(result[0].tutors[0]).toMatchObject({
+      tutorId: 'T1',
+      tutorName: 'Tutor One',
+      tutorRole: 'tutor',
+      minutes: 90,
+    })
   })
 
   it('returns nothing (and never queries sessions) when the mentor has no authority classes', async () => {
@@ -256,7 +261,7 @@ const tutorClass = (over: Partial<ClassTutorHours>): ClassTutorHours => ({
   className: 'Class 1',
   subjectName: null,
   totalMinutes: 90,
-  tutors: [{ tutorId: 'T1', tutorName: 'Tara', minutes: 90, sessionCount: 1 }],
+  tutors: [{ tutorId: 'T1', tutorName: 'Tara', tutorRole: null, minutes: 90, sessionCount: 1 }],
   ...over,
 })
 
@@ -265,11 +270,11 @@ describe('rollUpPersonHours (pure)', () => {
     const totals = rollUpPersonHours([
       tutorClass({
         classId: 'C1',
-        tutors: [{ tutorId: 'T1', tutorName: 'Tara', minutes: 90, sessionCount: 2 }],
+        tutors: [{ tutorId: 'T1', tutorName: 'Tara', tutorRole: null, minutes: 90, sessionCount: 2 }],
       }),
       tutorClass({
         classId: 'C2',
-        tutors: [{ tutorId: 'T1', tutorName: 'Tara', minutes: 30, sessionCount: 1 }],
+        tutors: [{ tutorId: 'T1', tutorName: 'Tara', tutorRole: null, minutes: 30, sessionCount: 1 }],
       }),
     ])
     expect(totals).toEqual([{ personId: 'T1', personName: 'Tara', minutes: 120, sessionCount: 3, classCount: 2 }])
@@ -279,8 +284,8 @@ describe('rollUpPersonHours (pure)', () => {
     const totals = rollUpPersonHours([
       tutorClass({
         tutors: [
-          { tutorId: 'T1', tutorName: 'Tara', minutes: 30, sessionCount: 1 },
-          { tutorId: 'T2', tutorName: 'Mo', minutes: 120, sessionCount: 2 },
+          { tutorId: 'T1', tutorName: 'Tara', tutorRole: null, minutes: 30, sessionCount: 1 },
+          { tutorId: 'T2', tutorName: 'Mo', tutorRole: null, minutes: 120, sessionCount: 2 },
         ],
       }),
     ])
@@ -294,8 +299,8 @@ describe('rollUpPersonHours (pure)', () => {
     const totals = rollUpPersonHours([
       tutorClass({
         tutors: [
-          { tutorId: null, tutorName: 'Unassigned', minutes: 60, sessionCount: 1 },
-          { tutorId: 'T1', tutorName: 'Tara', minutes: 60, sessionCount: 1 },
+          { tutorId: null, tutorName: 'Unassigned', tutorRole: null, minutes: 60, sessionCount: 1 },
+          { tutorId: 'T1', tutorName: 'Tara', tutorRole: null, minutes: 60, sessionCount: 1 },
         ],
       }),
     ])
@@ -370,12 +375,8 @@ describe('getAcademyClassHours', () => {
     vi.mocked(getInstituteTimeZone).mockResolvedValue('Asia/Kolkata')
     vi.mocked(selectActiveClassIds).mockResolvedValue(['C1'])
     vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'C1', name: 'Class 1' }] as never)
-    vi.mocked(getProfileNamesByIds).mockResolvedValue(
-      new Map([
-        ['T1', 'Tara'],
-        ['S1', 'Sam'],
-      ]),
-    )
+    vi.mocked(getProfileLabelsByIds).mockResolvedValue(new Map([['T1', { name: 'Tara', role: 'tutor' }]]))
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['S1', 'Sam']]))
   })
 
   it('reports the tutor and student sides from ONE session read', async () => {

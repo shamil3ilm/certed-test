@@ -10,7 +10,7 @@ import {
   selectActiveEnrollmentPairsByStudentIds,
 } from '@/lib/data/class-membership'
 import { toRange, type Page } from '@/lib/pagination'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfileNamesByIds, getProfileLabelsByIds } from '@/lib/services/users'
 import {
   selectSessionsForDate,
   selectSessionByIdAsService,
@@ -53,6 +53,10 @@ export type MenteeSessionTiming = {
    *  (or the class had no assigned tutor), surfaced as "Unassigned". */
   tutorId: string | null
   tutorName: string | null
+  /** The tutor's ROLE, so a reader can tell a mentor credited with teaching hours from a
+   *  tutor. Both are legitimate - a mentor account may teach - but the column says "Tutor"
+   *  and a name alone does not say which kind of account earned the hours. */
+  tutorRole: string | null
   sessionDate: string
   startAt: string | null
   studentEntryAt: string | null
@@ -162,7 +166,7 @@ async function enrichSessions(sessions: ClassSessionRow[]): Promise<MenteeSessio
   for (const r of enrollRefs) personIds.add(r.student_id)
   for (const r of joinRows) personIds.add(r.student_id)
   for (const s of sessions) if (s.tutor_id) personIds.add(s.tutor_id)
-  const names = await getProfileNamesByIds([...personIds])
+  const people = await getProfileLabelsByIds([...personIds])
 
   const items = sessions.map((session): MenteeSessionTiming => {
     const join = joinBySession.get(session.id)
@@ -174,9 +178,10 @@ async function enrichSessions(sessions: ClassSessionRow[]): Promise<MenteeSessio
       className: classNameById.get(session.class_id) ?? 'Class',
       subject: session.subject_id ? (subjectNameById.get(session.subject_id) ?? null) : null,
       studentId,
-      studentName: names.get(studentId) ?? 'Unknown',
+      studentName: people.get(studentId)?.name ?? 'Unknown',
       tutorId,
-      tutorName: tutorId ? (names.get(tutorId) ?? null) : null,
+      tutorName: tutorId ? (people.get(tutorId)?.name ?? null) : null,
+      tutorRole: tutorId ? (people.get(tutorId)?.role ?? null) : null,
       sessionDate: session.session_date,
       startAt: session.actual_start,
       studentEntryAt: join?.join_at ?? null,

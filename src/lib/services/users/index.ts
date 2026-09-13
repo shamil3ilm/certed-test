@@ -17,6 +17,7 @@ export {
   displayName,
   getProfilesByIds,
   getProfileNamesByIds,
+  getProfileLabelsByIds,
   getProfileById,
   listActiveByRole,
   listActiveMentorCandidates,

@@ -4,7 +4,17 @@ import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { isMonth } from '@/lib/time/month-window'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { CARD, EmptyState, PageHeader, FilterBar, FilterField, FILTER_CONTROL, SectionJumpNav, cx } from '@/lib/ui'
+import {
+  CARD,
+  EmptyState,
+  PageHeader,
+  FilterBar,
+  FilterField,
+  FILTER_CONTROL,
+  SectionJumpNav,
+  roleLabel,
+  cx,
+} from '@/lib/ui'
 
 const SECTIONS = [
   { href: '#people', label: 'Tutors & mentors' },
@@ -112,7 +122,17 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
                     ''
                   )}
                 </td>
-                <td className="p-2 text-slate-600">{t.tutorName}</td>
+                {/* Role shown only when it is NOT a plain tutor: these hours feed the
+                    payslip draft, so a mentor account credited with teaching is worth
+                    seeing, while "Tutor" on every row would just be skimmed past. */}
+                <td className="p-2 text-slate-600">
+                  <span className="inline-flex items-baseline gap-1.5">
+                    {t.tutorName}
+                    {t.tutorRole && t.tutorRole !== 'tutor' && (
+                      <span className="text-meta font-medium text-slate-500">{roleLabel(t.tutorRole)}</span>
+                    )}
+                  </span>
+                </td>
                 <Num>{t.sessionCount}</Num>
                 <Num>{formatMinutes(t.minutes)}</Num>
               </tr>

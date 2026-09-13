@@ -5,7 +5,7 @@ import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { CARD, EmptyState, PageHeader, PaginationBar, cx } from '@/lib/ui'
+import { CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabel } from '@/lib/ui'
 import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
 import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTimingsFilterBar'
@@ -74,7 +74,12 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                       key={t.tutorId ?? 'unassigned'}
                       className="flex items-baseline justify-between text-xs text-slate-600"
                     >
-                      <span>{t.tutorName}</span>
+                      <span className="inline-flex items-baseline gap-1.5">
+                        {t.tutorName}
+                        {t.tutorRole && t.tutorRole !== 'tutor' && (
+                          <span className="text-meta font-medium text-slate-500">{roleLabel(t.tutorRole)}</span>
+                        )}
+                      </span>
                       <span className="tabular-nums">
                         {formatMinutes(t.minutes)} &middot; {t.sessionCount} session{t.sessionCount === 1 ? '' : 's'}
                       </span>
@@ -199,7 +204,19 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
             <td className="p-2 text-slate-600">{row.className}</td>
             <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-500">-</span>}</td>
             <td className="p-2 text-slate-600">
-              {row.tutorName ?? <span className="text-slate-600">Unassigned</span>}
+              {/* The role shows only when it is NOT a plain tutor. Stamping "Tutor" on every
+                  row is noise that gets skimmed; a mentor or admin credited with teaching
+                  hours is the thing worth seeing, and both are legitimate. */}
+              {row.tutorName ? (
+                <span className="inline-flex items-baseline gap-1.5">
+                  {row.tutorName}
+                  {row.tutorRole && row.tutorRole !== 'tutor' && (
+                    <span className="text-meta font-medium text-slate-500">{roleLabel(row.tutorRole)}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-slate-600">Unassigned</span>
+              )}
             </td>
             <td className="p-2 text-slate-600">{row.sessionDate}</td>
             <td className="p-2">

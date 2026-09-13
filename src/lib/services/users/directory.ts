@@ -86,6 +86,18 @@ export async function getProfileNamesByIds(ids: string[]): Promise<Map<string, s
   return new Map([...profiles].map(([id, p]) => [id, displayName(p)]))
 }
 
+/**
+ * Display name AND role keyed by id, from ONE profile read.
+ *
+ * A separate roles helper alongside getProfileNamesByIds would each call getProfilesByIds,
+ * which is not request-cached, so a caller wanting both would pay two round trips for the
+ * same rows. The role is already in the projection; this stops throwing it away.
+ */
+export async function getProfileLabelsByIds(ids: string[]): Promise<Map<string, { name: string; role: string }>> {
+  const profiles = await getProfilesByIds(ids)
+  return new Map([...profiles].map(([id, p]) => [id, { name: displayName(p), role: p.role }]))
+}
+
 /** Id-only search for admin filters that just need a narrowed actor set. `roles`
  *  optionally clamps which roles can match (so a non-super caller can't oracle the
  *  admin tier). */

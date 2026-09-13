@@ -16,7 +16,7 @@ vi.mock('@/lib/data/classes', () => ({
 }))
 vi.mock('@/lib/data/subjects', () => ({ selectSubjectsByIds: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveEnrollmentRefsByClassIds: vi.fn() }))
-vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), getProfileLabelsByIds: vi.fn() }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionById: vi.fn(),
   selectSessionsForDate: vi.fn(),
@@ -36,7 +36,7 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { selectClassesByIds, selectArchivedClassIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfileLabelsByIds } from '@/lib/services/users'
 import {
   selectSessionByIdAsService,
   selectSessionPage,
@@ -265,10 +265,12 @@ describe('listMenteeSessionTimings', () => {
     vi.mocked(selectActiveEnrollmentRefsByClassIds).mockResolvedValue([{ class_id: 'c1', student_id: 's1' }] as never)
     vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c1', name: 'Maths', subject_id: 'sub1' }] as never)
     vi.mocked(selectSubjectsByIds).mockResolvedValue([{ id: 'sub1', name: 'Algebra' }] as never)
-    vi.mocked(getProfileNamesByIds).mockResolvedValue(
+    // Name AND role from one lookup - the row reports who taught and what kind of account
+    // they are, so a mentor credited with teaching hours is visible rather than inferred.
+    vi.mocked(getProfileLabelsByIds).mockResolvedValue(
       new Map([
-        ['s1', 'Sam'],
-        ['t1', 'Tara'],
+        ['s1', { name: 'Sam', role: 'student' }],
+        ['t1', { name: 'Tara', role: 'tutor' }],
       ]),
     )
   })

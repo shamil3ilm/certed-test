@@ -14,7 +14,7 @@ import { mentoringScopeClassIds, isMentoringOversight } from '@/lib/permission/c
 import { myClassScope } from '@/lib/services/classes'
 import { selectActiveClassIdsAmong, selectArchivedClassIds, selectClassesByIds } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfileNamesByIds, getProfileLabelsByIds } from '@/lib/services/users'
 
 /**
  * Monthly teaching-hours reporting - ONE calculation, three authorization scopes.
@@ -37,6 +37,9 @@ export interface TutorHours {
   /** null when the session had no recorded tutor (shown as "Unassigned"). */
   tutorId: string | null
   tutorName: string
+  /** The tutor's ROLE. These hours feed the payslip draft, so a mentor account credited
+   *  with teaching is worth seeing at a glance - legitimate, but not the common case. */
+  tutorRole: string | null
   minutes: number
   sessionCount: number
 }
@@ -100,7 +103,9 @@ async function shapeClassTutorHours(groups: RawGroup[]): Promise<ClassTutorHours
   const tutorIds = [...new Set(groups.map((g) => g.tutorId).filter((id): id is string => id != null))]
   const [classes, names] = await Promise.all([
     classIds.length ? selectClassesByIds(classIds) : Promise.resolve([]),
-    tutorIds.length ? getProfileNamesByIds(tutorIds) : Promise.resolve(new Map<string, string>()),
+    tutorIds.length
+      ? getProfileLabelsByIds(tutorIds)
+      : Promise.resolve(new Map<string, { name: string; role: string }>()),
   ])
   const classNameById = new Map(classes.map((c) => [c.id, c.name]))
   // Keyed by class AND subject: one row per subject a class taught this month.
@@ -116,7 +121,8 @@ async function shapeClassTutorHours(groups: RawGroup[]): Promise<ClassTutorHours
     }
     entry.tutors.push({
       tutorId: g.tutorId,
-      tutorName: g.tutorId ? (names.get(g.tutorId) ?? 'Unknown tutor') : 'Unassigned',
+      tutorName: g.tutorId ? (names.get(g.tutorId)?.name ?? 'Unknown tutor') : 'Unassigned',
+      tutorRole: g.tutorId ? (names.get(g.tutorId)?.role ?? null) : null,
       minutes: g.minutes,
       sessionCount: g.sessionCount,
     })
