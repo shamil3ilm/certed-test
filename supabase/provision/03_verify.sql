@@ -51,22 +51,30 @@ select
   (select count(*) from pg_extension where extname = 'pg_cron') > 0 as pg_cron_installed,
   to_regclass('cron.job') is not null                               as cron_job_readable;
 
--- The retention schedules from 0051 / 0058 / 0059 / 0101. EXPECT on a correctly
--- provisioned project: four rows, all active.
+-- The retention schedules from 0051 / 0058 / 0059 / 0101.
+--
+-- EXPECT ZERO JOBS HERE when provisioning from the rebuild snapshot, and that is not a
+-- fault: the snapshot is `pg_dump --schema=public --schema-only`, cron schedules are ROWS
+-- IN cron.job rather than DDL in public, and nothing re-emits them. Enabling pg_cron first
+-- does not change it - the extension is necessary, but the snapshot never calls
+-- cron.schedule. Run 04_retention_jobs.sql, then expect four rows, all active.
+--
+-- Provisioning from the numbered MIGRATION chain instead does create them, because those
+-- four migrations call cron.schedule themselves - inside a guard that skips silently when
+-- the extension is absent, which is why pg_cron goes on before the chain.
 --
 -- Wrapped in a DO block so this file runs clean top to bottom on a project WITHOUT
 -- pg_cron: a bare `select ... from cron.job` errors there, and an error at the end of a
 -- verification script reads as "the verification broke" rather than "there is nothing to
--- report". The jobs come back as notices.
+-- report". The jobs come back as notices - so this file is for psql, which prints them.
+-- The dashboard SQL editor discards notices entirely; use the delivered editor copy there.
 do $$
 declare r record; n int := 0;
 begin
   if to_regclass('cron.job') is null then
-    raise notice 'pg_cron is NOT installed - no retention jobs exist.';
+    raise notice 'pg_cron is NOT installed - no retention jobs can exist.';
     raise notice 'audit_log, notifications, pending_emails and rate-limit rows will grow without bound.';
-    raise notice 'Enable the pg_cron extension, then RE-RUN migrations 0051, 0058, 0059 and 0101:';
-    raise notice 'each wraps its cron.schedule in a guard that SKIPS silently when the extension is';
-    raise notice 'absent, so the chain reports success while creating no schedule at all.';
+    raise notice 'Enable the pg_cron extension, then run 04_retention_jobs.sql.';
     return;
   end if;
   for r in select jobname, schedule, active from cron.job order by jobname loop
