@@ -10,9 +10,10 @@ How to stand up a production deployment from scratch. For day-2 operations (back
 ## 1. Provision Supabase
 
 1. Create the project **in the same region as Vercel** — `vercel.json` pins `bom1` (Mumbai). A cross-region mismatch multiplies every query round-trip; the mentor dashboard is sensitive to it. This is load-bearing, not a tuning detail.
-2. Apply the migration chain. The numbered files in `supabase/migrations/` are the source of truth (see [../supabase/README.md](../supabase/README.md)); the delivered `.sql` bundles in the maintainer's Documents folder are the same content, ready for the Supabase SQL editor. Run them in order; the head is the highest-numbered file.
-3. Confirm RLS is on for every table and the policy set matches [rls-policy-inventory.md](rls-policy-inventory.md).
-4. Enable **daily backups + PITR** (Pro). Then do a restore drill — see [operations.md](operations.md#backups-and-restore).
+2. **Enable the `pg_cron` extension BEFORE applying the chain** — `create extension if not exists pg_cron;` works from a normal SQL session, no dashboard step needed. Four migrations (`0051`, `0058`, `0059`, `0101`) schedule retention jobs inside a guard that SKIPS silently when the extension is absent and still reports success, so a chain applied first leaves a database with **no retention at all** — `audit_log`, read notifications, sent emails and rate-limit rows growing without bound — while "migrations applied" looks true. Verified on a fresh project: without it, zero jobs; enable it and re-run those four, and all four schedules appear.
+3. Apply the migration chain. The numbered files in `supabase/migrations/` are the source of truth (see [../supabase/README.md](../supabase/README.md)); the delivered `.sql` bundles in the maintainer's Documents folder are the same content, ready for the Supabase SQL editor. Run them in order; the head is the highest-numbered file.
+4. Confirm RLS is on for every table and the policy set matches [rls-policy-inventory.md](rls-policy-inventory.md).
+5. Enable **daily backups + PITR** (Pro). Then do a restore drill — see [operations.md](operations.md#backups-and-restore).
 
 ## 2. Auth email — custom SMTP (do this before inviting anyone)
 

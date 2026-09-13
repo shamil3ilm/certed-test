@@ -89,7 +89,12 @@ before the actual deploy - this section is the only one that goes stale on its o
 - [ ] RLS on for every table; policies match [rls-policy-inventory.md](rls-policy-inventory.md)
 - [ ] **Daily backups + PITR enabled**, and a **restore drill performed** — [operations.md](operations.md#backups-and-restore)
       <br>**Not available on Free** — see [Plan decision](#plan-decision---free-tier-2026-09-13). Stays unticked: the compensating `pg_dump` is not a substitute for having been restored.
-- [ ] Retention jobs present: `select jobname, schedule from cron.job;`
+- [ ] **`pg_cron` enabled BEFORE the chain is applied** — `create extension if not exists pg_cron;`
+      <br>The four migrations that schedule retention (`0051`, `0058`, `0059`, `0101`) wrap
+      `cron.schedule` in a guard that skips silently without it and still reports success. Apply
+      the chain first and you get a database with no retention while the migration log looks
+      clean. If it is already applied, enable the extension and re-run those four.
+- [ ] Retention jobs present: `select jobname, schedule from cron.job;` — expect **four**, all active
 
 ## Environment and secrets
 
