@@ -41,6 +41,6 @@ Attachments become **first-class records with an explicit lifecycle**, and their
 
 ## Follow-up work
 
-- Choose the credential model — service account + Shared Drive requires Google Workspace; the dedicated-account fallback does not. This is the one open decision.
+- **Credential model — decided (2026-09-13): a dedicated academy Drive account whose refresh token is held as a server secret.** Service account + Shared Drive needs Google Workspace, which this deployment does not have. `scripts/get-drive-refresh-token.mjs` captures the token once; the OAuth consent screen must be published (`In production`) BEFORE capture, or Google issues a refresh token that expires after 7 days and the integration dies a week after launch with `invalid_grant`. All four `GOOGLE_DRIVE_*` vars are required together - `driveStorageConfigured()` is all-or-nothing, and with any missing the app degrades to a clean "storage unavailable" rather than failing mid-upload.
 - Virus scanning is deliberately deferred. At ~100 known, authenticated, allowlisted users of a closed portal the threat model does not yet justify an external scanning service. Revisit if uploads are ever opened to unauthenticated users.
 - `checksum_sha256` is present but unused at launch; it enables duplicate detection later.
