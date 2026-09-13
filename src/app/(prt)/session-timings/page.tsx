@@ -5,7 +5,7 @@ import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabel } from '@/lib/ui'
+import { CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabelIfUnexpected } from '@/lib/ui'
 import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
 import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTimingsFilterBar'
@@ -76,8 +76,10 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                     >
                       <span className="inline-flex items-baseline gap-1.5">
                         {t.tutorName}
-                        {t.tutorRole && t.tutorRole !== 'tutor' && (
-                          <span className="text-meta font-medium text-slate-500">{roleLabel(t.tutorRole)}</span>
+                        {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
+                          <span className="text-meta font-medium text-slate-500">
+                            {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
+                          </span>
                         )}
                       </span>
                       <span className="tabular-nums">
@@ -210,8 +212,10 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
               {row.tutorName ? (
                 <span className="inline-flex items-baseline gap-1.5">
                   {row.tutorName}
-                  {row.tutorRole && row.tutorRole !== 'tutor' && (
-                    <span className="text-meta font-medium text-slate-500">{roleLabel(row.tutorRole)}</span>
+                  {roleLabelIfUnexpected(row.tutorRole, 'tutor') && (
+                    <span className="text-meta font-medium text-slate-500">
+                      {roleLabelIfUnexpected(row.tutorRole, 'tutor')}
+                    </span>
                   )}
                 </span>
               ) : (

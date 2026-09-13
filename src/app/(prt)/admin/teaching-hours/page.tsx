@@ -12,7 +12,7 @@ import {
   FilterField,
   FILTER_CONTROL,
   SectionJumpNav,
-  roleLabel,
+  roleLabelIfUnexpected,
   cx,
 } from '@/lib/ui'
 
@@ -128,8 +128,10 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
                 <td className="p-2 text-slate-600">
                   <span className="inline-flex items-baseline gap-1.5">
                     {t.tutorName}
-                    {t.tutorRole && t.tutorRole !== 'tutor' && (
-                      <span className="text-meta font-medium text-slate-500">{roleLabel(t.tutorRole)}</span>
+                    {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
+                      <span className="text-meta font-medium text-slate-500">
+                        {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
+                      </span>
                     )}
                   </span>
                 </td>

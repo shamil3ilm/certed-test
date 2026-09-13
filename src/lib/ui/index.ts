@@ -17,6 +17,7 @@ export { cx, CARD, ARCHIVED_ROW } from './core'
 export { initials, roleTone, CLASS_BANNER, Avatar } from './identity'
 export {
   roleLabel,
+  roleLabelIfUnexpected,
   statusLabel,
   profileStatusTone,
   attendanceTone,

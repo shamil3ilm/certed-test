@@ -17,6 +17,22 @@ export function roleLabel(role?: string | null): string {
   return 'Student'
 }
 
+/**
+ * The role's label, but ONLY when it is not the one the surface already implies.
+ *
+ * A column headed TUTOR listing tutors says nothing by repeating "Tutor" on every row - it
+ * is noise, and noise on every row is skimmed past, which is how the one row that matters
+ * gets missed. A mentor or an admin credited with teaching hours IS the thing worth seeing,
+ * and both are legitimate: a mentor account may teach.
+ *
+ * Named and shared because the same condition was written out at three call sites, where
+ * "expected" would have had to be kept in step by hand.
+ */
+export function roleLabelIfUnexpected(role: string | null | undefined, expected: string): string | null {
+  if (!role || role === expected) return null
+  return roleLabel(role)
+}
+
 /** Title-cased display label for an account status - the single source so a status
  *  never reads as a raw lowercase 'active' in one place and Title-case elsewhere. */
 export function statusLabel(status?: string | null): string {
