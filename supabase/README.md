@@ -8,6 +8,7 @@ There are two SQL surfaces here, with different responsibilities:
 | ------------------------------- | --------------------------------------------------------- | --------------------------- |
 | `migrations/*.sql`              | Sequential upgrade path for real environments             | Yes                         |
 | `rebuild/0000_full_rebuild.sql` | Single-run fresh-build snapshot of the intended end state | No, derived from migrations |
+| `provision/*.sql`               | Prepare + verify around that snapshot, for a NEW project  | No, see provision/README.md |
 
 ## Source of truth
 
