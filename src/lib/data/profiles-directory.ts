@@ -189,6 +189,23 @@ export async function selectProfileRole(id: string): Promise<Profile['role'] | n
   return (data as { role?: Profile['role'] } | null)?.role ?? null
 }
 
+/**
+ * Every ACTIVE profile id, for a reconciliation sweep that must look at the whole roster.
+ *
+ * Paged rather than a bare select: `profiles` grows with the academy, and a bare read is
+ * truncated at the PostgREST row cap without saying so - which for a sweep would silently
+ * shrink the population it claims to have checked. `id` alone is a total order.
+ */
+export async function selectActiveProfileIds(): Promise<string[]> {
+  const admin = createAdminClient()
+  const rows = await fetchAllPaged<{ id: string }>(
+    (from, to) =>
+      admin.from('profiles').select('id').eq('status', 'active').order('id', { ascending: true }).range(from, to),
+    'data.profiles.selectActiveProfileIds',
+  )
+  return rows.map((r) => r.id)
+}
+
 export async function selectActiveProfilesByRoles(
   roles: string[],
   opts?: { search?: string; limit?: number },

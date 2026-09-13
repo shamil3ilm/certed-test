@@ -1,5 +1,11 @@
 import 'server-only'
-import { insertConsent, markLatestConsentWithdrawn, selectLatestConsent } from '@/lib/data/consents'
+import {
+  insertConsent,
+  markLatestConsentWithdrawn,
+  selectLatestConsent,
+  selectProfileIdsWithCurrentConsent,
+} from '@/lib/data/consents'
+import { selectActiveProfileIds } from '@/lib/data/profiles-directory'
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/policy/versions'
 
 /**
@@ -95,4 +101,50 @@ export async function reaffirmCurrentConsent(profileId: string): Promise<void> {
  */
 export async function withdrawConsent(profileId: string): Promise<void> {
   await markLatestConsentWithdrawn(profileId, new Date().toISOString())
+}
+
+/** How many missing-consent profile ids the sweep reports back. The COUNT is exact; the
+ *  id list is a sample, so a large gap cannot turn one cron response into a bulk export. */
+const REPORTED_IDS = 50
+
+export type ConsentReconcileResult = {
+  activeProfiles: number
+  withCurrentConsent: number
+  /** Exact number of active profiles holding no current, un-withdrawn acceptance. */
+  missing: number
+  /** At most REPORTED_IDS of them, for following up. */
+  missingProfileIds: string[]
+}
+
+/**
+ * Find active people with no current acceptance on the consent log.
+ *
+ * WHY THIS EXISTS: recording acceptance is deliberately best-effort - registration and the
+ * OAuth callback both `await ... .catch(log)` so that a consent-write hiccup cannot fail an
+ * account that is already bound. That trade-off is right, but it leaves a gap nothing
+ * noticed: the row is missing, the failure is a line in a log nobody reads, and the only
+ * surface that would reveal it is the settings page, which the person may never open.
+ * An append-only trail the privacy policy promises must not be able to lose an entry
+ * silently.
+ *
+ * IT DOES NOT WRITE CONSENT. A sweep cannot know that someone accepted; inserting a row to
+ * make the numbers agree would forge the very fact the log exists to evidence. It reports,
+ * and a human decides - re-prompting through the settings page is the honest repair.
+ *
+ * Both reads are paged, because `profiles` and `consents` each grow with the academy and a
+ * truncated read would silently shrink the population the sweep claims to have checked.
+ */
+export async function reconcileConsents(): Promise<ConsentReconcileResult> {
+  const [active, consented] = await Promise.all([
+    selectActiveProfileIds(),
+    selectProfileIdsWithCurrentConsent(TERMS_VERSION, PRIVACY_VERSION),
+  ])
+  const holders = new Set(consented)
+  const missing = active.filter((id) => !holders.has(id))
+  return {
+    activeProfiles: active.length,
+    withCurrentConsent: holders.size,
+    missing: missing.length,
+    missingProfileIds: missing.slice(0, REPORTED_IDS),
+  }
 }

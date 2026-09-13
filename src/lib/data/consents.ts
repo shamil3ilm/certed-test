@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import { createClient } from '@/lib/supabase/server'
 import { assertMutated } from './mutation'
 
@@ -87,4 +88,28 @@ export async function markLatestConsentWithdrawn(profileId: string, at: string):
     .eq('id', (data as { id: string }).id)
     .select('id')
   assertMutated(updated, 'consents.withdraw', 'Consent record not found.')
+}
+
+/**
+ * Profile ids holding a CURRENT, un-withdrawn acceptance of the given policy versions.
+ *
+ * `withdrawn_at` is filtered in memory rather than with `.is('withdrawn_at', null)` so the
+ * query uses only the operators the mock query builder implements - the same reason nothing
+ * here joins. The read stays bounded either way; it carries one extra nullable column.
+ */
+export async function selectProfileIdsWithCurrentConsent(terms: string, privacy: string): Promise<string[]> {
+  const admin = createAdminClient()
+  const rows = await fetchAllPaged<{ profile_id: string; withdrawn_at: string | null }>(
+    (from, to) =>
+      admin
+        .from('consents')
+        .select('profile_id, withdrawn_at')
+        .eq('terms_version', terms)
+        .eq('privacy_version', privacy)
+        .order('profile_id', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    'consents.selectProfileIdsWithCurrentConsent',
+  )
+  return rows.filter((r) => r.withdrawn_at == null).map((r) => r.profile_id)
 }

@@ -44,6 +44,7 @@ Two more jobs must be wired **at deploy time on the production project**, or the
 | Job                  | Route                             | Cadence       | If unwired                                        |
 | -------------------- | --------------------------------- | ------------- | ------------------------------------------------- |
 | Email drain          | `/api/cron/drain-emails`          | every ~5 min  | Queued `pending_emails` are never sent            |
+| Consent reconcile    | `/api/cron/reconcile-consents`    | daily         | A failed consent write stays an unread log line   |
 | Attachment reconcile | `/api/cron/reconcile-attachments` | daily         | Orphaned uploads / pending rows accumulate        |
 | Queue health (alarm) | `/api/cron/queue-health`          | every ~15 min | A backed-up email/attachment queue fails silently |
 
