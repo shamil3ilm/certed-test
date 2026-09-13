@@ -17,6 +17,10 @@ Most of our data-protection posture is answered by the privacy policy and by **m
   - **Position (to be confirmed with legal counsel):** a verified SAR is answered in full, **including** `mentee_notes`, **unless** a specific, written DPDP exemption applies to a given note — assessed case-by-case by an admin with legal input, and recorded. The in-app hiding is an **access-control** choice for candour; it is **not** a basis to refuse a SAR without a documented exemption. Where a note also names a third party (e.g. another student), redact that before release.
   - **Decision owner:** an active admin, with legal counsel. Retention follows the rest of the student record.
 
+- **The policy pages and the acceptance flow stay as they are, pending counsel.** Hiding `/terms` and `/privacy` while legal review is outstanding has been considered and rejected: registration binds to them. The consent checkbox attests that a guardian "has read and agrees to the Terms of Use and Privacy Policy", and `recordConsent` stamps `TERMS_VERSION` / `PRIVACY_VERSION` into the append-only trail the privacy policy itself promises. Withdraw the pages and the app goes on recording acceptance of documents nobody can read — weaker evidence on a DPDP or GCC subject request than the current drafts, not stronger, and it quietly undermines the consent trail rather than pausing it.
+  - **Position:** publish what is current, and version it. When counsel revises the text, bump `POLICY_EFFECTIVE_DATE` in `src/lib/policy/versions.ts` — that single constant drives both the "Last updated" line on the pages and the version recorded against every future acceptance, so the record and the page cannot disagree, and existing consents stay honest about which text they accepted.
+  - **Decision owner:** an active admin, with legal counsel. Revisit when the consult lands.
+
 The risk here is silence; a written default that legal can adjust is the fix.
 
 ## Monitoring
