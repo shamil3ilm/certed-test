@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Reject AI attribution in a commit message.
+#
+# The commits here are authored by the person who ran them, and the history says so - the
+# author is correct on every commit in this repo. What crept in three times is a trailer:
+# `Co-Authored-By: Claude ...`, added because an assistant's own harness instructs it to.
+# That instruction is not this project's, and a trailer names a co-author the repository has
+# not agreed to credit.
+#
+# It is caught HERE rather than at review because the trailer is appended at the moment of
+# commit, by tooling rather than by the person typing the message - so the person never sees
+# it to remove, and once pushed the only fix is rewriting published history.
+#
+# Enabled via core.hooksPath=.githooks (set by the package.json "prepare" script).
+
+set -euo pipefail
+
+msg_file="$1"
+
+# Trailers only - the words themselves are fine in a subject or body, and blocking those
+# would stop honest messages like "gitignore local Claude tooling".
+if grep -qiE '^[[:space:]]*(co-authored-by|generated-by|assisted-by)[[:space:]]*:.*(claude|anthropic|copilot|chatgpt|openai|gemini)' "$msg_file"; then
+  echo "" >&2
+  echo "commit-msg blocked: the message carries an AI attribution trailer." >&2
+  echo "Offending line(s):" >&2
+  grep -inE '^[[:space:]]*(co-authored-by|generated-by|assisted-by)[[:space:]]*:.*(claude|anthropic|copilot|chatgpt|openai|gemini)' "$msg_file" >&2
+  echo "" >&2
+  echo "Remove the trailer and commit again. Commits in this repo are attributed to the" >&2
+  echo "person who made them; there is no co-author to credit." >&2
+  exit 1
+fi
