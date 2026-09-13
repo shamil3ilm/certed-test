@@ -38,8 +38,12 @@ export function SubjectSwitcher({
 
   if (options.length < 2) return null
 
+  // The heading above already names the student, so repeating it here would say the same
+  // thing twice in two type styles. What the row still owes the reader is what it IS -
+  // otherwise a strip of subject chips under a person's name has no stated relationship to
+  // them - so it says that instead, and `studentName` is kept for the accessible name.
   const label = (
-    <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">{studentName}</span>
+    <span className="shrink-0 text-meta font-semibold uppercase tracking-wide text-slate-500">Subjects</span>
   )
 
   if (options.length > SUBJECTS_AS_TABS) {
@@ -48,7 +52,7 @@ export function SubjectSwitcher({
       <div className="flex items-center gap-3">
         {label}
         <label className="sr-only" htmlFor="subject-switcher">
-          Subject
+          {`Subject for ${studentName}`}
         </label>
         <select
           id="subject-switcher"

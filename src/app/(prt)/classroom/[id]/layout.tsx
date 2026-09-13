@@ -28,7 +28,20 @@ export default async function ClassLayout(props: { params: Promise<{ id: string 
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <BackLink href="/classroom">Back to classes</BackLink>
 
-      <PageHeader title={course.name} description={course.status === 'archived' ? 'Archived class' : 'Class'} />
+      {/* The PERSON leads, the subject qualifies - a class is one student and one subject, and
+          the reader arrived looking for someone. It also stops the heading going stale:
+          `course.name` is a "Student - Subject" string built once when the class was created,
+          so a student who is renamed keeps the old name in every heading, and nothing in the
+          app rewrites it. The switcher resolves both from their own tables, live.
+
+          Falls back to the stored name when there is no single student to lead with - a group
+          class, or one whose student has been unenrolled. */}
+      <PageHeader
+        title={switcher ? switcher.studentName : course.name}
+        description={
+          course.status === 'archived' ? 'Archived class' : (switcher?.options.find((o) => o.current)?.label ?? 'Class')
+        }
+      />
 
       {switcher && (
         <div className="mt-3">
