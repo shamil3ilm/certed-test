@@ -37,7 +37,9 @@ postgresql://postgres.<PROJECT-REF>:<PASSWORD>@aws-0-<region>.pooler.supabase.co
 Pass the password by environment rather than inline, so it stays out of shell history:
 
 ```bash
-export PGPASSWORD='...' PGHOST='aws-0-<region>.pooler.supabase.com' PGPORT=5432        PGUSER='postgres.<PROJECT-REF>' PGDATABASE='postgres'
+export PGPASSWORD='...'
+export PGHOST='aws-0-<region>.pooler.supabase.com' PGPORT=5432
+export PGUSER='postgres.<PROJECT-REF>' PGDATABASE='postgres'
 psql -v ON_ERROR_STOP=1 -f supabase/provision/01_prepare_empty_database.sql
 psql -v ON_ERROR_STOP=1 -f supabase/rebuild/0000_full_rebuild.sql
 psql -f supabase/provision/03_verify.sql
