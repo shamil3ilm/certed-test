@@ -41,3 +41,29 @@ export function isPublicAppPath(pathname: string): boolean {
   if (PUBLIC_APP_PATHS.includes(pathname)) return true
   return PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
+
+/**
+ * API routes a BROWSER may legitimately navigate to - downloads, PDFs, CSV exports, and the
+ * mock-mode sign-out.
+ *
+ * Everything else under /api/ is machinery for `fetch`, and a person who lands on one by
+ * typing, bookmarking or following a stale link should get the app's not-found page rather
+ * than a JSON envelope. Matched by pattern rather than prefix so a look-alike
+ * (`/api/receipts/x/pdfx`) does not qualify.
+ */
+const BROWSER_NAVIGABLE_API = [
+  /^\/api\/attachments\/[^/]+\/download$/,
+  /^\/api\/resources\/[^/]+\/download$/,
+  /^\/api\/(?:receipts|payslips)\/[^/]+\/pdf$/,
+  /^\/api\/(?:receipts|payslips)\/export$/,
+  /^\/api\/report-card\/[^/]+\/pdf$/,
+  /^\/api\/reports\/[^/]+\/[^/]+$/,
+  // Mock-mode sign-out: a GET that clears the dev session and redirects to /login, reached by
+  // navigating to it. Outside mock mode the route itself answers 404.
+  /^\/api\/dev\/logout$/,
+]
+
+/** True when a top-level GET navigation to `pathname` should render something. */
+export function isBrowserNavigableApi(pathname: string): boolean {
+  return BROWSER_NAVIGABLE_API.some((pattern) => pattern.test(pathname))
+}

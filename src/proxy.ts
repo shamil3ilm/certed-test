@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { resolveHost } from '@/lib/routing/host'
-import { isPublicAppPath } from '@/lib/routing/public-paths'
+import { isPublicAppPath, isBrowserNavigableApi } from '@/lib/routing/public-paths'
 import { updateSession } from '@/lib/supabase/middleware'
 import { ERROR_CODES } from '@/lib/api/error-codes'
 import { UNAUTHORIZED_MESSAGE } from '@/lib/api/messages'
@@ -16,6 +16,23 @@ const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact', '/priv
  * token, so the very next request is unauthenticated and bounces to /login. Every
  * middleware redirect goes through here so no branch can silently discard them.
  */
+/**
+ * A top-level browser navigation asking for a document - as opposed to fetch/XHR.
+ *
+ * GET is part of the test deliberately: a `<form method="post">` submit is ALSO
+ * `Sec-Fetch-Mode: navigate`, so keying on the mode alone would classify the sign-out form
+ * post as a navigation and break signing out. Only a GET navigation renders a page.
+ *
+ * `Accept: text/html` is the fallback for clients that omit Sec-Fetch-* (older browsers,
+ * some in-app webviews). A fetch caller sends neither header, so the machine-readable
+ * contract below is untouched either way.
+ */
+function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.method !== 'GET') return false
+  if (request.headers.get('sec-fetch-mode') === 'navigate') return true
+  return (request.headers.get('accept') ?? '').includes('text/html')
+}
+
 function redirectPreserving(url: URL, base: NextResponse): NextResponse {
   const redirect = NextResponse.redirect(url)
   base.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
@@ -118,6 +135,17 @@ export async function proxy(request: NextRequest) {
   // Exact for app/API pages, segment prefix only for genuine API prefixes
   // (`/api/cron/...`) - so a look-alike like `/loginx` or `/registeree` is never
   // treated as public. See src/lib/routing/public-paths.ts.
+  // An internal API is not a page. Someone who lands on one by typing, bookmarking or
+  // following a stale link gets the not-found UI, not a JSON envelope - and that holds
+  // whether or not they are signed in, because an authenticated navigation to
+  // /api/receipts would otherwise render the raw payload in the browser. A redirect to
+  // /login would be a worse lie: it implies the page exists behind a sign-in.
+  //
+  // Downloads, PDFs and CSV exports are declared navigable and pass through. Programmatic
+  // callers send no navigation headers, so they never reach this branch.
+  if (pathname.startsWith('/api/') && isDocumentNavigation(request) && !isBrowserNavigableApi(pathname)) {
+    return NextResponse.rewrite(new URL('/_not-found', request.url))
+  }
   if (isPublicAppPath(pathname)) return response
   if (!user) {
     // A programmatic client hitting a protected API route needs a machine-readable

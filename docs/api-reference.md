@@ -41,3 +41,28 @@ Every route under `src/app/api`. "Guard" is the primary access check at the entr
 | `/api/dev/logout`                 | GET       | dev/mock only                                                |
 
 The public routes above are the allowlist in [`src/lib/routing/public-paths.ts`](../src/lib/routing/public-paths.ts); everything else on the app host requires a session (middleware) and a capability (the route/page guard).
+
+## Internal APIs are not pages
+
+`src/proxy.ts` decides by **what the client asked for**, not by path prefix.
+
+A GET navigation (`Sec-Fetch-Mode: navigate`, or `Accept: text/html`) to a route under
+`/api/` that is not declared navigable is rewritten to the app's not-found UI — whether or
+not the visitor is signed in, because an authenticated navigation to `/api/receipts` would
+otherwise render the raw payload in the browser. A redirect to `/login` would be a worse
+answer: it implies the page exists behind a sign-in.
+
+Programmatic callers send neither header, so `fetch`/XHR keeps the machine-readable
+envelope (`401 {"success":false,...,"code":"UNAUTHORIZED"}`) it can act on.
+
+The method check is load-bearing: a `<form method="post">` submit _also_ sends
+`Sec-Fetch-Mode: navigate`, so only a **GET** navigation counts — otherwise the sign-out
+form post would be rewritten and signing out would break.
+
+Routes a browser may legitimately open are declared in `BROWSER_NAVIGABLE_API`
+(`src/lib/routing/public-paths.ts`): attachment and resource downloads, receipt/pay-slip
+PDFs and CSV exports, the report card, and `/api/reports/[type]/[studentId]`. Matched by
+pattern, not prefix, so `/api/receipts/x/pdfx` does not qualify.
+
+Verified against a running build: a navigation to `/api/receipts` returns **404** with the
+app's not-found page; the same URL fetched returns **401** with the JSON envelope.
