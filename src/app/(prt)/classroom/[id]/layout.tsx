@@ -3,7 +3,7 @@ import { requireClassAccess } from '../access'
 import { getActorContext } from '@/lib/session/actor-context'
 import { canManageClass } from '@/lib/permission'
 import { BackLink, PageHeader } from '@/lib/ui'
-import { subjectSwitcherFor } from '@/lib/services/classes/subject-switcher'
+import { classHeader, classIdentityFor } from '@/lib/services/classes/subject-switcher'
 import { ClassTabs } from './ClassTabs'
 import { SubjectSwitcher } from './SubjectSwitcher'
 
@@ -20,32 +20,22 @@ export default async function ClassLayout(props: { params: Promise<{ id: string 
   // shown a Grading tab on X.
   const canGrade = actor.capabilities.allowed.has('viewGrading') && (await canManageClass(me, course.id))
 
-  // The student's OTHER subjects, scoped to what this viewer teaches. Null when there is
-  // nothing to switch to - one subject, or a class that is not a single student.
-  const switcher = await subjectSwitcherFor(me, course.id)
+  // Who and what this class is for, resolved live, plus the student's other subjects this
+  // viewer can open. Null only when there is no single student to lead with.
+  const identity = await classIdentityFor(me, course.id)
+  // The PERSON leads, the subject qualifies - for every viewer, including one who teaches this
+  // student a single subject and so has nothing to switch to. See classHeader.
+  const header = classHeader(course, identity)
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <BackLink href="/classroom">Back to classes</BackLink>
 
-      {/* The PERSON leads, the subject qualifies - a class is one student and one subject, and
-          the reader arrived looking for someone. It also stops the heading going stale:
-          `course.name` is a "Student - Subject" string built once when the class was created,
-          so a student who is renamed keeps the old name in every heading, and nothing in the
-          app rewrites it. The switcher resolves both from their own tables, live.
+      <PageHeader title={header.title} description={header.description} />
 
-          Falls back to the stored name when there is no single student to lead with - a group
-          class, or one whose student has been unenrolled. */}
-      <PageHeader
-        title={switcher ? switcher.studentName : course.name}
-        description={
-          course.status === 'archived' ? 'Archived class' : (switcher?.options.find((o) => o.current)?.label ?? 'Class')
-        }
-      />
-
-      {switcher && (
+      {identity && identity.options.length >= 2 && (
         <div className="mt-3">
-          <SubjectSwitcher studentName={switcher.studentName} options={switcher.options} classId={course.id} />
+          <SubjectSwitcher studentName={identity.studentName} options={identity.options} classId={course.id} />
         </div>
       )}
 
