@@ -117,9 +117,13 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
   'src/lib/data/class-membership.ts:selectActiveEnrollmentsForStudents':
     'Enrolments for a NAMED student set - the mentee dashboard passes its own mentees.',
   'src/lib/data/class-membership.ts:selectActiveEnrollmentPairsByStudentIds':
-    'The (student, class) edges for a NAMED student set: ONE PAGE of the /classroom roster, so bounded by the page size.',
+    'The (student, class) edges for a NAMED student set: ONE PAGE of the /classroom roster, or the ' +
+    'students of ONE class when checking whether a subject is already taken.',
   'src/lib/data/class-membership.ts:selectActiveEnrollmentPairsByClassIds':
-    'The (student, class) edges of a NAMED class set. Both callers pass the classes ONE tutor teaches - messaging recipients, and the tutor roster on a user page.',
+    'The (student, class) edges of a NAMED class set. Every caller bounds it: messaging recipients and the tutor ' +
+    'roster on a user page pass the classes ONE tutor teaches, and the class-label resolver passes a bounded set ' +
+    '(the classes of a tutor or a mentor, one class, a handful of dashboard exams). Its ACADEMY-WIDE path reads ' +
+    'selectAllActiveEnrollmentPairs, in pages, instead of listing every class id here.',
   'src/lib/data/class-membership.ts:selectActiveTutorIdsByClassIds':
     'The tutors of a NAMED class set; the only caller passes the classes of ONE student, to resolve who that student may message.',
   'src/lib/data/class-membership.ts:selectActiveTutorRefsByClassIds':
@@ -153,12 +157,14 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
   'src/lib/data/profiles-auth.ts:selectActiveIdsAmong':
     'Of a NAMED id set, which are active. Bounded by the set passed in, and its widest caller (the persona expansion) is itself paged.',
   'src/lib/data/profiles-directory.ts:selectProfilesLiteByIds':
-    'Name and email for a NAMED id set - the ids already on the page being rendered.',
+    'Name and email for a NAMED id set - the ids already on the page being rendered, or the single students of a ' +
+    'BOUNDED class set being labelled. Labelling every class in the academy reads the paged student list ' +
+    '(selectProfilesByFilter) instead, and never sends that set here.',
   'src/lib/data/classes.ts:selectClassesByIds':
-    'A NAMED class set, and both callers bound it: listMyClasses now runs only on the ' +
-    "STUDENT branch of /classroom (their own subjects), and the calendar's picker passes a " +
-    "tutor's own classes - its academy-wide reader takes the myClassScope null path instead " +
-    'of listing ids.',
+    'A NAMED class set, and every caller has already bounded it: the classes of one student (their ' +
+    'own list, a report card, the duplicate-subject check), one mentor cohort, one page of a list, or ' +
+    'the classes a tutor teaches. An academy-wide reader takes the myClassScope null path instead of ' +
+    'listing ids.',
   'src/lib/data/classes.ts:selectClassNamesByIdsAsService':
     "Label lookup for ONE student's report card: their enrolments plus the classes their own " +
     'graded assignments belong to. Bounded by one student, not by the academy.',

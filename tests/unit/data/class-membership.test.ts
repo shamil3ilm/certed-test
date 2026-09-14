@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -17,6 +17,7 @@ import {
   countActiveEnrollmentsPerClass,
   upsertClassTutor,
   upsertEnrollment,
+  selectAllActiveEnrollmentPairs,
 } from '@/lib/data/class-membership'
 
 const admin = (r: any) => vi.mocked(createAdminClient).mockReturnValueOnce(makeClient(r) as any)
@@ -80,5 +81,29 @@ describe('class-membership data layer', () => {
     await expect(upsertClassTutor('t1', 'c1')).rejects.toThrow()
     admin({ data: null, error: null })
     await expect(upsertEnrollment('s1', 'c1')).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * Class labels for an ACADEMY-WIDE list (the admin calendar picker) need every class's
+ * single student. Asking for them by class id would put every class in the academy into one
+ * `.in()` list - past the URL limit, and truncated at the row cap past a thousand rows with
+ * no error. This reads the enrolments whole instead, in pages, so the set is complete.
+ */
+describe('selectAllActiveEnrollmentPairs', () => {
+  it('pages every active enrolment rather than stopping at the row cap', async () => {
+    const { builder, client } = makeClientCapturing({ data: [{ student_id: 's1', class_id: 'c1' }], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    expect(await selectAllActiveEnrollmentPairs()).toEqual([{ student_id: 's1', class_id: 'c1' }])
+    expect(builder.range).toHaveBeenCalled()
+    expect(builder.eq).toHaveBeenCalledWith('active', true)
+    // a complete walk needs a total order, or a page boundary repeats one row and skips another
+    expect(builder.order).toHaveBeenCalled()
+  })
+
+  it('throws a namespaced error rather than returning a partial set', async () => {
+    admin({ data: null, error: { message: 'e' } })
+    await expect(selectAllActiveEnrollmentPairs()).rejects.toThrow(/classMembership.allEnrollmentPairs: e/)
   })
 })

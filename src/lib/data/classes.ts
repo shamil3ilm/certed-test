@@ -252,13 +252,15 @@ export async function selectClassStatus(id: string): Promise<ClassRow['status'] 
   return (data as { status: ClassRow['status'] } | null)?.status ?? null
 }
 
-/** Class id -> name for a set of ids, SERVICE-ROLE. THROWS on error, unlike
+/** Class id, stored name and subject for a set of ids, SERVICE-ROLE - the report card's labels. THROWS on error, unlike
  *  selectClassesByIds, because the report card must fail loudly rather than
  *  render rows labelled "Class". */
-export async function selectClassNamesByIdsAsService(ids: string[]): Promise<{ id: string; name: string }[]> {
+export async function selectClassNamesByIdsAsService(
+  ids: string[],
+): Promise<{ id: string; name: string; subject_id: string | null }[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
-  const { data, error } = await admin.from('classes').select('id, name').in('id', ids)
+  const { data, error } = await admin.from('classes').select('id, name, subject_id').in('id', ids)
   if (error) throw new Error(`reportCard.classes: ${error.message}`)
-  return (data ?? []) as { id: string; name: string }[]
+  return (data ?? []) as { id: string; name: string; subject_id: string | null }[]
 }

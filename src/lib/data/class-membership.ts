@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertMutated } from '@/lib/data/mutation'
+import { fetchAllPaged } from '@/lib/data/paginate'
 
 /**
  * Table access for the two membership tables - `class_tutors` and `enrollments`.
@@ -248,6 +249,31 @@ export async function selectActiveEnrollmentPairsByClassIds(classIds: string[]):
     .eq('active', true)
   if (error) throw new Error(`classMembership.enrollmentPairsByClassIds: ${error.message}`)
   return (data ?? []) as EnrollmentPair[]
+}
+
+/**
+ * (student_id, class_id) for EVERY active enrolment, complete.
+ *
+ * For an ACADEMY-WIDE reader only - the admin calendar's class picker, which labels every
+ * class in the academy with its student. Asking selectActiveEnrollmentPairsByClassIds for
+ * those would send every class id as one `.in()` list: past the URL limit, and cut at the
+ * row cap past a thousand rows without an error. This reads the table whole, in pages, and
+ * orders on both columns so the offset walk is a total order and no row repeats or is lost
+ * across a page boundary.
+ */
+export async function selectAllActiveEnrollmentPairs(): Promise<EnrollmentPair[]> {
+  const admin = createAdminClient()
+  return fetchAllPaged<EnrollmentPair>(
+    (from, to) =>
+      admin
+        .from('enrollments')
+        .select('student_id, class_id')
+        .eq('active', true)
+        .order('class_id', { ascending: true })
+        .order('student_id', { ascending: true })
+        .range(from, to),
+    'classMembership.allEnrollmentPairs',
+  )
 }
 
 /** (student_id, class_id) for every active enrolment of the given students. */
