@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { loadClassroomPageData } from '@/lib/services/page-data/classroom'
+import { StudentGroup } from '../classroom/StudentGroup'
 import {
   CLASS_BANNER,
   CARD,
@@ -66,7 +67,7 @@ export default async function GradingPage(props: { searchParams?: Promise<{ page
   // extras: false - this landing renders neither tag chips nor the "no student" section, and
   // computing them here is round trips whose results are discarded.
   const data = await loadClassroomPageData(me, { page: searchParams?.page, q: searchParams?.q }, { extras: false })
-  const { filters, groups, total, totalPages: pages } = data
+  const { filters, groups, subjectByClass, total, totalPages: pages } = data
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
@@ -86,14 +87,26 @@ export default async function GradingPage(props: { searchParams?: Promise<{ page
       ) : (
         <div className="space-y-6">
           {groups.map((g) => (
-            <section key={g.key} aria-label={g.label}>
-              <h2 className="mb-2 text-sm font-semibold text-slate-600">{g.label}</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {g.classes.map((course) => (
-                  <GradingClassCard key={course.id} id={course.id} name={course.name} status={course.status} />
-                ))}
-              </div>
-            </section>
+            <StudentGroup
+              key={g.key}
+              label={g.label}
+              subjectCount={g.classes.length}
+              missingSubject={g.classes.some((c) => !c.subject_id)}
+              // Always open. This landing exists to pick a class to grade, so its cards are the content,
+              // not detail to disclose - collapsed, a reader lands on a page with nothing to click.
+              open
+            >
+              {g.classes.map((course) => (
+                <GradingClassCard
+                  key={course.id}
+                  id={course.id}
+                  // The SUBJECT: the group heading already names the student, and the stored class name
+                  // would print them again - under whatever name they had when the class was created.
+                  name={subjectByClass.get(course.id) ?? course.name}
+                  status={course.status}
+                />
+              ))}
+            </StudentGroup>
           ))}
         </div>
       )}
