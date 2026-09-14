@@ -3,6 +3,7 @@ import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
 import { listMeetLinks, type MeetLink } from '@/lib/services/meet-links'
+import { withClassLabels } from '@/lib/services/classes/class-labels'
 
 type ClassMeetViewData = {
   canManage: boolean
@@ -19,7 +20,7 @@ type ClassMeetViewData = {
  *  of the announcement stream instead of riding along on the stream loader. */
 export async function loadClassMeetViewData(
   me: Profile,
-  course: { id: string; name: string; status: 'active' | 'archived' },
+  course: { id: string; name: string; status: 'active' | 'archived'; subject_id: string | null },
 ): Promise<ClassMeetViewData> {
   const [{ isAdmin }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
   const isArchived = course.status === 'archived'
@@ -43,6 +44,8 @@ export async function loadClassMeetViewData(
     meetLinks,
     archivedMeetLinks,
     commentsByMeet,
-    classList: [{ id: course.id, name: course.name }],
+    // The meet form's class option reads the live "Student - Subject", as the calendar's does, not
+    // the name stored when the class was created.
+    classList: (await withClassLabels([course], 'student-subject')).map((c) => ({ id: c.id, name: c.name })),
   }
 }

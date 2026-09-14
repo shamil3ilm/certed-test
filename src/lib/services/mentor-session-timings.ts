@@ -1,4 +1,5 @@
 import 'server-only'
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { mentoringScopeClassIds, canManageClass, isMentoringOversight } from '@/lib/permission/class'
 import { selectClassesByIds, selectArchivedClassIds } from '@/lib/data/classes'
@@ -152,7 +153,9 @@ async function enrichSessions(sessions: ClassSessionRow[]): Promise<MenteeSessio
   ])
 
   const studentByClass = new Map(enrollRefs.map((r) => [r.class_id, r.student_id]))
-  const classNameById = new Map(classes.map((c) => [c.id, c.name]))
+  // SUBJECT labels: each row already has a student column and its own subject column, so the
+  // stored "Student - Subject" name repeated both - under whatever name the student had then.
+  const classNameById = await resolveClassLabels(classes, 'subject')
   // Attendance is per SESSION (0094), so index the marks by session id. Keying by
   // (class, date) would keep only one mark per day and show the same entry time against
   // every session that day.

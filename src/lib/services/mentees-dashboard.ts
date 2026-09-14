@@ -1,3 +1,4 @@
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import type { AttendanceStatus } from '@/lib/attendance/summary'
 import {
@@ -168,7 +169,8 @@ export async function getMentorDashboard(me: Profile): Promise<MentorDashboardCa
     selectActiveAssignmentsByClassIdsAsService(allClassIds),
     selectAssignmentsByIdsAsService(gradedAssignmentIds),
   ])
-  const classLabel = new Map(classes.map((course) => [course.id, course.name]))
+  // SUBJECT labels: every row this feeds already leads with the mentee's name.
+  const classLabel = await resolveClassLabels(classes, 'subject')
   const metaById = new Map(meta.map((assignment) => [assignment.id, assignment]))
   const assignmentsByClass = groupBy(
     assignments,

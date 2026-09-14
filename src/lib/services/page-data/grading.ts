@@ -1,3 +1,4 @@
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { listAssignments } from '@/lib/services/assignments'
 import { listClassesByIds, myClassIds } from '@/lib/services/classes'
@@ -59,7 +60,8 @@ export async function loadGradingQueuePageData(
     // class (which, for an admin, would scale with the whole academy).
     listClassesByIds([...new Set(assignments.map((a) => a.class_id))]),
   ])
-  const classNameById = new Map(classes.map((c) => [c.id, c.name]))
+  // SUBJECT labels: every queue row already names its student.
+  const classNameById = await resolveClassLabels(classes, 'subject')
 
   const query = searchParams?.q?.trim().toLowerCase() || undefined
   // Class narrowing already happened in the query above; only the free-text search runs

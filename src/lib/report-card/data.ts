@@ -1,4 +1,5 @@
 import 'server-only'
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { selectClassNamesByIdsAsService } from '@/lib/data/classes'
@@ -81,7 +82,9 @@ export async function getReportCardData(actor: ActorContext, studentId: string):
   const classIds = [...new Set([...enrolledClassIds, ...assignments.map((a) => a.class_id)])]
   const classes = await selectClassNamesByIdsAsService(classIds)
 
-  const classLabel = new Map(classes.map((c) => [c.id, c.name]))
+  // The SUBJECT, not the stored name: this document already names the student in its header,
+  // and a stored "Student - Subject" name would print them again on every marks row.
+  const classLabel = await resolveClassLabels(classes, 'subject')
   const assignmentById = new Map<string, AssignmentReportRow>(assignments.map((a) => [a.id, a]))
 
   const marks: ReportMark[] = subs

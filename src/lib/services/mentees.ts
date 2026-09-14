@@ -1,3 +1,4 @@
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import { isMentoringOversight } from '@/lib/permission/class'
 import type { Profile } from '@/lib/auth/profile'
 import { mentoringSectionLabel } from '@/lib/ui/labels'
@@ -122,7 +123,9 @@ export async function getMenteeOverview(
     classIds.length ? selectRowsForStudentAsService(studentId) : Promise.resolve([]),
   ])
 
-  const classLabel = new Map(classes.map((course) => [course.id, course.name]))
+  // SUBJECT labels: this page is one student's, so the stored "Student - Subject" name would
+  // repeat them on every row - and would still show them under a name they no longer use.
+  const classLabel = await resolveClassLabels(classes, 'subject')
   const assignmentById = new Map(assignments.map((assignment) => [assignment.id, assignment]))
   const submittedIds = new Set(submissions.map((submission) => submission.assignment_id))
 
@@ -200,7 +203,7 @@ export async function getMenteeOverview(
 
   return {
     student,
-    classes: classes.map((course) => ({ id: course.id, name: course.name })),
+    classes: classes.map((course) => ({ id: course.id, name: classLabel.get(course.id) ?? course.name })),
     submissions: recentSubmissions,
     overdue,
     evaluations: {

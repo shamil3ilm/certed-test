@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { listAssignments } from '@/lib/services/assignments'
 import { listClassesByIds } from '@/lib/services/classes'
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { todayInZone } from '@/lib/time/format'
 import { zonedDayStartMs } from '@/lib/time/expand-slots'
@@ -33,7 +34,10 @@ export async function UpcomingExamsWidget() {
   // Resolve the class/subject name for the (few) exams in one batched query - no N+1.
   const classIds = [...new Set(exams.map((exam) => exam.class_id))]
   const classes = classIds.length ? await listClassesByIds(classIds) : []
-  const classNameById = new Map(classes.map((course) => [course.id, course.name]))
+  // "Student - Subject", live: exams from many students share this tile, so the student has to be
+  // named - from the student record, not the name stored when the class was created. A handful
+  // of exams, so a bounded lookup.
+  const classNameById = await resolveClassLabels(classes, 'student-subject')
 
   return (
     <Panel title="Upcoming exams">

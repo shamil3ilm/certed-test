@@ -1,4 +1,5 @@
 import 'server-only'
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import { toRange } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { supersedePriorResourceAttachments } from '@/lib/data/attachments'
@@ -149,7 +150,10 @@ export async function searchDocuments(opts: {
     sort: opts.sort ?? 'latest',
   })
   const classes = await listClassesByIds([...new Set(rows.map((r) => r.class_id))])
-  const nameById = new Map(classes.map((c) => [c.id, c.name]))
+  // SUBJECT labels: the Documents page groups these results under the student who owns each
+  // class, so the student is already the heading and the stored "Student - Subject" name
+  // would repeat them on every row.
+  const nameById = await resolveClassLabels(classes, 'subject')
   return {
     items: rows.map((document) => ({ document, className: nameById.get(document.class_id) ?? 'Class' })),
     total,

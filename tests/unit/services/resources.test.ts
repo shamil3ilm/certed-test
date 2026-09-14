@@ -6,6 +6,10 @@ vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
+}))
 vi.mock('@/lib/data/resource-versions', () => ({
   insertVersion: vi.fn(),
   selectVersionByIdAsService: vi.fn(),

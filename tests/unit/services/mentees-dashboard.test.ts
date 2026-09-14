@@ -7,6 +7,10 @@ vi.mock('@/lib/data/assignments', () => ({
 vi.mock('@/lib/data/attendance', () => ({ selectRowsForStudentsAsService: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveEnrollmentsForStudents: vi.fn() }))
 vi.mock('@/lib/data/classes', () => ({ selectClassesByIds: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
+}))
 vi.mock('@/lib/data/submissions', () => ({
   selectActiveSubmissionsForStudentsAsService: vi.fn(),
   selectEvaluatedSubmissionsForStudentsAsService: vi.fn(),

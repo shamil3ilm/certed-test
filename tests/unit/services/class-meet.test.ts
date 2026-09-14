@@ -8,6 +8,10 @@ vi.mock('@/lib/permission/personas', () => ({
 }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
 vi.mock('@/lib/services/meet-links', () => ({ listMeetLinks: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  withClassLabels: async (rows: Array<{ id: string; name: string }>) => rows.map((r) => ({ ...r })),
+}))
 
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import { loadClassMeetViewData } from '@/lib/services/page-data/class-meet'
@@ -45,7 +49,7 @@ describe('loadClassMeetViewData', () => {
 
     const result = await loadClassMeetViewData(
       { id: 'admin-1', role: 'admin', email: 'admin@test.com', full_name: 'Admin' } as any,
-      { id: 'class-1', name: 'Math', status: 'active' },
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
     )
 
     expect(result.canManageContent).toBe(true)
@@ -69,7 +73,7 @@ describe('loadClassMeetViewData', () => {
 
     const result = await loadClassMeetViewData(
       { id: 'student-1', role: 'student', email: 'student@test.com', full_name: 'Student' } as any,
-      { id: 'class-1', name: 'Math', status: 'active' },
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
     )
 
     expect(result.canManage).toBe(false)
@@ -88,7 +92,7 @@ describe('loadClassMeetViewData', () => {
 
     const result = await loadClassMeetViewData(
       { id: 'admin-1', role: 'admin', email: 'admin@test.com', full_name: 'Admin' } as any,
-      { id: 'class-1', name: 'Math', status: 'archived' },
+      { id: 'class-1', name: 'Math', status: 'archived', subject_id: null },
     )
 
     expect(result.canManage).toBe(true)

@@ -13,6 +13,10 @@ vi.mock('@/lib/services/assignments', () => ({
   ASSIGNMENT_TYPES: ['assignment', 'exam', 'quiz', 'test', 'project'],
 }))
 vi.mock('@/lib/services/comments', () => ({ listCommentsForEntities: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  withClassLabels: async (rows: Array<{ id: string; name: string }>) => rows.map((r) => ({ ...r })),
+}))
 vi.mock('@/lib/services/resources', () => ({
   listResourcesPage: vi.fn(),
   listVersionsForDocuments: vi.fn(async () => new Map()),
@@ -133,7 +137,7 @@ describe('loadClassworkPageData', () => {
 
     const result = await loadClassworkPageData(
       { id: 'student-1', role: 'student' } as any,
-      { id: 'class-1', name: 'Math', status: 'active' },
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
       {},
     )
 
@@ -161,7 +165,7 @@ describe('loadClassworkPageData', () => {
     vi.mocked(listResourcesPage).mockResolvedValue({ items: [], total: 0 } as any)
     vi.mocked(listAssignmentPage).mockResolvedValue({ items: [], total: 0 } as any)
     vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
-    const course = { id: 'class-1', name: 'Math', status: 'active' } as any
+    const course = { id: 'class-1', name: 'Math', status: 'active', subject_id: null } as any
     const tutor = { id: 'tutor-1', role: 'tutor' } as any
 
     await loadClassworkPageData(tutor, course, { aType: 'exam' })
@@ -180,7 +184,7 @@ describe('loadClassworkPageData', () => {
 
     const result = await loadClassworkPageData(
       { id: 'tutor-1', role: 'tutor' } as any,
-      { id: 'class-1', name: 'Math', status: 'active' },
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
       { q: ' notes ', cat: 'question_papers', subj: 'Maths', sort: 'oldest', from: '2026-07-01' },
     )
     expect(result.filters).toEqual({
@@ -210,7 +214,7 @@ describe('loadClassworkPageData', () => {
 
     const result = await loadClassworkPageData(
       { id: 'tutor-1', role: 'tutor' } as any,
-      { id: 'class-1', name: 'Math', status: 'active' },
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
       {},
     )
 
@@ -227,7 +231,7 @@ describe('loadClassworkPageData', () => {
 
     const result = await loadClassworkPageData(
       { id: 'tutor-1', role: 'tutor' } as any,
-      { id: 'class-1', name: 'Math', status: 'archived' },
+      { id: 'class-1', name: 'Math', status: 'archived', subject_id: null },
       {},
     )
 

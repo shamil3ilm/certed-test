@@ -15,6 +15,10 @@ vi.mock('@/lib/data/classes', () => ({
   selectArchivedClassIds: vi.fn(),
 }))
 vi.mock('@/lib/data/subjects', () => ({ selectSubjectsByIds: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
+}))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveEnrollmentRefsByClassIds: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), getProfileLabelsByIds: vi.fn() }))
 vi.mock('@/lib/data/class-sessions', () => ({

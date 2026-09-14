@@ -8,6 +8,10 @@ vi.mock('@/lib/services/classes', () => ({
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForTutor: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ listActiveTeacherCandidates: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  withClassLabels: async (rows: Array<{ id: string; name: string }>) => rows.map((r) => ({ ...r })),
+}))
 
 import type { Capability } from '@/lib/capabilities'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'

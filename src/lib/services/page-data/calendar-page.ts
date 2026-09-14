@@ -1,10 +1,26 @@
 import type { Profile } from '@/lib/auth/profile'
 import type { Capability } from '@/lib/capabilities'
-import { listClasses, listClassesByIds, myClassScope } from '@/lib/services/classes'
+import { listClasses, listClassesByIds, myClassScope, type ClassRow } from '@/lib/services/classes'
+import { withClassLabels } from '@/lib/services/classes/class-labels'
 import { selectActiveClassIdsForTutor } from '@/lib/data/class-membership'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { listActiveTeacherCandidates } from '@/lib/services/users'
+
+/**
+ * Active classes as picker options, labelled "Student - Subject" from the live student and
+ * subject rather than the name stored when the class was created, which neither a student's
+ * rename nor a later subject assignment rewrites.
+ *
+ * `academyWide` is true when `classes` is every class in the academy: the labels then read
+ * enrolments and student names whole, in pages, instead of sending every class id as one
+ * `.in()` list.
+ */
+async function pickerClasses(classes: ClassRow[], academyWide: boolean): Promise<{ id: string; name: string }[]> {
+  const active = classes.filter((c) => c.status === 'active')
+  const labelled = await withClassLabels(active, 'student-subject', { academyWide })
+  return labelled.map((c) => ({ id: c.id, name: c.name }))
+}
 
 type CalendarPageData = {
   canManage: boolean
@@ -46,7 +62,7 @@ export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<C
     return {
       canManage,
       isAdmin,
-      classes: allClasses.filter((c) => c.status === 'active').map((c) => ({ id: c.id, name: c.name })),
+      classes: await pickerClasses(allClasses, true),
       tutors,
     }
   }
@@ -79,7 +95,7 @@ export async function loadCalendarPageData(profile: Profile, caps: ReadonlySet<C
   return {
     canManage,
     isAdmin,
-    classes: myClasses.filter((c) => c.status === 'active').map((c) => ({ id: c.id, name: c.name })),
+    classes: await pickerClasses(myClasses, visibleClassIds === null),
     tutors: canManage || canManageContent ? [{ id: profile.id, name: profile.full_name ?? profile.email }] : [],
   }
 }

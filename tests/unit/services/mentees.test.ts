@@ -7,6 +7,10 @@ vi.mock('@/lib/services/mentorships', () => ({ listMentorships: vi.fn(), student
 vi.mock('@/lib/services/student-relationship-subtitles', () => ({ buildStudentRelationshipSubtitles: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/profiles-directory', () => ({ selectProfilePage: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
+}))
 vi.mock('@/lib/services/users', async () => {
   const actual = await vi.importActual<typeof import('@/lib/services/users')>('@/lib/services/users')
   return {

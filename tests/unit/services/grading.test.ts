@@ -4,6 +4,10 @@ vi.mock('@/lib/services/assignments', () => ({ listAssignments: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ listClassesByIds: vi.fn(), myClassIds: vi.fn() }))
 vi.mock('@/lib/services/submissions', () => ({ listUngradedSubmissions: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
+// Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
+vi.mock('@/lib/services/classes/class-labels', () => ({
+  resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
+}))
 
 import { listAssignments } from '@/lib/services/assignments'
 import { listClassesByIds, myClassIds } from '@/lib/services/classes'

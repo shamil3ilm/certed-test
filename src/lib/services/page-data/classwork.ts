@@ -1,4 +1,5 @@
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
+import { withClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
@@ -170,13 +171,15 @@ function isoOrUndefined(day: string | undefined, endOfDay = false): string | und
 /** Loads and shapes the classwork page so the page only renders forms + lists. */
 export async function loadClassworkPageData(
   me: Profile,
-  course: { id: string; name: string; status: 'active' | 'archived' },
+  course: { id: string; name: string; status: 'active' | 'archived'; subject_id: string | null },
   searchParams?: ClassworkSearchParams,
 ): Promise<ClassworkPageData> {
   const [{ isStudent }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
   const isArchived = course.status === 'archived'
   const canManageContent = canManage && !isArchived
-  const classList = [{ id: course.id, name: course.name }]
+  // The assignment and upload forms' class option reads the live "Student - Subject", as the
+  // calendar's does, not the name stored when the class was created.
+  const classList = (await withClassLabels([course], 'student-subject')).map((c) => ({ id: c.id, name: c.name }))
 
   const urlState = parseClassworkState(searchParams)
   const filters = urlState.filters

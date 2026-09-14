@@ -1,4 +1,5 @@
 import 'server-only'
+import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import { selectActiveEnrollmentPairsByStudentIds } from '@/lib/data/class-membership'
 import { selectClassesByIds } from '@/lib/data/classes'
 
@@ -28,7 +29,9 @@ export async function buildStudentRelationshipSubtitles(
   const pairs = await selectActiveEnrollmentPairsByStudentIds(uniqueStudents.map((student) => student.id))
   const classIds = [...new Set(pairs.map((pair) => pair.class_id))]
   const classes = classIds.length > 0 ? await selectClassesByIds(classIds) : []
-  const classNameById = new Map(classes.map((course) => [course.id, course.name]))
+  // SUBJECT labels: a subtitle sits under the student's own name, so the stored "Student - Subject"
+  // name would print them a second time on their own row.
+  const classNameById = await resolveClassLabels(classes, 'subject')
   const classNamesByStudent = new Map<string, string[]>()
 
   for (const pair of pairs) {
