@@ -15,12 +15,12 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   const newbieEmail = attemptName('e2e-newbie', testInfo).replace(' ', '-') + '@mock.test'
   await loginAs(page, 'admin@mock.test')
 
-  // A class is created only as a student's SUBJECT: adding "Physics" to Sara creates
+  // A class is created only as a student's SUBJECT: adding "Biology" to Sara creates
   // the class AND enrols her AND assigns the tutor in one step (the subject-as-class model).
   await page.goto(`/admin/users/${SEED.sara}`)
   // Scoped to the ADD form: a student who also has a subject-less class gets a second
   // subject input on this page, the one that repairs that class.
-  await page.locator('form:has(button:has-text("Add subject")) input[name=subject]').fill('Physics')
+  await page.locator('form:has(button:has-text("Add subject")) input[name=subject]').fill('Biology')
   // By VALUE, not by label: the option text carries the person's role ("Tarun Tutor - Tutor")
   // so an admin can tell a tutor from a mentor in one list, and that wording is presentation
   // this test should not pin down. The id is what the form actually submits.
@@ -32,7 +32,8 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   await page.goto('/classroom')
   await page.getByRole('group').filter({ hasText: 'Sara Student' }).first().locator('summary').click()
   await page
-    .getByRole('link', { name: /Physics/ })
+    // A subject Sara does not already take: a second class for one she does is refused.
+    .getByRole('link', { name: /Biology/ })
     .first()
     .click()
   await page.waitForURL(/\/classroom\/[0-9a-f-]{36}/)

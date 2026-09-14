@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/data/subjects', () => ({ selectSubjectById: vi.fn() }))
-vi.mock('@/lib/data/classes', () => ({ updateClassSubjectWhenUnset: vi.fn() }))
+vi.mock('@/lib/data/classes', () => ({ updateClassSubjectWhenUnset: vi.fn(), selectClassesByIds: vi.fn() }))
+vi.mock('@/lib/data/class-membership', () => ({
+  selectActiveClassIdsForStudent: vi.fn(),
+  selectActiveEnrollmentRowsForClass: vi.fn(),
+  selectActiveEnrollmentPairsByStudentIds: vi.fn(),
+}))
 vi.mock('@/lib/data/class-sessions', () => ({ backfillSessionSubjects: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
@@ -14,10 +19,18 @@ vi.mock('@/lib/services/class-tutors', () => ({ addTutor: vi.fn() }))
 import { requireActorCapability } from '@/lib/services/authorization'
 import { canManageClass } from '@/lib/permission'
 import { selectSubjectById } from '@/lib/data/subjects'
-import { updateClassSubjectWhenUnset } from '@/lib/data/classes'
+import { updateClassSubjectWhenUnset, selectClassesByIds } from '@/lib/data/classes'
+import {
+  selectActiveClassIdsForStudent,
+  selectActiveEnrollmentRowsForClass,
+  selectActiveEnrollmentPairsByStudentIds,
+} from '@/lib/data/class-membership'
+import { getProfileById } from '@/lib/services/users'
+import { createClass } from '@/lib/services/classes/lifecycle'
+import { enrolStudent } from '@/lib/services/enrollments'
 import { backfillSessionSubjects } from '@/lib/data/class-sessions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { setMissingClassSubject } from '@/lib/services/class-subjects'
+import { setMissingClassSubject, addSubjectToStudent } from '@/lib/services/class-subjects'
 import { ValidationError, PermissionError } from '@/lib/errors'
 
 /**
@@ -35,6 +48,18 @@ beforeEach(() => {
   vi.mocked(selectSubjectById).mockResolvedValue({ id: 'sub-1', name: 'Physics' } as never)
   vi.mocked(updateClassSubjectWhenUnset).mockResolvedValue(true)
   vi.mocked(backfillSessionSubjects).mockResolvedValue(15)
+  // No other classes by default, so a subject is free unless a test says otherwise.
+  vi.mocked(selectActiveClassIdsForStudent).mockResolvedValue([])
+  vi.mocked(selectActiveEnrollmentRowsForClass).mockResolvedValue([])
+  vi.mocked(selectActiveEnrollmentPairsByStudentIds).mockResolvedValue([])
+  vi.mocked(selectClassesByIds).mockResolvedValue([])
+  vi.mocked(getProfileById).mockResolvedValue({
+    id: 'stu-1',
+    role: 'student',
+    status: 'active',
+    full_name: 'Sara Student',
+  } as never)
+  vi.mocked(createClass).mockResolvedValue({ id: 'new-class', name: 'Sara Student - Physics' } as never)
 })
 
 describe('setMissingClassSubject', () => {
@@ -90,5 +115,82 @@ describe('setMissingClassSubject', () => {
       subject_id: 'sub-1',
       sessions_labelled: 15,
     })
+  })
+})
+
+/**
+ * A class is one student and one subject, so a SECOND active class for the same pair is a data
+ * error, not a variation: the student's subject tabs would show "Physics, Physics" with nothing
+ * to tell them apart, and hours and attendance would split across two records of one subject.
+ * Both ways a class comes to name a subject refuse it. An ARCHIVED class does not count - a
+ * subject retired and later taken up again is a new class, and nothing is ambiguous about it.
+ */
+describe('addSubjectToStudent refuses a subject the student already takes', () => {
+  const addInput = { studentId: 'stu-1', subjectId: 'sub-1' }
+
+  it('rejects it, naming the student and the subject, and creates nothing', async () => {
+    vi.mocked(selectActiveClassIdsForStudent).mockResolvedValue(['c-phys'])
+    vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c-phys', subject_id: 'sub-1', status: 'active' }] as never)
+
+    await expect(addSubjectToStudent(actor, addInput)).rejects.toThrow(/Sara Student already takes Physics/)
+    expect(createClass).not.toHaveBeenCalled()
+    expect(enrolStudent).not.toHaveBeenCalled()
+  })
+
+  it('allows it again once the earlier class is archived', async () => {
+    vi.mocked(selectActiveClassIdsForStudent).mockResolvedValue(['c-phys'])
+    vi.mocked(selectClassesByIds).mockResolvedValue([
+      { id: 'c-phys', subject_id: 'sub-1', status: 'archived' },
+    ] as never)
+
+    await expect(addSubjectToStudent(actor, addInput)).resolves.toBeTruthy()
+    expect(createClass).toHaveBeenCalledWith(actor, 'Sara Student - Physics', 'sub-1')
+  })
+
+  it('creates the class when the student takes other subjects but not this one', async () => {
+    vi.mocked(selectActiveClassIdsForStudent).mockResolvedValue(['c-math'])
+    vi.mocked(selectClassesByIds).mockResolvedValue([
+      { id: 'c-math', subject_id: 'sub-math', status: 'active' },
+    ] as never)
+
+    await addSubjectToStudent(actor, addInput)
+    expect(createClass).toHaveBeenCalledTimes(1)
+    expect(enrolStudent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('setMissingClassSubject refuses a subject a student of the class already takes', () => {
+  it('rejects it before naming the subject or relabelling any history', async () => {
+    vi.mocked(selectActiveEnrollmentRowsForClass).mockResolvedValue([{ id: 'e1', student_id: 'stu-1' }] as never)
+    vi.mocked(selectActiveEnrollmentPairsByStudentIds).mockResolvedValue([
+      { student_id: 'stu-1', class_id: 'class-1' },
+      { student_id: 'stu-1', class_id: 'c-phys' },
+    ] as never)
+    vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c-phys', subject_id: 'sub-1', status: 'active' }] as never)
+
+    await expect(setMissingClassSubject(actor, input)).rejects.toThrow(/already takes Physics/)
+    expect(updateClassSubjectWhenUnset).not.toHaveBeenCalled()
+    expect(backfillSessionSubjects).not.toHaveBeenCalled()
+  })
+
+  it('does not count the class being repaired against itself', async () => {
+    vi.mocked(selectActiveEnrollmentRowsForClass).mockResolvedValue([{ id: 'e1', student_id: 'stu-1' }] as never)
+    vi.mocked(selectActiveEnrollmentPairsByStudentIds).mockResolvedValue([
+      { student_id: 'stu-1', class_id: 'class-1' },
+    ] as never)
+
+    await expect(setMissingClassSubject(actor, input)).resolves.toMatchObject({ sessionsLabelled: 15 })
+    // With no OTHER class to compare, there is nothing to read.
+    expect(selectClassesByIds).not.toHaveBeenCalled()
+  })
+
+  it('ignores an archived class of the same subject', async () => {
+    vi.mocked(selectActiveEnrollmentRowsForClass).mockResolvedValue([{ id: 'e1', student_id: 'stu-1' }] as never)
+    vi.mocked(selectActiveEnrollmentPairsByStudentIds).mockResolvedValue([
+      { student_id: 'stu-1', class_id: 'c-old' },
+    ] as never)
+    vi.mocked(selectClassesByIds).mockResolvedValue([{ id: 'c-old', subject_id: 'sub-1', status: 'archived' }] as never)
+
+    await expect(setMissingClassSubject(actor, input)).resolves.toMatchObject({ sessionsLabelled: 15 })
   })
 })

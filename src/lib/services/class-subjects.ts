@@ -1,7 +1,12 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import type { ClassRow } from '@/lib/data/classes'
-import { updateClassSubjectWhenUnset } from '@/lib/data/classes'
+import { updateClassSubjectWhenUnset, selectClassesByIds } from '@/lib/data/classes'
+import {
+  selectActiveClassIdsForStudent,
+  selectActiveEnrollmentPairsByStudentIds,
+  selectActiveEnrollmentRowsForClass,
+} from '@/lib/data/class-membership'
 import { backfillSessionSubjects } from '@/lib/data/class-sessions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireActorCapability } from '@/lib/services/authorization'
@@ -25,6 +30,24 @@ import { canManageClass } from '@/lib/permission'
  * user managers, per the product decision.
  */
 
+/**
+ * Whether any ACTIVE class among `classIds` already teaches `subjectId` - the check both ways of
+ * giving a class a subject share.
+ *
+ * A class is one student and one subject, so a second active class for the same pair is a data
+ * error: the student's subject tabs would read "Physics, Physics" with nothing to tell them
+ * apart, and hours and attendance would split across two records of one subject. An ARCHIVED
+ * class does not count - a subject retired and later taken up again is a new class.
+ *
+ * Check-then-act, not a database constraint: a class carries no student column to constrain on
+ * (enrolment does), and both callers are low-volume admin or tutor actions.
+ */
+async function hasActiveClassWithSubject(classIds: string[], subjectId: string): Promise<boolean> {
+  if (classIds.length === 0) return false
+  const classes = await selectClassesByIds(classIds)
+  return classes.some((c) => c.subject_id === subjectId && c.status !== 'archived')
+}
+
 export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput): Promise<ClassRow> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to assign subjects.')
 
@@ -37,6 +60,9 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
   }
   const subject = await selectSubjectById(input.subjectId)
   if (!subject) throw new ValidationError('Unknown subject.')
+  if (await hasActiveClassWithSubject(await selectActiveClassIdsForStudent(student.id), subject.id)) {
+    throw new ValidationError(`${student.full_name ?? 'This student'} already takes ${subject.name}.`)
+  }
 
   // The class name reads as the tutor's "student - subject" and the student's subject.
   const name = `${student.full_name ?? 'Student'} - ${subject.name}`
@@ -86,6 +112,22 @@ export async function setMissingClassSubject(
   }
   const subject = await selectSubjectById(input.subjectId)
   if (!subject) throw new ValidationError('Unknown subject.')
+
+  // The subject must not be one a student of this class already takes elsewhere; the class
+  // being repaired is excluded, since it is the one being named.
+  const studentIds = (await selectActiveEnrollmentRowsForClass(input.classId)).map((r) => r.student_id)
+  if (studentIds.length > 0) {
+    const otherClassIds = [
+      ...new Set(
+        (await selectActiveEnrollmentPairsByStudentIds(studentIds))
+          .map((pair) => pair.class_id)
+          .filter((id) => id !== input.classId),
+      ),
+    ]
+    if (await hasActiveClassWithSubject(otherClassIds, subject.id)) {
+      throw new ValidationError(`A student in this class already takes ${subject.name} in another class.`)
+    }
+  }
 
   const applied = await updateClassSubjectWhenUnset(input.classId, subject.id)
   if (!applied) throw new ValidationError('That class already has a subject.')
