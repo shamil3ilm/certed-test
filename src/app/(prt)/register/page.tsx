@@ -22,15 +22,7 @@ export default async function RegisterPage() {
         </a>
       </p>
       <p className="mt-2 text-center text-xs text-slate-600">
-        By setting up your account you agree to the{' '}
-        <a href="/terms" className="hover:underline">
-          Terms of Use
-        </a>{' '}
-        and{' '}
-        <a href="/privacy" className="hover:underline">
-          Privacy Policy
-        </a>
-        .
+        By setting up your account you agree to the Terms of Use and Privacy Policy.
       </p>
     </AuthShell>
   )

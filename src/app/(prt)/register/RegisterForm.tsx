@@ -87,15 +87,8 @@ export function RegisterForm() {
           onChange={(event) => setGuardianConsent(event.target.checked)}
         />
         <span>
-          If the account holder is under 18, I confirm a parent or guardian has read and agrees to the{' '}
-          <a href="/terms" className="text-primary underline hover:no-underline">
-            Terms of Use
-          </a>{' '}
-          and{' '}
-          <a href="/privacy" className="text-primary underline hover:no-underline">
-            Privacy Policy
-          </a>{' '}
-          on their behalf.
+          If the account holder is under 18, I confirm a parent or guardian has read and agrees to the Terms of Use and
+          Privacy Policy on their behalf.
         </span>
       </label>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}

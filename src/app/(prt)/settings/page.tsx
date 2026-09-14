@@ -136,15 +136,7 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
         <Panel title="Legal">
           {data.consent.acceptedAt ? (
             <p className="text-sm text-slate-600">
-              You accepted our{' '}
-              <a href="/terms" className="text-primary underline hover:no-underline">
-                Terms of Use
-              </a>{' '}
-              and{' '}
-              <a href="/privacy" className="text-primary underline hover:no-underline">
-                Privacy Policy
-              </a>{' '}
-              (version {data.consent.acceptedTermsVersion}) on{' '}
+              You accepted our Terms of Use and Privacy Policy (version {data.consent.acceptedTermsVersion}) on{' '}
               {/* Through <LocalTime>, like every other timestamp: accepted_at is a
                   timestamptz, and formatting it here with a bare toLocaleDateString
                   used the SERVER's zone (UTC on Vercel), so a consent given before

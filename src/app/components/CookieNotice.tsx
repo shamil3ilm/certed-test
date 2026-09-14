@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useSyncExternalStore } from 'react'
 
 const DISMISS_KEY = 'certed-cookie-notice-dismissed'
@@ -67,11 +66,7 @@ export default function CookieNotice() {
     >
       <div className="mx-auto flex max-w-5xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm leading-relaxed text-slate-700">
-          We use essential cookies to keep you signed in. We use no tracking or advertising cookies. See our{' '}
-          <Link href="/privacy" className="text-primary underline hover:no-underline">
-            Privacy Policy
-          </Link>
-          .
+          We use essential cookies to keep you signed in. We use no tracking or advertising cookies.
         </p>
         <button
           type="button"

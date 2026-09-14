@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { POLICY_EFFECTIVE_DATE } from '@/lib/policy/versions'
 
 export const metadata: Metadata = {
   title: 'Terms of Use | Cert-Ed Academia',
   description: 'The terms that govern use of the Cert-Ed Academia online tuition platform.',
+  // Unlinked is not unindexed - see the matching note in the privacy page. noindex rather
+  // than a robots.txt disallow, so the crawler can still fetch the page and read it.
+  robots: { index: false, follow: false },
 }
 
 // Draft terms: must be reviewed by a qualified advocate before this page is treated as in force.
@@ -71,14 +73,6 @@ export default function TermsOfUse() {
             </section>
           ))}
         </div>
-
-        <p className="mt-10 text-sm text-slate-600">
-          See also our{' '}
-          <Link href="/privacy" className="text-primary underline hover:no-underline">
-            Privacy Policy
-          </Link>
-          .
-        </p>
       </div>
     </div>
   )

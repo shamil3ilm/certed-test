@@ -5,9 +5,11 @@ import { MARKETING_BLOGS } from '@/lib/content/marketing'
 import { getBlogPost } from '@/lib/content/blog-posts'
 
 const MARKETING_NAV_HREFS = ['/', '/about', '/classes', '/blogs', '/contact'] as const
-// Footer-only legal pages (not in the nav). They must also be in proxy MARKETING_PATHS
-// to route correctly on the marketing host - this guards the page files exist.
-const FOOTER_LEGAL_HREFS = ['/privacy', '/terms'] as const
+// Legal pages, reachable but deliberately UNLINKED while the drafts are with counsel -
+// nothing points at them at all, and they are opened by typing the URL. Unlinked is exactly
+// how a page quietly stops existing, so this guards that the files (and their proxy
+// MARKETING_PATHS entries) are still there.
+const UNLINKED_LEGAL_HREFS = ['/privacy', '/terms'] as const
 
 function marketingPagePath(href: string) {
   if (href === '/') {
@@ -23,7 +25,7 @@ describe('marketing route guardrails', () => {
     expect(existsSync(pagePath), `${href} -> ${pagePath} does not exist`).toBe(true)
   })
 
-  it.each(FOOTER_LEGAL_HREFS)('footer legal route "%s" maps to a real page.tsx', (href) => {
+  it.each(UNLINKED_LEGAL_HREFS)('unlinked legal route "%s" still maps to a real page.tsx', (href) => {
     const pagePath = marketingPagePath(href)
     expect(existsSync(pagePath), `${href} -> ${pagePath} does not exist`).toBe(true)
   })

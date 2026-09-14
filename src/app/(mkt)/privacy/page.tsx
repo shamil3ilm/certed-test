@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { POLICY_EFFECTIVE_DATE } from '@/lib/policy/versions'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Cert-Ed Academia',
   description:
     'How Cert-Ed Academia collects, uses, stores and protects personal data for students, guardians and staff.',
+  // Unlinked is not unindexed. Nothing links here, but the page stays reachable by URL, so
+  // noindex is what keeps a draft pending review out of search results. Deliberately NOT a
+  // robots.txt disallow: a crawler barred from fetching the page never sees this directive,
+  // and the URL can remain indexed from outside links.
+  robots: { index: false, follow: false },
 }
 
 // Draft policy: must be reviewed by a qualified advocate before this page is treated as in
@@ -140,14 +144,6 @@ export default function PrivacyPolicy() {
         <Section title="11. Changes">
           <p>We will post updates here and, for material changes, ask you to re-accept.</p>
         </Section>
-
-        <p className="mt-10 text-sm text-slate-600">
-          See also our{' '}
-          <Link href="/terms" className="text-primary underline hover:no-underline">
-            Terms of Use
-          </Link>
-          .
-        </p>
       </div>
     </div>
   )
