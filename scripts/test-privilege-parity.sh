@@ -88,6 +88,16 @@ where n.nspname = 'public'
   )
   and has_function_privilege(r.rolname, p.oid, 'EXECUTE')
 union all
+-- SCHEMA USAGE. Every table and function privilege above is unreachable without it: a role
+-- that cannot use the schema cannot resolve anything in it, so PostgREST refuses every
+-- request. Provisioning from the snapshot drops and recreates `public`, and a newly created
+-- schema grants nothing, so this is where the two paths can differ.
+select 'SCHEMA', r.rolname, n.nspname, '', 'USAGE'
+from pg_namespace n
+cross join (select rolname from pg_roles where rolname in ('anon','authenticated')) r
+where n.nspname = 'public'
+  and has_schema_privilege(r.rolname, n.oid, 'USAGE')
+union all
 -- DEFAULT PRIVILEGES. Not a privilege on anything that exists yet, which is exactly why it
 -- was missed: it decides what the NEXT function arrives holding. 0034 closed this for
 -- PUBLIC only, so every function created afterwards still arrived granted to anon and
@@ -168,6 +178,16 @@ SQL
     correctness_failures=$((correctness_failures + 1))
   fi
 
+  # (c) The API roles must be able to use schema public at all. Parity alone cannot see this
+  # when both paths lose it, and a database without it refuses every API request.
+  no_usage=$(PSQL -d "$db" -tAq -c "select string_agg(r, ', ') from unnest(array['anon','authenticated','service_role']) r where not has_schema_privilege(r, 'public', 'USAGE')")
+  if [ -n "$no_usage" ]; then
+    echo "== PRIVILEGE CORRECTNESS: FAILED ($label) =="
+    echo "These API roles cannot use schema public, so PostgREST refuses every request they make:"
+    echo "   $no_usage"
+    correctness_failures=$((correctness_failures + 1))
+  fi
+
   # (b) The default must be closed, or the NEXT function created arrives open again.
   open_default=$(PSQL -d "$db" -tAq <<SQL
 select count(*)
@@ -189,12 +209,14 @@ done
 
 if [ "$correctness_failures" -ne 0 ]; then
   echo "----------------------------------------------------------------------------"
-  echo "Fix: apply the function sweep (migration 0096) and re-run."
+  echo "Fix: apply the function sweep (migration 0096), or restore the snapshot's schema usage"
+  echo "epilogue (scripts/rebuild-snapshot.sh), and re-run."
   exit 1
 fi
 echo "== PRIVILEGE CORRECTNESS: OK =="
 echo "   no service-role-only function is reachable by anon/authenticated, in either path"
 echo "   and DEFAULT PRIVILEGES deny EXECUTE on future functions"
+echo "   and anon, authenticated and service_role can use schema public"
 
 if diff -u "$TMPDIR/mig.privs" "$TMPDIR/snap.privs" >"$TMPDIR/diff.txt"; then
   echo "== PRIVILEGE PARITY: OK =="

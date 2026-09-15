@@ -244,6 +244,25 @@ $EPI$;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM public, anon, authenticated;
 FUNCEPI
 
+# Schema usage epilogue. The dump opens with CREATE SCHEMA public, so provisioning first drops
+# the project's stock public schema (supabase/provision/01_prepare_empty_database.sql) - and the
+# drop takes that schema's grants with it. pg_dump cannot re-emit them: on the dump source the
+# schema's access is the stock default, which it does not write out. A newly created schema
+# grants nothing, so without this the API roles cannot use public at all and PostgREST refuses
+# every request, whatever the table and function grants say. USAGE only - the API roles never
+# create objects. scripts/test-privilege-parity.sh asserts the result.
+cat >>"$BUILD" <<'SCHEMAEPI'
+--
+-- Schema usage epilogue
+-- ============================================================================
+-- The API roles must be able to USE schema public, or every table and function grant in
+-- this file is unreachable. Provisioning drops the project's stock public schema so the
+-- CREATE SCHEMA above can run, and a newly created schema grants nothing. USAGE only:
+-- the API roles never create objects.
+-- ============================================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+SCHEMAEPI
+
 # ── Verify the BUILT ARTIFACT, not the ingredients ────────────────────────────
 # The old check asked whether the DUMP had an ACL section. That is the wrong question:
 # the dump can be perfect while the splice still produces nothing (see the awk guard
@@ -273,6 +292,8 @@ grep -Fq 'create extension if not exists btree_gist' "$BUILD" \
 # The two appended epilogues must be present too.
 grep -Fq 'INSERT INTO public.org_settings (id) VALUES (true)' "$BUILD"   || fail "the org_settings singleton seed did not reach the snapshot."
 grep -Fq 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS' "$BUILD"   || fail "the function privilege epilogue (C-01) did not reach the snapshot."
+grep -Fqx 'GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;' "$BUILD" \
+  || fail "the schema usage epilogue did not reach the snapshot - the API roles could not use schema public."
 
 # Make the artifact REPRODUCIBLE. pg_dump 18 wraps the dump in `\restrict <token>` /
 # `\unrestrict <token>`, where the token is random per run. It stops psql executing

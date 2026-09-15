@@ -7083,3 +7083,12 @@ END
 $EPI$;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM public, anon, authenticated;
+--
+-- Schema usage epilogue
+-- ============================================================================
+-- The API roles must be able to USE schema public, or every table and function grant in
+-- this file is unreachable. Provisioning drops the project's stock public schema so the
+-- CREATE SCHEMA above can run, and a newly created schema grants nothing. USAGE only:
+-- the API roles never create objects.
+-- ============================================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;

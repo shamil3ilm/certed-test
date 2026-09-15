@@ -43,6 +43,15 @@ where n.nspname = 'public'
   and not c.relrowsecurity
 order by c.relname;
 
+-- 2b. API ACCESS TO THE SCHEMA ---------------------------------------------
+-- The API roles must be able to use schema public at all. Step 1 drops the project's
+-- stock schema, taking its grants with it, and the snapshot grants USAGE back. Without
+-- it every table and function grant is unreachable and the API refuses every request.
+-- EXPECT: three rows, all `t`.
+select r as api_role,
+       has_schema_privilege(r, 'public', 'USAGE') as can_use_public
+from unnest(array['anon', 'authenticated', 'service_role']) as r;
+
 -- 3. RETENTION JOBS ---------------------------------------------------------
 -- Guarded, so a project without pg_cron reports a plain `false` instead of
 -- stopping the script with "relation cron.job does not exist".

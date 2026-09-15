@@ -101,6 +101,7 @@ returns any rows, stop** — you are not on an empty project.
 
 - four head markers `t` (`guardians`, `class_sessions`, `class_sessions.subject_id`, `rls_disabled_tables(text[])`)
 - **zero rows** for tables without RLS — every row there is readable by anyone holding the anon key
+- `can_use_public = t` for `anon`, `authenticated` and `service_role` — step 1's drop takes the stock schema's grants with it, and without this the API refuses every request
 - `pg_cron_installed = t`
 - **no cron jobs yet.** They do not exist until step 4; that is expected here, not a fault.
 
