@@ -68,8 +68,13 @@ export async function assertMayAttachToResource(actor: Profile, resourceId: stri
   const resource = await selectResourceForAttachAsService(resourceId)
   if (!resource) throw new NotFoundError()
   if (!resource.class_id) throw new PermissionError('Not allowed to attach to this document.')
-  if (resource.status !== 'active') {
+  if (resource.status === 'archived') {
     throw new ValidationError('That document is archived - restore it before changing its file.')
+  }
+  // A pending document is a draft its creator is still uploading the first file to; nobody
+  // else attaches to it.
+  if (resource.status === 'pending' && resource.uploaded_by !== actor.id) {
+    throw new PermissionError('Not allowed to attach to this document.')
   }
   await assertClassActive(resource.class_id)
 

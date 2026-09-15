@@ -189,7 +189,14 @@ export async function gradeStudentResult(
   }
   const existingId = await selectActiveSubmissionIdForStudent(input.assignmentId, input.studentId)
   if (existingId) {
-    await updateGrade(existingId, patch)
+    // The row was active at the read above but the conditional write matched nothing,
+    // so a withdraw/resubmit landed in between. Without this the audit and the "graded"
+    // notification below both fire for a mark that never landed, and the report card -
+    // which reads only the active submission - still shows the work ungraded.
+    const graded = await updateGrade(existingId, patch)
+    if (!graded) {
+      throw new ValidationError('This submission was replaced by a newer one - reload to grade the latest.')
+    }
   } else if (!cleared) {
     // No submission yet - create the graded result row. (Clearing a non-existent
     // mark is a no-op.)

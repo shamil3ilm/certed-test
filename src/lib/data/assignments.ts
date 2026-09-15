@@ -137,12 +137,13 @@ export async function selectAssignmentPage(
   return { items: (data ?? []) as AssignmentRow[], total: count ?? 0 }
 }
 
-/** One assignment, or null. Treats a read error as "not visible" rather than
- *  throwing - under RLS an assignment the caller may not see is
- *  indistinguishable from one that doesn't exist, and both render not-found. */
+/** One assignment, or null - under RLS an assignment the caller may not see is
+ *  indistinguishable from one that doesn't exist, and both render not-found. RLS
+ *  filtering returns no row rather than an error, so a failed read throws. */
 export async function selectAssignmentById(id: string): Promise<AssignmentRow | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('assignments').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('assignments').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`assignments.selectAssignmentById: ${error.message}`)
   return (data as AssignmentRow) ?? null
 }
 
@@ -210,11 +211,12 @@ export type AssignmentState = {
  *  rules as recordSubmission, regardless of whether the row is RLS-visible. */
 export async function selectAssignmentStateAsService(id: string): Promise<AssignmentState | null> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('assignments')
     .select('class_id, status, enforce_deadline, due_date')
     .eq('id', id)
     .maybeSingle()
+  if (error) throw new Error(`assignments.selectAssignmentStateAsService: ${error.message}`)
   return (data as AssignmentState) ?? null
 }
 
@@ -248,13 +250,17 @@ type EditAssignmentFields = {
   attachment_drive_link: string | null
   topic: string | null
   max_marks: number | null
+  enforce_deadline: boolean
+  type: NonNullable<AssignmentPatch['type']>
+  expects_submission: boolean
+  ends_at: string | null
 }
 
 /**
- * Atomically update an assignment AND re-derive its submissions' lateness in
- * one database transaction, so the assignment's due date and its submissions'
- * stamped statuses can never disagree. Service-role: the domain has already
- * asserted canManageClass.
+ * Atomically update EVERY field of an assignment AND re-derive its submissions' lateness in
+ * one database transaction (0111), so the due date, whether it is enforced, and the
+ * submissions' stamped statuses can never disagree - and an end time is checked against the
+ * deadline it is saved with. Service-role: the domain has already asserted canManageClass.
  */
 export async function callEditAssignmentAndReclassify(id: string, fields: EditAssignmentFields): Promise<void> {
   const admin = createAdminClient()
@@ -266,6 +272,10 @@ export async function callEditAssignmentAndReclassify(id: string, fields: EditAs
     p_attachment_drive_link: fields.attachment_drive_link,
     p_topic: fields.topic,
     p_max_marks: fields.max_marks,
+    p_enforce_deadline: fields.enforce_deadline,
+    p_type: fields.type,
+    p_expects_submission: fields.expects_submission,
+    p_ends_at: fields.ends_at,
   })
   if (error) throw new Error(`assignments.editAndReclassify: ${error.message}`)
 }

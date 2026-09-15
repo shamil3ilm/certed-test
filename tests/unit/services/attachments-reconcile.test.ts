@@ -7,8 +7,10 @@ vi.mock('@/lib/data/attachments', () => ({
 }))
 vi.mock('@/lib/google/drive-storage', () => ({ getDriveStorage: vi.fn() }))
 vi.mock('@/lib/services/attachments/upload', () => ({ deployEnv: () => 'test-env' }))
+vi.mock('@/lib/data/resources', () => ({ deleteStalePendingResources: vi.fn() }))
 
 import { markAttachmentsFailed, selectLiveAttachmentIds, selectStalePendingAttachmentIds } from '@/lib/data/attachments'
+import { deleteStalePendingResources } from '@/lib/data/resources'
 import { getDriveStorage } from '@/lib/google/drive-storage'
 import { reconcileAttachments } from '@/lib/services/attachments/reconcile'
 
@@ -32,9 +34,26 @@ beforeEach(() => {
   vi.mocked(selectStalePendingAttachmentIds).mockResolvedValue([])
   vi.mocked(selectLiveAttachmentIds).mockResolvedValue(new Set())
   vi.mocked(markAttachmentsFailed).mockResolvedValue(undefined)
+  vi.mocked(deleteStalePendingResources).mockResolvedValue(0)
 })
 
 describe('reconcileAttachments', () => {
+  /**
+   * A custodial document is a pending draft until its first file goes live (0113). One whose
+   * upload never finished is invisible, but would sit in the table forever - so a day on, the
+   * sweep removes it.
+   */
+  it('deletes document drafts left pending for more than a day, and reports how many', async () => {
+    vi.mocked(deleteStalePendingResources).mockResolvedValue(2)
+    fakeDrive([])
+    const now = new Date('2026-09-14T12:00:00.000Z')
+
+    const result = await reconcileAttachments(now)
+
+    expect(deleteStalePendingResources).toHaveBeenCalledWith('2026-09-13T12:00:00.000Z')
+    expect(result.staleDraftDocumentsDeleted).toBe(2)
+  })
+
   it('demotes stale pending rows to failed', async () => {
     vi.mocked(selectStalePendingAttachmentIds).mockResolvedValue(['a1', 'a2'])
     fakeDrive([])

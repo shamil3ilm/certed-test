@@ -17,6 +17,7 @@ import { getAssignment } from '@/lib/services/assignments'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
 import { selectActiveSubmissionIdForStudent, insertResultGrade, updateGrade } from '@/lib/data/submissions'
+import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { gradeStudentResult } from '@/lib/services/submissions'
 import { PermissionError, ValidationError } from '@/lib/errors'
 
@@ -34,6 +35,9 @@ beforeEach(() => {
   vi.mocked(getAssignment).mockResolvedValue(examAssignment)
   vi.mocked(canWriteClass).mockResolvedValue(true)
   vi.mocked(selectActiveStudentIdsByClassIds).mockResolvedValue(['stud-1'])
+  // The conditional write matched its row. The false case - a withdraw or resubmit landing
+  // between the read and the write - is exercised on its own below.
+  vi.mocked(updateGrade).mockResolvedValue(true)
 })
 
 describe('gradeStudentResult', () => {
@@ -72,6 +76,18 @@ describe('gradeStudentResult', () => {
     await gradeStudentResult(tutor, { assignmentId: 'a-1', studentId: 'stud-1', score: null, feedback: null })
     expect(updateGrade).not.toHaveBeenCalled()
     expect(insertResultGrade).not.toHaveBeenCalled()
+  })
+
+  it('does not claim a grade landed when the submission was replaced mid-write', async () => {
+    vi.mocked(selectActiveSubmissionIdForStudent).mockResolvedValueOnce('sub-1')
+    vi.mocked(updateGrade).mockResolvedValueOnce(false)
+    await expect(
+      gradeStudentResult(tutor, { assignmentId: 'a-1', studentId: 'stud-1', score: 90, feedback: null }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    // The mark never landed, so neither the audit trail nor the student's "your work was
+    // graded" notification may say otherwise - and the report card still shows it ungraded.
+    expect(auditPrivilegedAction).not.toHaveBeenCalled()
+    expect(notifyBestEffort).not.toHaveBeenCalled()
   })
 
   it('rejects a student who is not enrolled in the class, without writing', async () => {

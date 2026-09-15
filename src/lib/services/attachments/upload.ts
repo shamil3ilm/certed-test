@@ -1,13 +1,14 @@
 import 'server-only'
 import { getDriveStorage } from '@/lib/google/drive-storage'
-import { validateAttachment } from '@/lib/attachments/validation'
+import { MAX_ATTACHMENTS_PER_OWNER, validateAttachment } from '@/lib/attachments/validation'
 import {
+  callActivateAttachment,
   insertPendingAttachment,
-  markAttachmentActive,
   markAttachmentFailed,
   type AttachmentOwner,
   type AttachmentRow,
 } from '@/lib/data/attachments'
+import { ValidationError } from '@/lib/errors'
 
 /**
  * The two-phase commit at the heart of custodial storage. It spans two systems
@@ -52,7 +53,7 @@ export async function uploadAttachment(input: {
   bytes: Uint8Array
   /** Injectable for deterministic folder-path tests. */
   now?: Date
-}): Promise<AttachmentRow> {
+}): Promise<AttachmentRow & { publishedDocument: boolean }> {
   // Authoritative validation (the browser pre-check is not trusted).
   const validated = validateAttachment({
     filename: input.filename,
@@ -84,8 +85,24 @@ export async function uploadAttachment(input: {
       bytes: input.bytes,
       appProperties: { attachmentId: row.id, env: deployEnv() },
     })
-    await markAttachmentActive(row.id, driveFileId, folderId)
-    return { ...row, status: 'active', drive_file_id: driveFileId, drive_folder_id: folderId }
+    // The owner is re-checked as the row goes live: the upload took seconds, and a grade, a
+    // deadline or a parallel upload may have landed meanwhile. A refused file is marked failed
+    // below, and reconciliation removes its bytes from Drive.
+    const activation = await callActivateAttachment(row.id, driveFileId, folderId, MAX_ATTACHMENTS_PER_OWNER)
+    if (!activation.ok) {
+      throw new ValidationError(
+        activation.reason === 'submission_closed'
+          ? 'This work was graded, withdrawn or closed while the file was uploading, so it was not attached.'
+          : `You can attach at most ${MAX_ATTACHMENTS_PER_OWNER} files here.`,
+      )
+    }
+    return {
+      ...row,
+      status: 'active',
+      drive_file_id: driveFileId,
+      drive_folder_id: folderId,
+      publishedDocument: activation.published,
+    }
   } catch (error) {
     // Best-effort: the row must not be left pending. If even this fails,
     // reconciliation still catches it by its stale created_at.

@@ -1,6 +1,7 @@
 import 'server-only'
 import { getDriveStorage } from '@/lib/google/drive-storage'
 import { markAttachmentsFailed, selectLiveAttachmentIds, selectStalePendingAttachmentIds } from '@/lib/data/attachments'
+import { deleteStalePendingResources } from '@/lib/data/resources'
 import { deployEnv } from './upload'
 
 /**
@@ -16,14 +17,20 @@ import { deployEnv } from './upload'
  *
  * The two directions compose: A demotes the hour-old stuck rows to failed, so B
  * then reclaims their files in the same run.
+ *
+ *   C. A custodial document still a pending draft after a day -> deleted. Its first
+ *      file never went live (activation publishes the document in the same step), so
+ *      no list shows it and nothing servable goes with it.
  */
 
 const STALE_PENDING_MS = 60 * 60 * 1000 // 1 hour
+const STALE_DRAFT_DOCUMENT_MS = 24 * 60 * 60 * 1000 // 1 day
 
 export type ReconcileResult = {
   stalePendingFailed: number
   orphanFilesDeleted: number
   orphanFilesFailed: number
+  staleDraftDocumentsDeleted: number
 }
 
 export async function reconcileAttachments(now: Date = new Date()): Promise<ReconcileResult> {
@@ -31,6 +38,11 @@ export async function reconcileAttachments(now: Date = new Date()): Promise<Reco
   const cutoff = new Date(now.getTime() - STALE_PENDING_MS).toISOString()
   const staleIds = await selectStalePendingAttachmentIds(cutoff)
   await markAttachmentsFailed(staleIds)
+
+  // C. Clear abandoned document drafts.
+  const staleDraftDocumentsDeleted = await deleteStalePendingResources(
+    new Date(now.getTime() - STALE_DRAFT_DOCUMENT_MS).toISOString(),
+  )
 
   // B. Reclaim orphaned Drive files for THIS environment.
   const drive = getDriveStorage()
@@ -54,5 +66,5 @@ export async function reconcileAttachments(now: Date = new Date()): Promise<Reco
     }
   }
 
-  return { stalePendingFailed: staleIds.length, orphanFilesDeleted, orphanFilesFailed }
+  return { stalePendingFailed: staleIds.length, orphanFilesDeleted, orphanFilesFailed, staleDraftDocumentsDeleted }
 }

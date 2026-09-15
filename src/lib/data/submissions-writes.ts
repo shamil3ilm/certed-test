@@ -27,6 +27,27 @@ export async function callReplaceOwnSubmission(input: {
   return { data: (data as SubmissionRow) ?? null, error }
 }
 
+/**
+ * The student's ACTIVE submission for an assignment, creating an empty one only when there is
+ * none - one transaction under the lock replace_own_submission takes (0111), so files uploaded in
+ * parallel land on the same submission instead of each replacing the last.
+ *
+ * Service role with the student named explicitly: the caller is the authenticated student, and
+ * the function re-checks enrolment, account status and a hard deadline itself. Like the replace
+ * RPC it RETURNS its error, whose refusal codes the domain maps to messages.
+ */
+export async function callEnsureSubmissionForStudent(
+  assignmentId: string,
+  studentId: string,
+): Promise<{ data: { id: string; created: boolean } | null; error: { message: string } | null }> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('ensure_submission_for_student', {
+    p_assignment_id: assignmentId,
+    p_student_id: studentId,
+  })
+  return { data: (data as { id: string; created: boolean }) ?? null, error }
+}
+
 /** Retracts a student's own row, keeping it as history. Scoped to the student
  *  in the statement itself, so it can never touch someone else's work. The
  *  score/graded_at guards make "only ungraded work can be withdrawn" atomic:

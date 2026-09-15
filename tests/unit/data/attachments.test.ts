@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
+import { makeClient } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -8,14 +8,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
   insertPendingAttachment,
-  markAttachmentActive,
+  callActivateAttachment,
   markAttachmentFailed,
   selectStalePendingAttachmentIds,
   markAttachmentsFailed,
   countFailedAttachments,
   selectLiveAttachmentIds,
   selectReadableActiveAttachment,
-  supersedePriorResourceAttachments,
 } from '@/lib/data/attachments'
 
 const row = { id: 'att1', status: 'pending' }
@@ -37,11 +36,33 @@ describe('attachments data layer', () => {
     await expect(insertPendingAttachment(input)).rejects.toThrow(/attachments.insertPending: e/)
   })
 
-  it('markAttachmentActive / markAttachmentFailed resolve and throw on error', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(markAttachmentActive('att1', 'file', 'folder')).resolves.toBeUndefined()
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(markAttachmentActive('att1', 'f', 'd')).rejects.toThrow(/attachments.markActive: e/)
+  it('callActivateAttachment activates through the guarded function, with the cap it enforces', async () => {
+    const client = makeClient({ data: null, error: null }, { data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+    await expect(callActivateAttachment('att1', 'file', 'folder', 5)).resolves.toEqual({ ok: true, published: false })
+    expect(client.rpc).toHaveBeenCalledWith('activate_attachment', {
+      p_id: 'att1',
+      p_drive_file_id: 'file',
+      p_drive_folder_id: 'folder',
+      p_max_active: 5,
+    })
+  })
+
+  it.each(['submission_closed', 'attachment_cap_reached'] as const)(
+    'callActivateAttachment reports %s as a refusal, not an error',
+    async (reason) => {
+      vi.mocked(createAdminClient).mockReturnValueOnce(
+        makeClient({ data: null, error: null }, { data: null, error: { message: reason } }) as any,
+      )
+      await expect(callActivateAttachment('att1', 'f', 'd', 5)).resolves.toEqual({ ok: false, reason })
+    },
+  )
+
+  it('callActivateAttachment / markAttachmentFailed throw any other failure', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'e' } }) as any,
+    )
+    await expect(callActivateAttachment('att1', 'f', 'd', 5)).rejects.toThrow(/attachments.activate: e/)
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
     await expect(markAttachmentFailed('att1')).rejects.toThrow(/attachments.markFailed: e/)
   })
@@ -87,22 +108,5 @@ describe('attachments data layer', () => {
     expect(await selectReadableActiveAttachment('att1')).toEqual(row)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
     expect(await selectReadableActiveAttachment('gone')).toBeNull()
-  })
-})
-
-/**
- * 0057 added trg_attachments_updated_at "to keep updated_at honest without the service
- * having to remember" - a BEFORE UPDATE trigger that overwrites whatever the service sends.
- * Stamping it here too computed a value, sent it over the wire and had it discarded, and
- * left one invariant with two owners.
- */
-describe('supersedePriorResourceAttachments leaves updated_at to the trigger', () => {
-  it('does not send updated_at in the patch', async () => {
-    const { builder, client } = makeClientCapturing({ data: null, error: null })
-    vi.mocked(createAdminClient).mockReturnValue(client as never)
-    await supersedePriorResourceAttachments('r1', 'keep-me')
-    expect(builder.update).toHaveBeenCalledTimes(1)
-    expect(builder.update.mock.calls[0][0]).not.toHaveProperty('updated_at')
-    expect(builder.update.mock.calls[0][0]).toHaveProperty('deleted_at')
   })
 })

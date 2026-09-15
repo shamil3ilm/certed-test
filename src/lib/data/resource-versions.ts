@@ -68,7 +68,8 @@ export async function selectVersionsForResources(resourceIds: string[]): Promise
  *  the caller has already been authorized to act on via the parent document. */
 export async function selectVersionByIdAsService(id: string): Promise<ResourceVersionRow | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('resource_versions').select(COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('resource_versions').select(COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`resource-versions.selectVersionByIdAsService: ${error.message}`)
   return (data as ResourceVersionRow) ?? null
 }
 
@@ -83,13 +84,15 @@ export async function insertVersion(row: ResourceVersionInsert): Promise<Resourc
   const admin = createAdminClient()
   const MAX_ATTEMPTS = 5
   for (let attempt = 1; ; attempt++) {
-    const { data: last } = await admin
+    const { data: last, error: lastError } = await admin
       .from('resource_versions')
       .select('version_no')
       .eq('resource_id', row.resource_id)
       .order('version_no', { ascending: false })
       .limit(1)
       .maybeSingle()
+    // A failed read must not become "no versions yet" and claim version 1 again.
+    if (lastError) throw new Error(`resourceVersions.latest: ${lastError.message}`)
     const version_no = ((last as { version_no: number } | null)?.version_no ?? 0) + 1
     const { data, error } = await admin
       .from('resource_versions')

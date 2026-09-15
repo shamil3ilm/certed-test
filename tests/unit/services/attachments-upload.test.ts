@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/data/attachments', () => ({
   insertPendingAttachment: vi.fn(),
-  markAttachmentActive: vi.fn(),
+  callActivateAttachment: vi.fn(),
   markAttachmentFailed: vi.fn(),
 }))
 vi.mock('@/lib/google/drive-storage', () => ({ getDriveStorage: vi.fn() }))
 
-import { insertPendingAttachment, markAttachmentActive, markAttachmentFailed } from '@/lib/data/attachments'
+import { insertPendingAttachment, callActivateAttachment, markAttachmentFailed } from '@/lib/data/attachments'
+import { MAX_ATTACHMENTS_PER_OWNER } from '@/lib/attachments/validation'
 import { getDriveStorage } from '@/lib/google/drive-storage'
 import { uploadAttachment } from '@/lib/services/attachments/upload'
 import { ValidationError } from '@/lib/errors'
@@ -41,6 +42,7 @@ describe('uploadAttachment (two-phase commit)', () => {
     } as never)
     const drive = fakeDrive()
     vi.mocked(getDriveStorage).mockReturnValue(drive as never)
+    vi.mocked(callActivateAttachment).mockResolvedValue({ ok: true, published: false })
 
     const bytes = pdfBytes()
     const row = await uploadAttachment({
@@ -69,9 +71,57 @@ describe('uploadAttachment (two-phase commit)', () => {
         appProperties: expect.objectContaining({ attachmentId: 'att-1' }),
       }),
     )
-    expect(markAttachmentActive).toHaveBeenCalledWith('att-1', 'drive-42', 'folder-9')
+    // Activation re-checks the owner, with the per-owner cap, as the row goes live.
+    expect(callActivateAttachment).toHaveBeenCalledWith('att-1', 'drive-42', 'folder-9', MAX_ATTACHMENTS_PER_OWNER)
     expect(markAttachmentFailed).not.toHaveBeenCalled()
-    expect(row).toMatchObject({ status: 'active', drive_file_id: 'drive-42', drive_folder_id: 'folder-9' })
+    expect(row).toMatchObject({
+      status: 'active',
+      drive_file_id: 'drive-42',
+      drive_folder_id: 'folder-9',
+      publishedDocument: false,
+    })
+  })
+
+  it('reports when the file published a pending document, so the caller can announce it', async () => {
+    vi.mocked(insertPendingAttachment).mockResolvedValue({ id: 'att-9', status: 'pending' } as never)
+    vi.mocked(getDriveStorage).mockReturnValue(fakeDrive() as never)
+    vi.mocked(callActivateAttachment).mockResolvedValue({ ok: true, published: true })
+
+    const row = await uploadAttachment({
+      owner: { kind: 'resource', id: 'r-draft' },
+      uploadedBy: 't1',
+      filename: 'Notes.pdf',
+      mimeType: 'application/pdf',
+      bytes: pdfBytes(),
+    })
+
+    expect(row.publishedDocument).toBe(true)
+  })
+
+  /**
+   * The owner checks run before seconds of Drive upload, so a grade (or a parallel upload past
+   * the cap) can land in that window. Activation catches it: the file is marked failed, so it is
+   * never served, and reconciliation removes its bytes.
+   */
+  it.each([
+    ['submission_closed', /graded, withdrawn or closed while the file was uploading/],
+    ['attachment_cap_reached', /at most \d+ files/],
+  ] as const)('marks the row failed when activation is refused (%s)', async (reason, message) => {
+    vi.mocked(insertPendingAttachment).mockResolvedValue({ id: 'att-3', status: 'pending' } as never)
+    vi.mocked(getDriveStorage).mockReturnValue(fakeDrive() as never)
+    vi.mocked(callActivateAttachment).mockResolvedValue({ ok: false, reason })
+    vi.mocked(markAttachmentFailed).mockResolvedValue(undefined)
+
+    const upload = uploadAttachment({
+      owner: { kind: 'submission', id: 'sub-1' },
+      uploadedBy: 'stu-1',
+      filename: 'Essay.pdf',
+      mimeType: 'application/pdf',
+      bytes: pdfBytes(),
+    })
+    await expect(upload).rejects.toBeInstanceOf(ValidationError)
+    await expect(upload).rejects.toThrow(message)
+    expect(markAttachmentFailed).toHaveBeenCalledWith('att-3')
   })
 
   it('marks the row failed and rethrows when Drive rejects the upload', async () => {
@@ -90,7 +140,7 @@ describe('uploadAttachment (two-phase commit)', () => {
       }),
     ).rejects.toThrow('drive 500')
     expect(markAttachmentFailed).toHaveBeenCalledWith('att-2')
-    expect(markAttachmentActive).not.toHaveBeenCalled()
+    expect(callActivateAttachment).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid file before reserving any row', async () => {

@@ -133,9 +133,11 @@ export async function editAssignment(actor: Profile, id: string, patch: Assignme
   if (patch.due_date !== undefined && new Date(patch.due_date).getTime() !== new Date(existing.due_date).getTime()) {
     // A moved deadline invalidates every stamped on-time/late verdict on this
     // assignment's submissions. Update the assignment AND re-derive those
-    // verdicts in one database transaction, so the two can never disagree. The
-    // full field set is sent (patch value where present, else the current
-    // value) since the RPC rewrites the whole row.
+    // verdicts in one database transaction, so the two can never disagree - with
+    // every field in the same write, so a deadline cannot move without the
+    // enforcement or end time saved alongside it. The full field set is sent
+    // (patch value where present, else the current value) since the RPC rewrites
+    // the whole row.
     const field = <K extends keyof AssignmentPatch>(key: K): NonNullable<AssignmentPatch[K]> | null =>
       (patch[key] !== undefined ? patch[key] : (existing[key as keyof Assignment] as AssignmentPatch[K])) ?? null
     await editAssignmentAndReclassify(id, {
@@ -145,16 +147,11 @@ export async function editAssignment(actor: Profile, id: string, patch: Assignme
       attachment_drive_link: field('attachment_drive_link'),
       topic: field('topic'),
       max_marks: field('max_marks'),
+      enforce_deadline: field('enforce_deadline') ?? existing.enforce_deadline,
+      type: field('type') ?? existing.type,
+      expects_submission: field('expects_submission') ?? existing.expects_submission,
+      ends_at: field('ends_at'),
     })
-    // enforce_deadline + the classwork-type fields are orthogonal to lateness, so
-    // they aren't part of the reclassify RPC - apply any that changed directly, so a
-    // same-edit toggle still takes effect.
-    const extra: AssignmentPatch = {}
-    if (patch.enforce_deadline !== undefined) extra.enforce_deadline = patch.enforce_deadline
-    if (patch.type !== undefined) extra.type = patch.type
-    if (patch.expects_submission !== undefined) extra.expects_submission = patch.expects_submission
-    if (patch.ends_at !== undefined) extra.ends_at = patch.ends_at
-    if (Object.keys(extra).length > 0) await updateAssignment(id, extra)
   } else {
     await updateAssignment(id, patch)
   }

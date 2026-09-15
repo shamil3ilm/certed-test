@@ -9,7 +9,8 @@ import { MAX_ATTACHMENT_BYTES } from '@/lib/attachments/validation'
 import { isUuid } from '@/lib/validation/id'
 import type { AttachmentOwner, AttachmentRow } from '@/lib/services/attachments/read'
 import { assertMayAttach } from '@/lib/services/attachments/attach-guards'
-import { finalizeResourceFileReplacement } from '@/lib/services/resources'
+import { announceDocument, finalizeResourceFileReplacement } from '@/lib/services/resources'
+import { logError } from '@/lib/observability/log'
 
 // Node runtime: the upload service streams bytes and talks to the Drive REST API.
 export const runtime = 'nodejs'
@@ -98,13 +99,17 @@ export async function POST(req: Request) {
       mimeType: file.type,
       bytes,
     })
-    // A new file superseding a document's current one is an edit: snapshot the prior
-    // state into version history + write a resource.edit audit, then retire the prior
-    // active attachment so exactly the newest stays live. Best-effort - the upload is
-    // committed, so a history/supersede failure must not fail the request (and since
-    // resources are cap-exempt, a stray extra active row can never freeze the document).
+    // A new file superseding a document's current one is an edit: snapshot the prior state
+    // into version history + write a resource.edit audit. The prior file was retired when the
+    // new one went live. Best-effort - the upload is committed, so a history failure must not
+    // fail the request.
     if (replacedResourceId) {
-      await finalizeResourceFileReplacement(me, replacedResourceId, row.id)
+      await finalizeResourceFileReplacement(me, replacedResourceId)
+    }
+    // A custodial document goes live with its first file, so this is when its class hears of
+    // it - never for a document whose upload failed. Best-effort, like every notification.
+    if (row.publishedDocument) {
+      await announceDocument(owner.id).catch((error) => logError('attachments.announceDocument', error))
     }
     return created(toClientAttachment(row))
   } catch (error) {

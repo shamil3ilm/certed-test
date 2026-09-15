@@ -26,7 +26,9 @@ export type ResourceRow = {
   uploaded_by: string | null
   download_count: number
   visibility: DocumentVisibility
-  status: 'active' | 'archived'
+  /** 'pending' is a custodial document whose file has not gone live yet (0113) - no list or
+   *  student read shows it. */
+  status: 'pending' | 'active' | 'archived'
   created_at: string
 }
 
@@ -138,7 +140,8 @@ export async function selectRecentForClasses(classIds: string[], limit: number):
 
 export async function selectResourceById(id: string): Promise<ResourceRow | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('resources').select(RESOURCE_COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('resources').select(RESOURCE_COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`resources.selectResourceById: ${error.message}`)
   return (data as ResourceRow) ?? null
 }
 
@@ -147,6 +150,24 @@ export async function insertResource(row: ResourceInsert): Promise<ResourceRow> 
   const { data, error } = await supabase.from('resources').insert(row).select('*').single()
   if (error) throw new Error(`resources.createLink: ${error.message}`)
   return data as ResourceRow
+}
+
+/**
+ * Delete custodial documents still `pending` - their first file never went live - created before
+ * `olderThanIso`, and return how many went. Nothing servable is lost: activation publishes a
+ * document in the same step that makes its file live, so a pending one has no live file.
+ * Service role: reconciliation runs with no session.
+ */
+export async function deleteStalePendingResources(olderThanIso: string): Promise<number> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('resources')
+    .delete()
+    .eq('status', 'pending')
+    .lt('created_at', olderThanIso)
+    .select('id')
+  if (error) throw new Error(`resources.deleteStalePending: ${error.message}`)
+  return (data ?? []).length
 }
 
 /** Soft archive / restore - the row is kept either way. */
@@ -202,10 +223,11 @@ export type ResourceAttachTarget = {
  *  can't be silently re-attached). */
 export async function selectResourceForAttachAsService(id: string): Promise<ResourceAttachTarget | null> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('resources')
     .select('class_id, uploaded_by, visibility, status')
     .eq('id', id)
     .maybeSingle()
+  if (error) throw new Error(`resources.selectResourceForAttachAsService: ${error.message}`)
   return (data as ResourceAttachTarget) ?? null
 }

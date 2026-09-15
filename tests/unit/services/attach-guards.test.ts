@@ -102,6 +102,27 @@ describe('assertMayAttachToResource (Vuln 3 - a replacement is an edit, not a ba
     vi.mocked(selectResourceForAttachAsService).mockResolvedValueOnce({ ...resource, status: 'archived' })
     await expect(assertMayAttachToResource(me, 'r-1')).rejects.toBeInstanceOf(ValidationError)
   })
+  /**
+   * A custodial document is a pending draft until its first file goes live (0113). Its creator
+   * uploads that file; nobody else may attach to a draft they cannot see in any list.
+   */
+  it('lets the creator attach the first file to their own pending draft', async () => {
+    vi.mocked(selectResourceForAttachAsService).mockResolvedValueOnce({
+      ...resource,
+      uploaded_by: 'stu-1', // the same person as `me`
+      status: 'pending',
+    })
+    expect(await assertMayAttachToResource(me, 'r-1')).toBe(false)
+  })
+  it("refuses anyone else's pending draft", async () => {
+    vi.mocked(selectResourceForAttachAsService).mockResolvedValueOnce({
+      ...resource,
+      uploaded_by: 'someone-else',
+      status: 'pending',
+    })
+    await expect(assertMayAttachToResource(me, 'r-1')).rejects.toBeInstanceOf(PermissionError)
+    expect(assertCanDocument).not.toHaveBeenCalled()
+  })
   it('refuses a document on an archived class', async () => {
     vi.mocked(selectResourceForAttachAsService).mockResolvedValueOnce(resource)
     vi.mocked(assertClassActive).mockRejectedValueOnce(new ValidationError('That class is archived.'))

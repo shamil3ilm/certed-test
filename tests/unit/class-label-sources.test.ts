@@ -45,7 +45,7 @@ const PINNED_MODES: Array<[file: string, mode: 'subject' | 'student-subject', wh
   ['src/app/(prt)/dashboard/exam-widget.tsx', 'student-subject', 'exams from many students share one tile'],
   ['src/lib/services/mentor-session-timings.ts', 'subject', 'each row has its own student and subject columns'],
   ['src/lib/services/page-data/grading.ts', 'subject', 'every queue row names its student'],
-  ['src/lib/services/resources.ts', 'subject', 'the Documents page groups results under the student'],
+  ['src/lib/services/resources/queries.ts', 'subject', 'the Documents page groups results under the student'],
   ['src/lib/services/student-relationship-subtitles.ts', 'subject', "the subtitle sits under the student's name"],
 ]
 

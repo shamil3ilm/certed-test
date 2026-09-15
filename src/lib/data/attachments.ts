@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { refusalOf } from '@/lib/data/rpc-refusal'
 
 /**
  * Table access for `attachments` (migration 0057). Reads use the RLS client - an
@@ -81,14 +82,35 @@ export async function insertPendingAttachment(input: {
   return data as AttachmentRow
 }
 
-/** Phase 2 success: the bytes are in Drive, so the row becomes servable. */
-export async function markAttachmentActive(id: string, driveFileId: string, driveFolderId: string): Promise<void> {
+export type ActivationRefusal = 'submission_closed' | 'attachment_cap_reached'
+
+/**
+ * Phase 2 success: the bytes are in Drive, so the row becomes servable - if its owner still
+ * accepts it. One transaction under a lock on the owner (0111), re-checking what the upload
+ * checked before its seconds in Drive: a submission must still be the active, ungraded one
+ * before any hard deadline, and an additive owner must be under `maxActive` files. A document's
+ * previous file is retired in the same step, so it always has exactly one live file.
+ *
+ * `published` is true when this file was a pending custodial document's first, and made the
+ * document itself live in the same step (0113) - the moment to tell its class about it.
+ */
+export async function callActivateAttachment(
+  id: string,
+  driveFileId: string,
+  driveFolderId: string,
+  maxActive: number,
+): Promise<{ ok: true; published: boolean } | { ok: false; reason: ActivationRefusal }> {
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('attachments')
-    .update({ status: 'active', drive_file_id: driveFileId, drive_folder_id: driveFolderId })
-    .eq('id', id)
-  if (error) throw new Error(`attachments.markActive: ${error.message}`)
+  const { data, error } = await admin.rpc('activate_attachment', {
+    p_id: id,
+    p_drive_file_id: driveFileId,
+    p_drive_folder_id: driveFolderId,
+    p_max_active: maxActive,
+  })
+  const refusal = refusalOf(error, ['submission_closed', 'attachment_cap_reached'] as const)
+  if (refusal) return { ok: false, reason: refusal }
+  if (error) throw new Error(`attachments.activate: ${error.message}`)
+  return { ok: true, published: data === true }
 }
 
 /** Phase 2 failure: Drive rejected the upload, so the row is left non-servable. */
@@ -129,7 +151,11 @@ export async function markAttachmentsFailed(ids: string[]): Promise<void> {
  *  upload path (Drive) is erroring. Used by the queue-health alarm. Service role. */
 export async function countFailedAttachments(): Promise<number> {
   const admin = createAdminClient()
-  const { count } = await admin.from('attachments').select('id', { count: 'exact', head: true }).eq('status', 'failed')
+  const { count, error } = await admin
+    .from('attachments')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'failed')
+  if (error) throw new Error(`attachments.countFailedAttachments: ${error.message}`)
   return count ?? 0
 }
 
@@ -178,28 +204,6 @@ export async function selectActiveAttachmentsForOwner(owner: AttachmentOwner): P
     .order('created_at', { ascending: false })
   if (error) throw new Error(`attachments.listForOwner: ${error.message}`)
   return (data ?? []) as AttachmentRow[]
-}
-
-/**
- * Retire a resource's PRIOR active attachment(s) after a newer file has been uploaded,
- * so only the newest stays active. A document is replace-by-newest (the download serves
- * the newest active attachment), so this keeps exactly one active file - the count never
- * climbs, which is what lets resources stay exempt from the per-owner cap without ever
- * freezing. Soft-delete via the existing 'deleted' status (attachments_read hides it and
- * the active indexes drop it); the row is kept and history lives in resource_versions.
- * Service role: the caller has already authorized the replacement.
- */
-export async function supersedePriorResourceAttachments(resourceId: string, exceptId: string): Promise<void> {
-  const admin = createAdminClient()
-  // updated_at is NOT set here: trg_attachments_updated_at (0057) is a BEFORE UPDATE
-  // trigger that maintains it, so a value sent from the service is overwritten anyway.
-  const { error } = await admin
-    .from('attachments')
-    .update({ status: 'deleted', deleted_at: new Date().toISOString() })
-    .eq('resource_id', resourceId)
-    .eq('status', 'active')
-    .neq('id', exceptId)
-  if (error) throw new Error(`attachments.supersedeResource: ${error.message}`)
 }
 
 /**
