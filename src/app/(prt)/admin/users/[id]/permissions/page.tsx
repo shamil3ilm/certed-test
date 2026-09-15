@@ -31,8 +31,17 @@ export default async function UserPermissionsPage(props: { params: Promise<{ id:
           You can&apos;t edit your own permissions here - ask another admin if a change to your own access is needed.
         </p>
       ) : (
-        <div className="mt-6">
-          <PermissionsEditor profileId={target.id} rows={rows} />
+        <div className="mt-6 space-y-4">
+          {/* Overrides are refused for any account that is not active (0108), so say so up front
+              and lock the controls instead of letting every change bounce back. */}
+          {target.status !== 'active' && (
+            <p className="rounded-2xl border border-warning-border bg-warning-surface p-4 text-sm text-warning-ink">
+              This account is {target.status === 'pending' ? 'pending - it has not signed in yet' : 'revoked'}.
+              Capability overrides apply to active accounts only, so these settings can be viewed but not changed until
+              the account is active.
+            </p>
+          )}
+          <PermissionsEditor profileId={target.id} rows={rows} locked={target.status !== 'active'} />
         </div>
       )}
     </main>

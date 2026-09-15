@@ -10,7 +10,16 @@ import { setUserCapabilityAction } from './actions'
 
 type Effect = 'default' | 'allow' | 'deny'
 
-export function PermissionsEditor({ profileId, rows }: { profileId: string; rows: PermissionRow[] }) {
+export function PermissionsEditor({
+  profileId,
+  rows,
+  locked = false,
+}: {
+  profileId: string
+  rows: PermissionRow[]
+  /** Read-only: the account cannot take overrides (it is not active). */
+  locked?: boolean
+}) {
   const groups = useMemo(() => {
     const byGroup = new Map<string, PermissionRow[]>()
     for (const row of rows) {
@@ -28,7 +37,7 @@ export function PermissionsEditor({ profileId, rows }: { profileId: string; rows
           <SectionLabel>{group}</SectionLabel>
           <ul className="mt-2 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
             {groupRows.map((row) => (
-              <PermissionRowItem key={row.capability} profileId={profileId} row={row} />
+              <PermissionRowItem key={row.capability} profileId={profileId} row={row} locked={locked} />
             ))}
           </ul>
         </section>
@@ -41,7 +50,7 @@ function effectiveFor(effect: Effect, baselineAllowed: boolean): boolean {
   return effect === 'allow' ? true : effect === 'deny' ? false : baselineAllowed
 }
 
-function PermissionRowItem({ profileId, row }: { profileId: string; row: PermissionRow }) {
+function PermissionRowItem({ profileId, row, locked }: { profileId: string; row: PermissionRow; locked: boolean }) {
   const { toast } = useUI()
   const [effect, setEffect] = useState<Effect>(row.effect)
   const [pending, startTransition] = useTransition()
@@ -75,7 +84,7 @@ function PermissionRowItem({ profileId, row }: { profileId: string; row: Permiss
   }
 
   function choose(next: Effect) {
-    if (row.isHard || row.isOverrideBlocked || pending || next === effect) return
+    if (locked || row.isHard || row.isOverrideBlocked || pending || next === effect) return
     if (row.reasonRequired && next !== 'default') {
       setReasonFor(next) // ask for a reason first
       setReason('')
@@ -101,7 +110,12 @@ function PermissionRowItem({ profileId, row }: { profileId: string; row: Permiss
         </Badge>
       ) : (
         <div className="shrink-0">
-          <Segmented value={effect} disabled={pending} baselineAllowed={row.baselineAllowed} onChange={choose} />
+          <Segmented
+            value={effect}
+            disabled={pending || locked}
+            baselineAllowed={row.baselineAllowed}
+            onChange={choose}
+          />
         </div>
       )}
 
