@@ -37,3 +37,22 @@ export function safeExternalHref(value: string | null | undefined): string | nul
   if (!value || value === '#') return null
   return isSafeExternalUrl(value) ? value : null
 }
+
+/**
+ * True for a path on this app, such as "/api/resources/<id>/download". Not "//host" or
+ * "/\host", which a browser resolves to another origin, and nothing with whitespace: a
+ * browser strips tabs and newlines from a URL, so "/<tab>/host" would become "//host".
+ */
+export function isAppPath(value: string): boolean {
+  return /^\/(?![/\\])\S*$/.test(value)
+}
+
+/**
+ * Render-side guard for an action link: a path on this app (a download or PDF route) or a
+ * safe http(s) URL. Anything else returns `null`, so no `<a href>` is emitted for it.
+ */
+export function safeActionHref(value: string | null | undefined): string | null {
+  if (!value || value === '#') return null
+  if (isAppPath(value)) return value
+  return isSafeExternalUrl(value) ? value : null
+}

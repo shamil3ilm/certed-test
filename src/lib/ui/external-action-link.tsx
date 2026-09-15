@@ -1,5 +1,5 @@
 import { cx } from './core'
-import { safeExternalHref } from '@/lib/validation/url'
+import { safeActionHref } from '@/lib/validation/url'
 
 export function ExternalActionLink({
   href,
@@ -12,10 +12,11 @@ export function ExternalActionLink({
   title?: string
   children: React.ReactNode
 }) {
-  // Never emit an href for a non-http(s) value (javascript:, data:, ...): these are
-  // stored links rendered for another user to click, so an unsafe scheme is a
-  // stored-XSS vector. Fall back to inert text when the URL isn't safe.
-  const safe = safeExternalHref(href)
+  // Opens in a new tab: a stored http(s) link, or one of this app's own download/PDF routes.
+  // Never emit an href for anything else (javascript:, data:, //host, ...): stored links are
+  // rendered for another user to click, so an unsafe value is a stored-XSS vector. Fall back
+  // to inert text when the value isn't safe.
+  const safe = safeActionHref(href)
   if (!safe) {
     return (
       <span className={cx('btn btn-sm btn-soft opacity-60', className)} title={title}>
