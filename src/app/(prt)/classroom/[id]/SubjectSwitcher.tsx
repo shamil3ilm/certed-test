@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import type { SubjectOption } from '@/lib/services/classes/subject-switcher'
+import type { SubjectOption } from '@/lib/services/classes/class-identity'
 import { siblingHref } from './sibling-href'
 
 /**

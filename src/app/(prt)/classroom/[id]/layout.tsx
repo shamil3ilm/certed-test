@@ -3,7 +3,7 @@ import { requireClassAccess } from '../access'
 import { getActorContext } from '@/lib/session/actor-context'
 import { canManageClass } from '@/lib/permission'
 import { BackLink, PageHeader } from '@/lib/ui'
-import { classHeader, classIdentityFor } from '@/lib/services/classes/subject-switcher'
+import { classHeader, classIdentityFor } from '@/lib/services/classes/class-identity'
 import { ClassTabs } from './ClassTabs'
 import { SubjectSwitcher } from './SubjectSwitcher'
 

@@ -12,7 +12,7 @@ import { selectActiveEnrollmentRowsForClass, selectActiveClassIdsForStudent } fr
 import { myClassScope, listClassesByIds } from '@/lib/services/classes/queries'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { getProfileNamesByIds } from '@/lib/services/users'
-import { classIdentityFor, classHeader } from '@/lib/services/classes/subject-switcher'
+import { classIdentityFor, classHeader } from '@/lib/services/classes/class-identity'
 
 const ME = { id: 'tutor-1' } as never
 

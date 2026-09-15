@@ -1,8 +1,8 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { selectActiveClassIdsForStudent, selectActiveEnrollmentRowsForClass } from '@/lib/data/class-membership'
-import { selectSubjectsByIds } from '@/lib/data/subjects'
 import { getProfileNamesByIds } from '@/lib/services/users'
+import { resolveClassLabels } from './class-labels'
 import { listClassesByIds, myClassScope } from './queries'
 
 /**
@@ -74,16 +74,10 @@ export async function classIdentityFor(me: Profile, classId: string): Promise<Cl
   // status, because the reader is already standing on it.
   const classes = loaded.filter((c) => c.id === classId || c.status !== 'archived')
 
-  const subjectIds = [...new Set(classes.map((c) => c.subject_id).filter((id): id is string => id != null))]
-  const [subjects, names] = await Promise.all([
-    subjectIds.length ? selectSubjectsByIds(subjectIds) : Promise.resolve([]),
-    getProfileNamesByIds([studentId]),
-  ])
-  const subjectName = new Map(subjects.map((s) => [s.id, s.name]))
-  // A class with no subject set still has to be identifiable, so it keeps its own name
-  // rather than rendering as a blank option or a blank subject line.
-  const labelOf = (c: { name: string; subject_id: string | null }): string =>
-    (c.subject_id ? subjectName.get(c.subject_id) : undefined) ?? c.name
+  // The page names the student, so each class is labelled by its subject - the shared rule,
+  // which also keeps a class with no subject identifiable by its own name.
+  const [labels, names] = await Promise.all([resolveClassLabels(classes, 'subject'), getProfileNamesByIds([studentId])])
+  const labelOf = (c: { id: string; name: string }): string => labels.get(c.id) ?? c.name
 
   const options = classes
     .map((c) => ({ classId: c.id, label: labelOf(c), current: c.id === classId }))
