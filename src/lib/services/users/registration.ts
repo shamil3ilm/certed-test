@@ -19,9 +19,13 @@ async function getRegistrationTarget(email: string): Promise<RegistrationTarget 
 }
 
 /** Binds a freshly-created auth user to the profile and consumes the setup code.
- *  Returns false when a concurrent claim already took it. */
-async function bindPasswordAccount(profileId: string, authUserId: string): Promise<boolean> {
-  return bindAuthUserToProfile(profileId, authUserId)
+ *
+ *  Returns false when the invite is no longer the one that was validated - a concurrent
+ *  claim took it, an admin revoked it, or its code was reissued - between the checks above
+ *  and this write. The hash is passed through so the write can assert it, because the
+ *  checks and the bind are separate statements and nothing holds the row in between. */
+async function bindPasswordAccount(profileId: string, authUserId: string, setupCodeHash: string): Promise<boolean> {
+  return bindAuthUserToProfile(profileId, authUserId, setupCodeHash)
 }
 
 export type RegisterResult = { ok: true } | { error: string; code: ErrorCode }
@@ -39,7 +43,11 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
   } as const
   const target = await getRegistrationTarget(input.email)
   if (!target || target.status !== 'pending' || target.auth_user_id) return invalid
-  if (!setupCodeValid(input.code, target.setup_code_hash, target.setup_code_expires_at)) return invalid
+  // Hoisted so the non-null hash survives into the bind below, which asserts it. setupCodeValid
+  // already rejects a null hash, so the extra test changes no behaviour - it makes the
+  // guarantee visible to the type system rather than leaving the bind to assert it blindly.
+  const codeHash = target.setup_code_hash
+  if (!codeHash || !setupCodeValid(input.code, codeHash, target.setup_code_expires_at)) return invalid
 
   // Guardian consent: a minor may only set up their account with a parent/guardian's
   // attested consent. Checked BEFORE creating the auth account so a refusal leaves no orphan.
@@ -61,7 +69,7 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
     }
   }
 
-  const bound = await bindPasswordAccount(target.id, created.id)
+  const bound = await bindPasswordAccount(target.id, created.id, codeHash)
   if (!bound) {
     // Someone else claimed this profile between our check and our bind - undo the
     // login we just created so it can't linger unattached to any profile.

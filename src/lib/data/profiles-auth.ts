@@ -29,13 +29,34 @@ export async function selectRegistrationFields(email: string): Promise<Registrat
   return (data as RegistrationFieldsRow) ?? null
 }
 
-export async function bindAuthUserToProfile(profileId: string, authUserId: string): Promise<boolean> {
+/**
+ * Claim a validated invite for a password registration: bind the auth user, activate the
+ * account and consume the setup code, in ONE statement.
+ *
+ * Every predicate is load-bearing, because the service validated `pending` and the code by
+ * READING the row and nothing holds it until this write - and the service role bypasses
+ * guard_profile_privileged_columns, so there is no second line of defence. Without
+ * `status = 'pending'`, an invite revoked in that gap is handed back an ACTIVE account
+ * whose personas stay inactive: policies keying on is_self_active re-open for an account
+ * an admin just shut. Matching the hash closes the same gap for a REISSUED code - the row
+ * no longer carries the hash that was validated.
+ *
+ * The same guard as claimAllowlistRowOnOAuth, which the OAuth path already applies.
+ * Returns false when nothing matched.
+ */
+export async function bindAuthUserToProfile(
+  profileId: string,
+  authUserId: string,
+  setupCodeHash: string,
+): Promise<boolean> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('profiles')
     .update({ auth_user_id: authUserId, status: 'active', setup_code_hash: null, setup_code_expires_at: null })
     .eq('id', profileId)
     .is('auth_user_id', null)
+    .eq('status', 'pending')
+    .eq('setup_code_hash', setupCodeHash)
     .select('id')
     .maybeSingle()
   if (error) throw new Error(`data.profiles.bindAuthUser: ${error.message}`)

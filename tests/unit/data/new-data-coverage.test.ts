@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -12,7 +12,12 @@ import { selectSessionsForClassesInRange } from '@/lib/data/analytics'
 import { selectLatestConsent } from '@/lib/data/consents'
 import { deleteMenteeNotesForStudent } from '@/lib/data/mentee-notes'
 import { selectMentorAssignedAt } from '@/lib/data/personas'
-import { selectProfileErasedAt, anonymizeProfileForErasure, claimAllowlistRowOnOAuth } from '@/lib/data/profiles-auth'
+import {
+  selectProfileErasedAt,
+  anonymizeProfileForErasure,
+  claimAllowlistRowOnOAuth,
+  bindAuthUserToProfile,
+} from '@/lib/data/profiles-auth'
 import { signOutOwnOtherSessions } from '@/lib/data/auth-accounts'
 
 beforeEach(() => vi.resetAllMocks())
@@ -60,6 +65,30 @@ describe('new data-layer functions', () => {
       makeClient({ data: { assigned_at: '2026-06-01' }, error: null }) as never,
     )
     expect(await selectMentorAssignedAt('m1', 's1')).toBe('2026-06-01')
+  })
+
+  it('bindAuthUserToProfile claims ONLY a pending invite still holding the validated code', async () => {
+    // The PREDICATES are the guard. The service checked `pending` and the code by reading the
+    // row, and nothing holds it until this write, so a test asserting only "it returned true"
+    // would still pass with those filters deleted - which is the whole failure being pinned.
+    const { builder, client } = makeClientCapturing({ data: { id: 'u1' }, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    expect(await bindAuthUserToProfile('u1', 'auth-1', 'the-hash')).toBe(true)
+
+    // One query, so the recorded filters unambiguously belong to it.
+    expect(client.from).toHaveBeenCalledTimes(1)
+    expect(builder.eq).toHaveBeenCalledWith('id', 'u1')
+    expect(builder.eq).toHaveBeenCalledWith('status', 'pending')
+    expect(builder.eq).toHaveBeenCalledWith('setup_code_hash', 'the-hash')
+    expect(builder.is).toHaveBeenCalledWith('auth_user_id', null)
+  })
+
+  it('bindAuthUserToProfile reports no claim when the invite no longer matches', async () => {
+    // Revoked, reissued or already taken between the check and the write - all arrive here as
+    // "no row matched", and the caller deletes the orphaned auth user it just created.
+    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: null }) as never)
+    expect(await bindAuthUserToProfile('u1', 'auth-1', 'the-hash')).toBe(false)
   })
 
   it('profiles-auth: erased marker, anonymise, OAuth claim, and sign-out-others', async () => {
