@@ -142,7 +142,7 @@ dump_privs "$DB_SNAP" "$TMPDIR/snap.privs"
 # So: name the functions that must never be reachable by the API roles, and check them
 # outright. A finding here is a real hole, not a drift.
 # ---------------------------------------------------------------------------
-SERVICE_ROLE_ONLY="issue_receipt_doc issue_payslip_doc next_document_number revoke_profile_guarded claim_pending_emails rate_limit_hit edit_assignment_and_reclassify rls_disabled_tables"
+SERVICE_ROLE_ONLY="issue_receipt_doc issue_payslip_doc next_document_number revoke_profile_guarded claim_pending_emails rate_limit_hit edit_assignment_and_reclassify rls_disabled_tables create_student_subject_class set_class_subject_when_unset set_global_capability_override add_guardian make_guardian_primary assign_mentorship remove_mentorship create_conversation post_message restore_profile_guarded erase_profile_guarded assign_class_tutor unassign_class_tutor ensure_day_session billing_source_fingerprint ensure_submission_for_student activate_attachment create_invited_profile fx_source_version apply_fx_conversions"
 
 correctness_failures=0
 for db in "$DB_MIG" "$DB_SNAP"; do

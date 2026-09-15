@@ -13,6 +13,73 @@ function profileByUid(uid: string | null): Record<string, unknown> | null {
   return table('profiles').find((p) => p.auth_user_id === uid) ?? null
 }
 
+/** Mirrors 0110's billing_source_fingerprint: the sessions (and, for a receipt, the attended
+ *  marks) a month's figure is computed from, over [from, to), outside archived classes. */
+function mockBillingFingerprint(kind: string, partyId: unknown, from: string, to: string): string {
+  const archived = new Set(
+    table('classes')
+      .filter((c) => c.status === 'archived')
+      .map((c) => c.id),
+  )
+  const inWindow = table('class_sessions').filter(
+    (s) =>
+      s.actual_start != null &&
+      String(s.actual_start) >= from &&
+      String(s.actual_start) < to &&
+      !archived.has(s.class_id),
+  )
+  const counted =
+    kind === 'payslip'
+      ? inWindow.filter((s) => s.tutor_id === partyId)
+      : inWindow.filter((s) =>
+          table('attendance').some(
+            (a) => a.session_id === s.id && a.student_id === partyId && (a.status === 'present' || a.status === 'late'),
+          ),
+        )
+  return JSON.stringify(
+    counted
+      .map((s) => [s.id, s.class_id, s.subject_id ?? null, s.actual_start, s.actual_end])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  )
+}
+
+/** Mirrors 0112's fx_source_version: the base currency and every rate, as one comparable value. */
+function mockFxSourceVersion(): string {
+  const base = table('org_settings')[0]?.base_currency ?? ''
+  const rates = table('exchange_rates')
+    .map((r) => [r.id, r.currency, r.base_currency, Number(r.rate), r.effective_from])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+  return JSON.stringify([base, rates])
+}
+
+/** Reactivate a profile's global persona, creating it when missing (0109's helper). */
+function activateGlobalPersona(profileId: unknown, personaName: string): void {
+  const existing = table('persona_assignments').find(
+    (p) => p.profile_id === profileId && p.persona_name === personaName && p.scope_type === 'global',
+  )
+  if (existing) {
+    existing.status = 'active'
+    return
+  }
+  table('persona_assignments').push({
+    id: randomUUID(),
+    profile_id: profileId,
+    persona_name: personaName,
+    scope_type: 'global',
+    scope_id: null,
+    status: 'active',
+    assigned_at: new Date().toISOString(),
+  })
+}
+
+/** Remove matching rows from a store table in place, as a DELETE would. */
+function removeWhere(tableName: string, predicate: (row: Record<string, unknown>) => boolean): void {
+  const rows = table(tableName)
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (predicate(rows[i])) rows.splice(i, 1)
+  }
+}
+
 async function rpc(uid: string | null, fn: string, args: Args) {
   if (fn === 'is_enrolled') {
     const me = profileByUid(uid)
@@ -91,8 +158,149 @@ async function rpc(uid: string | null, fn: string, args: Args) {
       if (activeAdmins <= 1) return { data: 'last_admin', error: null }
     }
     target.status = 'disabled'
+    // 0109: every persona at every scope goes inactive in the same step.
+    table('persona_assignments')
+      .filter((p) => p.profile_id === target.id)
+      .forEach((p) => {
+        p.status = 'inactive'
+      })
     persist()
     return { data: 'ok', error: null }
+  }
+  if (fn === 'restore_profile_guarded') {
+    // Mirrors 0109: status, role persona, teaching persona and scoped mentor personas together.
+    const target = table('profiles').find((p) => p.id === args.p_target)
+    if (!target) return { data: 'not_found', error: null }
+    if (target.erased_at != null) return { data: 'erased', error: null }
+    target.status = 'active'
+    activateGlobalPersona(target.id, String(target.role))
+    if (table('class_tutors').some((t) => t.tutor_id === target.id && t.active === true)) {
+      activateGlobalPersona(target.id, 'tutor')
+    }
+    for (const m of table('mentorships').filter((row) => row.mentor_id === target.id && row.active === true)) {
+      const scoped = table('persona_assignments').find(
+        (p) => p.profile_id === target.id && p.persona_name === 'mentor' && p.scope_id === m.student_id,
+      )
+      if (scoped) {
+        scoped.status = 'active'
+        scoped.scope_type = 'student'
+      } else {
+        table('persona_assignments').push({
+          id: randomUUID(),
+          profile_id: target.id,
+          persona_name: 'mentor',
+          scope_type: 'student',
+          scope_id: m.student_id,
+          status: 'active',
+          assigned_at: new Date().toISOString(),
+        })
+      }
+    }
+    persist()
+    return { data: 'ok', error: null }
+  }
+  if (fn === 'erase_profile_guarded') {
+    const target = table('profiles').find((p) => p.id === args.p_target)
+    if (!target) return { data: { outcome: 'not_found', auth_user_id: null }, error: null }
+    if (target.erased_at != null) {
+      return { data: { outcome: 'already_erased', auth_user_id: target.auth_user_id ?? null }, error: null }
+    }
+    if (target.status !== 'disabled') return { data: { outcome: 'not_disabled', auth_user_id: null }, error: null }
+    removeWhere('mentee_notes', (n) => n.student_id === target.id)
+    removeWhere('guardians', (g) => g.student_id === target.id)
+    Object.assign(target, {
+      full_name: 'Erased user',
+      email: `erased+${String(target.id)}@erased.invalid`,
+      phone: null,
+      guardian_name: null,
+      guardian_phone: null,
+      date_of_birth: null,
+      country: null,
+      class_level: null,
+      qualifications: null,
+      bio: null,
+      setup_code_hash: null,
+      setup_code_expires_at: null,
+      status: 'disabled',
+      erased_at: new Date().toISOString(),
+    })
+    persist()
+    return { data: { outcome: 'erased', auth_user_id: target.auth_user_id ?? null }, error: null }
+  }
+  if (fn === 'assign_class_tutor' || fn === 'unassign_class_tutor') {
+    // Mirrors 0109: the membership and a dedicated mentor's tutor persona together.
+    const tutors = table('class_tutors')
+    const row = tutors.find((t) => t.class_id === args.p_class_id && t.tutor_id === args.p_tutor_id)
+    if (fn === 'unassign_class_tutor') {
+      if (!row) return { data: false, error: null }
+      row.active = false
+      const profile = table('profiles').find((p) => p.id === args.p_tutor_id)
+      const stillTeaches = tutors.some((t) => t.tutor_id === args.p_tutor_id && t.active === true)
+      if (profile?.role === 'mentor' && profile.status === 'active' && !stillTeaches) {
+        table('persona_assignments')
+          .filter((p) => p.profile_id === args.p_tutor_id && p.persona_name === 'tutor' && p.scope_type === 'global')
+          .forEach((p) => {
+            p.status = 'inactive'
+          })
+      }
+      persist()
+      return { data: true, error: null }
+    }
+    const tutor = table('profiles').find(
+      (p) => p.id === args.p_tutor_id && (p.role === 'tutor' || p.role === 'mentor') && p.status === 'active',
+    )
+    if (!tutor) return { data: null, error: { message: 'tutor_not_assignable' } }
+    if (!table('classes').some((c) => c.id === args.p_class_id && c.status === 'active')) {
+      return { data: null, error: { message: 'class_not_active' } }
+    }
+    if (row) row.active = true
+    else {
+      tutors.push({
+        id: randomUUID(),
+        tutor_id: args.p_tutor_id,
+        class_id: args.p_class_id,
+        active: true,
+        created_at: new Date().toISOString(),
+      })
+    }
+    if (tutor.role === 'mentor') activateGlobalPersona(tutor.id, 'tutor')
+    persist()
+    return { data: null, error: null }
+  }
+  if (fn === 'ensure_day_session') {
+    // Mirrors 0109 - and stamps the class's subject, which the database does by trigger (0104).
+    const sameDay = table('class_sessions')
+      .filter((s) => s.class_id === args.p_class_id && s.session_date === args.p_session_date)
+      .sort(
+        (a, b) =>
+          (a.actual_start == null ? 0 : 1) - (b.actual_start == null ? 0 : 1) ||
+          String(a.actual_start ?? '').localeCompare(String(b.actual_start ?? '')) ||
+          String(a.created_at).localeCompare(String(b.created_at)),
+      )
+    if (sameDay.length > 0) return { data: sameDay[0].id, error: null }
+    const now = new Date().toISOString()
+    const created = {
+      id: randomUUID(),
+      class_id: args.p_class_id,
+      session_date: args.p_session_date,
+      scheduled_start: null,
+      scheduled_end: null,
+      actual_start: null,
+      actual_end: null,
+      tutor_id: null,
+      tutor_join_at: null,
+      tutor_leave_at: null,
+      summary: null,
+      student_feedback: null,
+      staff_note: null,
+      hours_recorded_by: null,
+      subject_id: table('classes').find((c) => c.id === args.p_class_id)?.subject_id ?? null,
+      created_at: now,
+      updated_at: now,
+    }
+    table('class_sessions').push(created)
+    persist()
+    return { data: created.id, error: null }
   }
   if (fn === 'replace_own_submission') {
     const me = profileByUid(uid)
@@ -144,8 +352,34 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     persist()
     return { data: next, error: null }
   }
+  if (fn === 'billing_source_fingerprint') {
+    return {
+      data: mockBillingFingerprint(String(args.p_kind), args.p_party_id, String(args.p_from), String(args.p_to)),
+      error: null,
+    }
+  }
   if (fn === 'issue_receipt_doc' || fn === 'issue_payslip_doc') {
     const docType = fn === 'issue_receipt_doc' ? 'receipt' : 'payslip'
+    // 0110's pre-insert checks: unchanged hours for a billing-period document, no identical twin
+    // moments ago for one without.
+    if (args.p_billing_period != null) {
+      if (args.p_source_fingerprint == null) return { data: null, error: { message: 'billing_source_required' } }
+      const now = mockBillingFingerprint(docType, args.p_party_id, String(args.p_source_from), String(args.p_source_to))
+      if (now !== args.p_source_fingerprint) return { data: null, error: { message: 'billing_source_changed' } }
+    } else {
+      const partyKey = docType === 'receipt' ? 'student_id' : 'tutor_id'
+      const since = Date.now() - 2 * 60 * 1000
+      const twin = table(docType === 'receipt' ? 'receipts' : 'payslips').find(
+        (d) =>
+          d[partyKey] === args.p_party_id &&
+          d.voided !== true &&
+          d.billing_period == null &&
+          d.currency === args.p_currency &&
+          Number(d.total) === Number(args.p_total) &&
+          Date.parse(String(d.created_at)) > since,
+      )
+      if (twin) return { data: null, error: { message: `duplicate_recent:${String(twin.number)}` } }
+    }
     const year = new Date(String(args.p_issue_date)).getFullYear()
     const counters = table('document_counters')
     let counter = counters.find((row) => row.doc_type === docType && row.year === year)
@@ -213,6 +447,11 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     assignment.attachment_drive_link = args.p_attachment_drive_link
     assignment.topic = args.p_topic
     assignment.max_marks = args.p_max_marks
+    // 0111: every field in the same write.
+    assignment.enforce_deadline = args.p_enforce_deadline
+    assignment.type = args.p_type
+    assignment.expects_submission = args.p_expects_submission
+    assignment.ends_at = args.p_ends_at
     const due = String(args.p_due_date)
     for (const sub of table('submissions')) {
       if (sub.assignment_id !== args.p_id) continue
@@ -220,6 +459,147 @@ async function rpc(uid: string | null, fn: string, args: Args) {
     }
     persist()
     return { data: null, error: null }
+  }
+  if (fn === 'ensure_submission_for_student') {
+    // Mirrors 0111: reuse the student's active submission, creating an empty one only when none.
+    const assignment = table('assignments').find((a) => a.id === args.p_assignment_id && a.status === 'active')
+    if (!assignment) return { data: null, error: { message: 'assignment_not_found' } }
+    const now = new Date().toISOString()
+    if (assignment.enforce_deadline === true && now > String(assignment.due_date)) {
+      return { data: null, error: { message: 'deadline_passed' } }
+    }
+    if (!table('profiles').some((p) => p.id === args.p_student_id && p.status === 'active')) {
+      return { data: null, error: { message: 'actor_not_active' } }
+    }
+    const enrolled = table('enrollments').some(
+      (e) => e.student_id === args.p_student_id && e.class_id === assignment.class_id && e.active === true,
+    )
+    if (!enrolled) return { data: null, error: { message: 'not_enrolled' } }
+    const submissions = table('submissions')
+    const active = submissions.find(
+      (s) => s.assignment_id === args.p_assignment_id && s.student_id === args.p_student_id && s.is_active === true,
+    )
+    if (active) return { data: { id: active.id, created: false }, error: null }
+    const created = {
+      id: randomUUID(),
+      assignment_id: args.p_assignment_id,
+      student_id: args.p_student_id,
+      drive_link: null,
+      file_name: null,
+      status: computeStatus(now, String(assignment.due_date)),
+      score: null,
+      feedback: null,
+      graded_at: null,
+      graded_by: null,
+      submitted_at: now,
+      is_active: true,
+      created_at: now,
+    }
+    submissions.push(created)
+    persist()
+    return { data: { id: created.id, created: true }, error: null }
+  }
+  if (fn === 'activate_attachment') {
+    // Mirrors 0111: re-check the owner, retire a document's previous file, cap additive owners.
+    const attachments = table('attachments')
+    const att = attachments.find((a) => a.id === args.p_id)
+    if (!att) return { data: null, error: { message: 'attachment_not_found' } }
+    if (att.status !== 'pending') return { data: null, error: { message: 'attachment_not_pending' } }
+    const now = new Date().toISOString()
+    let published = false
+    if (att.resource_id != null) {
+      attachments
+        .filter((a) => a.resource_id === att.resource_id && a.status === 'active' && a.id !== att.id)
+        .forEach((a) => {
+          a.status = 'deleted'
+          a.deleted_at = now
+        })
+      // 0113: a pending custodial document goes live with its first file.
+      const resource = table('resources').find((r) => r.id === att.resource_id)
+      if (resource?.status === 'pending') {
+        resource.status = 'active'
+        published = true
+      }
+    } else {
+      if (att.submission_id != null) {
+        const sub = table('submissions').find((s) => s.id === att.submission_id)
+        const assignment = sub ? table('assignments').find((a) => a.id === sub.assignment_id) : undefined
+        const open =
+          sub != null &&
+          sub.is_active === true &&
+          sub.score == null &&
+          sub.graded_at == null &&
+          assignment?.status === 'active' &&
+          !(assignment.enforce_deadline === true && now > String(assignment.due_date))
+        if (!open) return { data: null, error: { message: 'submission_closed' } }
+      }
+      const ownerKey = (['submission_id', 'announcement_id', 'assignment_id'] as const).find((k) => att[k] != null)
+      const active = ownerKey
+        ? attachments.filter((a) => a[ownerKey] === att[ownerKey] && a.status === 'active').length
+        : 0
+      if (active >= Number(args.p_max_active)) return { data: null, error: { message: 'attachment_cap_reached' } }
+    }
+    att.status = 'active'
+    att.drive_file_id = args.p_drive_file_id
+    att.drive_folder_id = args.p_drive_folder_id
+    att.updated_at = now
+    persist()
+    return { data: published, error: null }
+  }
+  if (fn === 'create_invited_profile') {
+    // Mirrors 0112: insert the invite with its role persona; a taken email is refused, not overwritten.
+    const email = String(args.p_email).trim().toLowerCase()
+    const profiles = table('profiles')
+    if (profiles.some((p) => String(p.email).toLowerCase() === email)) {
+      return { data: null, error: { message: 'email_taken' } }
+    }
+    const now = new Date().toISOString()
+    const profile = {
+      id: randomUUID(),
+      auth_user_id: null,
+      email,
+      full_name: args.p_full_name ?? null,
+      role: args.p_role,
+      status: 'pending',
+      class_level: args.p_class_level ?? null,
+      created_at: now,
+      setup_code_hash: args.p_setup_code_hash,
+      setup_code_expires_at: args.p_setup_code_expires_at,
+      country: args.p_country ?? null,
+      phone: args.p_phone ?? null,
+      guardian_name: args.p_guardian_name ?? null,
+      guardian_phone: args.p_guardian_phone ?? null,
+      date_of_birth: null,
+      joined_on: args.p_joined_on ?? null,
+      qualifications: null,
+      bio: null,
+      erased_at: null,
+    }
+    profiles.push(profile)
+    activateGlobalPersona(profile.id, String(args.p_role))
+    persist()
+    return { data: profile, error: null }
+  }
+  if (fn === 'fx_source_version') {
+    return { data: mockFxSourceVersion(), error: null }
+  }
+  if (fn === 'apply_fx_conversions') {
+    // Mirrors 0112: write every priced figure, only if the inputs are still the version priced from.
+    if (args.p_version !== mockFxSourceVersion()) return { data: null, error: { message: 'fx_source_changed' } }
+    let written = 0
+    for (const row of (Array.isArray(args.p_rows) ? args.p_rows : []) as Record<string, unknown>[]) {
+      const doc = table(row.kind === 'receipt' ? 'receipts' : 'payslips').find((d) => d.id === row.id)
+      if (!doc) continue
+      Object.assign(doc, {
+        base_currency: row.base_currency,
+        base_total: row.base_total,
+        fx_rate: row.fx_rate,
+        fx_rate_id: row.fx_rate_id,
+      })
+      written += 1
+    }
+    persist()
+    return { data: written, error: null }
   }
   if (fn === 'rate_limit_hit') {
     // Mirrors the fixed-window counter (0067) over rate_limit_counters. The security layer
@@ -292,6 +672,238 @@ async function rpc(uid: string | null, fn: string, args: Args) {
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
     return { data: [...counts].map(([class_id, student_count]) => ({ class_id, student_count })), error: null }
+  }
+  if (fn === 'create_student_subject_class' || fn === 'set_class_subject_when_unset') {
+    // Mirrors 0107. The database also enforces the one-live-class-per-subject rule by trigger on
+    // every enrolment and class write; the mock runs no triggers, so only these two check it.
+    const classes = table('classes')
+    const takesElsewhere = (studentId: unknown, subjectId: unknown, exceptClassId: unknown) =>
+      table('enrollments').some(
+        (e) =>
+          e.student_id === studentId &&
+          e.active === true &&
+          e.class_id !== exceptClassId &&
+          classes.some((c) => c.id === e.class_id && c.status !== 'archived' && c.subject_id === subjectId),
+      )
+    if (!table('subjects').some((s) => s.id === args.p_subject_id)) {
+      return { data: null, error: { message: 'subject_not_found' } }
+    }
+    if (fn === 'create_student_subject_class') {
+      const eligible = table('profiles').some(
+        (p) => p.id === args.p_student_id && p.role === 'student' && p.status !== 'disabled',
+      )
+      if (!eligible) return { data: null, error: { message: 'student_not_eligible' } }
+      if (takesElsewhere(args.p_student_id, args.p_subject_id, null)) {
+        return { data: null, error: { message: 'subject_already_taken' } }
+      }
+      const now = new Date().toISOString()
+      const created = {
+        id: randomUUID(),
+        name: args.p_name,
+        status: 'active',
+        created_at: now,
+        subject_id: args.p_subject_id,
+      }
+      classes.push(created)
+      table('enrollments').push({
+        id: randomUUID(),
+        student_id: args.p_student_id,
+        class_id: created.id,
+        active: true,
+        created_at: now,
+      })
+      persist()
+      return { data: created, error: null }
+    }
+    const target = classes.find((c) => c.id === args.p_class_id)
+    if (!target) return { data: null, error: { message: 'class_not_found' } }
+    if (target.subject_id != null) return { data: null, error: { message: 'subject_already_set' } }
+    const students = table('enrollments').filter((e) => e.class_id === target.id && e.active === true)
+    if (students.some((e) => takesElsewhere(e.student_id, args.p_subject_id, target.id))) {
+      return { data: null, error: { message: 'subject_already_taken' } }
+    }
+    target.subject_id = args.p_subject_id
+    const unlabelled = table('class_sessions').filter((s) => s.class_id === target.id && s.subject_id == null)
+    unlabelled.forEach((s) => {
+      s.subject_id = args.p_subject_id
+    })
+    persist()
+    return { data: unlabelled.length, error: null }
+  }
+  if (fn === 'set_global_capability_override') {
+    // Mirrors 0108: replace the profile's global override for one capability in one step.
+    if (args.p_effect !== 'default') {
+      const active = table('profiles').some((p) => p.id === args.p_profile_id && p.status === 'active')
+      if (!active) return { data: null, error: { message: 'target_not_active' } }
+    }
+    removeWhere(
+      'capability_overrides',
+      (r) => r.profile_id === args.p_profile_id && r.capability === args.p_capability && r.scope_type === 'global',
+    )
+    if (args.p_effect === 'default') {
+      persist()
+      return { data: null, error: null }
+    }
+    const now = new Date().toISOString()
+    const row = {
+      id: randomUUID(),
+      profile_id: args.p_profile_id,
+      capability: args.p_capability,
+      effect: args.p_effect,
+      scope_type: 'global',
+      scope_id: null,
+      reason: args.p_reason ?? null,
+      status: 'active',
+      created_by: args.p_actor_id ?? null,
+      created_at: now,
+      updated_at: now,
+    }
+    table('capability_overrides').push(row)
+    persist()
+    return { data: row.id, error: null }
+  }
+  if (fn === 'add_guardian' || fn === 'make_guardian_primary') {
+    // Mirrors 0108: at most one primary guardian per student, moved in one step.
+    const guardians = table('guardians')
+    if (fn === 'make_guardian_primary') {
+      const target = guardians.find((g) => g.id === args.p_guardian_id && g.student_id === args.p_student_id)
+      if (!target) return { data: false, error: null }
+      guardians.filter((g) => g.student_id === args.p_student_id).forEach((g) => (g.is_primary = g === target))
+      persist()
+      return { data: true, error: null }
+    }
+    if (args.p_is_primary === true) {
+      guardians.filter((g) => g.student_id === args.p_student_id).forEach((g) => (g.is_primary = false))
+    }
+    const row = {
+      id: randomUUID(),
+      student_id: args.p_student_id,
+      name: args.p_name,
+      phone: args.p_phone ?? null,
+      email: args.p_email ?? null,
+      relationship: args.p_relationship ?? null,
+      is_primary: args.p_is_primary === true,
+      created_at: new Date().toISOString(),
+    }
+    guardians.push(row)
+    persist()
+    return { data: row.id, error: null }
+  }
+  if (fn === 'assign_mentorship') {
+    // Mirrors 0108: the link and the student-scoped mentor persona together.
+    const profiles = table('profiles')
+    const mentorOk = profiles.some(
+      (p) => p.id === args.p_mentor_id && (p.role === 'mentor' || p.role === 'tutor') && p.status === 'active',
+    )
+    if (!mentorOk) return { data: null, error: { message: 'mentor_not_assignable' } }
+    const studentOk = profiles.some((p) => p.id === args.p_student_id && p.role === 'student' && p.status === 'active')
+    if (!studentOk) return { data: null, error: { message: 'student_not_active' } }
+    const now = new Date().toISOString()
+    let link = table('mentorships').find((m) => m.mentor_id === args.p_mentor_id && m.student_id === args.p_student_id)
+    if (link) link.active = true
+    else {
+      link = {
+        id: randomUUID(),
+        mentor_id: args.p_mentor_id,
+        student_id: args.p_student_id,
+        active: true,
+        created_at: now,
+      }
+      table('mentorships').push(link)
+    }
+    const persona = table('persona_assignments').find(
+      (p) => p.profile_id === args.p_mentor_id && p.persona_name === 'mentor' && p.scope_id === args.p_student_id,
+    )
+    if (persona) {
+      persona.status = 'active'
+      persona.scope_type = 'student'
+    } else {
+      table('persona_assignments').push({
+        id: randomUUID(),
+        profile_id: args.p_mentor_id,
+        persona_name: 'mentor',
+        scope_type: 'student',
+        scope_id: args.p_student_id,
+        status: 'active',
+        assigned_at: now,
+      })
+    }
+    persist()
+    return { data: link.id, error: null }
+  }
+  if (fn === 'remove_mentorship') {
+    const link = table('mentorships').find((m) => m.id === args.p_id)
+    if (!link) return { data: false, error: null }
+    removeWhere(
+      'persona_assignments',
+      (p) =>
+        p.profile_id === link.mentor_id &&
+        p.persona_name === 'mentor' &&
+        p.scope_type === 'student' &&
+        p.scope_id === link.student_id,
+    )
+    link.active = false
+    persist()
+    return { data: true, error: null }
+  }
+  if (fn === 'create_conversation') {
+    // Mirrors 0108: the conversation and its participants together; a direct pair reuses its thread.
+    const ids = Array.isArray(args.p_participant_ids) ? (args.p_participant_ids as unknown[]) : []
+    if (ids.length < 2) return { data: null, error: { message: 'too_few_participants' } }
+    const conversations = table('conversations')
+    let conversation =
+      args.p_kind === 'direct'
+        ? conversations.find((c) => c.kind === 'direct' && c.direct_key === args.p_direct_key)
+        : undefined
+    const created = !conversation
+    const now = new Date().toISOString()
+    if (!conversation) {
+      conversation = {
+        id: randomUUID(),
+        kind: args.p_kind,
+        title: args.p_title ?? null,
+        created_by: args.p_created_by ?? null,
+        last_message_at: now,
+        last_message_body: null,
+        last_message_sender_id: null,
+        direct_key: args.p_kind === 'direct' ? args.p_direct_key : null,
+        created_at: now,
+      }
+      conversations.push(conversation)
+    }
+    const participants = table('conversation_participants')
+    for (const profileId of ids) {
+      if (!participants.some((p) => p.conversation_id === conversation.id && p.profile_id === profileId)) {
+        participants.push({
+          id: randomUUID(),
+          conversation_id: conversation.id,
+          profile_id: profileId,
+          last_read_at: null,
+          joined_at: now,
+        })
+      }
+    }
+    persist()
+    return { data: { id: conversation.id, created }, error: null }
+  }
+  if (fn === 'post_message') {
+    const now = new Date().toISOString()
+    const message = {
+      id: randomUUID(),
+      conversation_id: args.p_conversation_id,
+      sender_id: args.p_sender_id,
+      body: args.p_body,
+      created_at: now,
+    }
+    table('messages').push(message)
+    const conversation = table('conversations').find((c) => c.id === args.p_conversation_id)
+    if (conversation && (conversation.last_message_at == null || String(conversation.last_message_at) <= now)) {
+      conversation.last_message_at = now
+      conversation.last_message_body = message.body
+      conversation.last_message_sender_id = message.sender_id
+    }
+    persist()
+    return { data: message, error: null }
   }
   if (fn === 'sum_active_resource_downloads') {
     // Mirrors 0103: total downloads across ACTIVE documents only.
