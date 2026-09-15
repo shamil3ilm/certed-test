@@ -1,6 +1,7 @@
 import 'server-only'
 import { emailEnabled, sendEmail } from '@/lib/email/resend'
 import { claimPendingEmails, markEmailFailed, markEmailSent, requeueStaleClaims } from '@/lib/data/pending-emails'
+import { logError } from '@/lib/observability/log'
 
 const DRAIN_BATCH = 50
 const MAX_ATTEMPTS = 3
@@ -38,20 +39,29 @@ export async function drainPendingEmails(limit = DRAIN_BATCH): Promise<DrainResu
     let ok = false
     let message = ''
     try {
-      ok = await sendEmail(row.to_email, row.subject, row.html)
+      // Keyed on the queue row. A row reaped while its first send was still running is claimed
+      // and sent again by a later pass; the provider answers that repeat without delivering it.
+      ok = await sendEmail(row.to_email, row.subject, row.html, { idempotencyKey: `pending-email/${row.id}` })
       if (!ok) message = 'sendEmail returned false (provider error or email disabled)'
     } catch (error) {
       message = error instanceof Error ? error.message : 'unknown error'
     }
 
-    if (ok) {
-      await markEmailSent(row.id, attempts)
-      sent += 1
-    } else {
-      const terminal = attempts >= MAX_ATTEMPTS
-      await markEmailFailed(row.id, attempts, terminal, message)
-      if (terminal) failed += 1
-      else retried += 1
+    // Recording the outcome is per row too: a throw here would otherwise end the pass and strand
+    // the rest of the claimed batch in 'sending' until the lease reaps it. Only this row waits
+    // for the reap; the others are still sent and recorded.
+    try {
+      if (ok) {
+        await markEmailSent(row.id, attempts)
+        sent += 1
+      } else {
+        const terminal = attempts >= MAX_ATTEMPTS
+        await markEmailFailed(row.id, attempts, terminal, message)
+        if (terminal) failed += 1
+        else retried += 1
+      }
+    } catch (error) {
+      logError('email.drain.recordOutcome', error, { emailId: row.id, sent: ok })
     }
   }
 

@@ -36,6 +36,9 @@ describe('drainPendingEmails', () => {
     // Stale-claim reap runs before the claim, so a crashed pass's rows are retried.
     expect(requeueStaleClaims).toHaveBeenCalledTimes(1)
     expect(sendEmail).toHaveBeenCalledTimes(2)
+    // Each send is keyed on its queue row, so a repeat after a lease reap is not delivered twice.
+    expect(sendEmail).toHaveBeenCalledWith('a@test.dev', 'S', '<p>H</p>', { idempotencyKey: 'pending-email/e1' })
+    expect(sendEmail).toHaveBeenCalledWith('b@test.dev', 'S', '<p>H</p>', { idempotencyKey: 'pending-email/e2' })
     expect(markEmailSent).toHaveBeenCalledWith('e1', 1)
     expect(markEmailSent).toHaveBeenCalledWith('e2', 1)
     expect(result).toEqual({ processed: 2, sent: 2, failed: 0, retried: 0 })

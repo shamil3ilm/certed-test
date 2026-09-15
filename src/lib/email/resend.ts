@@ -24,11 +24,26 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
 
-/** Send one email. Best-effort: false + logged on failure, never throws. */
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+/**
+ * Send one email. Best-effort: false + logged on failure, never throws.
+ *
+ * `idempotencyKey` makes a repeat of the same request a no-op at Resend: a key it has already
+ * accepted (kept 24 hours) returns the first response without sending again, and a repeat that
+ * arrives while the first is still in flight is refused with a retryable 409. The payload must
+ * match the first request exactly, so a key names one message, not one recipient.
+ */
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  options: { idempotencyKey?: string } = {},
+): Promise<boolean> {
   if (!emailEnabled()) return false
   try {
-    const { error } = await resend().emails.send({ from: process.env.EMAIL_FROM!, to, subject, html })
+    const { error } = await resend().emails.send(
+      { from: process.env.EMAIL_FROM!, to, subject, html },
+      options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : undefined,
+    )
     if (error) throw new Error(error.message)
     return true
   } catch (error) {
