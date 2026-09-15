@@ -1,6 +1,7 @@
 import { codeForServiceError, type ErrorCode } from '@/lib/api/error-codes'
 import { ServiceError } from '@/lib/errors'
 import { GENERIC_ERROR_MESSAGE } from '@/lib/api/messages'
+import { fromDatabaseRefusal } from '@/lib/api/database-refusals'
 
 export type ActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string; code?: ErrorCode }
 export type ActionStatusResult = { ok: true } | { ok: false; error: string; code?: ErrorCode }
@@ -22,9 +23,10 @@ export function actionFail(error: string, code?: ErrorCode): ActionResult<never>
  * `ServiceError` surfaces its own message (safe by construction - services
  * never put raw DB/internal detail in a ServiceError message); anything else
  * becomes a generic message - never forward an unknown error's message to
- * the client.
+ * the client. A known database refusal counts as the typed error it stands for.
  */
-export function toActionError(error: unknown): ActionResult<never> {
+export function toActionError(thrown: unknown): ActionResult<never> {
+  const error = fromDatabaseRefusal(thrown)
   if (error instanceof ServiceError) return actionFail(error.message, codeForServiceError(error))
   return actionFail(GENERIC_ERROR_MESSAGE)
 }

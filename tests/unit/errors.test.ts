@@ -35,6 +35,24 @@ describe('apiError', () => {
     expect(body.error).toBe('You do not have access to this resource.')
   })
 
+  it('maps an archived-class refusal from the database to a 422 with the service message', async () => {
+    const res = apiError(new Error('class_archived'))
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error).toBe('That class is archived - restore it before adding content.')
+  })
+
+  it('maps a revoked-student enrolment refusal from the database to a 422 with the service message', async () => {
+    const res = apiError(new Error('enrollments.enroll: student_not_eligible'))
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error).toBe('That account is revoked or is not a student, so it cannot be enrolled.')
+  })
+
+  it('does not mistake a message that merely mentions the code for the refusal', async () => {
+    expect(apiError(new Error('class_archived_at column missing')).status).toBe(500)
+  })
+
   it('never leaks an unknown error message — generic 500', async () => {
     const res = apiError(new Error('duplicate key value violates unique constraint "receipts_number_key"'))
     expect(res.status).toBe(500)
@@ -81,6 +99,24 @@ describe('toActionError', () => {
     expect(toActionError(new ValidationError('title is required'))).toEqual({
       ok: false,
       error: 'title is required',
+      code: ERROR_CODES.invalidInput,
+    })
+  })
+
+  it('reads an archived-class refusal from the database like the service check that missed it', () => {
+    // The class was archived between the service's status read and the insert (0114).
+    expect(toActionError(new Error('data.assignments.insert: class_archived'))).toEqual({
+      ok: false,
+      error: 'That class is archived - restore it before adding content.',
+      code: ERROR_CODES.invalidInput,
+    })
+  })
+
+  it('reads a revoked-student refusal from the database like the enrolment check that missed it', () => {
+    // The student was revoked between enrolStudent's status read and the upsert (0115).
+    expect(toActionError(new Error('enrollments.enroll: student_not_eligible'))).toEqual({
+      ok: false,
+      error: 'That account is revoked or is not a student, so it cannot be enrolled.',
       code: ERROR_CODES.invalidInput,
     })
   })

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { ERROR_CODES, codeForAuthMessage, codeForServiceError, type ErrorCode } from '@/lib/api/error-codes'
 import { ServiceError } from '@/lib/errors'
 import { logError } from '@/lib/observability/log'
+import { fromDatabaseRefusal } from '@/lib/api/database-refusals'
 import {
   ACCESS_REVOKED_MESSAGE,
   FORBIDDEN_MESSAGE,
@@ -103,9 +104,11 @@ const AUTH_CODES = new Set(['no-access', 'revoked', 'forbidden'])
  * own status + message; the existing requireRole/requireRoleApi coded errors
  * fall through to `authFail`; anything else (e.g. a raw DB error) becomes a
  * generic 500 - never forward an unknown error's message to the client, it
- * may contain internal schema/constraint detail.
+ * may contain internal schema/constraint detail. A known database refusal counts as
+ * the typed error it stands for.
  */
-export function apiError(error: unknown) {
+export function apiError(thrown: unknown) {
+  const error = fromDatabaseRefusal(thrown)
   if (error instanceof ServiceError) {
     return fail(error.message, error.status, codeForServiceError(error))
   }

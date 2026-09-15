@@ -6,6 +6,7 @@ import { selectClassStatus } from '@/lib/data/classes'
 import { selectActiveGlobalOverrides } from '@/lib/data/capability-overrides'
 import { resolveCapabilities, type CapabilityOverride } from '@/lib/capabilities'
 import { ValidationError } from '@/lib/errors'
+import { DATABASE_REFUSAL_MESSAGES } from '@/lib/api/database-refusals'
 import { loadPersonaFlags } from './personas'
 import { selectActiveClassIds, selectActiveClassIdsAmong } from '@/lib/data/classes'
 
@@ -104,7 +105,7 @@ export async function canManageClass(profile: Pick<Profile, 'id'>, classId: stri
  */
 export async function assertClassActive(classId: string): Promise<void> {
   if ((await selectClassStatus(classId)) !== 'active') {
-    throw new ValidationError('That class is archived - restore it before adding content.')
+    throw new ValidationError(DATABASE_REFUSAL_MESSAGES.class_archived)
   }
 }
 
