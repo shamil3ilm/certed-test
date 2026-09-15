@@ -3,6 +3,8 @@ import type { Profile } from '@/lib/auth/profile'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { insertClass, updateClassName, updateClassStatus, type ClassRow } from '@/lib/data/classes'
+import { subjectRefusalOf } from '@/lib/data/class-subjects'
+import { ValidationError } from '@/lib/errors'
 import {
   validateClassIdInput,
   validateRenameClassInput,
@@ -59,7 +61,16 @@ export async function archiveClassFromActionInput(actor: Profile, input: ClassId
 
 export async function restoreClass(actor: Profile, id: string): Promise<void> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
-  await updateClassStatus(id, 'active')
+  try {
+    await updateClassStatus(id, 'active')
+  } catch (error) {
+    // The student has taken the subject up again in a newer class; the database refuses a
+    // second live one (0107).
+    if (subjectRefusalOf(error as Error) === 'subject_already_taken') {
+      throw new ValidationError('This student already takes this subject in another class - archive that one first.')
+    }
+    throw error
+  }
   await auditPrivilegedAction(actor, 'class.restore', 'class', id)
 }
 

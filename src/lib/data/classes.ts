@@ -59,13 +59,15 @@ export async function countActiveClasses(): Promise<number> {
  * page (Stream/Classwork/People) both resolve the same class, so this collapses
  * to one read.
  *
- * Treats a read error as "not visible" rather than throwing, which is what the
- * callers want - under RLS, a class the caller may not see is indistinguishable
- * from one that does not exist, and both should render the not-found page.
+ * Null for a class the caller may not see: under RLS that is indistinguishable
+ * from one that does not exist, and both render the not-found page. A read that
+ * FAILS throws instead - RLS filtering returns no row, not an error, so an error
+ * is an outage and must not be shown as "this class does not exist".
  */
 export const selectClassById = cache(async (id: string): Promise<ClassRow | null> => {
   const supabase = await createClient()
-  const { data } = await supabase.from('classes').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('classes').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`classes.selectClassById: ${error.message}`)
   return (data as ClassRow) ?? null
 })
 
@@ -180,7 +182,8 @@ export async function selectClassIdsBySubject(subjectId: string): Promise<string
 export async function selectClassesByIds(ids: string[]): Promise<ClassRow[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
-  const { data } = await admin.from('classes').select('*').in('id', ids).order('name')
+  const { data, error } = await admin.from('classes').select('*').in('id', ids).order('name')
+  if (error) throw new Error(`classes.selectClassesByIds: ${error.message}`)
   return (data ?? []) as ClassRow[]
 }
 
@@ -218,26 +221,6 @@ export async function updateClassName(id: string, name: string): Promise<void> {
   assertMutated(result, 'classes.rename', 'Class not found.')
 }
 
-/**
- * Set a class's subject ONLY when it has none. Returns whether a row changed.
- *
- * The `is('subject_id', null)` guard is the point: a class that already names a subject keeps
- * it, because sessions copy the subject at record time and re-pointing the class would leave
- * that history describing a subject the class no longer teaches. Filling an EMPTY subject
- * carries no such risk - there is no earlier answer to contradict.
- */
-export async function updateClassSubjectWhenUnset(classId: string, subjectId: string): Promise<boolean> {
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('classes')
-    .update({ subject_id: subjectId })
-    .eq('id', classId)
-    .is('subject_id', null)
-    .select('id')
-  if (error) throw new Error(`classes.setSubjectWhenUnset: ${error.message}`)
-  return (data ?? []).length > 0
-}
-
 export async function updateClassStatus(id: string, status: ClassRow['status']): Promise<void> {
   const admin = createAdminClient()
   const result = await admin.from('classes').update({ status }).eq('id', id).select('id')
@@ -248,13 +231,14 @@ export async function updateClassStatus(id: string, status: ClassRow['status']):
  *  archived. Service-role, because the caller is an already-gated admin action. */
 export async function selectClassStatus(id: string): Promise<ClassRow['status'] | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('classes').select('status').eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('classes').select('status').eq('id', id).maybeSingle()
+  if (error) throw new Error(`classes.selectClassStatus: ${error.message}`)
   return (data as { status: ClassRow['status'] } | null)?.status ?? null
 }
 
-/** Class id, stored name and subject for a set of ids, SERVICE-ROLE - the report card's labels. THROWS on error, unlike
- *  selectClassesByIds, because the report card must fail loudly rather than
- *  render rows labelled "Class". */
+/** Class id, stored name and subject for a set of ids, SERVICE-ROLE - the report card's
+ *  labels. Throws on error: the report card must fail loudly rather than render rows
+ *  labelled "Class". */
 export async function selectClassNamesByIdsAsService(
   ids: string[],
 ): Promise<{ id: string; name: string; subject_id: string | null }[]> {

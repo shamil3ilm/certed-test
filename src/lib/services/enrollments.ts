@@ -6,6 +6,7 @@ import {
   upsertEnrollment,
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
+import { subjectRefusalOf } from '@/lib/data/class-subjects'
 import { canWriteClass } from '@/lib/permission/class-write'
 import { getProfileById, getProfileNamesByIds } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -72,7 +73,15 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
       'This class already has a student. Each class is one-to-one - create a separate class to assign this student to another tutor.',
     )
   }
-  await upsertEnrollment(params.studentId, params.classId)
+  try {
+    await upsertEnrollment(params.studentId, params.classId)
+  } catch (error) {
+    // The database refuses a second live class of one subject for a student (0107).
+    if (subjectRefusalOf(error as Error) === 'subject_already_taken') {
+      throw new ValidationError('This student already takes this class’s subject in another class.')
+    }
+    throw error
+  }
   await auditPrivilegedAction(actor, 'class.enroll', 'enrollment', params.classId)
 }
 
