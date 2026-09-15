@@ -2,6 +2,7 @@ import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { withClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
+import { canDocument } from '@/lib/permission/documents'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { ASSIGNMENT_TYPES, listAssignmentPage, type Assignment, type AssignmentType } from '@/lib/services/assignments'
 import { listCommentsForEntities, type Comment } from '@/lib/services/comments'
@@ -46,6 +47,10 @@ type ClassworkDocumentView = {
   document: Document
   comments: Comment[]
   versions: DocumentVersion[]
+  /** Whether THIS reader may edit / remove THIS document (canDocument): an admin any, a tutor
+   *  only what they uploaded, a mentor none. */
+  canEdit: boolean
+  canDelete: boolean
 }
 
 export type DocumentFilterState = {
@@ -260,6 +265,23 @@ export async function loadClassworkPageData(
     listVersionsForDocuments(docIds),
   ])
 
+  // Edit and remove are decided per document, by the same rule the write paths enforce, so a
+  // card never offers a control the reader cannot use. Readers who cannot manage content in
+  // this class hold neither right, so they skip the checks.
+  const rights = new Map<string, { canEdit: boolean; canDelete: boolean }>()
+  if (canManageContent) {
+    const checked = await Promise.all(
+      docsPage.items.map(async (document) => {
+        const [canEdit, canDelete] = await Promise.all([
+          canDocument(me, 'edit', document),
+          canDocument(me, 'delete', document),
+        ])
+        return [document.id, { canEdit, canDelete }] as const
+      }),
+    )
+    for (const [id, r] of checked) rights.set(id, r)
+  }
+
   const documentsByCategory = Object.fromEntries(
     DOCUMENT_CATEGORY_VALUES.map((c) => [c, [] as ClassworkDocumentView[]]),
   ) as Record<DocumentCategory, ClassworkDocumentView[]>
@@ -268,6 +290,8 @@ export async function loadClassworkPageData(
       document,
       comments: docComments.get(document.id) ?? [],
       versions: versionsByDoc.get(document.id) ?? [],
+      canEdit: rights.get(document.id)?.canEdit ?? false,
+      canDelete: rights.get(document.id)?.canDelete ?? false,
     })
   }
 

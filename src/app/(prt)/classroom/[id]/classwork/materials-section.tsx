@@ -88,30 +88,28 @@ function DocumentCard({
         />
       )}
 
-      <VersionHistory
-        resourceId={doc.id}
-        classId={courseId}
-        versions={view.versions}
-        canManage={data.canManageContent}
-      />
+      {/* Restoring a version is an edit, so it follows the same per-document right. */}
+      <VersionHistory resourceId={doc.id} classId={courseId} versions={view.versions} canManage={view.canEdit} />
 
-      {data.canManageContent && (
+      {(view.canEdit || view.canDelete) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <EditResource resource={doc} />
-          <form action={deleteResourceAction}>
-            <input type="hidden" name="id" value={doc.id} />
-            <input type="hidden" name="class_id" value={courseId} />
-            <ConfirmSubmit
-              className="btn btn-sm btn-danger"
-              title="Remove this document?"
-              message={`"${doc.title}" is hidden from the class but kept on record.`}
-              confirmLabel="Remove"
-              pendingLabel="Removing..."
-              aria-label={`Remove document ${doc.title}`}
-            >
-              Remove
-            </ConfirmSubmit>
-          </form>
+          {view.canEdit && <EditResource resource={doc} />}
+          {view.canDelete && (
+            <form action={deleteResourceAction}>
+              <input type="hidden" name="id" value={doc.id} />
+              <input type="hidden" name="class_id" value={courseId} />
+              <ConfirmSubmit
+                className="btn btn-sm btn-danger"
+                title="Remove this document?"
+                message={`"${doc.title}" is hidden from the class but kept on record.`}
+                confirmLabel="Remove"
+                pendingLabel="Removing..."
+                aria-label={`Remove document ${doc.title}`}
+              >
+                Remove
+              </ConfirmSubmit>
+            </form>
+          )}
         </div>
       )}
 

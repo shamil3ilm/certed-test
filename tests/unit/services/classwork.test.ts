@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission/documents', () => ({ canDocument: vi.fn(async () => false) }))
 vi.mock('@/lib/permission/personas', () => ({
   loadActivePersonas: vi.fn(),
   hasPersona: vi.fn(),
@@ -39,6 +40,7 @@ import {
 import { listCommentsForEntities } from '@/lib/services/comments'
 import { listResourcesPage } from '@/lib/services/resources'
 import { listMyActiveSubmissions, listMySupersededSubmissions } from '@/lib/services/submissions'
+import { canDocument } from '@/lib/permission/documents'
 
 const BASE_FILTERS: DocumentFilterState = { q: '', category: '', subject: '', from: '', to: '', sort: 'latest' }
 const doc = (o: Record<string, unknown>) => ({ category: 'general_documents', ...o })
@@ -222,6 +224,49 @@ describe('loadClassworkPageData', () => {
     expect(result.canManageContent).toBe(true)
     expect(result.archivedDocuments).toEqual([doc({ id: 'r2', title: 'Archived Notes' })])
     expect(listMyActiveSubmissions).not.toHaveBeenCalled()
+  })
+
+  it('offers edit and remove per document, only where this reader holds the right', async () => {
+    vi.mocked(listResourcesPage)
+      .mockResolvedValueOnce({
+        items: [
+          doc({ id: 'mine', title: 'Mine', uploaded_by: 'tutor-1' }),
+          doc({ id: 'theirs', title: 'Theirs', uploaded_by: 'tutor-2' }),
+        ],
+        total: 2,
+      } as any)
+      .mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(listAssignmentPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
+    // A tutor may edit and remove only what they uploaded.
+    vi.mocked(canDocument).mockImplementation(async (_actor, _action, target: any) => target.uploaded_by === 'tutor-1')
+
+    const result = await loadClassworkPageData(
+      { id: 'tutor-1', role: 'tutor' } as any,
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
+      {},
+    )
+
+    const views = result.documentsByCategory.general_documents
+    expect(views.find((v) => v.document.id === 'mine')).toMatchObject({ canEdit: true, canDelete: true })
+    expect(views.find((v) => v.document.id === 'theirs')).toMatchObject({ canEdit: false, canDelete: false })
+  })
+
+  it('does not check document rights for a reader who cannot manage content', async () => {
+    vi.mocked(listResourcesPage).mockResolvedValue({ items: [doc({ id: 'r1', title: 'Notes' })], total: 1 } as any)
+    vi.mocked(listAssignmentPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(listCommentsForEntities).mockResolvedValue(new Map() as any)
+    vi.mocked(listMyActiveSubmissions).mockResolvedValueOnce([])
+    vi.mocked(listMySupersededSubmissions).mockResolvedValueOnce([])
+
+    const result = await loadClassworkPageData(
+      { id: 'student-1', role: 'student' } as any,
+      { id: 'class-1', name: 'Math', status: 'active', subject_id: null },
+      {},
+    )
+
+    expect(canDocument).not.toHaveBeenCalled()
+    expect(result.documentsByCategory.general_documents[0]).toMatchObject({ canEdit: false, canDelete: false })
   })
 
   it('keeps archived-class classwork readable while disabling manager write actions', async () => {
