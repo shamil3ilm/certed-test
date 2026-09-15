@@ -29,7 +29,8 @@ export async function selectActiveSubjects(): Promise<SubjectRow[]> {
 /** A subject by id, or null. Service-role - used when composing a class's name. */
 export async function selectSubjectById(id: string): Promise<SubjectRow | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('subjects').select(COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('subjects').select(COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`subjects.selectSubjectById: ${error.message}`)
   return (data as SubjectRow) ?? null
 }
 
@@ -38,7 +39,8 @@ export async function selectSubjectById(id: string): Promise<SubjectRow | null> 
 export async function selectSubjectsByIds(ids: string[]): Promise<SubjectRow[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
-  const { data } = await admin.from('subjects').select(COLUMNS).in('id', ids)
+  const { data, error } = await admin.from('subjects').select(COLUMNS).in('id', ids)
+  if (error) throw new Error(`subjects.selectSubjectsByIds: ${error.message}`)
   return (data ?? []) as SubjectRow[]
 }
 
@@ -48,7 +50,8 @@ export async function selectSubjectByName(name: string): Promise<SubjectRow | nu
   const admin = createAdminClient()
   // Escape LIKE metacharacters so a name containing % or _ matches literally.
   const literal = name.trim().replace(/([%_\\])/g, '\\$1')
-  const { data } = await admin.from('subjects').select(COLUMNS).ilike('name', literal).maybeSingle()
+  const { data, error } = await admin.from('subjects').select(COLUMNS).ilike('name', literal).maybeSingle()
+  if (error) throw new Error(`subjects.selectSubjectByName: ${error.message}`)
   return (data as SubjectRow) ?? null
 }
 

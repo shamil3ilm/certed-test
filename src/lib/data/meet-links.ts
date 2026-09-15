@@ -97,7 +97,8 @@ export async function selectNewestForClasses(
 
 export async function selectMeetLinkById(id: string): Promise<MeetLinkRow | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('meet_links').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('meet_links').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`meet-links.selectMeetLinkById: ${error.message}`)
   return (data as MeetLinkRow) ?? null
 }
 

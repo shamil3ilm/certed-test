@@ -48,11 +48,12 @@ export type SubmissionState = {
  *  ownership alone let a student attach after the deadline or after grading. */
 export async function selectSubmissionStateAsService(id: string): Promise<SubmissionState | null> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('submissions')
     .select('student_id, assignment_id, is_active, score, graded_at')
     .eq('id', id)
     .maybeSingle()
+  if (error) throw new Error(`submissions-service-reads.selectSubmissionStateAsService: ${error.message}`)
   return (data as SubmissionState) ?? null
 }
 

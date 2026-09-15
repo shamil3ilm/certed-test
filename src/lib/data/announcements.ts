@@ -142,11 +142,13 @@ export async function selectClassPageSources(
   }
 }
 
-/** One announcement, or null. A read error reads as "not visible", the same as
- *  a missing row - both render the not-found page. */
+/** One announcement, or null. One the caller may not see reads the same as a missing
+ *  row - both render the not-found page. A failed read throws: RLS filtering returns no
+ *  row, not an error, so an error is an outage rather than a missing announcement. */
 export async function selectAnnouncementById(id: string): Promise<AnnouncementRow | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('announcements').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('announcements').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`announcements.selectAnnouncementById: ${error.message}`)
   return (data as AnnouncementRow) ?? null
 }
 
