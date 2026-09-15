@@ -176,23 +176,30 @@ test.describe.serial('ATTENDANCE AND BILLING', () => {
 
   test('student sees the summary but never the private note, and leaves feedback', async ({ page }) => {
     await loginAs(page, 'student')
-    await open(page, `/classroom/${CLASS_ID}/attendance?aFrom=${day}&aTo=${day}`)
-    const toggles = page.getByText('Summary & feedback')
-    for (let i = 0; i < (await toggles.count()); i++) await toggles.nth(i).click()
-    await expect(page.getByText(SUMMARY).first()).toBeVisible()
+    // The student's records are paged newest first, and this spec records in a past month:
+    // find the page holding THIS day's row, and act only inside that row.
+    const row = page
+      .locator('li')
+      .filter({ hasText: day })
+      .filter({ has: page.getByText('Summary & feedback') })
+    for (let recPage = 1; recPage <= 15; recPage++) {
+      await open(page, `/classroom/${CLASS_ID}/attendance?recPage=${recPage}`)
+      if (await row.count()) break
+    }
+    await expect(row, `the student's attendance lists ${day}`).toHaveCount(1)
     expect(await page.content()).not.toContain(PRIVATE)
 
-    const feedback = page.getByLabel('Session feedback').first()
-    await feedback.fill(FEEDBACK)
-    await page.getByRole('button', { name: 'Save feedback' }).first().click()
+    await row.getByText('Summary & feedback').click()
+    await expect(row.getByText(SUMMARY)).toBeVisible()
+    await row.getByLabel('Session feedback').fill(FEEDBACK)
+    await row.getByRole('button', { name: 'Save feedback' }).click()
     expect(await sawMessage(page, /Feedback saved/)).toBe(true)
   })
 
   test("the tutor reads the student's feedback; the mentor and admin see the hours", async ({ page }) => {
     await loginAs(page, 'tutor')
     await open(page, attendanceUrl(day))
-    if (!(await page.getByText(FEEDBACK).count()))
-      note('the tutor does not see the student feedback on the attendance page')
+    await expect(page.getByText(FEEDBACK).first(), "the tutor reads the student's feedback").toBeVisible()
 
     await loginAs(page, 'mentor')
     await open(page, `/session-timings?from=${day}&to=${day}`)
