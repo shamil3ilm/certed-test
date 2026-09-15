@@ -24,6 +24,11 @@ vi.mock('@/lib/auth/class-scope', () => ({
   teachesClassWrite: (classId: string) => teaches(classId),
 }))
 
+const allowed = { caps: new Set<string>(['viewCalendar', 'manageCalendar']) }
+vi.mock('@/lib/session/actor-context', () => ({
+  getActorContext: async () => ({ capabilities: { allowed: allowed.caps } }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
@@ -130,5 +135,22 @@ describe('GET /api/timetable', () => {
   it('caps the unfiltered (whole-academy) query at 500, matching /api/events', async () => {
     await GET(new Request('http://t/api/timetable'))
     expect(listSlots).toHaveBeenCalledWith(expect.objectContaining({ limit: 500 }))
+  })
+
+  it('lists active slots only by default', async () => {
+    await GET(new Request('http://t/api/timetable'))
+    expect(listSlots).toHaveBeenCalledWith(expect.objectContaining({ activeOnly: true }))
+  })
+
+  it('a calendar manager can list deactivated slots, so they can be reactivated or deleted', async () => {
+    allowed.caps = new Set(['viewCalendar', 'manageCalendar'])
+    await GET(new Request('http://t/api/timetable?includeInactive=1'))
+    expect(listSlots).toHaveBeenCalledWith(expect.objectContaining({ activeOnly: false }))
+  })
+
+  it('a reader who cannot manage the calendar still gets the active timetable only', async () => {
+    allowed.caps = new Set(['viewCalendar'])
+    await GET(new Request('http://t/api/timetable?includeInactive=1'))
+    expect(listSlots).toHaveBeenCalledWith(expect.objectContaining({ activeOnly: true }))
   })
 })

@@ -30,7 +30,8 @@ export function useTimetableData() {
   const reload = useCallback(async () => {
     try {
       const [slotRows, eventRows] = await Promise.all([
-        api<Slot[]>('/api/timetable', 'GET'),
+        // Inactive slots included: a deactivated slot has to stay listed to be reactivated or deleted.
+        api<Slot[]>('/api/timetable?includeInactive=1', 'GET'),
         api<Ev[]>('/api/events', 'GET'),
       ])
       setSlots(slotRows)
