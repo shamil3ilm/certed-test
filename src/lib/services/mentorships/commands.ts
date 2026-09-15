@@ -4,13 +4,7 @@ import { getProfileById } from '@/lib/services/users'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { NotFoundError, ValidationError } from '@/lib/errors'
-import {
-  deactivateMentorship,
-  deactivateMentorshipByPair,
-  selectMentorshipParties,
-  upsertMentorship,
-} from '@/lib/data/mentorships'
-import { deleteScopedMentorPersona, upsertScopedMentorPersona } from '@/lib/data/personas'
+import { callAssignMentorship, callRemoveMentorship } from '@/lib/data/mentorships'
 import {
   validateAssignMentorInput,
   validateRemoveMentorInput,
@@ -27,8 +21,9 @@ import {
  * data. It is admin by default and override-grantable.
  *
  * A mentorship is TWO rows: the link itself, and the student-scoped mentor
- * persona that actually grants access. Keeping them consistent is the whole
- * job of this module - see the ordering note in removeMentor.
+ * persona that actually grants access. The database writes both in one transaction,
+ * under a lock that makes an assign and a remove of the same pair take turns (0108),
+ * so neither row ever exists without the other.
  */
 
 /**
@@ -64,32 +59,15 @@ export async function assignMentor(actor: Profile, params: MentorshipParams): Pr
   if (!student || student.role !== 'student' || student.status !== 'active')
     throw new ValidationError('student_id must be an active student')
 
-  await upsertMentorship(params.mentorId, params.studentId)
-  try {
-    // The scoped persona is what lets the mentor reach this student's data
-    // outside any class context; the link row alone grants nothing.
-    await upsertScopedMentorPersona(params.mentorId, params.studentId)
-  } catch (error) {
-    // Compensate the now-orphaned link (persona create failed). This runs in its
-    // OWN try/catch: if the compensation ALSO fails, the link is left active with
-    // no persona - a "ghost" that grants nothing now (canMentor keys off the
-    // persona) but that a later account-restore would rebuild into real access,
-    // because restorePersonasForProfile trusts mentorships.active. So we must not
-    // let the compensation's failure bury the original error - we surface BOTH,
-    // distinctly, so the inconsistent pair is visible and reconcilable rather
-    // than silently lost.
-    try {
-      await deactivateMentorshipByPair(params.mentorId, params.studentId)
-    } catch (compensationError) {
-      const original = error instanceof Error ? error.message : String(error)
-      const comp = compensationError instanceof Error ? compensationError.message : String(compensationError)
-      throw new Error(
-        `mentorship.assign left an orphaned active link for mentor ${params.mentorId} / student ` +
-          `${params.studentId}: persona create failed (${original}) AND its compensation failed (${comp}). ` +
-          `Deactivate this mentorship manually or re-run the assignment.`,
-      )
-    }
-    throw error
+  // Eligibility is re-checked inside the write: a revoke landing after the checks above
+  // must not end with a mentor holding reach over the student.
+  const result = await callAssignMentorship(params.mentorId, params.studentId)
+  if (!result.ok) {
+    throw new ValidationError(
+      result.reason === 'mentor_not_assignable'
+        ? 'That mentor is no longer active - choose another.'
+        : 'student_id must be an active student',
+    )
   }
   await auditPrivilegedAction(actor, 'mentorship.assign', 'mentorship', params.studentId)
 }
@@ -101,21 +79,10 @@ export async function assignMentorFromActionInput(actor: Profile, input: AssignM
 /** Soft-remove a mentorship link by id (keeps the record). */
 export async function removeMentor(actor: Profile, id: string): Promise<void> {
   await requireActorCapability(actor.id, 'manageMentorships', 'You are not allowed to manage mentors.')
-  const parties = await selectMentorshipParties(id)
-  // A bogus/stale id names no mentorship at all - refuse rather than run the two
-  // no-op writes and audit a `mentorship.remove` that never happened. A row that
-  // exists (even already-inactive) still resolves parties, so an idempotent
-  // re-remove/retry is unaffected.
-  if (!parties) throw new NotFoundError('Mentorship not found')
-
-  // These two writes aren't in one transaction, so order matters for safety.
-  // Delete the ACCESS-GRANTING scoped persona FIRST: canMentor and every
-  // mentee-data path key off that row, not mentorships.active. If the second
-  // write then fails, the worst case is a mentor with LESS access than the list
-  // shows (fail-closed) - never a "removed" mentor who still has access. The
-  // delete is idempotent, so an admin's retry reconciles cleanly.
-  await deleteScopedMentorPersona(parties.mentor_id, parties.student_id)
-  await deactivateMentorship(id)
+  // A bogus/stale id names no mentorship at all - refuse rather than audit a
+  // `mentorship.remove` that never happened. A link that exists (even already
+  // inactive) is removed again, so an idempotent retry is unaffected.
+  if (!(await callRemoveMentorship(id))) throw new NotFoundError('Mentorship not found')
 
   await auditPrivilegedAction(actor, 'mentorship.remove', 'mentorship', id)
 }

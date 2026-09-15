@@ -21,11 +21,12 @@ type MockCredentialRow = { id: string; auth_user_id: string | null; password?: s
 
 export async function selectRegistrationFields(email: string): Promise<RegistrationFieldsRow | null> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('profiles')
     .select('id, auth_user_id, status, setup_code_hash, setup_code_expires_at, role, date_of_birth, guardian_name')
     .eq('email', email.trim().toLowerCase())
     .maybeSingle()
+  if (error) throw new Error(`profiles-auth.selectRegistrationFields: ${error.message}`)
   return (data as RegistrationFieldsRow) ?? null
 }
 
@@ -84,7 +85,8 @@ export async function updateOwnProfile(
 
 export async function selectMockCredentialProfile(email: string): Promise<MockCredentialRow | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('*').eq('email', email).maybeSingle()
+  const { data, error } = await admin.from('profiles').select('*').eq('email', email).maybeSingle()
+  if (error) throw new Error(`profiles-auth.selectMockCredentialProfile: ${error.message}`)
   return (data as MockCredentialRow) ?? null
 }
 
@@ -137,7 +139,8 @@ export async function anonymizeProfileForErasure(id: string): Promise<void> {
 export async function selectActiveIdsAmong(ids: string[]): Promise<string[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('id').in('id', ids).eq('status', 'active')
+  const { data, error } = await admin.from('profiles').select('id').in('id', ids).eq('status', 'active')
+  if (error) throw new Error(`profiles-auth.selectActiveIdsAmong: ${error.message}`)
   return ((data ?? []) as { id: string }[]).map((row) => row.id)
 }
 
@@ -160,7 +163,8 @@ export async function selectOwnProfileByAuthUserId(authUserId: string): Promise<
 
 export async function selectProfileIdByAuthUserId(authUserId: string): Promise<string | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('id').eq('auth_user_id', authUserId).maybeSingle()
+  const { data, error } = await admin.from('profiles').select('id').eq('auth_user_id', authUserId).maybeSingle()
+  if (error) throw new Error(`profiles-auth.selectProfileIdByAuthUserId: ${error.message}`)
   return (data as { id: string } | null)?.id ?? null
 }
 
@@ -173,11 +177,12 @@ export async function selectAllowlistRowByEmail(email: string): Promise<{
   guardian_name: string | null
 } | null> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('profiles')
     .select('id, auth_user_id, status, role, date_of_birth, guardian_name')
     .eq('email', email.trim().toLowerCase())
     .maybeSingle()
+  if (error) throw new Error(`profiles-auth.selectAllowlistRowByEmail: ${error.message}`)
   return (data as never) ?? null
 }
 
@@ -203,6 +208,8 @@ export async function claimAllowlistRowOnOAuth(profileId: string, authUserId: st
     .eq('status', 'pending')
     .select('id')
     .maybeSingle()
-  if (error) return null
+  // Null means the invite is no longer claimable (already bound, or revoked). A failed write is
+  // not that answer: reporting it as one would turn an outage into "you are not invited".
+  if (error) throw new Error(`data.profiles.claimAllowlistRow: ${error.message}`)
   return (data as { id: string } | null)?.id ?? null
 }

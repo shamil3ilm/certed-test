@@ -15,6 +15,9 @@ vi.mock('@/lib/permission/personas', () => ({
   hasPersona: vi.fn(),
   loadPersonaFlags: vi.fn(),
 }))
+// Credential changes are limited across instances; the limiter's own behaviour is tested in
+// rate-limit-shared.test. A plain function, so resetAllMocks cannot strip its answer.
+vi.mock('@/lib/security/rate-limit-shared', () => ({ rateLimitShared: async () => ({ ok: true, retryAfterSec: 0 }) }))
 vi.mock('@/lib/auth/setup-code', () => ({
   generateSetupCode: vi.fn(() => 'ABCD1234'),
   hashSetupCode: vi.fn(() => 'hashed'),
@@ -113,14 +116,18 @@ describe('addUser', () => {
   })
 
   it('creates and audits user.add for a valid add', async () => {
+    const created = makeClient(
+      { data: null, error: null },
+      { data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'pending' }, error: null },
+    )
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail: no existing
-      .mockReturnValueOnce(
-        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'pending' }, error: null }) as any,
-      ) // profile upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: deactivate others
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: upsert global
+      .mockReturnValueOnce(created as any) // create_invited_profile: the profile AND its persona
     const { profile, code } = await addUser(superAdmin, { email: 'new@x.c', role: 'tutor' } as any)
+    expect(created.rpc).toHaveBeenCalledWith(
+      'create_invited_profile',
+      expect.objectContaining({ p_email: 'new@x.c', p_role: 'tutor', p_setup_code_hash: 'hashed' }),
+    )
     expect(profile.id).toBe('new-1')
     expect(code).toBe('ABCD1234')
     expect(writeAudit).toHaveBeenCalledWith({
@@ -131,42 +138,43 @@ describe('addUser', () => {
     })
   })
 
-  it('rolls back the new profile when persona sync fails', async () => {
+  /**
+   * The "already exists" read runs first, so two admins adding one address at once both pass
+   * it. The insert is what refuses the second - an upsert there would overwrite the first
+   * invite's role and setup code.
+   */
+  it('refuses an email another admin took between the check and the insert, and audits nothing', async () => {
     vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail
+      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail: none yet
       .mockReturnValueOnce(
-        makeClient({ data: { id: 'new-1', email: 'new@x.c', role: 'tutor', status: 'pending' }, error: null }) as any,
-      ) // profile upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivate others
-      .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // reactivate global (update)
-      .mockReturnValueOnce(
-        makeClient({
-          data: { id: 'new-1', auth_user_id: null, email: 'new@x.c', role: 'tutor', status: 'pending' },
-          error: null,
-        }) as any,
-      ) // rollback: getProfileById confirms the account is still unregistered (auth_user_id null)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback delete personas
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback delete profile
+        makeClient({ data: null, error: null }, { data: null, error: { message: 'email_taken' } }) as any,
+      )
 
-    await expect(addUser(superAdmin, { email: 'new@x.c', role: 'tutor' } as any)).rejects.toThrow(
-      'data.personas.upsertGlobal.reactivate: persona failed',
-    )
+    await expect(addUser(superAdmin, { email: 'new@x.c', role: 'tutor' } as any)).rejects.toThrow(/already exists/)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('deleteUnregisteredProfile is a NO-OP on a registered account (guards the persona delete)', async () => {
-    // deleteUnregisteredProfile reads the account first and bails when it is bound
-    // to a login: on a REGISTERED account it must be a no-op (a stray call must not
-    // strip every persona and lock the user out), so only the existence read
-    // happens and no delete client is ever opened.
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({
-        data: { id: 'u-1', auth_user_id: 'auth-123', role: 'tutor', status: 'active' },
-        error: null,
-      }) as any,
-    )
+    // The guarded profile delete takes no row from an account bound to a login, and then the
+    // persona rows are never touched: a stray call must not strip every persona and lock the
+    // user out. No read decides it first, so a registration landing mid-call changes nothing.
+    const client = makeClient({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
     await deleteUnregisteredProfile('u-1')
+    expect(client.from).toHaveBeenCalledTimes(1)
+    expect(client.from).toHaveBeenCalledWith('profiles')
     expect(createAdminClient).toHaveBeenCalledTimes(1)
+  })
+
+  it('deleteUnregisteredProfile clears the persona rows once the unregistered profile is gone', async () => {
+    const profiles = makeClient({ data: [{ id: 'u-1' }], error: null })
+    const personas = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(profiles as any)
+      .mockReturnValueOnce(personas as any)
+    await deleteUnregisteredProfile('u-1')
+    expect(profiles.from).toHaveBeenCalledWith('profiles')
+    expect(personas.from).toHaveBeenCalledWith('persona_assignments')
   })
 })
 
@@ -225,13 +233,11 @@ describe('user action-input helpers', () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // getProfileByEmail
       .mockReturnValueOnce(
-        makeClient({
-          data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'pending' },
-          error: null,
-        }) as any,
-      ) // profile upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: deactivate others
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // syncPersonaForRole: upsert global
+        makeClient(
+          { data: null, error: null },
+          { data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'pending' }, error: null },
+        ) as any,
+      ) // create_invited_profile: profile + persona
     const created = await addUserFromActionInput(superAdmin, {
       email: 'new@example.com',
       role: 'tutor',
@@ -240,8 +246,7 @@ describe('user action-input helpers', () => {
 
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC (status + personas)
       .mockReturnValueOnce(
         makeClient({ data: { ...targetTutor, id: targetTutorId, auth_user_id: null }, error: null }) as any,
       ) // getProfileById (ban check; null auth id -> skip)
@@ -255,12 +260,7 @@ describe('user action-input helpers', () => {
 
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt (not erased)
-      .mockReturnValueOnce(makeClient({ data: { ...targetTutor, id: targetTutorId }, error: null }) as any) // selectProfileRole
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // restore_profile_guarded RPC
       .mockReturnValueOnce(
         makeClient({ data: { ...targetTutor, id: targetTutorId, auth_user_id: null }, error: null }) as any,
       ) // getProfileById (unban check; null auth id -> skip)
@@ -324,8 +324,7 @@ describe('revokeUser', () => {
   it('revokes and audits user.revoke for a valid target', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC (status + personas)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: null }, error: null }) as any) // getProfileById (ban check; null auth id -> skip)
     await revokeUser(superAdmin, targetTutor.id)
     expect(writeAudit).toHaveBeenCalledWith({
@@ -340,21 +339,27 @@ describe('revokeUser', () => {
   it('bans the live auth session on revoke when the account is registered', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // disablePersonasForProfile
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC (status + personas)
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: 'auth-xyz' }, error: null }) as any) // getProfileById: registered
     await revokeUser(superAdmin, targetTutor.id)
     expect(setAuthUserBanned).toHaveBeenCalledWith('auth-xyz', true)
   })
 
-  it('restores the profile status if persona deactivation fails during revoke', async () => {
+  /**
+   * Deactivating personas in a second write would need a rollback - an unconditional
+   * status=active that could re-activate an account something else had just acted on. So the
+   * status and every persona change in the one guarded call.
+   */
+  it('changes status and personas in ONE call, and audits nothing when that call fails', async () => {
+    const rpcClient = makeClient({ data: null, error: null }, { data: null, error: { message: 'deadlock detected' } })
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // revokeProfileGuarded RPC
-      .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // disable personas
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback profile active
+      .mockReturnValueOnce(rpcClient as any) // revokeProfileGuarded RPC
 
-    await expect(revokeUser(superAdmin, targetTutor.id)).rejects.toThrow('data.personas.deactivateAll: persona failed')
+    await expect(revokeUser(superAdmin, targetTutor.id)).rejects.toThrow(
+      'data.profiles.revokeGuarded: deadlock detected',
+    )
+    expect(rpcClient.from).not.toHaveBeenCalled()
     expect(writeAudit).not.toHaveBeenCalled()
   })
 })
@@ -367,17 +372,14 @@ describe('restoreUser', () => {
     await expect(restoreUser(subAdmin, 'admin-2')).rejects.toBeInstanceOf(PermissionError)
   })
 
-  it('restores and audits user.restore', async () => {
+  it('restores status and personas in one call, and audits user.restore', async () => {
+    const rpcClient = makeClient({ data: null, error: null }, { data: 'ok', error: null })
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt (not erased)
-      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds (no mentees)
+      .mockReturnValueOnce(rpcClient as any) // restore_profile_guarded RPC
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: null }, error: null }) as any) // getProfileById (unban check; null auth id -> skip)
     await restoreUser(superAdmin, targetTutor.id)
+    expect(rpcClient.rpc).toHaveBeenCalledWith('restore_profile_guarded', { p_target: 'teach-1' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
       action: 'user.restore',
@@ -393,33 +395,25 @@ describe('restoreUser', () => {
     vi.mocked(setAuthUserBanned).mockRejectedValueOnce(new Error('gotrue unavailable'))
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt
-      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // update status -> active
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // restore global persona
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveMenteeIds
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'ok', error: null }) as any) // restore_profile_guarded RPC
       .mockReturnValueOnce(makeClient({ data: { ...targetTutor, auth_user_id: 'auth-xyz' }, error: null }) as any) // getProfileById: registered
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback status -> disabled
+    const rollback = makeClient({ data: null, error: null }, { data: 'ok', error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(rollback as any) // revokeProfileGuarded: revoked again
 
     await expect(restoreUser(superAdmin, targetTutor.id)).rejects.toThrow(/could not re-enable sign-in/)
     expect(setAuthUserBanned).toHaveBeenCalledWith('auth-xyz', false)
+    // Revoked again the way it was revoked: status AND personas, in the guarded call.
+    expect(rollback.rpc).toHaveBeenCalledWith('revoke_profile_guarded', { p_target: 'teach-1' })
     // Never claim a restore that did not restore access.
     expect(writeAudit).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'user.restore' }))
   })
 
-  it('reverts the profile status if persona restore fails', async () => {
+  it('maps a profile that disappeared before the write to NotFoundError, and audits nothing', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // requireManageableTarget
-      .mockReturnValueOnce(makeClient({ data: { erased_at: null }, error: null }) as any) // selectProfileErasedAt (not erased)
-      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any) // selectProfileRole
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // activate profile
-      .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona failed' } }) as any) // restore global (reactivate update)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // rollback profile disabled
+      .mockReturnValueOnce(makeClient({ data: null, error: null }, { data: 'not_found', error: null }) as any) // restore_profile_guarded RPC
 
-    await expect(restoreUser(superAdmin, targetTutor.id)).rejects.toThrow(
-      'data.personas.upsertGlobal.reactivate: persona failed',
-    )
+    await expect(restoreUser(superAdmin, targetTutor.id)).rejects.toBeInstanceOf(NotFoundError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
 })

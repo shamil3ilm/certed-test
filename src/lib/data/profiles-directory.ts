@@ -1,4 +1,5 @@
 import 'server-only'
+import { refusalOf } from '@/lib/data/rpc-refusal'
 import { toRange } from '@/lib/pagination'
 import type { Profile } from '@/lib/auth/profile'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -48,16 +49,6 @@ type ProfileDetailFields = {
   qualifications?: string | null
   bio?: string | null
 }
-
-type AllowlistedProfileRow = {
-  email: string
-  full_name: string | null
-  role: string
-  class_level: string | null
-  status: string
-  setup_code_hash: string
-  setup_code_expires_at: string
-} & ProfileDetailFields
 
 export type RevokeProfileOutcome = 'ok' | 'not_found' | 'last_admin'
 
@@ -126,7 +117,8 @@ export async function countProfiles(filter: { role?: string | string[]; status?:
 export async function selectProfilesLiteByIds(ids: string[]): Promise<ProfileLiteRow[]> {
   if (ids.length === 0) return []
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select('id, full_name, email, role, class_level').in('id', ids)
+  const { data, error } = await admin.from('profiles').select('id, full_name, email, role, class_level').in('id', ids)
+  if (error) throw new Error(`profiles-directory.selectProfilesLiteByIds: ${error.message}`)
   return (data ?? []) as ProfileLiteRow[]
 }
 
@@ -156,7 +148,8 @@ export async function selectProfileIdsBySearch(search: string, roles?: readonly 
 
 export async function selectProfileById(id: string): Promise<Profile | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select(PROFILE_COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('profiles').select(PROFILE_COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`profiles-directory.selectProfileById: ${error.message}`)
   return (data as Profile) ?? null
 }
 
@@ -178,7 +171,8 @@ const PROFILE_DETAIL_COLUMNS = `${PROFILE_COLUMNS_WITH_CREATED}, country, phone,
 
 export async function selectProfileDetailsById(id: string): Promise<ProfileDetails | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('profiles').select(PROFILE_DETAIL_COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('profiles').select(PROFILE_DETAIL_COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`profiles-directory.selectProfileDetailsById: ${error.message}`)
   return (data as ProfileDetails) ?? null
 }
 
@@ -222,25 +216,57 @@ export async function selectActiveProfilesByRoles(
 
   query = query.order('full_name')
   if (opts?.limit != null) query = query.limit(opts.limit)
-  const { data } = await query
+  const { data, error } = await query
+  if (error) throw new Error(`profiles-directory.selectActiveProfilesByRoles: ${error.message}`)
   return (data ?? []) as NamedProfileRow[]
 }
 
 export async function selectProfileByEmail(email: string): Promise<Profile | null> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('profiles')
     .select(PROFILE_COLUMNS)
     .eq('email', email.trim().toLowerCase())
     .maybeSingle()
+  if (error) throw new Error(`profiles-directory.selectProfileByEmail: ${error.message}`)
   return (data as Profile) ?? null
 }
 
-export async function upsertAllowlistedProfile(row: AllowlistedProfileRow): Promise<Profile> {
+export type InvitedProfileInput = {
+  email: string
+  full_name: string | null
+  role: Profile['role']
+  class_level: string | null
+  setup_code_hash: string
+  setup_code_expires_at: string
+} & Pick<ProfileDetailFields, 'country' | 'phone' | 'guardian_name' | 'guardian_phone' | 'joined_on'>
+
+/**
+ * Create a PENDING invite and its role persona, in one transaction (0112). An INSERT, never an
+ * upsert: an email that already has a profile is refused, so a second admin adding the same
+ * address cannot overwrite the first invite's role and setup code, and no account ever exists
+ * without the persona that gives it access.
+ */
+export async function callCreateInvitedProfile(
+  input: InvitedProfileInput,
+): Promise<{ ok: true; profile: Profile } | { ok: false; reason: 'email_taken' }> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('profiles').upsert(row, { onConflict: 'email' }).select('*').single()
-  if (error) throw new Error(`data.profiles.upsertAllowlisted: ${error.message}`)
-  return data as Profile
+  const { data, error } = await admin.rpc('create_invited_profile', {
+    p_email: input.email,
+    p_full_name: input.full_name,
+    p_role: input.role,
+    p_class_level: input.class_level,
+    p_country: input.country ?? null,
+    p_phone: input.phone ?? null,
+    p_guardian_name: input.guardian_name ?? null,
+    p_guardian_phone: input.guardian_phone ?? null,
+    p_joined_on: input.joined_on ?? null,
+    p_setup_code_hash: input.setup_code_hash,
+    p_setup_code_expires_at: input.setup_code_expires_at,
+  })
+  if (refusalOf(error, ['email_taken'] as const)) return { ok: false, reason: 'email_taken' }
+  if (error) throw new Error(`data.profiles.createInvited: ${error.message}`)
+  return { ok: true, profile: data as Profile }
 }
 
 export async function updateProfile(
@@ -265,8 +291,11 @@ export async function revokeProfileGuarded(id: string): Promise<RevokeProfileOut
   return data as RevokeProfileOutcome
 }
 
-export async function deleteUnregisteredProfile(id: string): Promise<void> {
+/** Delete a profile no login is bound to. Whether it was unregistered is decided by the delete
+ *  itself, so an account that registers concurrently is left alone; returns whether a row went. */
+export async function deleteUnregisteredProfile(id: string): Promise<boolean> {
   const admin = createAdminClient()
-  const { error } = await admin.from('profiles').delete().eq('id', id).is('auth_user_id', null)
+  const { data, error } = await admin.from('profiles').delete().eq('id', id).is('auth_user_id', null).select('id')
   if (error) throw new Error(`data.profiles.deleteUnregistered: ${error.message}`)
+  return (data ?? []).length > 0
 }

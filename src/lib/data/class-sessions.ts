@@ -1,7 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ValidationError } from '@/lib/errors'
+import { rethrowIfHoursLocked } from '@/lib/data/hours-lock'
 import type { Page } from '@/lib/pagination'
 
 /**
@@ -97,7 +97,8 @@ export async function selectSessionsForDate(classId: string, date: string): Prom
  *  no longer identifies a single row. */
 export async function selectSessionById(id: string): Promise<ClassSessionRow | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from('class_sessions').select(COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('class_sessions').select(COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`class-sessions.selectSessionById: ${error.message}`)
   return (data as ClassSessionRow) ?? null
 }
 
@@ -117,10 +118,21 @@ export async function selectSessionsForDateAsService(classId: string, date: stri
   return (data ?? []) as ClassSessionRow[]
 }
 
+/** The id of the day's first session for a class - earliest recorded start, then oldest -
+ *  creating a timeless one when the day has none. One transaction serialised per class and
+ *  day (0109), so two people marking the same lesson at once share its session. */
+export async function callEnsureDaySession(classId: string, sessionDate: string): Promise<string> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('ensure_day_session', { p_class_id: classId, p_session_date: sessionDate })
+  if (error) throw new Error(`classSessions.ensureDaySession: ${error.message}`)
+  return data as string
+}
+
 /** One session by id INCLUDING the staff-private note (service role). */
 export async function selectSessionByIdAsService(id: string): Promise<ClassSessionRow | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('class_sessions').select(MANAGER_COLUMNS).eq('id', id).maybeSingle()
+  const { data, error } = await admin.from('class_sessions').select(MANAGER_COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw new Error(`class-sessions.selectSessionByIdAsService: ${error.message}`)
   return (data as ClassSessionRow) ?? null
 }
 
@@ -135,25 +147,6 @@ export async function selectSessionByIdAsService(id: string): Promise<ClassSessi
  *  Resolved HERE, next to the trigger it mirrors, rather than at each of the two callers -
  *  a third caller would otherwise be one more place to remember. Shares the caller's admin
  *  client rather than building a second one for the lookup. */
-/**
- * Give a class's UNLABELLED sessions a subject. Returns how many rows changed.
- *
- * Only rows whose subject_id is null are touched, so a session that recorded a subject keeps
- * the one it recorded. Safe only for a class that had no subject until now: such sessions
- * cannot have taught anything else, because the class has only ever taught one thing.
- */
-export async function backfillSessionSubjects(classId: string, subjectId: string): Promise<number> {
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('class_sessions')
-    .update({ subject_id: subjectId })
-    .eq('class_id', classId)
-    .is('subject_id', null)
-    .select('id')
-  if (error) throw new Error(`data.classSessions.backfillSubjects: ${error.message}`)
-  return (data ?? []).length
-}
-
 export async function insertSession(row: ClassSessionUpsert): Promise<ClassSessionRow> {
   const admin = createAdminClient()
   const subjectId = row.subject_id !== undefined ? row.subject_id : await selectClassSubjectId(admin, row.class_id)
@@ -174,38 +167,37 @@ async function selectClassSubjectId(
   admin: ReturnType<typeof createAdminClient>,
   classId: string,
 ): Promise<string | null> {
-  const { data } = await admin.from('classes').select('subject_id').eq('id', classId).maybeSingle()
+  const { data, error } = await admin.from('classes').select('subject_id').eq('id', classId).maybeSingle()
+  if (error) throw new Error(`class-sessions.selectClassSubjectId: ${error.message}`)
   return (data as { subject_id: string | null } | null)?.subject_id ?? null
 }
 
 /** Update an EXISTING session by its id. Only the supplied fields are written, so an
  *  omitted column (e.g. staff_note when the caller may not set it) keeps its value. */
-/**
- * Re-raise 0100/0101's hour-lock as a ValidationError so the message reaches the person.
- *
- * The trigger fires on INSERT, UPDATE and DELETE of a session in a month a LIVE pay slip
- * already billed, and raises check_violation (23514) naming the blocking document. Every
- * write path here must map it: a plain Error falls through toActionError to the generic
- * "something went wrong", which tells the tutor nothing about which pay slip is in the way
- * or that voiding it is the way forward. Shared rather than inlined per call site, because
- * the paths that missed it were exactly the ones added after the first mapping.
- */
-function rethrowIfHoursLocked(error: { code?: string; message: string }): void {
-  if (error.code === '23514' && /Session hours are locked/i.test(error.message)) {
-    throw new ValidationError(error.message)
-  }
-}
 
-export async function updateSessionById(id: string, patch: Partial<ClassSessionUpsert>): Promise<ClassSessionRow> {
+/** Optimistic lock: the write lands only if `updated_at` still matches what the editor
+ *  loaded, so two people saving the same session cannot silently overwrite each other.
+ *  Returns null when nothing matched - the row changed underneath the editor, or is gone.
+ *  The caller read the row first, so it can report that as a stale-edit conflict. */
+export async function updateSessionById(
+  id: string,
+  patch: Partial<ClassSessionUpsert>,
+  expectedUpdatedAt: string,
+): Promise<ClassSessionRow | null> {
   const admin = createAdminClient()
   const stamped = { ...patch, updated_at: new Date().toISOString() }
-  const { data, error } = await admin.from('class_sessions').update(stamped).eq('id', id).select(COLUMNS).maybeSingle()
+  const { data, error } = await admin
+    .from('class_sessions')
+    .update(stamped)
+    .eq('id', id)
+    .eq('updated_at', expectedUpdatedAt)
+    .select(COLUMNS)
+    .maybeSingle()
   if (error) {
     rethrowIfHoursLocked(error)
     throw new Error(`classSessions.updateById: ${error.message}`)
   }
-  if (!data) throw new Error(`classSessions.updateById: session ${id} not found`)
-  return data as ClassSessionRow
+  return (data as ClassSessionRow | null) ?? null
 }
 
 /** Remove a recorded session. Returns false when the id matched nothing, so the caller

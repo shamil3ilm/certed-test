@@ -174,8 +174,14 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   // than only this one - so it is deliberately NOT passed here. An edit leaves it alone,
   // which is the point: correcting yesterday's times must never relabel yesterday's subject.
   const saved = before
-    ? await updateSessionById(before.id, fields)
+    ? await updateSessionById(before.id, fields, before.updated_at)
     : await insertSession({ class_id: classId, session_date: sessionDate, ...fields })
+  // The row was read above but the guarded write matched nothing, so another editor saved in
+  // between. Without this the last save would win silently, and the audit's `before` plus
+  // hours_recorded_by - the pay attestation - would describe an edit that no longer stands.
+  if (!saved) {
+    throw new ValidationError('This session was changed by someone else - reload and try again.')
+  }
 
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId, {
     session_id: saved.id,

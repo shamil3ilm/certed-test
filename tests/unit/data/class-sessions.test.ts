@@ -43,18 +43,28 @@ describe('class-sessions data layer', () => {
 
   it('insertSession throws on error', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(insertSession({ class_id: 'c1', session_date: 'd' } as any)).rejects.toThrow(/classSessions.insert: e/)
+    await expect(insertSession({ class_id: 'c1', session_date: 'd', subject_id: null } as any)).rejects.toThrow(
+      /classSessions.insert: e/,
+    )
   })
 
-  it('updateSessionById targets the session id and stamps updated_at', async () => {
+  it('updateSessionById targets the session id and guards on the loaded updated_at', async () => {
     const client = makeClient({ data: session, error: null })
     vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
-    expect(await updateSessionById('ses1', { summary: 'done' })).toEqual(session)
+    expect(await updateSessionById('ses1', { summary: 'done' }, '2026-06-20T10:00:00.000Z')).toEqual(session)
     const builder = client.from.mock.results[0].value
     expect(builder.update).toHaveBeenCalledWith(
       expect.objectContaining({ summary: 'done', updated_at: expect.any(String) }),
     )
     expect(builder.eq).toHaveBeenCalledWith('id', 'ses1')
+    // The optimistic lock. Without this predicate two editors saving the same session
+    // silently overwrite each other, and the audit records the edit that did not survive.
+    expect(builder.eq).toHaveBeenCalledWith('updated_at', '2026-06-20T10:00:00.000Z')
+  })
+
+  it('updateSessionById reports a miss when the row changed under the editor', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    expect(await updateSessionById('ses1', { summary: 'done' }, 'a-stale-timestamp')).toBeNull()
   })
 
   it('deleteSessionById reports whether a row was actually removed', async () => {

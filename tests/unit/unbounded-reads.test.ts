@@ -117,8 +117,8 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
   'src/lib/data/class-membership.ts:selectActiveEnrollmentsForStudents':
     'Enrolments for a NAMED student set - the mentee dashboard passes its own mentees.',
   'src/lib/data/class-membership.ts:selectActiveEnrollmentPairsByStudentIds':
-    'The (student, class) edges for a NAMED student set: ONE PAGE of the /classroom roster, or the ' +
-    'students of ONE class when checking whether a subject is already taken.',
+    'The (student, class) edges for a NAMED student set: ONE PAGE of the /classroom roster, the ' +
+    'mentees of one mentor, or the students one screen already lists.',
   'src/lib/data/class-membership.ts:selectActiveEnrollmentPairsByClassIds':
     'The (student, class) edges of a NAMED class set. Every caller bounds it: messaging recipients and the tutor ' +
     'roster on a user page pass the classes ONE tutor teaches, and the class-label resolver passes a bounded set ' +
@@ -138,7 +138,6 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'Of a NAMED profile set, which of them teach. Bounded by the set passed in: a page of the user directory.',
   'src/lib/data/guardians.ts:selectGuardiansByStudent':
     'The guardians of ONE student - a person has very few, and this table is only ever asked per student.',
-  'src/lib/data/mentorships.ts:selectActiveMenteeIds': 'The active mentees of ONE mentor. Bounded by a mentoring load.',
   'src/lib/data/mentorships.ts:selectActiveMentorIdsForStudent':
     'The mentors of ONE student - typically one; there is no bulk-assignment path.',
   'src/lib/data/mentorships.ts:selectActiveMentorshipsForStudents':
@@ -162,7 +161,7 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     '(selectProfilesByFilter) instead, and never sends that set here.',
   'src/lib/data/classes.ts:selectClassesByIds':
     'A NAMED class set, and every caller has already bounded it: the classes of one student (their ' +
-    'own list, a report card, the duplicate-subject check), one mentor cohort, one page of a list, or ' +
+    'own list, a report card), one mentor cohort, one page of a list, or ' +
     'the classes a tutor teaches. An academy-wide reader takes the myClassScope null path instead of ' +
     'listing ids.',
   'src/lib/data/classes.ts:selectClassNamesByIdsAsService':

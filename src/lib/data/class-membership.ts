@@ -1,4 +1,5 @@
 import 'server-only'
+import { refusalOf } from '@/lib/data/rpc-refusal'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertMutated } from '@/lib/data/mutation'
@@ -133,30 +134,34 @@ export async function selectActiveEnrollmentRowsForClass(classId: string): Promi
   return (data ?? []) as EnrollmentRow[]
 }
 
-/** Re-assigning reactivates a previously soft-removed row rather than adding a
- *  second one for the same pair. */
-export async function upsertClassTutor(tutorId: string, classId: string): Promise<void> {
+/**
+ * Assign a tutor to a class, with the global tutor persona a dedicated mentor needs to teach,
+ * in one transaction that re-checks the tutor is active and the class is not archived (0109).
+ * Re-assigning reactivates the soft-removed row rather than adding a second one for the pair.
+ */
+export async function callAssignClassTutor(
+  classId: string,
+  tutorId: string,
+): Promise<{ ok: true } | { ok: false; reason: 'tutor_not_assignable' | 'class_not_active' }> {
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('class_tutors')
-    .upsert({ tutor_id: tutorId, class_id: classId, active: true }, { onConflict: 'tutor_id,class_id' })
+  const { error } = await admin.rpc('assign_class_tutor', { p_class_id: classId, p_tutor_id: tutorId })
+  const refusal = refusalOf(error, ['tutor_not_assignable', 'class_not_active'] as const)
+  if (refusal) return { ok: false, reason: refusal }
   if (error) throw new Error(`classTutors.assign: ${error.message}`)
+  return { ok: true }
 }
 
-/** Soft-remove, scoped by class AND tutor - keeps the row for a later re-assign.
- *  `.select()`s so a call for a pair that was never an assignment matches 0 rows
- *  and fails loudly with NotFound, rather than returning success and letting the
- *  caller audit a `class.unassign_tutor` that never happened. A row that already
- *  exists (active OR inactive) still matches, so an idempotent re-remove is fine. */
-export async function deactivateClassTutor(classId: string, tutorId: string): Promise<void> {
+/**
+ * Soft-remove a tutor from a class - keeping the row for a later re-assign - and, for a
+ * dedicated mentor now teaching nothing, the tutor persona, in one transaction (0109).
+ * Returns false for a pair that was never an assignment, so the caller does not audit a
+ * removal that never happened; an already-inactive row is removed again idempotently.
+ */
+export async function callUnassignClassTutor(classId: string, tutorId: string): Promise<boolean> {
   const admin = createAdminClient()
-  const result = await admin
-    .from('class_tutors')
-    .update({ active: false })
-    .eq('class_id', classId)
-    .eq('tutor_id', tutorId)
-    .select('id')
-  assertMutated(result, 'classTutors.unassign', 'That tutor is not assigned to this class.')
+  const { data, error } = await admin.rpc('unassign_class_tutor', { p_class_id: classId, p_tutor_id: tutorId })
+  if (error) throw new Error(`classTutors.unassign: ${error.message}`)
+  return data === true
 }
 
 /**

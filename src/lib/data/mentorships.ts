@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllPaged } from '@/lib/data/paginate'
+import { refusalOf } from '@/lib/data/rpc-refusal'
 
 /**
  * Table access for `mentorships` - the pastoral mentor <-> student link, which
@@ -21,19 +22,6 @@ export type MentorshipRow = {
   mentor_id: string
   student_id: string
   created_at: string
-}
-
-/** Student ids this profile actively mentors, via the service role - used to
- *  rebuild scoped personas when a revoked mentor is restored. */
-export async function selectActiveMenteeIds(mentorId: string): Promise<string[]> {
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('mentorships')
-    .select('student_id')
-    .eq('mentor_id', mentorId)
-    .eq('active', true)
-  if (error) throw new Error(`data.mentorships.selectActiveMenteeIds: ${error.message}`)
-  return ((data ?? []) as { student_id: string }[]).map((r) => r.student_id)
 }
 
 /** Active student -> mentor pairs for the given students, for resolving mentor
@@ -96,33 +84,33 @@ export async function selectMentorshipParties(id: string): Promise<MentorshipRef
   return (data as MentorshipRef) ?? null
 }
 
-/** Idempotent; reactivates a previously soft-removed link rather than creating
- *  a second row for the same pair. */
-export async function upsertMentorship(mentorId: string, studentId: string): Promise<void> {
+export type MentorshipRefusal = 'mentor_not_assignable' | 'student_not_active'
+
+/**
+ * Link a mentor to a student AND grant the student-scoped mentor persona, in one transaction
+ * (0108). The link alone grants nothing and the persona alone shows on no roster, so neither
+ * may exist without the other. Idempotent: an inactive link is reactivated, not duplicated.
+ * The parties' eligibility is re-checked inside the write, under a lock shared with removal.
+ */
+export async function callAssignMentorship(
+  mentorId: string,
+  studentId: string,
+): Promise<{ ok: true; id: string } | { ok: false; reason: MentorshipRefusal }> {
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('mentorships')
-    .upsert({ mentor_id: mentorId, student_id: studentId, active: true }, { onConflict: 'mentor_id,student_id' })
+  const { data, error } = await admin.rpc('assign_mentorship', { p_mentor_id: mentorId, p_student_id: studentId })
+  const refusal = refusalOf(error, ['mentor_not_assignable', 'student_not_active'] as const)
+  if (refusal) return { ok: false, reason: refusal }
   if (error) throw new Error(`mentorships.assign: ${error.message}`)
+  return { ok: true, id: data as string }
 }
 
-/** Soft-remove: the row is kept so the history (and a later restore) survives. */
-export async function deactivateMentorship(id: string): Promise<void> {
+/** End a mentorship: the access-granting persona goes and the link is soft-removed together
+ *  (0108). Returns false for an id that names no mentorship; an inactive one is removed again. */
+export async function callRemoveMentorship(id: string): Promise<boolean> {
   const admin = createAdminClient()
-  const { error } = await admin.from('mentorships').update({ active: false }).eq('id', id)
+  const { data, error } = await admin.rpc('remove_mentorship', { p_id: id })
   if (error) throw new Error(`mentorships.remove: ${error.message}`)
-}
-
-/** Compensation path for a failed assignment: fail closed by deactivating the
- *  pastoral link if the scoped mentor persona could not be created. */
-export async function deactivateMentorshipByPair(mentorId: string, studentId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('mentorships')
-    .update({ active: false })
-    .eq('mentor_id', mentorId)
-    .eq('student_id', studentId)
-  if (error) throw new Error(`mentorships.removeByPair: ${error.message}`)
+  return data === true
 }
 
 /**

@@ -7,7 +7,6 @@
  *  - self-service.ts     what a signed-in user changes about their own account
  *  - admin-lifecycle.ts  add / revoke / restore / edit + the tier rules
  *  - validation.ts       action-boundary parsing for the management forms
- *  - personas.ts         keeping the global persona in step with the role
  */
 export {
   listProfilesByFilter,

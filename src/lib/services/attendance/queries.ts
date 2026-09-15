@@ -1,6 +1,6 @@
 import 'server-only'
 import { toRange, type Page } from '@/lib/pagination'
-import { summarizeAttendance, type AttendanceSummary } from '@/lib/attendance/summary'
+import { attendanceRate, summarizeAttendance, type AttendanceSummary } from '@/lib/attendance/summary'
 import {
   countStatusesForStudent,
   RECENT_CLASS_MARKS_CAP,
@@ -55,8 +55,7 @@ export async function listAttendanceForStudentPage(
 /** Present/late/absent/rate for a student, counted SQL-side. */
 export async function summarizeAttendanceForStudent(studentId: string, classId?: string): Promise<AttendanceSummary> {
   const { present, late, absent, total } = await countStatusesForStudent(studentId, classId)
-  const rate = total === 0 ? 0 : Math.round(((present + late) / total) * 100)
-  return { present, late, absent, total, rate }
+  return { present, late, absent, total, rate: attendanceRate(present, late, total) }
 }
 
 /**

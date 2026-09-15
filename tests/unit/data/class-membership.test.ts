@@ -15,7 +15,6 @@ import {
   selectActiveStudentIdsByClassIds,
   selectActiveTutorIdsByClassIds,
   countActiveEnrollmentsPerClass,
-  upsertClassTutor,
   upsertEnrollment,
   selectAllActiveEnrollmentPairs,
 } from '@/lib/data/class-membership'
@@ -74,13 +73,11 @@ describe('class-membership data layer', () => {
     await expect(countActiveEnrollmentsPerClass()).rejects.toThrow(/enrollments.countPerClass: e/)
   })
 
-  it('upsertClassTutor / upsertEnrollment resolve on success and throw on error', async () => {
-    admin({ data: null, error: null })
-    await expect(upsertClassTutor('t1', 'c1')).resolves.toBeUndefined()
-    admin({ data: null, error: { message: 'e' } })
-    await expect(upsertClassTutor('t1', 'c1')).rejects.toThrow()
+  it('upsertEnrollment resolves on success and throws on error', async () => {
     admin({ data: null, error: null })
     await expect(upsertEnrollment('s1', 'c1')).resolves.toBeUndefined()
+    admin({ data: null, error: { message: 'e' } })
+    await expect(upsertEnrollment('s1', 'c1')).rejects.toThrow(/enrollments.enroll: e/)
   })
 })
 

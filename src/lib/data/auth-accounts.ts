@@ -31,7 +31,11 @@ export async function createAuthUser(email: string, password: string): Promise<C
 export async function deleteAuthUser(authUserId: string): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin.auth.admin.deleteUser(authUserId)
-  if (error) throw new Error(`data.authAccounts.deleteAuthUser: ${error.message}`)
+  // A user that no longer exists is the state this asks for. Erasure deletes the sign-in
+  // before it unlinks it, so a retry after a failed unlink must not be refused forever.
+  if (error && (error as { status?: number }).status !== 404) {
+    throw new Error(`data.authAccounts.deleteAuthUser: ${error.message}`)
+  }
 }
 
 /**
@@ -48,7 +52,12 @@ export async function verifyOwnPassword(email: string, password: string): Promis
   if (!password || !normalizedEmail) return false
   if (isMock()) {
     const supabase = await createClient()
-    const { data } = await supabase.from('profiles').select('password').eq('email', normalizedEmail).maybeSingle()
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('password')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+    if (error) throw new Error(`auth-accounts.verifyOwnPassword: ${error.message}`)
     const stored = (data as { password?: string | null } | null)?.password
     return password === (stored ?? process.env.MOCK_PASSWORD ?? 'cert-ed')
   }

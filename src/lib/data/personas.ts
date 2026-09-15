@@ -6,138 +6,13 @@ import { fetchAllPaged } from '@/lib/data/paginate'
 
 /**
  * Data layer for `persona_assignments` - table access only. WHICH persona a role
- * maps to, and when to sync/disable/restore, are domain decisions and live in
- * src/lib/services/users/personas.ts.
+ * maps to, and when a persona is granted, disabled or restored, is decided inside the
+ * guarded database functions the lifecycle writes call (invite, revoke, restore, erase,
+ * mentorship), so the rule and the write commit as one transaction.
  *
  * Service-role throughout: persona rows are the authorization source, and RLS
  * restricts them to self-read plus admin management.
  */
-
-/** The 3-column conflict target matching the DB's uniqueness on a persona row. */
-const PERSONA_CONFLICT = 'profile_id,persona_name,scope_id'
-
-type GlobalPersonaRow = {
-  profile_id: string
-  persona_name: string
-  scope_type: 'global'
-  scope_id: null
-  status: 'active'
-}
-
-/** Deactivate every GLOBAL persona for a profile except the named one - the
- *  invariant that stops a profile accumulating conflicting global personas. */
-export async function deactivateOtherGlobalPersonas(profileId: string, keepPersona: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('persona_assignments')
-    .update({ status: 'inactive' })
-    .eq('profile_id', profileId)
-    .eq('scope_type', 'global')
-    .neq('persona_name', keepPersona)
-  if (error) throw new Error(`data.personas.deactivateOtherGlobal: ${error.message}`)
-}
-
-/**
- * Make a profile's global persona active, creating the row only if none exists.
- *
- * NOT an ON CONFLICT upsert: the unique constraint is (profile_id, persona_name,
- * scope_id), but scope_id is NULL for a global persona and Postgres treats every
- * NULL as DISTINCT - so a conflict target including scope_id never matches an
- * existing global row, and an upsert would INSERT a duplicate on every call
- * (each revoke/restore or role-flip accumulating another orphan row). So:
- * reactivate the existing global row in place, and insert only when there was
- * none. The DB-level backstop is the partial unique index on
- * (profile_id, persona_name) WHERE scope_type='global'.
- */
-export async function upsertGlobalPersona(profileId: string, personaName: string): Promise<void> {
-  const admin = createAdminClient()
-  const { data: reactivated, error: updateError } = await admin
-    .from('persona_assignments')
-    .update({ status: 'active' })
-    .eq('profile_id', profileId)
-    .eq('persona_name', personaName)
-    .eq('scope_type', 'global')
-    .select('profile_id')
-  if (updateError) throw new Error(`data.personas.upsertGlobal.reactivate: ${updateError.message}`)
-  if (reactivated && reactivated.length > 0) return
-
-  const row: GlobalPersonaRow = {
-    profile_id: profileId,
-    persona_name: personaName,
-    scope_type: 'global',
-    scope_id: null,
-    status: 'active',
-  }
-  const { error: insertError } = await admin.from('persona_assignments').insert(row)
-  if (insertError) throw new Error(`data.personas.upsertGlobal.insert: ${insertError.message}`)
-}
-
-/** Mark one GLOBAL persona inactive for a profile. Idempotent: if the row is
- *  already absent/inactive, the caller still gets a clean success. */
-export async function deactivateGlobalPersona(profileId: string, personaName: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('persona_assignments')
-    .update({ status: 'inactive' })
-    .eq('profile_id', profileId)
-    .eq('persona_name', personaName)
-    .eq('scope_type', 'global')
-  if (error) throw new Error(`data.personas.deactivateGlobal: ${error.message}`)
-}
-
-/** Upsert an ACTIVE student-scoped mentor persona (the row canMentor keys off). */
-export async function upsertScopedMentorPersona(mentorId: string, studentId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('persona_assignments').upsert(
-    {
-      profile_id: mentorId,
-      persona_name: 'mentor',
-      scope_type: 'student',
-      scope_id: studentId,
-      status: 'active',
-    },
-    { onConflict: PERSONA_CONFLICT },
-  )
-  if (error) throw new Error(`data.personas.upsertScopedMentor: ${error.message}`)
-}
-
-/**
- * The same scoped mentor persona for a WHOLE mentee set, in one statement.
- *
- * Restoring a mentor rebuilds one row per surviving mentorship. Written one at a time that
- * is a round trip per mentee for rows that differ only by scope_id - and a failure halfway
- * leaves the mentor holding reach over some mentees and not others. One upsert restores
- * the set or none of it.
- */
-export async function upsertScopedMentorPersonas(mentorId: string, studentIds: string[]): Promise<void> {
-  if (studentIds.length === 0) return
-  const admin = createAdminClient()
-  const { error } = await admin.from('persona_assignments').upsert(
-    studentIds.map((studentId) => ({
-      profile_id: mentorId,
-      persona_name: 'mentor',
-      scope_type: 'student',
-      scope_id: studentId,
-      status: 'active',
-    })),
-    { onConflict: PERSONA_CONFLICT },
-  )
-  if (error) throw new Error(`data.personas.upsertScopedMentors: ${error.message}`)
-}
-
-/** Remove the student-scoped mentor persona for one pair, when that mentorship
- *  ends. Idempotent, so an admin retrying a failed removal reconciles cleanly. */
-export async function deleteScopedMentorPersona(mentorId: string, studentId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('persona_assignments')
-    .delete()
-    .eq('profile_id', mentorId)
-    .eq('persona_name', 'mentor')
-    .eq('scope_type', 'student')
-    .eq('scope_id', studentId)
-  if (error) throw new Error(`data.personas.deleteScopedMentor: ${error.message}`)
-}
 
 /** Student ids a mentor holds an ACTIVE student-scoped `mentor` persona over.
  *  This is the SAME source canMentor authorizes against (hasScopedPersona), so a
@@ -181,14 +56,6 @@ export async function selectMentorAssignedAt(mentorId: string, studentId: string
     .maybeSingle()
   if (error) throw new Error(`data.personas.mentorAssignedAt: ${error.message}`)
   return (data as { assigned_at: string } | null)?.assigned_at ?? null
-}
-
-/** Mark ALL of a profile's personas inactive, every scope - not just global, so a
- *  revoked mentor's student-scoped personas stop granting mentee access. */
-export async function deactivateAllPersonas(profileId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('persona_assignments').update({ status: 'inactive' }).eq('profile_id', profileId)
-  if (error) throw new Error(`data.personas.deactivateAll: ${error.message}`)
 }
 
 /** Hard-delete a profile's persona rows (used when rolling back a never-registered

@@ -4,23 +4,18 @@ import type { AddUserInput, EditUserInput } from '@/lib/validation/user'
 import { generateSetupCode, hashSetupCode, setupCodeExpiry } from '@/lib/auth/setup-code'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { setAuthUserBanned, deleteAuthUser } from '@/lib/data/auth-accounts'
-import { deleteMenteeNotesForStudent } from '@/lib/data/mentee-notes'
-import { deleteGuardiansForStudent } from '@/lib/data/guardians'
 import { logError } from '@/lib/observability/log'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { loadPersonaFlags, requireAdminPersona } from '@/lib/permission/personas'
 import {
-  anonymizeProfileForErasure,
+  callCreateInvitedProfile,
   deleteUnregisteredProfile as deleteUnregisteredProfileRow,
   revokeProfileGuarded,
-  selectProfileErasedAt,
-  selectProfileRole,
   updateProfile,
-  upsertAllowlistedProfile,
 } from '@/lib/data/profiles'
+import { callEraseProfile, callRestoreProfile, clearErasedAuthLink } from '@/lib/data/profile-lifecycle'
 import { deletePersonasForProfile } from '@/lib/data/personas'
 import { getProfileByEmail, getProfileById } from './directory'
-import { disablePersonasForProfile, restorePersonasForProfile, syncPersonaForRole } from './personas'
 import {
   validateAddUserInput,
   validateEditUserInput,
@@ -57,9 +52,13 @@ export async function requireManageableTarget(actor: Profile, id: string): Promi
 
 export type AddUserResult = { profile: Profile; code: string }
 
+const EMAIL_TAKEN = 'A user with that email already exists - edit them in the list instead.'
+
 /** Allowlist a user by email. Stamps a hashed one-time setup code so they can
  *  self-register a password. New invites stay `pending` until the account is
  *  actually claimed, so active-user counts and pickers only reflect live logins.
+ *  The profile and its role persona are created in one transaction, which refuses
+ *  an email that is already taken rather than overwriting that account.
  *  Mentor assignment (for a new student) is a separate call - see
  *  services/mentorships.ts's assignMentor - kept apart so each service
  *  function does exactly one thing. */
@@ -68,12 +67,13 @@ export async function addUser(actor: Profile, input: AddUserInput): Promise<AddU
   if (!(await canManageTarget(actor, input.role))) {
     throw new PermissionError('You can only add tutors, mentors, and students.')
   }
-  // Don't silently overwrite / reactivate an existing account behind the admin's back.
+  // Checked first so the common case costs no setup code; the insert refuses a taken email
+  // too, which is what stops two admins adding one address at the same moment.
   const existing = await getProfileByEmail(input.email)
-  if (existing) throw new ValidationError('A user with that email already exists - edit them in the list instead.')
+  if (existing) throw new ValidationError(EMAIL_TAKEN)
 
   const code = generateSetupCode()
-  const profile = await upsertAllowlistedProfile({
+  const created = await callCreateInvitedProfile({
     email: input.email.trim().toLowerCase(),
     full_name: input.full_name ?? null,
     role: input.role,
@@ -83,19 +83,12 @@ export async function addUser(actor: Profile, input: AddUserInput): Promise<AddU
     guardian_name: input.guardian_name ?? null,
     guardian_phone: input.guardian_phone ?? null,
     joined_on: input.joined_on ?? null,
-    status: 'pending',
     setup_code_hash: hashSetupCode(code),
     setup_code_expires_at: setupCodeExpiry(),
   })
-  try {
-    // Sync persona_assignments to keep read/write paths consistent.
-    await syncPersonaForRole(profile.id, input.role)
-  } catch (error) {
-    await deleteUnregisteredProfile(profile.id)
-    throw error
-  }
-  await auditPrivilegedAction(actor, 'user.add', 'profile', profile.id)
-  return { profile, code }
+  if (!created.ok) throw new ValidationError(EMAIL_TAKEN)
+  await auditPrivilegedAction(actor, 'user.add', 'profile', created.profile.id)
+  return { profile: created.profile, code }
 }
 
 export async function addUserFromActionInput(
@@ -113,42 +106,31 @@ export async function addUserFromActionInput(
  * after the profile row exists, so the admin can retry cleanly instead of hitting
  * "email already exists" on an orphan whose one-time setup code was discarded.
  *
- * Both deletes are guarded on the account being unregistered, not just the
- * profile-row delete: deletePersonasForProfile is UNCONDITIONAL, so on a
- * registered account it would strip every persona (zero capabilities = total
- * lockout) while the auth_user_id-null guard left the profile row standing. We
- * read the account first and bail if it is bound to a real login, so a stray call
- * is a true no-op on any active user - which is what both callers assume.
+ * The profile row goes first, in one delete guarded on no login being bound to it, and the
+ * persona rows only when that delete took a row. deletePersonasForProfile is unconditional: run
+ * on a registered account it would strip every persona (zero capabilities = total lockout), so
+ * it must never act on a decision read earlier. A stray call is a no-op on any registered user.
+ * The database also cascades the persona rows with the profile; the explicit delete keeps mock
+ * mode, which has no foreign keys, in step.
  */
 export async function deleteUnregisteredProfile(id: string): Promise<void> {
-  const target = await getProfileById(id)
-  if (!target || target.auth_user_id != null) return
+  if (!(await deleteUnregisteredProfileRow(id))) return
   await deletePersonasForProfile(id)
-  await deleteUnregisteredProfileRow(id)
 }
 
 export async function revokeUser(actor: Profile, id: string): Promise<void> {
   await requireManageableTarget(actor, id)
   // Never let an admin revoke themselves or the last remaining active Super Admin.
   if (id === actor.id) throw new ValidationError('You cannot revoke your own account.')
-  // Atomic: the last-active-admin check and the status flip run as ONE step
-  // under an advisory lock in the DB (revokeProfileGuarded), so two concurrent
-  // revokes of two different admins cannot both slip past a stale count and
-  // empty the tier - a check-then-act here could not close that race.
+  // One transaction in the DB (revokeProfileGuarded): the last-active-admin check under an
+  // advisory lock, the status flip, and deactivating every persona at every scope - which is
+  // what actually cuts access, since canMentor and the mentee-data paths key off the scoped
+  // mentor persona. So two concurrent revokes cannot empty the admin tier, and no failure can
+  // leave an account disabled with personas still granting access. The mentorship graph and
+  // class assignments stay, so restore can rebuild the personas from them.
   const outcome = await revokeProfileGuarded(id)
   if (outcome === 'not_found') throw new NotFoundError('User not found')
   if (outcome === 'last_admin') throw new ValidationError('Cannot revoke the last active admin.')
-  try {
-    // Deactivating every persona (all scopes) is what actually cuts access: canMentor
-    // and the mentee-data paths key off the scoped mentor persona, not the mentorship
-    // row. The mentorship graph is deliberately left intact so restore can rebuild the
-    // scoped personas from it. If persona deactivation fails, restore the profile
-    // status so the account does not land in a half-revoked state.
-    await disablePersonasForProfile(id)
-  } catch (error) {
-    await updateProfile(id, { status: 'active' })
-    throw error
-  }
   // Kill the live session too. The status flip + persona disable cut DATA
   // access via RLS immediately, but the Supabase auth token stays valid until it
   // expires. Ban the auth user so refresh + sign-in are refused now. Best-effort: the
@@ -171,23 +153,14 @@ export async function revokeUserFromActionInput(actor: Profile, input: UserIdAct
 
 export async function restoreUser(actor: Profile, id: string): Promise<void> {
   await requireManageableTarget(actor, id)
-  // An erased account cannot be restored - its login and PII are gone, so restoring
-  // would resurrect a nameless, un-loginable "active" user. Erasure is deliberately terminal.
-  if (await selectProfileErasedAt(id)) {
-    throw new ValidationError('This account was erased and cannot be restored.')
-  }
-  const role = await selectProfileRole(id)
-  if (!role) throw new NotFoundError('User not found')
-  await updateProfile(id, { status: 'active' })
-  try {
-    // Restore is only complete once personas are active again. Revert the profile
-    // status if persona rehydration fails so the account does not look active while
-    // still resolving to an empty capability set.
-    await restorePersonasForProfile(id, role)
-  } catch (error) {
-    await updateProfile(id, { status: 'disabled' })
-    throw error
-  }
+  // One transaction that locks the profile row: status active, the role persona, the tutor
+  // persona its class assignments still need, and the scoped mentor personas rebuilt from its
+  // mentorships. It re-checks erasure under that lock - an erased account's login and PII are
+  // gone, so restoring it would resurrect a nameless, un-loginable "active" user, and an erase
+  // landing mid-restore must not be undone.
+  const outcome = await callRestoreProfile(id)
+  if (outcome === 'not_found') throw new NotFoundError('User not found')
+  if (outcome === 'erased') throw new ValidationError('This account was erased and cannot be restored.')
   // Lift the auth ban applied on revoke so the restored user can sign in again.
   //
   // Unlike the ban on revoke, this is NOT best-effort. A ban that fails to apply merely
@@ -203,7 +176,8 @@ export async function restoreUser(actor: Profile, id: string): Promise<void> {
       await setAuthUserBanned(restored.auth_user_id, false)
     } catch (error) {
       logError('user.restore.unbanSession', error)
-      await updateProfile(id, { status: 'disabled' })
+      // Revoked again the same way it was revoked - status and personas together.
+      await revokeProfileGuarded(id)
       // An admin is a trusted actor, so say exactly what failed and what state the
       // account is in - a generic "couldn't restore" would send them hunting for a
       // password problem that isn't there. The raw provider error stays in the log.
@@ -232,29 +206,35 @@ export async function restoreUserFromActionInput(actor: Profile, input: UserIdAc
  */
 export async function eraseUser(actor: Profile, id: string): Promise<void> {
   await requireAdminPersona(actor)
-  const target = await requireManageableTarget(actor, id)
+  await requireManageableTarget(actor, id)
   if (id === actor.id) throw new ValidationError('You cannot erase your own account.')
-  if (target.status !== 'disabled') {
+
+  // Notes ABOUT them, their guardians' contact details (third-party PII the kept profile row's
+  // FK cascade never removes) and the in-place PII scrub are one transaction, which re-checks
+  // under a row lock that the account is still revoked - a restore landing first wins, rather
+  // than having the PII of an account an admin just restored deleted underneath it.
+  const { outcome, authUserId } = await callEraseProfile(id)
+  if (outcome === 'not_found') throw new NotFoundError('User not found')
+  if (outcome === 'not_disabled') {
     throw new ValidationError('Revoke the account first - only a revoked account can be erased.')
   }
-  if (await selectProfileErasedAt(id)) return // already erased - idempotent no-op
+  if (outcome === 'erased') await auditPrivilegedAction(actor, 'user.erase', 'profile', id)
 
-  // Notes ABOUT them, then the auth login (best-effort: the scrub below already blocks access
-  // via status=disabled + a placeholder email, so a GoTrue hiccup must not abort the erasure),
-  // then the in-place PII scrub that stamps erased_at.
-  await deleteMenteeNotesForStudent(id)
-  // Guardian PII is third-party personal data about this student; the FK cascade won't fire
-  // because the profile row is kept, so remove it explicitly.
-  await deleteGuardiansForStudent(id)
-  if (target.auth_user_id) {
+  // The sign-in lives in the identity provider, outside that transaction, and its link is
+  // cleared only once it is gone. A failed delete therefore leaves the link in place and is
+  // finished by erasing again - never a live login with a real email and nothing pointing at it.
+  if (authUserId) {
     try {
-      await deleteAuthUser(target.auth_user_id)
+      await deleteAuthUser(authUserId)
     } catch (error) {
       logError('user.erase.deleteAuth', error)
+      throw new ValidationError(
+        'The account was erased, but its sign-in could not be removed from the identity provider. ' +
+          'Erase it again to finish.',
+      )
     }
+    await clearErasedAuthLink(id, authUserId)
   }
-  await anonymizeProfileForErasure(id)
-  await auditPrivilegedAction(actor, 'user.erase', 'profile', id)
 }
 
 export async function eraseUserFromActionInput(actor: Profile, input: UserIdActionInput): Promise<void> {

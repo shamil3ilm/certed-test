@@ -85,6 +85,21 @@ describe('attendance data layer', () => {
     await expect(deleteSessionMarks('sess-1')).rejects.toThrow(/attendance.clearSession: e/)
   })
 
+  it('both writes surface the billed-month lock to the person, naming the receipt (0116)', async () => {
+    const locked = {
+      code: '23514',
+      message:
+        'Session hours are locked: receipt R-2026-0001 already billed 2026-07 for this student. Void it first, then correct and reissue.',
+    }
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: locked }) as any)
+    await expect(upsertMarks([mark as any])).rejects.toMatchObject({
+      name: 'ValidationError',
+      message: expect.stringContaining('R-2026-0001'),
+    })
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: locked }) as any)
+    await expect(deleteSessionMarks('sess-1')).rejects.toMatchObject({ name: 'ValidationError' })
+  })
+
   it('selectStatusesForStudentAsService returns statuses and throws on error', async () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ status: 'present' }], error: null }) as any)
     expect(await selectStatusesForStudentAsService('s1')).toEqual([{ status: 'present' }])

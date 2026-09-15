@@ -10,7 +10,7 @@ vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 // Attendance is per SESSION (0094): markAttendance resolves the session a batch belongs to.
 vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionsForDateAsService: vi.fn(),
-  insertSession: vi.fn(),
+  callEnsureDaySession: vi.fn(),
   selectSessionById: vi.fn(),
 }))
 vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
@@ -22,7 +22,7 @@ import { getClassMembers } from '@/lib/services/classes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
-import { insertSession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
+import { callEnsureDaySession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 import {
   markAttendance,
   clearAttendanceSession,
@@ -48,7 +48,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   // The day already has one recorded session, so marks attach to it.
   vi.mocked(selectSessionsForDateAsService).mockResolvedValue([{ id: SESSION_ID }] as never)
-  vi.mocked(insertSession).mockResolvedValue({ id: SESSION_ID } as never)
+  vi.mocked(callEnsureDaySession).mockResolvedValue(SESSION_ID)
 })
 
 describe('markAttendance', () => {
@@ -140,6 +140,10 @@ describe('markAttendance', () => {
       ],
     })
     expect(result).toEqual({ saved: 1 })
+    // With no session named, the day's session is found-or-created in ONE serialised call, so
+    // two people marking the same lesson at once cannot create two sessions and split its marks.
+    expect(callEnsureDaySession).toHaveBeenCalledWith(classId, '2026-07-15')
+    expect(selectSessionsForDateAsService).not.toHaveBeenCalled()
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'attendance.mark',

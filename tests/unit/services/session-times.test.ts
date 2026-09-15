@@ -103,6 +103,7 @@ describe('saveSessionTimes - each recording is its own record', () => {
       session_date: '2026-08-05',
       actual_start: null,
       actual_end: null,
+      updated_at: '2026-08-05T08:00:00.000Z',
     } as any)
     vi.mocked(updateSessionById).mockResolvedValue({ id: SESSION_ID } as any)
     await saveSessionTimes(actor, {
@@ -111,8 +112,36 @@ describe('saveSessionTimes - each recording is its own record', () => {
       actual_start: '2026-08-05T09:00:00.000Z',
       actual_end: '2026-08-05T10:00:00.000Z',
     })
-    expect(updateSessionById).toHaveBeenCalledWith(SESSION_ID, expect.objectContaining({ tutor_id: ACTOR }))
+    // The timestamp the editor loaded is carried into the write as an optimistic lock.
+    expect(updateSessionById).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({ tutor_id: ACTOR }),
+      '2026-08-05T08:00:00.000Z',
+    )
     expect(insertSession).not.toHaveBeenCalled()
+  })
+
+  it('refuses the save when another editor changed the session first', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: SESSION_ID,
+      class_id: 'class-1',
+      session_date: '2026-08-05',
+      actual_start: null,
+      actual_end: null,
+      updated_at: '2026-08-05T08:00:00.000Z',
+    } as any)
+    // The guarded write matched nothing: the row moved underneath this editor. Reporting it
+    // is the point - a silent overwrite would leave hours_recorded_by attesting to hours
+    // that were replaced, and the audit describing an edit that no longer stands.
+    vi.mocked(updateSessionById).mockResolvedValue(null as any)
+    await expect(
+      saveSessionTimes(actor, {
+        ...base,
+        sessionId: SESSION_ID,
+        actual_start: '2026-08-05T09:00:00.000Z',
+        actual_end: '2026-08-05T10:00:00.000Z',
+      }),
+    ).rejects.toThrow(/changed by someone else/)
   })
 
   it('refuses a session id belonging to ANOTHER class', async () => {

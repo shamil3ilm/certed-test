@@ -3,7 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import type { SelfProfileDetailsInput } from '@/lib/validation/user'
 import { isMock } from '@/lib/mock/env'
 import { RateLimitError, ValidationError } from '@/lib/errors'
-import { rateLimit } from '@/lib/security/rate-limit'
+import { rateLimitShared } from '@/lib/security/rate-limit-shared'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { updateOwnProfile as updateOwnProfileRow, updateProfile } from '@/lib/data/profiles'
 import {
@@ -60,7 +60,7 @@ export async function changeOwnPassword(
 ): Promise<void> {
   // Throttle this sensitive account-mutation path like every other write in the
   // app - a hijacked session shouldn't be able to hammer or lock the account.
-  if (!rateLimit(`password-change:${actor.id}`, { limit: 5, windowMs: 10 * 60 * 1000 }).ok) {
+  if (!(await rateLimitShared(`password-change:${actor.id}`, { limit: 5, windowSeconds: 10 * 60 })).ok) {
     throw new RateLimitError('Too many password changes. Please wait a few minutes and try again.')
   }
   // Re-authenticate before re-keying the account. Without this a stolen COOKIE is a
@@ -102,7 +102,7 @@ export async function changeOwnEmail(
   newEmail: string,
   currentPassword: string,
 ): Promise<void> {
-  if (!rateLimit(`email-change:${actor.id}`, { limit: 5, windowMs: 10 * 60 * 1000 }).ok) {
+  if (!(await rateLimitShared(`email-change:${actor.id}`, { limit: 5, windowSeconds: 10 * 60 })).ok) {
     throw new RateLimitError('Too many email changes. Please wait a few minutes and try again.')
   }
   if (!(await verifyOwnPassword(actor.email ?? '', currentPassword))) {
@@ -121,7 +121,19 @@ export async function changeOwnEmail(
     // Auth first: if Supabase rejects (e.g. taken at the auth layer) the profile
     // row is left untouched, so the two never diverge on a failed change.
     if (actor.auth_user_id) await updateAuthUserEmail(actor.auth_user_id, email)
-    await updateProfile(actor.id, { email })
+    try {
+      await updateProfile(actor.id, { email })
+    } catch (error) {
+      // The two live in different systems, so no transaction spans them. Put sign-in back on
+      // the address the profile still holds: otherwise the person signs in with one email while
+      // re-authentication checks the other, and every later credential change is refused.
+      if (actor.auth_user_id && actor.email) {
+        await updateAuthUserEmail(actor.auth_user_id, actor.email).catch((revertError) =>
+          logError('profile.email.revertAuth', revertError, { profileId: actor.id }),
+        )
+      }
+      throw error
+    }
   }
   await auditPrivilegedAction(actor, 'profile.email', 'profile', actor.id)
 }

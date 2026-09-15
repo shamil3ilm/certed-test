@@ -24,6 +24,21 @@ const tutorActor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'acti
 const activeTutor = { id: 'tutor-2', role: 'tutor', status: 'active' } as any
 const activeMentor = { id: 'mentor-2', role: 'mentor', status: 'active' } as any
 
+/** The class-status read, then the client whose RPC answers the assignment write. */
+function assignClients(rpcResult: { data: unknown; error: { message: string } | null }) {
+  const write = makeClient({ data: null, error: null }, rpcResult as never)
+  vi.mocked(createAdminClient)
+    .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+    .mockReturnValueOnce(write as any)
+  return write
+}
+
+function unassignClient(rpcResult: { data: unknown; error: { message: string } | null }) {
+  const write = makeClient({ data: null, error: null }, rpcResult as never)
+  vi.mocked(createAdminClient).mockReturnValueOnce(write as any)
+  return write
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(requireActorCapability).mockResolvedValue(undefined)
@@ -50,13 +65,11 @@ describe('addTutor / removeTutor are admin-only', () => {
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
-  it('addTutor assigns and audits class.assign_tutor for an admin + active tutor', async () => {
+  it('addTutor assigns in ONE write and audits class.assign_tutor for an admin + active tutor', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutor)
-    // One client per data-layer call: the class-status read, then the upsert.
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
+    const write = assignClients({ data: null, error: null })
     await addTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
+    expect(write.rpc).toHaveBeenCalledWith('assign_class_tutor', { p_class_id: 'class-1', p_tutor_id: 'tutor-2' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
       action: 'class.assign_tutor',
@@ -65,27 +78,27 @@ describe('addTutor / removeTutor are admin-only', () => {
     })
   })
 
-  it('addTutor promotes a dedicated mentor to a tutor-capable teacher before assignment', async () => {
+  it('addTutor for a dedicated mentor is the same single write - the tutor persona lands with the membership', async () => {
+    // Membership and persona are one write, so there is no moment with one and not the other.
     vi.mocked(getProfileById).mockResolvedValueOnce(activeMentor)
-    // Membership row is written BEFORE the persona grant (assignMentor-style
-    // ordering + compensation), so upsertClassTutor's client comes first.
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // upsertGlobalPersona reactivate
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertGlobalPersona insert
+    const write = assignClients({ data: null, error: null })
     await addTutor(admin, { classId: 'class-1', tutorId: 'mentor-2' })
-    expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1',
-      action: 'class.assign_tutor',
-      entity_type: 'class_tutor',
-      entity_id: 'class-1',
-    })
+    expect(write.rpc).toHaveBeenCalledTimes(1)
+    expect(write.from).not.toHaveBeenCalled()
+    expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'class.assign_tutor' }))
   })
 
-  it('removeTutor unassigns and audits class.unassign_tutor for an admin', async () => {
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'ct-1' }], error: null }) as any)
+  it('addTutor refuses, and audits nothing, when the class is archived by the time it writes', async () => {
+    vi.mocked(getProfileById).mockResolvedValueOnce(activeTutor)
+    assignClients({ data: null, error: { message: 'class_not_active' } })
+    await expect(addTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toThrow(/archived/)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('removeTutor unassigns in one write and audits class.unassign_tutor for an admin', async () => {
+    const write = unassignClient({ data: true, error: null })
     await removeTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
+    expect(write.rpc).toHaveBeenCalledWith('unassign_class_tutor', { p_class_id: 'class-1', p_tutor_id: 'tutor-2' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
       action: 'class.unassign_tutor',
@@ -95,26 +108,9 @@ describe('addTutor / removeTutor are admin-only', () => {
   })
 
   it('removeTutor on a non-assignment throws NotFound and does not audit (no phantom unassign)', async () => {
-    // 0 rows matched (tutor was never assigned to this class): fail loud instead
-    // of returning success and auditing class.unassign_tutor.
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [], error: null }) as any)
+    unassignClient({ data: false, error: null })
     await expect(removeTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toBeInstanceOf(NotFoundError)
     expect(writeAudit).not.toHaveBeenCalled()
-  })
-
-  it('removeTutor removes the extra tutor persona when a dedicated mentor stops teaching entirely', async () => {
-    vi.mocked(getProfileById).mockResolvedValueOnce(activeMentor)
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: [{ id: 'ct-1' }], error: null }) as any) // deactivateClassTutor (row matched)
-      .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveClassIdsForTutor
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateGlobalPersona
-    await removeTutor(admin, { classId: 'class-1', tutorId: 'mentor-2' })
-    expect(writeAudit).toHaveBeenCalledWith({
-      actor_id: 'admin-1',
-      action: 'class.unassign_tutor',
-      entity_type: 'class_tutor',
-      entity_id: 'class-1',
-    })
   })
 })
 
@@ -137,10 +133,7 @@ describe('class-tutor action-input helpers', () => {
 
   it('delegates add/remove tutor after validation', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeTutor)
-    // One client per data-layer call: the class-status read, then the upsert.
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // upsertClassTutor
+    assignClients({ data: null, error: null })
     await addTutorFromActionInput(admin, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       tutor_id: '550e8400-e29b-41d4-a716-446655440001',
@@ -152,7 +145,7 @@ describe('class-tutor action-input helpers', () => {
       entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
 
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'ct-1' }], error: null }) as any)
+    unassignClient({ data: true, error: null })
     await removeTutorFromActionInput(admin, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       tutor_id: '550e8400-e29b-41d4-a716-446655440001',

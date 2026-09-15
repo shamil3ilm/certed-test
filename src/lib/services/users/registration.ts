@@ -6,6 +6,7 @@ import { bindAuthUserToProfile, selectRegistrationFields, type RegistrationField
 import { createAuthUser, deleteAuthUser } from '@/lib/data/auth-accounts'
 import { recordConsentAcceptance } from '@/lib/services/consents'
 import { requiresGuardianConsent } from '@/lib/auth/minor'
+import { logError } from '@/lib/observability/log'
 
 /** Unauthenticated bootstrap: an allowlisted profile claiming its login. */
 
@@ -69,13 +70,24 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
     }
   }
 
-  const bound = await bindPasswordAccount(target.id, created.id, codeHash)
+  let bound: boolean
+  try {
+    bound = await bindPasswordAccount(target.id, created.id, codeHash)
+  } catch (error) {
+    // The login exists but could not be bound. Left behind, its email is taken at the identity
+    // provider, so every retry of this registration would be refused. Undo it, then fail.
+    await deleteAuthUser(created.id).catch((cleanupError) =>
+      logError('registration.deleteUnboundAuthUser', cleanupError, { profileId: target.id }),
+    )
+    throw error
+  }
   if (!bound) {
     // Someone else claimed this profile between our check and our bind - undo the
     // login we just created so it can't linger unattached to any profile.
     try {
       await deleteAuthUser(created.id)
-    } catch {
+    } catch (cleanupError) {
+      logError('registration.deleteUnboundAuthUser', cleanupError, { profileId: target.id })
       return {
         error: 'Could not finish setting up your account. Please try again.',
         code: ERROR_CODES.internalError,

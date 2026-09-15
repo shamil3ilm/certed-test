@@ -1,16 +1,15 @@
 import type { Profile } from '@/lib/auth/profile'
 import {
-  deactivateClassTutor,
-  selectActiveClassIdsForTutor,
+  callAssignClassTutor,
+  callUnassignClassTutor,
   selectActiveTeachingProfileIds,
-  upsertClassTutor,
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
-import { deactivateGlobalPersona, selectActiveProfileIdsByPersona, upsertGlobalPersona } from '@/lib/data/personas'
+import { selectActiveProfileIdsByPersona } from '@/lib/data/personas'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { ValidationError } from '@/lib/errors'
+import { NotFoundError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
 type ClassTutorParams = { classId: string; tutorId: string }
@@ -65,31 +64,17 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
   if ((await selectClassStatus(params.classId)) !== 'active') {
     throw new ValidationError('That class is archived - restore it before assigning tutors.')
   }
-  // Write the class_tutor membership FIRST, then (for a dedicated mentor who may
-  // also teach) grant the global tutor persona that keeps the capability model,
-  // nav, and class/timetable workflows in step. Ordering + compensation mirror
-  // assignMentor: if the persona grant fails we roll back the membership we just
-  // wrote, rather than leaving a class row with no accompanying persona. The
-  // compensation runs in its own try/catch so a double failure surfaces BOTH
-  // errors distinctly instead of silently leaving an inconsistent pair.
-  await upsertClassTutor(params.tutorId, params.classId)
-  if (tutor.role === 'mentor') {
-    try {
-      await upsertGlobalPersona(tutor.id, 'tutor')
-    } catch (error) {
-      try {
-        await deactivateClassTutor(params.classId, params.tutorId)
-      } catch (compensationError) {
-        const original = error instanceof Error ? error.message : String(error)
-        const comp = compensationError instanceof Error ? compensationError.message : String(compensationError)
-        throw new Error(
-          `class.assign_tutor left an orphaned class_tutor row for tutor ${params.tutorId} / class ` +
-            `${params.classId}: tutor-persona grant failed (${original}) AND its compensation failed (${comp}). ` +
-            `Remove this assignment manually or re-run it.`,
-        )
-      }
-      throw error
-    }
+  // The membership and - for a dedicated mentor who also teaches - the global tutor persona
+  // the teaching workflows need are one transaction (0109). It re-checks both parties, and
+  // shares a lock with removal, so an assign and a remove for the same person take turns and
+  // neither row can exist without the other.
+  const result = await callAssignClassTutor(params.classId, params.tutorId)
+  if (!result.ok) {
+    throw new ValidationError(
+      result.reason === 'class_not_active'
+        ? 'That class is archived - restore it before assigning tutors.'
+        : 'tutor_id must be an active tutor or mentor',
+    )
   }
   await auditPrivilegedAction(actor, 'class.assign_tutor', 'class_tutor', params.classId)
 }
@@ -101,16 +86,12 @@ export async function addTutorFromActionInput(actor: Profile, input: ClassTutorA
 /** Soft-remove (scoped by class + tutor) - keeps the row for later re-assign. */
 export async function removeTutor(actor: Profile, params: ClassTutorParams): Promise<void> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
-  await deactivateClassTutor(params.classId, params.tutorId)
-  // If this was a dedicated mentor account that no longer teaches any class,
-  // remove the extra tutor persona we granted when teaching began. A true tutor
-  // identity keeps its tutor persona even with zero current assignments.
-  const target = await getProfileById(params.tutorId)
-  if (target?.role === 'mentor' && target.status === 'active') {
-    const remainingClassIds = await selectActiveClassIdsForTutor(params.tutorId)
-    if (remainingClassIds.length === 0) {
-      await deactivateGlobalPersona(params.tutorId, 'tutor')
-    }
+  // Deactivates the membership and, for a dedicated mentor now teaching nothing, the tutor
+  // persona teaching gave them - one transaction under the lock assignment takes, so a
+  // concurrent assignment cannot land between counting the remaining classes and removing
+  // the persona. A true tutor keeps their tutor persona: it is their identity, not a grant.
+  if (!(await callUnassignClassTutor(params.classId, params.tutorId))) {
+    throw new NotFoundError('That tutor is not assigned to this class.')
   }
   await auditPrivilegedAction(actor, 'class.unassign_tutor', 'class_tutor', params.classId)
 }

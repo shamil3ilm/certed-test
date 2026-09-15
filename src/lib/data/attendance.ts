@@ -3,6 +3,7 @@ import type { Page } from '@/lib/pagination'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllPaged } from '@/lib/data/paginate'
+import { rethrowIfHoursLocked } from '@/lib/data/hours-lock'
 import type { AttendanceStatus } from '@/lib/attendance/summary'
 
 /**
@@ -182,7 +183,11 @@ export async function upsertMarks(rows: ReadonlyArray<AttendanceMark>): Promise<
   // One mark per student per SESSION (0094). Keying on the session - not the date -
   // is what lets a student be present for the morning session and absent for the afternoon.
   const { error } = await admin.from('attendance').upsert(stamped, { onConflict: 'session_id,student_id' })
-  if (error) throw new Error(`attendance.markMany: ${error.message}`)
+  if (error) {
+    // A counting mark in a month a live receipt bills is locked (0116).
+    rethrowIfHoursLocked(error)
+    throw new Error(`attendance.markMany: ${error.message}`)
+  }
 }
 
 /** Deletes every mark for ONE session, returning how many went.
@@ -194,7 +199,10 @@ export async function upsertMarks(rows: ReadonlyArray<AttendanceMark>): Promise<
 export async function deleteSessionMarks(sessionId: string): Promise<number> {
   const admin = createAdminClient()
   const { data, error } = await admin.from('attendance').delete().eq('session_id', sessionId).select('id')
-  if (error) throw new Error(`attendance.clearSession: ${error.message}`)
+  if (error) {
+    rethrowIfHoursLocked(error)
+    throw new Error(`attendance.clearSession: ${error.message}`)
+  }
   return (data ?? []).length
 }
 

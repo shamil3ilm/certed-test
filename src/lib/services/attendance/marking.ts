@@ -8,7 +8,7 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 import { deleteSessionMarks, upsertMarks, type AttendanceMark } from '@/lib/data/attendance'
-import { insertSession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
+import { callEnsureDaySession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 
 /** Recording and correcting a session's attendance. Both paths are gated on
  *  canManageClass (a tutor of THIS class, or an admin) and audited. */
@@ -34,18 +34,15 @@ function isoOrNull(value: string | null | undefined): string | null {
  * the day's first session is used, and if the day has none a timeless session is created:
  * marking attendance asserts a session happened, and recording its times is a separate,
  * optional step. A timeless session contributes zero teaching minutes, so totals are
- * unaffected.
+ * unaffected. Finding or creating it is one database step per class and day, so two people
+ * marking the same lesson at once cannot create two sessions and split its marks.
  */
 async function resolveMarkingSession(classId: string, sessionDate: string, sessionId?: string): Promise<string> {
+  if (!sessionId) return callEnsureDaySession(classId, sessionDate)
   const sessions = await selectSessionsForDateAsService(classId, sessionDate)
-  if (sessionId) {
-    const named = sessions.find((s) => s.id === sessionId)
-    if (!named) throw new ValidationError('That session does not belong to this class and date.')
-    return named.id
-  }
-  if (sessions.length > 0) return sessions[0].id
-  const created = await insertSession({ class_id: classId, session_date: sessionDate })
-  return created.id
+  const named = sessions.find((s) => s.id === sessionId)
+  if (!named) throw new ValidationError('That session does not belong to this class and date.')
+  return named.id
 }
 
 /**

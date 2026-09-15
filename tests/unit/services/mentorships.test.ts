@@ -34,6 +34,13 @@ const studentProfile = { id: 'stud-1', role: 'student', status: 'active' }
 // pre-flight, so a reject-path test may not consume every queued profile.
 beforeEach(() => vi.resetAllMocks())
 
+/** The service-role client whose RPC answers the mentorship write. */
+function assignWrite(rpcResult: { data: unknown; error: { message: string } | null }) {
+  const client = makeClient({ data: null, error: null }, rpcResult as never)
+  vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+  return client
+}
+
 describe('assignMentor / removeMentor require the manageMentorships capability', () => {
   it('reject an actor without manageMentorships, without touching the DB', async () => {
     vi.mocked(requireActorCapability).mockRejectedValueOnce(
@@ -88,10 +95,11 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
     vi.mocked(getProfileById)
       .mockResolvedValueOnce(tutorProfile as any)
       .mockResolvedValueOnce(studentProfile as any)
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // assignMentorPersona
+    const client = assignWrite({ data: 'link-1', error: null })
     await assignMentor(admin, { mentorId: 'teach-1', studentId: 'stud-1' })
+    // The link and the persona that grants access are ONE call, so neither can land alone.
+    expect(client.rpc).toHaveBeenCalledWith('assign_mentorship', { p_mentor_id: 'teach-1', p_student_id: 'stud-1' })
+    expect(client.from).not.toHaveBeenCalled()
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
       action: 'mentorship.assign',
@@ -105,9 +113,7 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
     vi.mocked(getProfileById)
       .mockResolvedValueOnce(mentorProfile as any)
       .mockResolvedValueOnce(studentProfile as any)
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // assignMentorPersona
+    assignWrite({ data: 'link-1', error: null })
     await assignMentor(admin, { mentorId: 'ment-1', studentId: 'stud-1' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
@@ -117,30 +123,37 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
     })
   })
 
-  it('deactivates the mentorship again if scoped persona creation fails', async () => {
+  it('refuses, and audits nothing, when the mentor is revoked between the check and the write', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(getProfileById)
       .mockResolvedValueOnce(tutorProfile as any)
       .mockResolvedValueOnce(studentProfile as any)
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: { message: 'persona insert failed' } }) as any) // persona upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // compensation deactivate by pair
+    assignWrite({ data: null, error: { message: 'mentor_not_assignable' } })
+
+    await expect(assignMentor(admin, { mentorId: 'teach-1', studentId: 'stud-1' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a failed write and audits nothing', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(tutorProfile as any)
+      .mockResolvedValueOnce(studentProfile as any)
+    assignWrite({ data: null, error: { message: 'connection reset' } })
 
     await expect(assignMentor(admin, { mentorId: 'teach-1', studentId: 'stud-1' })).rejects.toThrow(
-      'data.personas.upsertScopedMentor: persona insert failed',
+      'mentorships.assign: connection reset',
     )
     expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('removes and audits mentorship.remove for an admin', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
-    // One client per data-layer operation, in call order.
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any) // selectMentorshipParties
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deleteScopedMentorPersona
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateMentorship
+    const client = assignWrite({ data: true, error: null })
     await removeMentor(admin, 'link-1')
+    expect(client.rpc).toHaveBeenCalledWith('remove_mentorship', { p_id: 'link-1' })
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'admin-1',
       action: 'mentorship.remove',
@@ -151,8 +164,8 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
 
   it('removeMentor on a bogus id throws NotFound and does not audit (no phantom remove)', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
-    // selectMentorshipParties resolves null (no such mentorship id).
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    // remove_mentorship reports that the id names no mentorship.
+    assignWrite({ data: false, error: null })
     await expect(removeMentor(admin, 'nope')).rejects.toBeInstanceOf(NotFoundError)
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -187,9 +200,7 @@ describe('mentorship action-input helpers', () => {
     vi.mocked(getProfileById)
       .mockResolvedValueOnce(tutorProfile as any)
       .mockResolvedValueOnce(studentProfile as any)
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // mentorships upsert
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // assignMentorPersona
+    assignWrite({ data: 'link-1', error: null })
     await assignMentorFromActionInput(admin, {
       mentor_id: '550e8400-e29b-41d4-a716-446655440000',
       student_id: '550e8400-e29b-41d4-a716-446655440001',
@@ -205,10 +216,7 @@ describe('mentorship action-input helpers', () => {
       { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any) // selectMentorshipParties
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deleteScopedMentorPersona
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // deactivateMentorship
+    assignWrite({ data: true, error: null })
     await removeMentorFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440002' })
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'admin-1',
