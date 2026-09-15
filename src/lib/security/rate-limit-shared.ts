@@ -6,10 +6,16 @@ import { logError } from '@/lib/observability/log'
 /**
  * Cross-instance rate limit backed by a Postgres counter (rate_limit_counters),
  * updated through the atomic rate_limit_hit() RPC. Unlike the in-process
- * rateLimit(), this limit holds across every serverless instance - use it for
- * the UNAUTHENTICATED, IP-keyed limiters (registration, contact) where
- * per-instance counters would multiply the real limit by the instance count.
- * Authenticated, user-keyed throttles stay on the cheaper in-process limiter.
+ * rateLimit(), this limit holds across every serverless instance, where
+ * per-instance counters multiply the real limit by the instance count. Use it
+ * where that multiplied ceiling is itself the risk:
+ *   - the UNAUTHENTICATED, IP-keyed limiters (registration, contact);
+ *   - credential changes (password, email), whose limit is what bounds guessing the
+ *     current password through a hijacked session;
+ *   - minting and voiding finance documents.
+ * High-frequency authenticated throttles (messages, comments, uploads, downloads)
+ * stay on the in-process limiter: a round trip per action is a real cost there, and
+ * their per-owner caps and permission checks bound the damage a burst can do.
  *
  * Degrade, don't disable: if the store is unreachable (or the RPC is missing) we
  * fall BACK to the in-process rateLimit() rather than allowing unconditionally.

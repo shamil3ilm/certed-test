@@ -76,16 +76,16 @@ export async function selectAllBillingRates(): Promise<BillingRate[]> {
   return rows.map(toBillingRate)
 }
 
-export interface BillingRateWrite {
+/** One SIDE of a person's rates. The other side is not in the payload at all. */
+export type BillingRateWrite = {
   profile_id: string
-  fee_rate: number | null
-  pay_rate: number | null
   currency: string
   updated_by: string
-}
+} & ({ fee_rate: number | null; pay_rate?: never } | { pay_rate: number | null; fee_rate?: never })
 
-/** Upsert one person's rates. `profile_id` is the primary key, so re-saving replaces
- *  rather than accumulating. */
+/** Upsert one side of a person's rates. `profile_id` is the primary key, so re-saving replaces
+ *  rather than accumulating, and an upsert only sets the columns it names - so the side not
+ *  being edited keeps whatever is stored NOW, not what a caller read a moment ago. */
 export async function upsertBillingRate(input: BillingRateWrite): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin

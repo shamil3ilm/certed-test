@@ -18,6 +18,7 @@ import { resolveDocForViewer, renderResolvedDocPdf, letterheadDigest } from '@/l
 import { validateFinanceDocId, voidDoc, listAllDocs, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { rateLimit } from '@/lib/security/rate-limit'
+import { rateLimitShared } from '@/lib/security/rate-limit-shared'
 
 /**
  * Shared route-handler factories for the two finance kinds. Each `/api/receipts`
@@ -51,7 +52,7 @@ export function issueHandler(kind: FinanceKind) {
     } catch (e) {
       return authFail(e)
     }
-    const rl = rateLimit(`finance-issue:${me.id}`, { limit: 30, windowMs: 60 * 1000 })
+    const rl = await rateLimitShared(`finance-issue:${me.id}`, { limit: 30, windowSeconds: 60 })
     if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
     try {
       return ok(await issueDocFromApiInput(kind, await req.json().catch(() => null), me.id))
@@ -107,13 +108,13 @@ export function voidHandler(kind: FinanceKind) {
     } catch (e) {
       return authFail(e)
     }
-    const rl = rateLimit(`finance-void:${me.id}`, { limit: 30, windowMs: 60 * 1000 })
+    const rl = await rateLimitShared(`finance-void:${me.id}`, { limit: 30, windowSeconds: 60 })
     if (!rl.ok) return tooManyRequests(TOO_MANY_REQUESTS_MESSAGE, rl.retryAfterSec)
     try {
       const id = validateFinanceDocId((await ctx.params).id)
       const voided = await voidDoc(me.id, kind, id)
+      // voidDoc records the void itself, only when one actually happened.
       if (!voided) return fail('Document not found or already voided.', 404)
-      await auditPrivilegedAction(me, `${kind}.void`, kind, id)
       return ok({ voided: true })
     } catch (e) {
       if (e instanceof ValidationError) return invalidInput(e.message)

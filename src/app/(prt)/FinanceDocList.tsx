@@ -4,6 +4,7 @@ import { listMyDocsPage, myDocTotals, type FinanceKind } from '@/lib/services/fi
 import { formatMoney, totalByCurrency } from '@/lib/money'
 import { formatDate } from '@/lib/time/format'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
+import { FINANCE_KINDS } from '@/lib/finance/kinds'
 import {
   Badge,
   EmptyState,
@@ -104,11 +105,7 @@ export async function FinanceDocList({
       )}
 
       <FilterBar className="mt-4" clearHref={`/${kind}s`} showClear={hasActiveFilters}>
-        <SearchFilterField
-          name="q"
-          defaultValue={search}
-          placeholder={`${kind === 'receipt' ? 'Receipt' : 'Pay slip'} number...`}
-        />
+        <SearchFilterField name="q" defaultValue={search} placeholder={`${FINANCE_KINDS[kind].title} number...`} />
         <SelectFilterField label="Status" name="status" defaultValue={docStatus}>
           <option value="">All</option>
           <option value="active">Active</option>

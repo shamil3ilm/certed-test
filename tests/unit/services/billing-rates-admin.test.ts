@@ -60,26 +60,27 @@ describe('billing rates are admin-tier in the service, not only at the edge', ()
 })
 
 describe('setBillingRate preserves the side it is not editing', () => {
-  it('writing the fee rate keeps an existing pay rate', async () => {
-    // A person can be BOTH a student and a payee in a family-run academy, and the two sides
-    // are edited by separate forms - a blind upsert would blank whichever was not submitted.
-    vi.mocked(selectAllBillingRates).mockResolvedValue([
-      { profile_id: PROFILE, fee_rate: null, pay_rate: 50, currency: 'INR' },
-    ] as never)
+  /**
+   * A person can be BOTH a student and a payee in a family-run academy, and the two sides are
+   * edited by separate forms. Copying the other side from a read taken first would lose a
+   * concurrent edit of it; writing only the edited column leaves whatever is stored at write time.
+   */
+  it('writing the fee rate names ONLY the fee column, and reads nothing first', async () => {
     await setBillingRate(ACTOR, { profile_id: PROFILE, side: 'fee', rate: 100, currency: 'INR' })
-    expect(upsertBillingRate).toHaveBeenCalledWith(
-      expect.objectContaining({ profile_id: PROFILE, fee_rate: 100, pay_rate: 50 }),
-    )
+    expect(upsertBillingRate).toHaveBeenCalledWith({
+      profile_id: PROFILE,
+      fee_rate: 100,
+      currency: 'INR',
+      updated_by: ACTOR,
+    })
+    expect(selectAllBillingRates).not.toHaveBeenCalled()
   })
 
-  it('writing the pay rate keeps an existing fee rate', async () => {
-    vi.mocked(selectAllBillingRates).mockResolvedValue([
-      { profile_id: PROFILE, fee_rate: 100, pay_rate: null, currency: 'INR' },
-    ] as never)
+  it('writing the pay rate names ONLY the pay column', async () => {
     await setBillingRate(ACTOR, { profile_id: PROFILE, side: 'pay', rate: 80, currency: 'INR' })
-    expect(upsertBillingRate).toHaveBeenCalledWith(
-      expect.objectContaining({ profile_id: PROFILE, fee_rate: 100, pay_rate: 80 }),
-    )
+    const written = vi.mocked(upsertBillingRate).mock.calls[0][0]
+    expect(written).toMatchObject({ profile_id: PROFILE, pay_rate: 80 })
+    expect(written).not.toHaveProperty('fee_rate')
   })
 
   it('rejects a malformed rate rather than writing it', async () => {

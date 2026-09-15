@@ -8,7 +8,7 @@ import {
   selectConvertibleDocs,
   selectConvertibleDoc,
   selectUnconvertedCurrencies,
-  updateDocConversion,
+  callApplyFxConversions,
 } from '@/lib/data/finance-fx'
 
 beforeEach(() => vi.resetAllMocks())
@@ -61,12 +61,25 @@ describe('finance-fx data layer (base-currency overlay)', () => {
     await expect(selectUnconvertedCurrencies()).rejects.toThrow(/unconvertedCurrencies: e/)
   })
 
-  it('updateDocConversion resolves on success and throws on error', async () => {
-    const conv = { base_currency: 'INR', base_total: 1000, fx_rate: 4, fx_rate_id: 'fx1' }
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(updateDocConversion('receipt', 'r1', conv)).resolves.toBeUndefined()
-    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'no' } }) as any)
-    await expect(updateDocConversion('receipt', 'r1', conv)).rejects.toThrow(/receipt.updateConversion: no/)
+  it('callApplyFxConversions writes every priced figure in one call, with the version they were priced at', async () => {
+    const rows = [
+      { kind: 'receipt' as const, id: 'r1', base_currency: 'INR', base_total: 1000, fx_rate: 4, fx_rate_id: 'fx1' },
+    ]
+    const client = makeClient({ data: null, error: null }, { data: 1, error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+    await expect(callApplyFxConversions('v1', rows)).resolves.toEqual({ ok: true, written: 1 })
+    expect(client.rpc).toHaveBeenCalledWith('apply_fx_conversions', { p_version: 'v1', p_rows: rows })
+  })
+
+  it('callApplyFxConversions reports inputs that moved as a refusal, and throws anything else', async () => {
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'fx_source_changed' } }) as any,
+    )
+    await expect(callApplyFxConversions('v1', [])).resolves.toEqual({ ok: false, reason: 'fx_source_changed' })
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'no' } }) as any,
+    )
+    await expect(callApplyFxConversions('v1', [])).rejects.toThrow(/fx.applyConversions: no/)
   })
 })
 

@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllPaged } from '@/lib/data/paginate'
+import { refusalOf } from '@/lib/data/rpc-refusal'
 import { KIND } from './finance-docs-shared'
 import type { FinanceKind } from './finance-docs'
 
@@ -84,8 +85,30 @@ export type DocConversion = {
   fx_rate_id: string | null
 }
 
-export async function updateDocConversion(kind: FinanceKind, id: string, conv: DocConversion): Promise<void> {
+/** One document's priced figures, ready to write. */
+export type PricedDoc = DocConversion & { kind: FinanceKind; id: string }
+
+/** A version of everything base-currency figures are priced from - the base currency and every
+ *  rate (0112). Read it BEFORE reading those inputs and hand it back with the figures. */
+export async function callFxSourceVersion(): Promise<string> {
   const admin = createAdminClient()
-  const { error } = await admin.from(KIND[kind].table).update(conv).eq('id', id)
-  if (error) throw new Error(`${kind}.updateConversion: ${error.message}`)
+  const { data, error } = await admin.rpc('fx_source_version')
+  if (error) throw new Error(`fx.sourceVersion: ${error.message}`)
+  return data as string
+}
+
+/**
+ * Write priced figures for any number of documents in one transaction - only if the base
+ * currency and rates are still the version they were priced from (0112). A refusal means a
+ * rate or the base currency changed underneath the pricing, and the caller prices again.
+ */
+export async function callApplyFxConversions(
+  version: string,
+  rows: PricedDoc[],
+): Promise<{ ok: true; written: number } | { ok: false; reason: 'fx_source_changed' }> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('apply_fx_conversions', { p_version: version, p_rows: rows })
+  if (refusalOf(error, ['fx_source_changed'] as const)) return { ok: false, reason: 'fx_source_changed' }
+  if (error) throw new Error(`fx.applyConversions: ${error.message}`)
+  return { ok: true, written: Number(data ?? 0) }
 }

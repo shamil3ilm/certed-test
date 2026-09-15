@@ -3,6 +3,7 @@ import type { FinanceDoc, FinanceKind, FinanceLine } from './finance-docs'
 export const KIND = {
   receipt: {
     table: 'receipts',
+    issueFn: 'issue_receipt_doc',
     lineTable: 'receipt_lines',
     partyCol: 'student_id',
     nameCol: 'student_name_snapshot',
@@ -12,6 +13,7 @@ export const KIND = {
   },
   payslip: {
     table: 'payslips',
+    issueFn: 'issue_payslip_doc',
     lineTable: 'payslip_lines',
     partyCol: 'tutor_id',
     nameCol: 'tutor_name_snapshot',
@@ -84,4 +86,9 @@ export type IssueFinanceDocInput = Omit<
   lines: FinanceLine[]
   /** 'YYYY-MM' the document bills for; null when it bills no particular month. */
   billing_period: string | null
+  /** For a billing-period document: the fingerprint of the hours it was drafted from, and the
+   *  window it covers. The issue function refuses if the recorded hours no longer match. */
+  billing_source: BillingSource | null
 }
+
+export type BillingSource = { fingerprint: string; from: string; to: string }

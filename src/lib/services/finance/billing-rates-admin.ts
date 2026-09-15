@@ -100,8 +100,8 @@ export interface SetBillingRateInput {
  * Set (or clear) one person's hourly rate.
  *
  * Writing one side preserves the other: a person may be BOTH a student and a payee in a
- * family-run academy, and a blind upsert of the whole row would silently wipe the side
- * that was not being edited.
+ * family-run academy. Only the edited column is written, so the other side is never copied
+ * from a read that a concurrent edit of it has already made stale.
  */
 export async function setBillingRate(actorId: string, input: SetBillingRateInput): Promise<void> {
   await requireActorCapability(actorId, 'manageAdminTier', RATES_DENIED)
@@ -109,11 +109,9 @@ export async function setBillingRate(actorId: string, input: SetBillingRateInput
   if (!parsed.success) throw new ValidationError('Enter a valid rate and currency.')
   const { profile_id, side, rate, currency } = parsed.data
 
-  const existing = (await selectAllBillingRates()).find((r) => r.profile_id === profile_id)
   await upsertBillingRate({
     profile_id,
-    fee_rate: side === 'fee' ? rate : (existing?.fee_rate ?? null),
-    pay_rate: side === 'pay' ? rate : (existing?.pay_rate ?? null),
+    ...(side === 'fee' ? { fee_rate: rate } : { pay_rate: rate }),
     currency,
     updated_by: actorId,
   })

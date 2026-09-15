@@ -8,6 +8,8 @@ import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { monthWindow } from '@/lib/time/month-window'
 import type { FinanceKind } from '@/lib/data/finance-docs'
+import { FINANCE_KINDS, isFinanceParty } from '@/lib/finance/kinds'
+import { ValidationError } from '@/lib/errors'
 
 /**
  * Turn RECORDED CLASS HOURS into a ready-to-issue receipt or pay slip.
@@ -85,18 +87,18 @@ export async function buildBillingDraft(
   period: string,
 ): Promise<BillingDraft> {
   const party = await getProfileById(partyId)
-  const allowedRoles = kind === 'receipt' ? ['student'] : ['tutor', 'mentor']
-  if (!party || !allowedRoles.includes(party.role) || party.status !== 'active') {
-    throw new Error(`No active ${kind === 'receipt' ? 'student' : 'payee'} for that selection.`)
+  const kindRules = FINANCE_KINDS[kind]
+  if (!party || !isFinanceParty(kind, party.role) || party.status !== 'active') {
+    throw new ValidationError(`No active ${kindRules.partyNoun} for that selection.`)
   }
 
   const rate = (await selectBillingRatesFor([partyId])).get(partyId)
   // A missing rate is the common first-run state, and the only honest response is to say
   // so: billing zero hours at zero would produce a valid-looking document for nothing.
-  const perHour = kind === 'receipt' ? (rate?.fee_rate ?? null) : (rate?.pay_rate ?? null)
+  const perHour = rate?.[kindRules.rateField] ?? null
   const currency = rate?.currency ?? 'INR'
   if (rate == null || perHour == null) {
-    const which = kind === 'receipt' ? 'fee rate' : 'pay rate'
+    const which = kindRules.rateNoun
     return empty(kind, party, period, currency, `No ${which} is set for ${party.full_name ?? party.email}.`)
   }
   // Defensive: the column is free text at the database level beyond its regex, and an
@@ -134,7 +136,7 @@ export async function buildBillingDraft(
     .sort((a, b) => b.amount - a.amount || a.subject.localeCompare(b.subject))
 
   if (lines.length === 0) {
-    const side = kind === 'receipt' ? 'attended no recorded sessions' : 'taught no recorded sessions'
+    const side = `${kindRules.sessionsVerb} no recorded sessions`
     return empty(kind, party, period, currency, `${party.full_name ?? party.email} ${side} in this month.`)
   }
 
@@ -147,8 +149,8 @@ export async function buildBillingDraft(
       // payslips_one_live_per_party_period are unique over (party, billing_period) where the
       // document is live. Saying "will create a second document" told the admin the opposite
       // of what happens, and sent them to click through a warning into a hard error.
-      `A ${kind === 'receipt' ? 'receipt' : 'pay slip'} for this month has already been issued to this ` +
-        `${kind === 'receipt' ? 'student' : 'payee'} and has not been voided. Void it first - a second live ` +
+      `A ${kindRules.noun} for this month has already been issued to this ` +
+        `${kindRules.partyNoun} and has not been voided. Void it first - a second live ` +
         `document for the same month is refused.`,
     )
   }

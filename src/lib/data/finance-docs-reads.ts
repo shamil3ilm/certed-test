@@ -175,33 +175,24 @@ export async function selectDocLines(kind: FinanceKind, id: string): Promise<Fin
 }
 
 /**
- * A LIVE document of the same kind, party, currency and total issued since `sinceIso`.
- *
- * Guards the hand-typed issue path, which 0100's unique indexes deliberately do not cover:
- * they are partial on `billing_period is not null`, so a document that bills no particular
- * month stays valid and unconstrained - and that is the default the issue form sends. This
- * is a DOUBLE-SUBMIT guard, not a uniqueness rule: an academy may legitimately issue two
- * documents to the same party on the same day, so the window is deliberately short.
+ * A fingerprint of everything one party's figure for a billing window is computed from - the
+ * sessions (and, for a receipt, the attended marks) whose recorded start falls in [fromIso,
+ * toIso) outside archived classes (0110). Opaque: its only use is to be handed back to the issue
+ * function, which recomputes it under a lock and refuses the document if the hours moved.
  */
-export async function selectRecentLiveDuplicate(
+export async function callBillingSourceFingerprint(
   kind: FinanceKind,
   partyId: string,
-  currency: string,
-  total: number,
-  sinceIso: string,
-): Promise<{ number: string } | null> {
-  const k = KIND[kind]
+  fromIso: string,
+  toIso: string,
+): Promise<string> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from(k.table)
-    .select('number')
-    .eq(k.partyCol, partyId)
-    .eq('currency', currency)
-    .eq('total', total)
-    .eq('voided', false)
-    .gte('created_at', sinceIso)
-    .limit(1)
-    .maybeSingle()
-  if (error) throw new Error(`${kind}.recentDuplicate: ${error.message}`)
-  return (data as { number: string } | null) ?? null
+  const { data, error } = await admin.rpc('billing_source_fingerprint', {
+    p_kind: kind,
+    p_party_id: partyId,
+    p_from: fromIso,
+    p_to: toIso,
+  })
+  if (error) throw new Error(`${kind}.billingSourceFingerprint: ${error.message}`)
+  return data as string
 }

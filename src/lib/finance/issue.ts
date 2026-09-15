@@ -1,11 +1,13 @@
 import 'server-only'
 import { lineAmount, computeTotals } from '@/lib/money'
-import { getOrgSettings } from '@/lib/services/finance/org-settings'
+import { getInstituteTimeZone, getOrgSettings } from '@/lib/services/finance/org-settings'
 import { getProfileById } from '@/lib/services/users'
 import { issueDocRecord, type FinanceKind, type FinanceLine } from '@/lib/services/finance/finance-docs'
-import { selectRecentLiveDuplicate } from '@/lib/data/finance-docs-reads'
+import { callBillingSourceFingerprint } from '@/lib/data/finance-docs-reads'
+import type { BillingSource } from '@/lib/data/finance-docs-shared'
+import { monthWindow } from '@/lib/time/month-window'
+import { FINANCE_KINDS, isFinanceParty } from '@/lib/finance/kinds'
 import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
-import { writeAudit } from '@/lib/data/audit'
 import { ValidationError } from '@/lib/errors'
 import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
 import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
@@ -16,10 +18,17 @@ import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
  * lib/finance/render.ts), so nothing is stored. Receipts snapshot the student's
  * class; pay slips have no class.
  */
-/** Double-submit window for a document with no billing period. Long enough to catch a
- *  retry after a timeout, short enough that two genuinely separate documents for the
- *  same party and amount on one day are not blocked. */
-const DUPLICATE_WINDOW_MS = 2 * 60 * 1000
+/**
+ * The fingerprint of everything a month's figure for this party is computed from, over the
+ * window the draft bills. Read BEFORE the draft is built: an edit landing between the two then
+ * leaves the draft newer than the fingerprint, which can only make the issue refuse - never
+ * bill hours that are no longer recorded.
+ */
+async function readBillingSource(kind: FinanceKind, partyId: string, period: string): Promise<BillingSource> {
+  const { startIso, endIso } = monthWindow(period, await getInstituteTimeZone())
+  const fingerprint = await callBillingSourceFingerprint(kind, partyId, startIso, endIso)
+  return { fingerprint, from: startIso, to: endIso }
+}
 
 async function issueDoc(
   kind: FinanceKind,
@@ -30,12 +39,12 @@ async function issueDoc(
   // dedicated (non-tutor) mentor, who is otherwise unpayable. The party must also
   // be ACTIVE: don't issue a financial document to a disabled/revoked account.
   const party = await getProfileById(input.party_id)
-  const allowedRoles = kind === 'receipt' ? ['student'] : ['tutor', 'mentor']
-  if (!party || !allowedRoles.includes(party.role) || party.status !== 'active') {
+  const kindRules = FINANCE_KINDS[kind]
+  if (!party || !isFinanceParty(kind, party.role) || party.status !== 'active') {
     // A stale/wrong party_id is a client-correctable input error, not a server
     // fault: ValidationError maps to 400 in the handler, so it doesn't pollute
     // the 5xx error budget as a bare Error would.
-    throw new ValidationError(`No ${kind === 'receipt' ? 'active student' : 'active payee'} found for that selection.`)
+    throw new ValidationError(`No active ${kindRules.partyNoun} found for that selection.`)
   }
 
   // ── C-05: the POST body was the sole source of truth ────────────────────────
@@ -51,14 +60,13 @@ async function issueDoc(
   // recorded month, and anything it cannot justify is refused. Billing FEWER hours than
   // recorded stays allowed - waiving part of a month is a real thing an academy does, and
   // silently rewriting the admin's figures would be worse than refusing them.
+  const source = input.billing_period ? await readBillingSource(kind, party.id, input.billing_period) : null
   const derived = input.billing_period ? await buildBillingDraft(actorId, kind, party.id, input.billing_period) : null
   if (derived?.blocked) throw new ValidationError(derived.blocked)
 
   const currency = derived ? derived.currency : input.currency
   if (derived && input.currency !== derived.currency) {
-    throw new ValidationError(
-      `This ${kind === 'receipt' ? 'student' : 'payee'} is billed in ${derived.currency}, not ${input.currency}.`,
-    )
+    throw new ValidationError(`This ${kindRules.partyNoun} is billed in ${derived.currency}, not ${input.currency}.`)
   }
 
   if (derived) {
@@ -67,7 +75,7 @@ async function issueDoc(
     const requestedHours = input.lines.reduce((sum, l) => sum + l.hours, 0)
     const wrongRate = expectedRate != null && input.lines.some((l) => l.rate !== expectedRate)
     if (wrongRate) {
-      throw new ValidationError(`The rate must match this ${kind === 'receipt' ? 'student' : 'payee'}'s stored rate.`)
+      throw new ValidationError(`The rate must match this ${kindRules.partyNoun}'s stored rate.`)
     }
     // Rounded to the hundredth before comparing: hours are derived from minutes, so an
     // exact float equality would reject a figure the UI itself produced.
@@ -86,34 +94,17 @@ async function issueDoc(
   }))
   const { subtotal, discount: roundedDiscount, total } = computeTotals(input.lines, input.discount ?? 0, currency)
   const org = await getOrgSettings()
-  const prefix = kind === 'receipt' ? org.receipt_prefix : org.payslip_prefix
+  const prefix = org[kindRules.prefixField]
 
-  // A hand-typed document carries no billing_period, and 0100's unique indexes are PARTIAL
-  // on `billing_period is not null` - deliberately, so a document that bills no particular
-  // month stays valid. That leaves the DEFAULT issue path with no protection at all against
-  // a double submit, on a model whose only correction is void-and-reissue. An identical LIVE
-  // document issued moments ago is refused by number, so the admin sees what already exists
-  // instead of silently creating its twin.
-  if (!input.billing_period) {
-    const recent = await selectRecentLiveDuplicate(
-      kind,
-      party.id,
-      currency,
-      total,
-      new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString(),
-    )
-    if (recent) {
-      throw new ValidationError(
-        `An identical ${kind === 'receipt' ? 'receipt' : 'pay slip'} (${recent.number}) was just issued to this ` +
-          `${kind === 'receipt' ? 'student' : 'payee'}. Open it to check before issuing another.`,
-      )
-    }
-  }
-
+  // Two guards run inside the issue function, under a lock on the party (0110), because a read
+  // here cannot see a concurrent request: a billing-period document is refused if its
+  // recorded hours no longer match `source`, and a document with no period - which 0100's
+  // partial unique indexes deliberately leave unconstrained - is refused when an identical live
+  // one was issued moments ago, naming it, on a model whose only correction is void-and-reissue.
   const doc = await issueDocRecord(actorId, kind, {
     party_id: party.id,
     party_name: party.full_name ?? party.email,
-    class_level: kind === 'receipt' ? party.class_level : null,
+    class_level: kindRules.carriesClassLevel ? party.class_level : null,
     issue_date: input.issue_date,
     currency,
     note: input.note ?? null,
@@ -126,22 +117,13 @@ async function issueDoc(
     prefix,
     lines,
     billing_period: input.billing_period ?? null,
+    billing_source: source,
   })
 
-  // Best-effort: the document is already committed (numbered + line items) by
-  // issueDocRecord above. If the audit insert threw, a 500 would send the admin
-  // to retry and issue a SECOND, duplicate-numbered document - a far worse
-  // outcome than a missing audit row. Log the gap and report success instead.
-  try {
-    await writeAudit({ actor_id: actorId, action: `${kind}.issue`, entity_type: kind, entity_id: doc.id })
-  } catch (auditError) {
-    console.error(`[finance] audit write failed for issued ${kind} ${doc.id}:`, auditError)
-  }
-
   // Snapshot the base-currency amount at the rate effective on the issue date.
-  // Best-effort, like the audit: a missing rate (or a transient failure) leaves
-  // the document unconverted for the next admin recompute rather than failing an
-  // already-committed issuance.
+  // Best-effort: a missing rate (or a transient failure) leaves the document
+  // unconverted for the next admin recompute rather than failing an
+  // already-committed issuance, which issueDocRecord has already audited.
   try {
     await convertIssuedDoc(kind, doc.id)
   } catch (fxError) {

@@ -1,18 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
-vi.mock('@/lib/services/finance/org-settings', () => ({ getOrgSettings: vi.fn() }))
+vi.mock('@/lib/services/finance/org-settings', () => ({ getOrgSettings: vi.fn(), getInstituteTimeZone: vi.fn() }))
 vi.mock('@/lib/services/finance/finance-docs', () => ({ issueDocRecord: vi.fn() }))
 vi.mock('@/lib/services/finance/fx-conversion', () => ({ convertIssuedDoc: vi.fn() }))
+vi.mock('@/lib/services/finance/hours-billing', () => ({ buildBillingDraft: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
-vi.mock('@/lib/data/finance-docs-reads', () => ({ selectRecentLiveDuplicate: vi.fn() }))
+vi.mock('@/lib/data/finance-docs-reads', () => ({ callBillingSourceFingerprint: vi.fn() }))
 
 import { getProfileById } from '@/lib/services/users'
-import { getOrgSettings } from '@/lib/services/finance/org-settings'
+import { getInstituteTimeZone, getOrgSettings } from '@/lib/services/finance/org-settings'
 import { issueDocRecord } from '@/lib/services/finance/finance-docs'
 import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
+import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
 import { writeAudit } from '@/lib/data/audit'
-import { selectRecentLiveDuplicate } from '@/lib/data/finance-docs-reads'
+import { callBillingSourceFingerprint } from '@/lib/data/finance-docs-reads'
 import { issueDocFromApiInput } from '@/lib/finance/issue'
 
 const validInput = {
@@ -32,12 +34,12 @@ const activeStudent = {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  // Default: no near-identical document was just issued. The refusal is asserted below.
-  vi.mocked(selectRecentLiveDuplicate).mockResolvedValue(null)
   vi.mocked(getOrgSettings).mockResolvedValue({ receipt_prefix: 'CEA-R', payslip_prefix: 'CEA-P' } as any)
+  vi.mocked(getInstituteTimeZone).mockResolvedValue('Asia/Kolkata')
   vi.mocked(issueDocRecord).mockResolvedValue({ id: 'doc1', number: 'CEA-R-1' } as any)
   vi.mocked(convertIssuedDoc).mockResolvedValue(undefined as any)
   vi.mocked(writeAudit).mockResolvedValue(undefined as any)
+  vi.mocked(callBillingSourceFingerprint).mockResolvedValue('fp-1')
 })
 
 describe('finance issue', () => {
@@ -53,7 +55,7 @@ describe('finance issue', () => {
     await expect(issueDocFromApiInput('payslip', validInput, 'admin-1')).rejects.toThrow(/active payee/)
   })
 
-  it('issues an active receipt: records the doc and audits it', async () => {
+  it('issues an active receipt through issueDocRecord, which records it', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent as any)
     const out = await issueDocFromApiInput('receipt', validInput, 'admin-1')
     expect(out).toEqual({ id: 'doc1', number: 'CEA-R-1' })
@@ -62,12 +64,23 @@ describe('finance issue', () => {
       'receipt',
       expect.objectContaining({ party_id: activeStudent.id, prefix: 'CEA-R', class_level: 'Grade 10' }),
     )
-    expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'receipt.issue', entity_id: 'doc1' }))
+    // issueDocRecord writes the one `receipt.issue` audit, with the number and party; a second,
+    // thinner row from here would record every issuance twice.
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 
-  it('still reports success when the best-effort audit / fx conversion fail (doc already committed)', async () => {
+  it('snapshots no class level on a pay slip', async () => {
+    vi.mocked(getProfileById).mockResolvedValueOnce({ ...activeStudent, role: 'tutor' } as any)
+    await issueDocFromApiInput('payslip', validInput, 'admin-1')
+    expect(issueDocRecord).toHaveBeenCalledWith(
+      'admin-1',
+      'payslip',
+      expect.objectContaining({ prefix: 'CEA-P', class_level: null }),
+    )
+  })
+
+  it('still reports success when the best-effort fx conversion fails (doc already committed)', async () => {
     vi.mocked(getProfileById).mockResolvedValueOnce(activeStudent as any)
-    vi.mocked(writeAudit).mockRejectedValueOnce(new Error('audit down'))
     vi.mocked(convertIssuedDoc).mockRejectedValueOnce(new Error('no rate'))
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(issueDocFromApiInput('receipt', validInput, 'admin-1')).resolves.toEqual({
@@ -77,25 +90,67 @@ describe('finance issue', () => {
   })
 })
 
-describe('finance issue - double-submit guard on the hand-typed path', () => {
-  it('refuses an identical live document issued moments ago, naming it', async () => {
-    // 0100's unique indexes are PARTIAL on `billing_period is not null`, so a document
-    // that bills no particular month - the default the issue form sends - has no database
-    // constraint behind it. On a void-and-reissue-only model a double submit is expensive.
-    vi.mocked(getProfileById).mockResolvedValue(activeStudent as never)
-    vi.mocked(getOrgSettings).mockResolvedValue({ receipt_prefix: 'CEA-R', payslip_prefix: 'CEA-P' } as never)
-    vi.mocked(selectRecentLiveDuplicate).mockResolvedValue({ number: 'CEA-R-2026-0007' })
+/**
+ * The hours a billing-period document bills are checked inside the issue function (0110): the
+ * service hands over a fingerprint of the recorded hours, and the function refuses if they moved.
+ * What these pin is the part only the service can get right - WHEN the fingerprint is taken.
+ */
+describe('finance issue - the billing source travels with a billing-period document', () => {
+  const period = { ...validInput, billing_period: '2026-06', lines: [{ subject: 'Maths', hours: 2, rate: 500 }] }
+  const draft = {
+    blocked: null,
+    currency: 'INR',
+    lines: [{ subject: 'Maths', hours: 2, rate: 500, amount: 1000 }],
+  }
 
-    await expect(issueDocFromApiInput('receipt', validInput, 'admin-1')).rejects.toThrow(/CEA-R-2026-0007/)
-    expect(issueDocRecord).not.toHaveBeenCalled()
+  it('reads the fingerprint BEFORE building the draft, so a racing edit can only cause a refusal', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(activeStudent as never)
+    const order: string[] = []
+    vi.mocked(callBillingSourceFingerprint).mockImplementation(async () => {
+      order.push('fingerprint')
+      return 'fp-june'
+    })
+    vi.mocked(buildBillingDraft).mockImplementation(async () => {
+      order.push('draft')
+      return draft as never
+    })
+
+    await issueDocFromApiInput('receipt', period, 'admin-1')
+
+    expect(order).toEqual(['fingerprint', 'draft'])
   })
 
-  it('does NOT apply the window when a billing period is given - the DB index owns that case', async () => {
+  it('fingerprints the month in the INSTITUTE time zone, and passes it with its window to the write', async () => {
     vi.mocked(getProfileById).mockResolvedValue(activeStudent as never)
-    vi.mocked(getOrgSettings).mockResolvedValue({ receipt_prefix: 'CEA-R', payslip_prefix: 'CEA-P' } as never)
-    vi.mocked(issueDocRecord).mockResolvedValue({ id: 'doc-1', number: 'CEA-R-2026-0008' } as never)
+    vi.mocked(buildBillingDraft).mockResolvedValue(draft as never)
 
-    await issueDocFromApiInput('receipt', { ...validInput, billing_period: '2026-06' }, 'admin-1').catch(() => null)
-    expect(selectRecentLiveDuplicate).not.toHaveBeenCalled()
+    await issueDocFromApiInput('receipt', period, 'admin-1')
+
+    // June in Asia/Kolkata starts at 18:30 UTC on 31 May.
+    expect(callBillingSourceFingerprint).toHaveBeenCalledWith(
+      'receipt',
+      activeStudent.id,
+      '2026-05-31T18:30:00.000Z',
+      '2026-06-30T18:30:00.000Z',
+    )
+    expect(issueDocRecord).toHaveBeenCalledWith(
+      'admin-1',
+      'receipt',
+      expect.objectContaining({
+        billing_period: '2026-06',
+        billing_source: { fingerprint: 'fp-1', from: '2026-05-31T18:30:00.000Z', to: '2026-06-30T18:30:00.000Z' },
+      }),
+    )
+  })
+
+  it('sends no billing source for a document that bills no particular month', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(activeStudent as never)
+    await issueDocFromApiInput('receipt', validInput, 'admin-1')
+    expect(callBillingSourceFingerprint).not.toHaveBeenCalled()
+    expect(issueDocRecord).toHaveBeenCalledWith(
+      'admin-1',
+      'receipt',
+      expect.objectContaining({ billing_period: null, billing_source: null }),
+    )
   })
 })

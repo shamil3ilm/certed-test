@@ -6,11 +6,13 @@ import type { FinanceKind } from './finance-docs'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { selectExchangeRates } from '@/lib/data/exchange-rates'
 import {
+  callApplyFxConversions,
+  callFxSourceVersion,
   selectConvertibleDoc,
   selectConvertibleDocs,
-  updateDocConversion,
   type ConvertibleDoc,
   type DocConversion,
+  type PricedDoc,
 } from '@/lib/data/finance-fx'
 import { writeAudit } from '@/lib/data/audit'
 
@@ -19,15 +21,18 @@ import { writeAudit } from '@/lib/data/audit'
  * admin's effective-dated rates. The overlay (base_total/fx_rate) is a reporting
  * projection - the document body stays immutable - so it is recomputed whenever a
  * rate or the base currency changes.
+ *
+ * Pricing happens here (currency rounding lives in @/lib/money); the write is one guarded
+ * transaction (0112). The version of the inputs is read BEFORE the inputs themselves, so a
+ * rate or base change landing mid-way makes the write refuse rather than store figures priced
+ * from the older table, and the pricing simply runs again on the new one.
  */
 
 const KINDS: FinanceKind[] = ['receipt', 'payslip']
 const FX_DENIED = 'Only an admin can manage currency conversion.'
 
-/** Conversion writes issued at once. Each touches its own row, so they are independent -
- *  but a whole back catalogue in one Promise.all would open a write per document and
- *  saturate the connection pool, so the fan-out is capped. */
-const WRITE_BATCH = 25
+/** Pricing runs this many times before giving up on inputs that keep changing under it. */
+const MAX_ATTEMPTS = 3
 
 function conversionFor(doc: ConvertibleDoc, base: string, rates: ReadonlyArray<ExchangeRate>): DocConversion {
   const resolved = resolveRate(rates, doc.currency, base, doc.issue_date)
@@ -40,49 +45,63 @@ function conversionFor(doc: ConvertibleDoc, base: string, rates: ReadonlyArray<E
   }
 }
 
+/** Price `docs` against the inputs as they stand, tagged with the version they were read at. */
+async function price(docsFor: () => Promise<Array<{ kind: FinanceKind; doc: ConvertibleDoc }>>) {
+  const version = await callFxSourceVersion()
+  const [org, rates, docs] = await Promise.all([selectOrgSettings(), selectExchangeRates(), docsFor()])
+  const rows: PricedDoc[] = docs.map(({ kind, doc }) => ({
+    kind,
+    id: doc.id,
+    ...conversionFor(doc, org.base_currency, rates),
+  }))
+  return { version, rows }
+}
+
 export type RecomputeResult = { converted: number; unconverted: number }
 
 /**
  * Re-prices every non-void document into the current base currency from the
- * current rate table. Run after a rate is added/corrected or the base currency
- * changes. Admin-gated.
+ * current rate table, all or nothing. Run after a rate is added/corrected or the
+ * base currency changes. Admin-gated.
  */
 export async function recomputeConversions(actorId: string): Promise<RecomputeResult> {
   await requireActorCapability(actorId, 'manageAdminTier', FX_DENIED)
-  const [org, rates] = await Promise.all([selectOrgSettings(), selectExchangeRates()])
-  const base = org.base_currency
-  let converted = 0
-  let unconverted = 0
-  for (const kind of KINDS) {
-    const docs = await selectConvertibleDocs(kind)
-    // Priced first (pure, in memory), then written in bounded batches. A write per
-    // document awaited one at a time made a recompute take as long as walking the whole
-    // back catalogue in series; the rows are independent, so they need not queue.
-    for (let i = 0; i < docs.length; i += WRITE_BATCH) {
-      const batch = docs.slice(i, i + WRITE_BATCH).map((doc) => ({ doc, conv: conversionFor(doc, base, rates) }))
-      await Promise.all(batch.map(({ doc, conv }) => updateDocConversion(kind, doc.id, conv)))
-      for (const { conv } of batch) {
-        if (conv.base_total == null) unconverted += 1
-        else converted += 1
-      }
+  const everyDoc = async () =>
+    (
+      await Promise.all(KINDS.map(async (kind) => (await selectConvertibleDocs(kind)).map((doc) => ({ kind, doc }))))
+    ).flat()
+
+  for (let attempt = 1; ; attempt++) {
+    const { version, rows } = await price(everyDoc)
+    const applied = await callApplyFxConversions(version, rows)
+    if (!applied.ok) {
+      if (attempt < MAX_ATTEMPTS) continue
+      throw new Error('fx.recompute: the rates or base currency kept changing while documents were re-priced')
     }
+    // Best-effort audit: the recompute already succeeded, so a failed audit write
+    // should not turn a completed re-pricing into an error the admin retries.
+    await writeAudit({
+      actor_id: actorId,
+      action: 'fx.recompute',
+      entity_type: 'org_settings',
+      entity_id: null,
+    }).catch((e) => console.error('[fx] recompute audit failed:', e))
+    const unconverted = rows.filter((row) => row.base_total == null).length
+    return { converted: rows.length - unconverted, unconverted }
   }
-  // Best-effort audit: the recompute already succeeded, so a failed audit write
-  // should not turn a completed re-pricing into an error the admin retries.
-  await writeAudit({ actor_id: actorId, action: 'fx.recompute', entity_type: 'org_settings', entity_id: null }).catch(
-    (e) => console.error('[fx] recompute audit failed:', e),
-  )
-  return { converted, unconverted }
 }
 
 /**
  * Best-effort conversion of a single freshly-issued document, called after
  * issuance. A missing rate leaves it unconverted for the next recompute; it never
- * blocks issuance, so it is not permission-gated (the caller already is).
+ * blocks issuance, so it is not permission-gated (the caller already is). If the rates
+ * keep changing, the recompute each change runs prices this document too.
  */
 export async function convertIssuedDoc(kind: FinanceKind, docId: string): Promise<void> {
-  const doc = await selectConvertibleDoc(kind, docId)
-  if (!doc) return
-  const [org, rates] = await Promise.all([selectOrgSettings(), selectExchangeRates()])
-  await updateDocConversion(kind, docId, conversionFor(doc, org.base_currency, rates))
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const doc = await selectConvertibleDoc(kind, docId)
+    if (!doc) return
+    const { version, rows } = await price(async () => [{ kind, doc }])
+    if ((await callApplyFxConversions(version, rows)).ok) return
+  }
 }

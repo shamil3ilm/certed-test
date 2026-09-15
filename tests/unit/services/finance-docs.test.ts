@@ -85,6 +85,61 @@ describe('validateFinanceDocId', () => {
   })
 })
 
+/**
+ * Two refusals are raised inside the issue function, where they can see concurrent requests
+ * (0110). They reach the admin as the specific, correctable thing that happened - not as the
+ * generic 500 an unmapped database error becomes.
+ */
+describe('issueDocRecord - refusals from inside the write', () => {
+  const doc = {
+    prefix: 'CEA-R',
+    billing_period: '2026-06',
+    billing_source: { fingerprint: 'fp', from: '2026-05-31T18:30:00.000Z', to: '2026-06-30T18:30:00.000Z' },
+    party_id: 'stud-1',
+    party_name: 'Sara Student',
+    class_level: null,
+    issue_date: '2026-07-01',
+    currency: 'INR',
+    note: null,
+    subtotal: 1000,
+    discount: null,
+    total: 1000,
+    created_by: 'admin-1',
+    lines: [{ label: 'Math', hours: 2, rate: 500, amount: 1000 }],
+  }
+
+  it('passes the billing source to the function with the period', async () => {
+    const admin = { rpc: vi.fn(async () => ({ data: receiptRow, error: null })) }
+    vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
+    await issueDocRecord('admin-1', 'receipt', doc)
+    expect(admin.rpc).toHaveBeenCalledWith(
+      'issue_receipt_doc',
+      expect.objectContaining({
+        p_billing_period: '2026-06',
+        p_source_fingerprint: 'fp',
+        p_source_from: '2026-05-31T18:30:00.000Z',
+        p_source_to: '2026-06-30T18:30:00.000Z',
+      }),
+    )
+  })
+
+  it('tells the admin the hours changed, and to reload, when the source moved', async () => {
+    const admin = { rpc: vi.fn(async () => ({ data: null, error: { message: 'billing_source_changed' } })) }
+    vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
+    const failure = issueDocRecord('admin-1', 'receipt', doc)
+    await expect(failure).rejects.toBeInstanceOf(ValidationError)
+    await expect(failure).rejects.toThrow(/recorded hours changed.*Reload the draft/)
+  })
+
+  it('names the identical document issued moments ago', async () => {
+    const admin = { rpc: vi.fn(async () => ({ data: null, error: { message: 'duplicate_recent:CEA-P-2026-0007' } })) }
+    vi.mocked(createAdminClient).mockReturnValueOnce(admin as any)
+    const failure = issueDocRecord('admin-1', 'payslip', { ...doc, billing_period: null, billing_source: null })
+    await expect(failure).rejects.toBeInstanceOf(ValidationError)
+    await expect(failure).rejects.toThrow(/identical pay slip \(CEA-P-2026-0007\) was just issued to this payee/)
+  })
+})
+
 describe('issueDocRecord', () => {
   it('issues a receipt through the atomic RPC and maps the returned row', async () => {
     const admin = {
@@ -94,6 +149,7 @@ describe('issueDocRecord', () => {
     const result = await issueDocRecord('admin-1', 'receipt', {
       prefix: 'CEA-R',
       billing_period: null,
+      billing_source: null,
       party_id: 'stud-1',
       party_name: 'Sara Student',
       class_level: 'Grade 10',
@@ -126,6 +182,7 @@ describe('issueDocRecord', () => {
       issueDocRecord('admin-1', 'payslip', {
         prefix: 'CEA-P',
         billing_period: null,
+        billing_source: null,
         party_id: 'teach-1',
         party_name: 'Tarun Tutor',
         class_level: null,
@@ -152,6 +209,7 @@ describe('finance mutations enforce their own permission check', () => {
       issueDocRecord('not-an-admin', 'receipt', {
         prefix: 'CEA-R',
         billing_period: null,
+        billing_source: null,
         party_id: 'stud-1',
         party_name: 'Sara Student',
         class_level: null,
@@ -194,6 +252,7 @@ describe('finance documents are audited', () => {
   const issueInput = {
     prefix: 'CEA-R',
     billing_period: null,
+    billing_source: null,
     party_id: 'stud-1',
     party_name: 'Sara Student',
     class_level: 'Grade 10',
