@@ -1,7 +1,7 @@
 import 'server-only'
 import {
   insertConsent,
-  markLatestConsentWithdrawn,
+  markStandingConsentsWithdrawn,
   selectLatestConsent,
   selectProfileIdsWithCurrentConsent,
 } from '@/lib/data/consents'
@@ -100,7 +100,7 @@ export async function reaffirmCurrentConsent(profileId: string): Promise<void> {
  * separate, heavier request with its own path.
  */
 export async function withdrawConsent(profileId: string): Promise<void> {
-  await markLatestConsentWithdrawn(profileId, new Date().toISOString())
+  await markStandingConsentsWithdrawn(profileId, new Date().toISOString())
 }
 
 /** How many missing-consent profile ids the sweep reports back. The COUNT is exact; the

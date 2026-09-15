@@ -2,7 +2,6 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllPaged } from '@/lib/data/paginate'
 import { createClient } from '@/lib/supabase/server'
-import { assertMutated } from './mutation'
 
 /**
  * Append-only consent log (table + RLS in migration 0073). Rows are written ONLY by
@@ -65,29 +64,22 @@ export async function selectLatestConsent(profileId: string): Promise<ConsentRow
 }
 
 /**
- * Mark a person's CURRENT acceptance as withdrawn. The row is never deleted and never
- * rewritten beyond this marker: the acceptance stays on the log as the historical fact
- * that it was given, and this records that it was later revoked. Withdrawing when nothing
+ * Mark every acceptance a person still has standing as withdrawn. The rows are never deleted
+ * and never rewritten beyond this marker: each acceptance stays on the log as the historical
+ * fact that it was given, and this records that it was later revoked. Withdrawing when nothing
  * stands is a no-op rather than an error - the desired end state is already true.
+ *
+ * One statement, not read-then-update: an acceptance recorded between a read and a write
+ * would otherwise stand after the person withdrew.
  */
-export async function markLatestConsentWithdrawn(profileId: string, at: string): Promise<void> {
+export async function markStandingConsentsWithdrawn(profileId: string, at: string): Promise<void> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('consents')
-    .select('id')
-    .eq('profile_id', profileId)
-    .is('withdrawn_at', null)
-    .order('accepted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (error) throw new Error(`consents.selectStanding: ${error.message}`)
-  if (!data) return
-  const updated = await admin
+  const { error } = await admin
     .from('consents')
     .update({ withdrawn_at: at })
-    .eq('id', (data as { id: string }).id)
-    .select('id')
-  assertMutated(updated, 'consents.withdraw', 'Consent record not found.')
+    .eq('profile_id', profileId)
+    .is('withdrawn_at', null)
+  if (error) throw new Error(`consents.withdraw: ${error.message}`)
 }
 
 /**

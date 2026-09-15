@@ -4,13 +4,13 @@ vi.mock('@/lib/data/profiles-directory', () => ({ selectActiveProfileIds: vi.fn(
 vi.mock('@/lib/data/consents', () => ({
   insertConsent: vi.fn(),
   selectLatestConsent: vi.fn(),
-  markLatestConsentWithdrawn: vi.fn(),
+  markStandingConsentsWithdrawn: vi.fn(),
   selectProfileIdsWithCurrentConsent: vi.fn(),
 }))
 
 import {
   insertConsent,
-  markLatestConsentWithdrawn,
+  markStandingConsentsWithdrawn,
   selectLatestConsent,
   selectProfileIdsWithCurrentConsent,
 } from '@/lib/data/consents'
@@ -77,7 +77,7 @@ describe('consent withdrawal (N-07)', () => {
 
   it('withdrawing marks the standing acceptance rather than deleting it', async () => {
     await withdrawConsent('u1')
-    expect(markLatestConsentWithdrawn).toHaveBeenCalledWith('u1', expect.any(String))
+    expect(markStandingConsentsWithdrawn).toHaveBeenCalledWith('u1', expect.any(String))
     expect(insertConsent, 'withdrawal is not a new acceptance').not.toHaveBeenCalled()
   })
 })
