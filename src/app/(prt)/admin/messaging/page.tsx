@@ -40,9 +40,11 @@ export default async function AdminAccessManagementPage() {
           <SectionLabel>Messaging rules</SectionLabel>
           <p className="text-sm text-slate-600">
             Everyone can always message their <span className="font-medium text-slate-700">direct contacts</span> -
-            students and their class tutors, and mentors with their mentees and those mentees&apos; tutors. Tick a pair
-            below to <span className="font-medium text-slate-700">additionally</span> let everyone of one role message
-            everyone of another across the whole academy. All pairs are off by default.
+            students with their class tutors and mentors, tutors with their students and those students&apos; mentors,
+            and mentors with their mentees, those mentees&apos; tutors and the admin team. Tick a pair below to{' '}
+            <span className="font-medium text-slate-700">additionally</span> let everyone of one role message everyone
+            of another across the whole academy. Students and tutors never message admins directly: they go through
+            their mentor, so those pairs cannot be turned on.
           </p>
           <MessagingMatrixForm initialEnabled={enabled} />
         </section>

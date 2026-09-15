@@ -150,6 +150,21 @@ export async function resolveEligibleRecipients(actor: Profile): Promise<{
     }
   }
 
+  // Mentors <-> the admin tier: the escalation step of the academy's hierarchy (students and
+  // tutors go through a mentor, and a mentor to the admins). Built in, and both ways - a thread
+  // re-checks the SENDER on every message, so a one-way path would refuse the admin's reply.
+  // Added with no student or class relation on purpose: a group chat needs one shared by every
+  // member, so an admin can never be put into a group alongside a student or a tutor.
+  const escalationPersonas = [
+    ...(actorFlags.hasMentorAuthority ? ['admin', 'sub_admin'] : []),
+    ...(actorFlags.isAdmin || actorFlags.isSubAdmin ? ['mentor'] : []),
+  ]
+  if (escalationPersonas.length) {
+    for (const id of await selectActiveProfileIdsByPersonas(escalationPersonas)) {
+      addDirectRecipient(recipients, id)
+    }
+  }
+
   const matrix = parseMessagingMatrix((await getOrgSettings()).messaging_matrix)
   if (matrix.size) {
     const targets = new Set<string>()

@@ -23,7 +23,8 @@ export async function getMessagingMatrixRecord(): Promise<Record<string, boolean
  *  the admin persona alone - a `manageUsers` gate would let a sub_admin write it via the
  *  service-role path, contradicting the DB (the same drift fixed for the bank fields).
  *  serializeMessagingMatrix re-canonicalises and drops anything unrecognised, so a
- *  crafted payload can never enable a pair outside the known persona set. */
+ *  crafted payload can never enable a pair outside the known persona set - nor one the
+ *  academy's hierarchy forbids, such as a student or tutor messaging the admin tier. */
 export async function saveMessagingMatrix(actor: Profile, enabledKeys: string[]): Promise<void> {
   await requireAdminPersona(actor)
   await updateMessagingMatrix(serializeMessagingMatrix(enabledKeys))

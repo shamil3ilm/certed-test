@@ -8,6 +8,11 @@
  * so pairs are UNORDERED and stored under a canonical, sorted key. This module is
  * pure (no I/O) so the parsing/serialising is unit-testable and reusable on the
  * client for the admin grid.
+ *
+ * The matrix cannot break the academy's hierarchy: students and tutors go through a
+ * mentor, and a mentor to the admins. So no pair may put a student or a tutor straight
+ * onto the admin tier, and the mentor <-> admin-tier pairs are not the matrix's to grant -
+ * they are built-in direct contacts.
  */
 
 export const MESSAGING_PERSONAS = ['admin', 'sub_admin', 'tutor', 'mentor', 'student'] as const
@@ -27,11 +32,34 @@ export function matrixAllows(matrix: MessagingMatrix, a: MessagingPersona, b: Me
   return matrix.has(pairKey(a, b))
 }
 
+/** Pairs the hierarchy forbids: a student or a tutor messaging the admin tier directly. They
+ *  take no effect whatever is stored, and the admin grid does not offer them. */
+export const HIERARCHY_FORBIDDEN_PAIRS: ReadonlySet<string> = new Set([
+  pairKey('admin', 'student'),
+  pairKey('admin', 'tutor'),
+  pairKey('student', 'sub_admin'),
+  pairKey('sub_admin', 'tutor'),
+])
+
+/** Pairs that are always open - a mentor and the admin tier are built-in direct contacts, the
+ *  hierarchy's escalation path - so the matrix has nothing to add for them. */
+export const BUILT_IN_PAIRS: ReadonlySet<string> = new Set([pairKey('admin', 'mentor'), pairKey('mentor', 'sub_admin')])
+
+export function isHierarchyForbidden(a: MessagingPersona, b: MessagingPersona): boolean {
+  return HIERARCHY_FORBIDDEN_PAIRS.has(pairKey(a, b))
+}
+
+export function isBuiltInPair(a: MessagingPersona, b: MessagingPersona): boolean {
+  return BUILT_IN_PAIRS.has(pairKey(a, b))
+}
+
 /**
  * Parse the stored JSONB (a `{ "a|b": true }` object, or null/absent before the
  * column exists) into the enabled set. Anything unrecognised - non-true values,
  * malformed keys, unknown persona names - is dropped, so a bad stored value can
- * only ever narrow messaging, never widen it to an undefined pair.
+ * only ever narrow messaging, never widen it to an undefined pair. So is a pair the
+ * hierarchy forbids, and a built-in pair, whatever is stored: this is the one place
+ * every read and every save passes through.
  */
 export function parseMessagingMatrix(raw: unknown): MessagingMatrix {
   const set: MessagingMatrix = new Set()
@@ -42,7 +70,9 @@ export function parseMessagingMatrix(raw: unknown): MessagingMatrix {
     if (parts.length !== 2) continue
     const [a, b] = parts
     if (!VALID_PERSONA.has(a) || !VALID_PERSONA.has(b)) continue
-    set.add(pairKey(a as MessagingPersona, b as MessagingPersona))
+    const canonical = pairKey(a as MessagingPersona, b as MessagingPersona)
+    if (HIERARCHY_FORBIDDEN_PAIRS.has(canonical) || BUILT_IN_PAIRS.has(canonical)) continue
+    set.add(canonical)
   }
   return set
 }

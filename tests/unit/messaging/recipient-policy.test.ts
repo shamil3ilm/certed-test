@@ -56,12 +56,35 @@ beforeEach(() => {
 })
 
 describe('recipientPolicy', () => {
-  it('admins and sub-admins reach nobody by default (no admin DMs)', async () => {
-    vi.mocked(createAdminClient).mockReturnValue(tableClient({ profiles: [{ id: 'x' }, { id: 'y' }] }) as any)
-    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isAdmin: true }))
-    expect(await canMessage({ id: 'admin-1' } as any, 'anyone')).toBe(false)
-    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isSubAdmin: true }))
-    expect(await canMessage({ id: 'sa-1' } as any, 'anyone')).toBe(false)
+  it('admins and sub-admins reach mentors by default, and nobody else', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(tableClient({}) as any)
+    vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) =>
+      personas.includes('mentor') ? ['a-mentor'] : [],
+    )
+    for (const flags of [FLAGS({ isAdmin: true }), FLAGS({ isSubAdmin: true })]) {
+      vi.mocked(loadPersonaFlags).mockResolvedValue(flags)
+      const actor = { id: 'admin-tier-1' } as any
+      expect(await canMessage(actor, 'a-mentor')).toBe(true)
+      // The hierarchy: the admin tier is not a direct contact of students or tutors.
+      expect(await canMessage(actor, 'a-student')).toBe(false)
+      expect(await canMessage(actor, 'a-tutor')).toBe(false)
+    }
+    // Only mentors were ever asked for - never students or tutors.
+    for (const [personas] of vi.mocked(selectActiveProfileIdsByPersonas).mock.calls) {
+      expect(personas).toEqual(['mentor'])
+    }
+  })
+
+  it('a mentor always reaches the admin tier, with no matrix setup (the escalation path)', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true, hasMentorAuthority: true }))
+    vi.mocked(createAdminClient).mockReturnValue(tableClient({}) as any)
+    vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) => [
+      ...(personas.includes('admin') ? ['the-admin'] : []),
+      ...(personas.includes('sub_admin') ? ['the-sub-admin'] : []),
+    ])
+    const actor = { id: 'mentor-1' } as any
+    expect(await canMessage(actor, 'the-admin')).toBe(true)
+    expect(await canMessage(actor, 'the-sub-admin')).toBe(true)
   })
 
   it('tutor may message their class students and those students’ mentors, not a stranger', async () => {
@@ -132,20 +155,45 @@ describe('recipientPolicy', () => {
     expect(await canMessage(actor, 'another-student')).toBe(false)
   })
 
-  it('an admin-enabled persona pair widens messaging globally (student <-> admin)', async () => {
+  it('an admin-enabled persona pair widens messaging globally (student <-> mentor)', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isStudent: true }))
-    // Admin turned ON the student<->admin pair; default direct contacts are empty here.
-    vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: { 'admin|student': true } } as any)
+    // Admin turned ON the student<->mentor pair; default direct contacts are empty here.
+    vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: { 'mentor|student': true } } as any)
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({ enrollments: [], class_tutors: [], mentorships: [] }) as any,
     )
     vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) =>
-      personas.includes('admin') ? ['the-admin'] : [],
+      personas.includes('mentor') ? ['any-mentor'] : [],
     )
     const actor = { id: 'stu-1' } as any
-    expect(await canMessage(actor, 'the-admin')).toBe(true)
+    expect(await canMessage(actor, 'any-mentor')).toBe(true)
     // A pair that was NOT enabled stays closed.
     expect(await canMessage(actor, 'another-student')).toBe(false)
+  })
+
+  it('the matrix cannot put a student or a tutor straight onto the admin tier (the hierarchy)', async () => {
+    // Every forbidden pair switched on in storage, as an old or hand-edited value could be.
+    vi.mocked(getOrgSettings).mockResolvedValue({
+      messaging_matrix: {
+        'admin|student': true,
+        'admin|tutor': true,
+        'student|sub_admin': true,
+        'sub_admin|tutor': true,
+      },
+    } as any)
+    vi.mocked(createAdminClient).mockReturnValue(
+      tableClient({ enrollments: [], class_tutors: [], mentorships: [] }) as any,
+    )
+    vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) => [
+      ...(personas.includes('admin') ? ['the-admin'] : []),
+      ...(personas.includes('sub_admin') ? ['the-sub-admin'] : []),
+    ])
+    for (const flags of [FLAGS({ isStudent: true }), FLAGS({ isTutor: true })]) {
+      vi.mocked(loadPersonaFlags).mockResolvedValue(flags)
+      const actor = { id: 'someone' } as any
+      expect(await canMessage(actor, 'the-admin')).toBe(false)
+      expect(await canMessage(actor, 'the-sub-admin')).toBe(false)
+    }
   })
 
   it('a persona with none of the messaging branches reaches nobody', async () => {
@@ -336,7 +384,7 @@ describe('recipientPolicy', () => {
 
   it('rejects a group that mixes matrix-only and direct contacts', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isStudent: true }))
-    vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: { 'admin|student': true } } as any)
+    vi.mocked(getOrgSettings).mockResolvedValue({ messaging_matrix: { 'student|student': true } } as any)
     vi.mocked(createAdminClient).mockReturnValue(
       tableClient({
         enrollments: [{ class_id: 'c-1' }],
@@ -345,11 +393,31 @@ describe('recipientPolicy', () => {
       }) as any,
     )
     vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) =>
-      personas.includes('admin') ? ['the-admin'] : [],
+      personas.includes('student') ? ['another-student'] : [],
     )
 
-    await expect(assertGroupRecipientsRelated({ id: 'student-1' } as any, ['my-tutor', 'the-admin'])).rejects.toThrow(
-      'Only directly related contacts can be added to a group chat.',
+    await expect(
+      assertGroupRecipientsRelated({ id: 'student-1' } as any, ['my-tutor', 'another-student']),
+    ).rejects.toThrow('Only directly related contacts can be added to a group chat.')
+  })
+
+  it('a mentor cannot put an admin into a group with a student (the admin shares no relation)', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue(FLAGS({ isMentor: true, hasMentorAuthority: true }))
+    vi.mocked(studentIdsOfMentor).mockResolvedValue(['mentee-1'])
+    vi.mocked(createAdminClient).mockReturnValue(
+      tableClient({ enrollments: [{ student_id: 'mentee-1', class_id: 'c-9' }], class_tutors: [] }) as any,
+    )
+    vi.mocked(selectActiveProfileIdsByPersonas).mockImplementation(async (personas) =>
+      personas.includes('admin') ? ['the-admin'] : [],
+    )
+    const actor = { id: 'mentor-1' } as any
+    // Each is a direct contact of the mentor on their own...
+    expect(await canMessage(actor, 'mentee-1')).toBe(true)
+    expect(await canMessage(actor, 'the-admin')).toBe(true)
+    // ...but a group needs a student or class every member shares, and the admin carries none -
+    // otherwise a group would be a way round the hierarchy for the student in it.
+    await expect(assertGroupRecipientsRelated(actor, ['mentee-1', 'the-admin'])).rejects.toThrow(
+      'Group chats may only include contacts connected through the same student or class.',
     )
   })
 })

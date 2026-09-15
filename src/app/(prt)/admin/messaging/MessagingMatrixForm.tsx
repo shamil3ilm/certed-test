@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { MESSAGING_PERSONAS, pairKey, type MessagingPersona } from '@/lib/messaging/matrix'
+import {
+  MESSAGING_PERSONAS,
+  isBuiltInPair,
+  isHierarchyForbidden,
+  pairKey,
+  type MessagingPersona,
+} from '@/lib/messaging/matrix'
 import { assertActionOk } from '../../action-client'
 import { useUI } from '../../Providers'
 import { saveMessagingMatrixAction } from './actions'
@@ -48,7 +54,7 @@ export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+      <div className="relative overflow-x-auto rounded-2xl border border-slate-200">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="text-slate-600">
@@ -72,6 +78,33 @@ export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record
                   // Pairs are unordered, so render one checkbox per pair (upper
                   // triangle incl. the diagonal); mirror the lower half as blank.
                   if (colIndex < rowIndex) return <td key={b} aria-hidden className="bg-slate-50/60" />
+                  // The hierarchy: students and tutors go through a mentor, so they are never offered
+                  // a direct line to the admin tier. Parsing drops these pairs too; this only stops the
+                  // grid offering a box that would silently do nothing.
+                  if (isHierarchyForbidden(a, b)) {
+                    return (
+                      <td key={b} className="p-2 text-center text-meta text-slate-500">
+                        <span aria-hidden="true">-</span>
+                        <span className="sr-only">{`${LABELS[a]} and ${LABELS[b]} go through a mentor`}</span>
+                      </td>
+                    )
+                  }
+                  // A mentor and the admin tier can always message each other - a built-in contact,
+                  // not a setting, so it shows as on and cannot be turned off here.
+                  if (isBuiltInPair(a, b)) {
+                    return (
+                      <td key={b} className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked
+                          readOnly
+                          disabled
+                          aria-label={`${LABELS[a]} and ${LABELS[b]} can always message each other`}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </td>
+                    )
+                  }
                   const key = pairKey(a, b)
                   return (
                     <td key={b} className="p-2 text-center">
@@ -91,6 +124,10 @@ export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record
           </tbody>
         </table>
       </div>
+      <p className="text-meta text-slate-500">
+        Always on: mentors and the admin team can always message each other. Not available: students and tutors never
+        message admins directly - they go through their mentor.
+      </p>
       <button type="submit" disabled={isPending} className="btn btn-primary">
         {isPending ? 'Saving...' : 'Save messaging access'}
       </button>
