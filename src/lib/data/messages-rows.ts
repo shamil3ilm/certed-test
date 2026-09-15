@@ -10,14 +10,17 @@ export type MessageRow = {
   created_at: string
 }
 
-export async function insertMessage(conversationId: string, senderId: string, body: string): Promise<MessageRow> {
+/** Post a message and advance its conversation's last-message summary, in one transaction
+ *  (0108). The summary only ever moves forward, so sends committing out of order cannot leave
+ *  the inbox showing an older message as the latest. */
+export async function callPostMessage(conversationId: string, senderId: string, body: string): Promise<MessageRow> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: senderId, body })
-    .select('*')
-    .single()
-  if (error) throw new Error(`data.messages.insertMessage: ${error.message}`)
+  const { data, error } = await admin.rpc('post_message', {
+    p_conversation_id: conversationId,
+    p_sender_id: senderId,
+    p_body: body,
+  })
+  if (error) throw new Error(`data.messages.postMessage: ${error.message}`)
   return data as MessageRow
 }
 

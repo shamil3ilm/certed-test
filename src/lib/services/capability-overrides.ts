@@ -7,8 +7,7 @@ import {
   isCapability,
 } from '@/lib/capabilities'
 import {
-  deleteGlobalOverrideFor,
-  insertOverride,
+  callSetGlobalOverride,
   selectActiveGlobalOverrides,
   type CapabilityOverrideRow,
 } from '@/lib/data/capability-overrides'
@@ -42,63 +41,6 @@ export async function getCapabilityOverrides(profileId: string): Promise<Capabil
     .map((row) => ({ capability: row.capability as Capability, effect: row.effect }))
 }
 
-type CreateCapabilityOverrideInput = {
-  profileId: string
-  capability: string
-  effect: string
-  reason?: string | null
-}
-
-/**
- * Create a GLOBAL capability override (admin-only, audited). Rejects unknown
- * capabilities, hard-rule capabilities (never override-grantable), and sensitive
- * capabilities without a reason. Scoped overrides are not yet supported. Internal:
- * the per-user editor goes through setCapabilityOverride, which calls this.
- */
-async function createCapabilityOverride(
-  actor: Profile,
-  input: CreateCapabilityOverrideInput,
-): Promise<CapabilityOverrideRow> {
-  await requireAdminPersona(actor)
-
-  const { capability } = input
-  if (!isCapability(capability)) throw new ValidationError('Unknown capability.')
-  if (HARD_CAPABILITIES.has(capability)) {
-    throw new ValidationError('That capability is a hard platform rule and cannot be overridden.')
-  }
-  if (GLOBALLY_NON_OVERRIDEABLE_CAPABILITIES.has(capability)) {
-    throw new ValidationError('That capability depends on scoped persona access and cannot be overridden globally.')
-  }
-  if (input.effect !== 'allow' && input.effect !== 'deny') {
-    throw new ValidationError('effect must be allow or deny.')
-  }
-  const reason = input.reason?.trim() || null
-  if (REASON_REQUIRED_CAPABILITIES.has(capability) && !reason) {
-    throw new ValidationError('A reason is required to override this capability.')
-  }
-
-  // Active-only target, matching enrolStudent/addTutor/assignMentor: don't plant a
-  // capability grant on a missing or disabled account (an 'allow' would sit dormant
-  // and silently activate on restore).
-  const target = await getProfileById(input.profileId)
-  if (!target || target.status !== 'active') {
-    throw new ValidationError('You can only change capabilities for an active user.')
-  }
-
-  const row = await insertOverride({
-    profile_id: input.profileId,
-    capability,
-    effect: input.effect,
-    scope_type: 'global',
-    scope_id: null,
-    reason,
-    status: 'active',
-    created_by: actor.id,
-  })
-  await auditPrivilegedAction(actor, 'capability_override.create', 'capability_override', row.id)
-  return row
-}
-
 type SetCapabilityOverrideInput = {
   profileId: string
   capability: string
@@ -106,12 +48,18 @@ type SetCapabilityOverrideInput = {
   reason?: string | null
 }
 
+const NOT_ACTIVE = 'You can only change capabilities for an active user.'
+
 /**
- * Idempotently set a profile's override for one capability (admin-only, audited).
- * Clears any existing GLOBAL override for that capability first, then - unless the
- * effect is 'default' (revert to the persona baseline) - creates the new allow/deny.
- * This is the primitive the per-user permission editor calls, so a row never
- * accumulates duplicate override records.
+ * Idempotently set a profile's GLOBAL override for one capability (admin-only, audited):
+ * 'allow' or 'deny' replaces whatever override stands, 'default' removes it and reverts to the
+ * persona baseline. This is the primitive the per-user permission editor calls.
+ *
+ * Every rule is checked BEFORE anything is written, and the replacement is one transaction, so
+ * a refused change leaves the standing override exactly as it was. Rejects unknown
+ * capabilities, hard-rule capabilities (never override-grantable), capabilities whose boundary
+ * is a scope rather than broad access, sensitive capabilities without a reason, and a target
+ * that is not an active account. Scoped overrides are not yet supported.
  */
 export async function setCapabilityOverride(actor: Profile, input: SetCapabilityOverrideInput): Promise<void> {
   await requireAdminPersona(actor)
@@ -120,28 +68,42 @@ export async function setCapabilityOverride(actor: Profile, input: SetCapability
   if (input.profileId === actor.id) {
     throw new ValidationError('You cannot change your own permissions.')
   }
-  if (!isCapability(input.capability)) throw new ValidationError('Unknown capability.')
-  if (HARD_CAPABILITIES.has(input.capability)) {
+  const { capability } = input
+  if (!isCapability(capability)) throw new ValidationError('Unknown capability.')
+  if (HARD_CAPABILITIES.has(capability)) {
     throw new ValidationError('That capability is a hard platform rule and cannot be overridden.')
   }
-  if (GLOBALLY_NON_OVERRIDEABLE_CAPABILITIES.has(input.capability)) {
+  if (GLOBALLY_NON_OVERRIDEABLE_CAPABILITIES.has(capability)) {
     throw new ValidationError('That capability depends on scoped persona access and cannot be overridden globally.')
   }
   if (input.effect !== 'allow' && input.effect !== 'deny' && input.effect !== 'default') {
     throw new ValidationError('effect must be allow, deny or default.')
   }
 
-  await deleteGlobalOverrideFor(input.profileId, input.capability)
+  const reason = input.reason?.trim() || null
+  if (input.effect !== 'default') {
+    if (REASON_REQUIRED_CAPABILITIES.has(capability) && !reason) {
+      throw new ValidationError('A reason is required to override this capability.')
+    }
+    // Active-only target, matching enrolStudent/addTutor/assignMentor: don't plant a
+    // capability grant on a missing or disabled account (an 'allow' would sit dormant
+    // and silently activate on restore). The write re-checks it under a lock.
+    const target = await getProfileById(input.profileId)
+    if (!target || target.status !== 'active') throw new ValidationError(NOT_ACTIVE)
+  }
 
-  if (input.effect === 'default') {
+  const result = await callSetGlobalOverride({
+    profileId: input.profileId,
+    capability,
+    effect: input.effect,
+    reason,
+    actorId: actor.id,
+  })
+  if (!result.ok) throw new ValidationError(NOT_ACTIVE)
+
+  if (result.id === null) {
     await auditPrivilegedAction(actor, 'capability_override.clear', 'profile', input.profileId)
     return
   }
-
-  await createCapabilityOverride(actor, {
-    profileId: input.profileId,
-    capability: input.capability,
-    effect: input.effect,
-    reason: input.reason ?? null,
-  })
+  await auditPrivilegedAction(actor, 'capability_override.create', 'capability_override', result.id)
 }

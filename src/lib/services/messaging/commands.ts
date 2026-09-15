@@ -6,17 +6,12 @@ import { assertGroupRecipientsRelated, unmessageableRecipients } from '@/lib/mes
 import { notifyBestEffort } from '@/lib/services/notifications'
 import { rateLimit } from '@/lib/security/rate-limit'
 import {
-  deleteConversation,
-  deleteParticipants,
+  callCreateConversation,
+  callPostMessage,
   deleteParticipant,
-  findDirectConversationId,
-  insertConversation,
-  insertMessage,
-  insertParticipants,
   selectConversationKind,
   selectParticipantIds,
   updateConversationTitle,
-  updateConversationLastMessage,
   updateParticipantLastRead,
   type ConversationKind,
   type MessageRow,
@@ -31,18 +26,10 @@ export type CreateConversationInput = { recipientIds: string[]; title?: string |
  *  crafted request from seeding an unbounded participant fan-out. */
 const MAX_RECIPIENTS = 25
 
-async function cleanupPartialConversation(conversationId: string): Promise<void> {
-  try {
-    await deleteParticipants(conversationId)
-  } finally {
-    await deleteConversation(conversationId)
-  }
-}
-
 /**
  * Create a conversation after checking EVERY recipient is messageable by the actor.
- * A 1:1 thread is deduped to the existing one, and if a concurrent create wins the
- * unique-key race (0028) we join the winner's thread instead of erroring.
+ * The conversation and its participants are written in one transaction, and a 1:1 thread is
+ * deduped to the existing one - including one a concurrent request has just created (0108).
  */
 export async function createConversation(actor: Profile, input: CreateConversationInput): Promise<{ id: string }> {
   const recipientIds = [...new Set(input.recipientIds)].filter((id) => id && id !== actor.id)
@@ -65,40 +52,21 @@ export async function createConversation(actor: Profile, input: CreateConversati
 
   const kind: ConversationKind = recipientIds.length === 1 ? 'direct' : 'group'
 
-  if (kind === 'direct') {
-    const existing = await findDirectConversationId(actor.id, recipientIds[0])
-    if (existing) return { id: existing }
-  }
-
-  const { conversation, error } = await insertConversation({
+  const conversation = await callCreateConversation({
     kind,
     title: kind === 'group' ? (input.title ?? null) : null,
-    created_by: actor.id,
-    last_message_at: new Date().toISOString(),
-    direct_key: kind === 'direct' ? directKeyFor(actor.id, recipientIds[0]) : null,
+    createdBy: actor.id,
+    directKey: kind === 'direct' ? directKeyFor(actor.id, recipientIds[0]) : null,
+    participantIds: [actor.id, ...recipientIds],
   })
-  if (error || !conversation) {
-    // We may simply have lost a concurrent create race for this pair - the unique
-    // index rejected our duplicate, so join the thread the winner created.
-    if (kind === 'direct') {
-      const winner = await findDirectConversationId(actor.id, recipientIds[0])
-      if (winner) return { id: winner }
-    }
-    throw new Error(`messaging.createConversation: ${error?.message ?? 'insert failed'}`)
-  }
-
-  try {
-    await insertParticipants(conversation.id, [actor.id, ...recipientIds])
-  } catch (participantError) {
-    await cleanupPartialConversation(conversation.id)
-    throw participantError
-  }
+  // Joining a direct thread that already existed creates nothing to audit.
+  if (!conversation.created) return { id: conversation.id }
   await auditPrivilegedAction(actor, 'conversation.create', 'conversation', conversation.id)
   return { id: conversation.id }
 }
 
 /** Post a message. Caller must be a participant AND (for a direct thread) still be
- *  allowed to message the counterparty. Bumps the conversation's cached last message. */
+ *  allowed to message the counterparty. The conversation's cached last message moves with it. */
 export async function sendMessage(actor: Profile, conversationId: string, body: string): Promise<MessageRow> {
   const text = body.trim()
   if (!text) throw new ValidationError('Message cannot be empty.')
@@ -114,13 +82,7 @@ export async function sendMessage(actor: Profile, conversationId: string, body: 
   const others = (await selectParticipantIds(conversationId)).filter((id) => id !== actor.id)
   await assertStillMessageable(actor, conversationId, others)
 
-  const now = new Date().toISOString()
-  const message = await insertMessage(conversationId, actor.id, text)
-  await updateConversationLastMessage(conversationId, {
-    last_message_at: now,
-    last_message_body: text,
-    last_message_sender_id: actor.id,
-  })
+  const message = await callPostMessage(conversationId, actor.id, text)
 
   await notifyBestEffort(others, {
     kind: 'message',

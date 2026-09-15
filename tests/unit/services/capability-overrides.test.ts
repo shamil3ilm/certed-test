@@ -44,20 +44,52 @@ describe('setCapabilityOverride', () => {
   })
 
   it('clears the override on effect=default and audits it', async () => {
-    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: null }) as any)
+    const client = makeClient({ data: null, error: null }, { data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
     await setCapabilityOverride(admin, { profileId: 'u1', capability: 'viewClasses', effect: 'default' })
+    expect(client.rpc).toHaveBeenCalledWith(
+      'set_global_capability_override',
+      expect.objectContaining({ p_effect: 'default' }),
+    )
     expect(writeAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'capability_override.clear', entity_id: 'u1' }),
     )
   })
 
-  it('clears then creates the override on effect=allow', async () => {
-    vi.mocked(createAdminClient).mockReturnValue(
-      makeClient({ data: { id: 'ovr-1', capability: 'viewGrading', effect: 'allow' }, error: null }) as any,
-    )
+  it('replaces the override in ONE write on effect=allow, then audits the new row', async () => {
+    const client = makeClient({ data: null, error: null }, { data: 'ovr-1', error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
     vi.mocked(getProfileById).mockResolvedValue({ id: 'u1', status: 'active' } as any)
     await setCapabilityOverride(admin, { profileId: 'u1', capability: 'viewGrading', effect: 'allow' })
-    expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'capability_override.create' }))
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    expect(client.from).not.toHaveBeenCalled()
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'capability_override.create', entity_id: 'ovr-1' }),
+    )
+  })
+
+  /**
+   * Every rule is checked before the standing override is touched. Deleting first and validating
+   * after would let a refused change remove it - and removing a DENY hands the capability back.
+   */
+  it('refuses a reason-required capability without a reason BEFORE writing anything', async () => {
+    vi.mocked(getProfileById).mockResolvedValue({ id: 'u1', status: 'active' } as any)
+    await expect(
+      setCapabilityOverride(admin, { profileId: 'u1', capability: 'viewFinance', effect: 'allow' }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(createAdminClient).not.toHaveBeenCalled()
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses, and audits nothing, when the target is revoked between the check and the write', async () => {
+    vi.mocked(getProfileById).mockResolvedValue({ id: 'u1', status: 'active' } as any)
+    vi.mocked(createAdminClient).mockReturnValue(
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'target_not_active' } }) as any,
+    )
+    await expect(
+      setCapabilityOverride(admin, { profileId: 'u1', capability: 'viewGrading', effect: 'deny' }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('rejects setting a capability on a disabled or missing user', async () => {

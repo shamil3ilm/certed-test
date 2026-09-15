@@ -7,10 +7,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   deleteGuardiansForStudent,
   selectGuardiansByStudent,
-  insertGuardian,
+  callAddGuardian,
   deleteGuardian,
-  clearPrimaryForStudent,
-  setGuardianPrimary,
+  callMakeGuardianPrimary,
 } from '@/lib/data/guardians'
 
 /**
@@ -30,6 +29,14 @@ function stub(result: { data: unknown; error: unknown }) {
   return builder
 }
 
+function rpc(result: { data: unknown; error: unknown }) {
+  const captured = makeClientCapturing({ data: null, error: null }, result as never)
+  vi.mocked(createAdminClient).mockReturnValue(captured.client as never)
+  return captured
+}
+
+const NEW_GUARDIAN = { student_id: STUDENT, name: 'A', phone: null, email: null, relationship: null, is_primary: false }
+
 beforeEach(() => vi.resetAllMocks())
 
 describe('guardians data layer - every mutation is scoped to the student', () => {
@@ -48,25 +55,15 @@ describe('guardians data layer - every mutation is scoped to the student', () =>
     await expect(deleteGuardian('g-1', OTHER_STUDENT)).rejects.toThrow(/not found/i)
   })
 
-  it('setGuardianPrimary is scoped to the student too', async () => {
-    const builder = stub({ data: [{ id: 'g-1' }], error: null })
-    await setGuardianPrimary('g-1', STUDENT)
-    expect(builder.update).toHaveBeenCalledWith({ is_primary: true })
-    expect(builder.eq).toHaveBeenCalledWith('id', 'g-1')
-    expect(builder.eq).toHaveBeenCalledWith('student_id', STUDENT)
+  it('callMakeGuardianPrimary names the student as well as the guardian', async () => {
+    const { client } = rpc({ data: true, error: null })
+    await callMakeGuardianPrimary('g-1', STUDENT)
+    expect(client.rpc).toHaveBeenCalledWith('make_guardian_primary', { p_student_id: STUDENT, p_guardian_id: 'g-1' })
   })
 
-  it('setGuardianPrimary reports a miss', async () => {
-    stub({ data: [], error: null })
-    await expect(setGuardianPrimary('g-1', OTHER_STUDENT)).rejects.toThrow(/not found/i)
-  })
-
-  it('clearPrimaryForStudent clears only that student and does not filter by id', async () => {
-    const builder = stub({ data: null, error: null })
-    await clearPrimaryForStudent(STUDENT)
-    expect(builder.update).toHaveBeenCalledWith({ is_primary: false })
-    expect(builder.eq).toHaveBeenCalledWith('student_id', STUDENT)
-    expect(builder.eq).not.toHaveBeenCalledWith('id', expect.anything())
+  it('callMakeGuardianPrimary reports a guardian that is not this student’s as not found', async () => {
+    rpc({ data: false, error: null })
+    await expect(callMakeGuardianPrimary('g-1', OTHER_STUDENT)).rejects.toThrow(/not found/i)
   })
 
   it('deleteGuardiansForStudent (erasure) removes the whole set for one student', async () => {
@@ -93,40 +90,27 @@ describe('guardians data layer - reads and inserts', () => {
     await expect(selectGuardiansByStudent(STUDENT)).resolves.toEqual([])
   })
 
-  it('insertGuardian returns the new id', async () => {
-    stub({ data: { id: 'g-new' }, error: null })
-    await expect(
-      insertGuardian({
-        student_id: STUDENT,
-        name: 'A',
-        phone: null,
-        email: null,
-        relationship: null,
-        is_primary: false,
-      }),
-    ).resolves.toBe('g-new')
+  it('callAddGuardian returns the new id', async () => {
+    const { client } = rpc({ data: 'g-new', error: null })
+    await expect(callAddGuardian(NEW_GUARDIAN)).resolves.toBe('g-new')
+    expect(client.rpc).toHaveBeenCalledWith('add_guardian', expect.objectContaining({ p_student_id: STUDENT }))
   })
 })
 
 describe('guardians data layer - errors are surfaced, never swallowed', () => {
   it.each([
     ['selectGuardiansByStudent', () => selectGuardiansByStudent(STUDENT)],
-    ['clearPrimaryForStudent', () => clearPrimaryForStudent(STUDENT)],
     ['deleteGuardiansForStudent', () => deleteGuardiansForStudent(STUDENT)],
-    [
-      'insertGuardian',
-      () =>
-        insertGuardian({
-          student_id: STUDENT,
-          name: 'A',
-          phone: null,
-          email: null,
-          relationship: null,
-          is_primary: false,
-        }),
-    ],
   ])('%s throws when PostgREST returns an error', async (_name, call) => {
     stub({ data: null, error: { message: 'boom' } })
+    await expect(call()).rejects.toThrow(/boom/)
+  })
+
+  it.each([
+    ['callAddGuardian', () => callAddGuardian(NEW_GUARDIAN)],
+    ['callMakeGuardianPrimary', () => callMakeGuardianPrimary('g-1', STUDENT)],
+  ])('%s throws when the function returns an error', async (_name, call) => {
+    rpc({ data: null, error: { message: 'boom' } })
     await expect(call()).rejects.toThrow(/boom/)
   })
 })

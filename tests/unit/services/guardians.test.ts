@@ -4,16 +4,16 @@ vi.mock('@/lib/services/users/admin-lifecycle', () => ({ requireManageableTarget
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 vi.mock('@/lib/data/guardians', () => ({
   selectGuardiansByStudent: vi.fn(),
-  insertGuardian: vi.fn(),
+  callAddGuardian: vi.fn(),
   deleteGuardian: vi.fn(),
-  clearPrimaryForStudent: vi.fn(),
-  setGuardianPrimary: vi.fn(),
+  callMakeGuardianPrimary: vi.fn(),
 }))
 
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { requireManageableTarget } from '@/lib/services/users/admin-lifecycle'
-import { insertGuardian, deleteGuardian, clearPrimaryForStudent, setGuardianPrimary } from '@/lib/data/guardians'
+import { callAddGuardian, deleteGuardian, callMakeGuardianPrimary } from '@/lib/data/guardians'
 import { addGuardian, removeGuardian, makeGuardianPrimary } from '@/lib/services/guardians'
+import { NotFoundError } from '@/lib/errors'
 
 const actor = { id: 'admin-1' } as any
 const STUDENT = 's1'
@@ -28,7 +28,7 @@ const valid = {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(requireManageableTarget).mockResolvedValue({ id: STUDENT, role: 'student' } as any)
-  vi.mocked(insertGuardian).mockResolvedValue('g-new' as any)
+  vi.mocked(callAddGuardian).mockResolvedValue('g-new')
 })
 
 describe('addGuardian', () => {
@@ -40,35 +40,32 @@ describe('addGuardian', () => {
   it('refuses to attach a guardian to a non-student target', async () => {
     vi.mocked(requireManageableTarget).mockResolvedValue({ id: 't1', role: 'tutor' } as any)
     await expect(addGuardian(actor, 't1', valid)).rejects.toThrow(/only be added to a student/i)
-    expect(insertGuardian).not.toHaveBeenCalled()
+    expect(callAddGuardian).not.toHaveBeenCalled()
   })
 
   it('rejects an empty name', async () => {
     await expect(addGuardian(actor, STUDENT, { ...valid, name: '' })).rejects.toThrow()
-    expect(insertGuardian).not.toHaveBeenCalled()
+    expect(callAddGuardian).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed email', async () => {
     await expect(addGuardian(actor, STUDENT, { ...valid, email: 'not-an-email' })).rejects.toThrow()
-    expect(insertGuardian).not.toHaveBeenCalled()
+    expect(callAddGuardian).not.toHaveBeenCalled()
   })
 
   it('accepts an empty email and stores null', async () => {
     await addGuardian(actor, STUDENT, { ...valid, email: '', phone: '' })
-    expect(insertGuardian).toHaveBeenCalledWith(
+    expect(callAddGuardian).toHaveBeenCalledWith(
       expect.objectContaining({ student_id: STUDENT, name: 'Asha Rao', email: null, phone: null }),
     )
   })
 
-  it('clears the existing primary before inserting a new primary guardian', async () => {
+  it('adds a primary guardian in ONE write, which moves the flag off any other', async () => {
+    // As two calls, clearing the old primary and inserting the new one would leave a student with
+    // no primary when the insert failed, and with two when two requests interleaved.
     await addGuardian(actor, STUDENT, { ...valid, is_primary: true })
-    expect(clearPrimaryForStudent).toHaveBeenCalledWith(STUDENT)
-    expect(insertGuardian).toHaveBeenCalledWith(expect.objectContaining({ is_primary: true }))
-  })
-
-  it('does NOT clear the primary when adding a non-primary guardian', async () => {
-    await addGuardian(actor, STUDENT, { ...valid, is_primary: false })
-    expect(clearPrimaryForStudent).not.toHaveBeenCalled()
+    expect(callAddGuardian).toHaveBeenCalledTimes(1)
+    expect(callAddGuardian).toHaveBeenCalledWith(expect.objectContaining({ is_primary: true }))
   })
 })
 
@@ -89,10 +86,15 @@ describe('removeGuardian', () => {
 })
 
 describe('makeGuardianPrimary', () => {
-  it('clears the others then sets the chosen one', async () => {
+  it('moves the primary flag to the chosen guardian in one write, scoped to the student', async () => {
     await makeGuardianPrimary(actor, STUDENT, G2)
-    expect(clearPrimaryForStudent).toHaveBeenCalledWith(STUDENT)
-    expect(setGuardianPrimary).toHaveBeenCalledWith(G2, STUDENT)
+    expect(callMakeGuardianPrimary).toHaveBeenCalledWith(G2, STUDENT)
+  })
+
+  it('does not audit a guardian that is not this student’s', async () => {
+    vi.mocked(callMakeGuardianPrimary).mockRejectedValueOnce(new NotFoundError('Guardian not found.'))
+    await expect(makeGuardianPrimary(actor, STUDENT, G2)).rejects.toBeInstanceOf(NotFoundError)
+    expect(auditPrivilegedAction).not.toHaveBeenCalled()
   })
 })
 

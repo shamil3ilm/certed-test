@@ -66,21 +66,6 @@ export async function selectParticipantsForConversations(
   return (data ?? []) as { conversation_id: string; profile_id: string }[]
 }
 
-export async function insertParticipants(conversationId: string, profileIds: string[]): Promise<void> {
-  if (profileIds.length === 0) return
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('conversation_participants')
-    .insert(profileIds.map((profile_id) => ({ conversation_id: conversationId, profile_id })))
-  if (error) throw new Error(`data.messages.insertParticipants: ${error.message}`)
-}
-
-export async function deleteParticipants(conversationId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('conversation_participants').delete().eq('conversation_id', conversationId)
-  if (error) throw new Error(`data.messages.deleteParticipants: ${error.message}`)
-}
-
 export async function deleteParticipant(conversationId: string, profileId: string): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin

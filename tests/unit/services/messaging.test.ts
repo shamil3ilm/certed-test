@@ -62,7 +62,9 @@ function multiTableClient(byTable: Record<string, unknown[]>) {
     }
     return builder
   }
-  return { from: vi.fn((t: string) => build(t)) }
+  // post_message answers with the table's first message row.
+  const rpc = vi.fn(async () => ({ data: (byTable.messages ?? [])[0] ?? null, error: null as unknown }))
+  return { from: vi.fn((t: string) => build(t)), rpc }
 }
 
 beforeEach(() => {
@@ -91,38 +93,39 @@ describe('createConversation', () => {
   it('dedupes to an existing 1:1 conversation instead of creating a new one', async () => {
     vi.mocked(unmessageableRecipients).mockResolvedValueOnce([])
     vi.mocked(createAdminClient).mockReturnValue(
-      multiTableClient({ conversations: [{ id: 'conv-existing', kind: 'direct' }] }) as any,
+      makeClient({ data: null, error: null }, { data: { id: 'conv-existing', created: false }, error: null }) as any,
     )
     await expect(createConversation(actor, { recipientIds: ['friend'] })).resolves.toEqual({ id: 'conv-existing' })
     expect(writeAudit).not.toHaveBeenCalled() // no new conversation -> no create audit
   })
 
-  it('finds that existing thread by the SORTED direct_key, whichever way round the pair is', async () => {
-    // The key is written on create and read on lookup, and conversations_direct_key_uniq
-    // (0023) enforces that the two agree - so if they ever computed it differently, dedupe
-    // would stop finding the thread and the unique index would reject the insert instead.
-    // Sorting is what makes it order-independent.
+  it('keys the direct thread by the SORTED pair, whichever way round it is', async () => {
+    // The key is what conversations_direct_key_uniq (0023) enforces and what the write looks
+    // the existing thread up by - sorting is what makes it order-independent.
     expect(directKeyFor('actor-1', 'friend')).toBe(directKeyFor('friend', 'actor-1'))
     vi.mocked(unmessageableRecipients).mockResolvedValueOnce([])
-    const client = multiTableClient({ conversations: [{ id: 'conv-existing', kind: 'direct' }] })
+    const client = makeClient({ data: null, error: null }, { data: { id: 'c', created: true }, error: null })
     vi.mocked(createAdminClient).mockReturnValue(client as any)
     await createConversation(actor, { recipientIds: ['friend'] })
-    const builder = client.from.mock.results[0].value as { eq: ReturnType<typeof vi.fn> }
-    expect(builder.eq).toHaveBeenCalledWith('direct_key', directKeyFor('actor-1', 'friend'))
+    expect(client.rpc).toHaveBeenCalledWith(
+      'create_conversation',
+      expect.objectContaining({ p_kind: 'direct', p_direct_key: directKeyFor('actor-1', 'friend') }),
+    )
   })
 
-  it('creates a group conversation (no 1:1 dedupe) for multiple allowed recipients', async () => {
+  it('creates a group conversation WITH its participants in one write, and audits it', async () => {
     vi.mocked(unmessageableRecipients).mockResolvedValue([]) // every recipient is messageable
     vi.mocked(assertGroupRecipientsRelated).mockResolvedValue()
-    vi.mocked(createAdminClient).mockReturnValue(
-      multiTableClient({
-        conversations: [{ id: 'g1', kind: 'group', title: 'Study group', created_by: 'actor-1' }],
-        conversation_participants: [],
-      }) as any,
-    )
+    const client = makeClient({ data: null, error: null }, { data: { id: 'g1', created: true }, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
     await expect(createConversation(actor, { recipientIds: ['r1', 'r2'], title: 'Study group' })).resolves.toEqual({
       id: 'g1',
     })
+    expect(client.rpc).toHaveBeenCalledWith(
+      'create_conversation',
+      expect.objectContaining({ p_kind: 'group', p_direct_key: null, p_participant_ids: ['actor-1', 'r1', 'r2'] }),
+    )
+    expect(client.from).not.toHaveBeenCalled()
     expect(writeAudit).toHaveBeenCalledTimes(1) // a newly created conversation is audited
   })
 
@@ -136,21 +139,15 @@ describe('createConversation', () => {
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
-  it('cleans up a newly inserted conversation when participant insertion fails', async () => {
+  it('surfaces a failed create and audits nothing - the write leaves no empty thread behind', async () => {
     vi.mocked(unmessageableRecipients).mockResolvedValue([])
     vi.mocked(assertGroupRecipientsRelated).mockResolvedValue()
-    vi.mocked(createAdminClient)
-      .mockReturnValueOnce(
-        multiTableClient({
-          conversations: [{ id: 'g1', kind: 'group', title: 'Study group', created_by: 'actor-1' }],
-        }) as any,
-      )
-      .mockReturnValueOnce(makeClient({ data: null, error: { message: 'participant insert failed' } }) as any)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any)
+    vi.mocked(createAdminClient).mockReturnValue(
+      makeClient({ data: null, error: null }, { data: null, error: { message: 'participant insert failed' } }) as any,
+    )
 
     await expect(createConversation(actor, { recipientIds: ['r1', 'r2'], title: 'Study group' })).rejects.toThrow(
-      'data.messages.insertParticipants: participant insert failed',
+      'data.messages.createConversation: participant insert failed',
     )
     expect(writeAudit).not.toHaveBeenCalled()
   })
@@ -204,7 +201,7 @@ describe('sendMessage', () => {
         // assertParticipant.maybeSingle() -> first row (participant found);
         // the notify hook re-reads this table for the recipient fan-out.
         conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }, { profile_id: 'other' }],
-        messages: [msg], // insert().select().single() -> msg
+        messages: [msg], // post_message -> msg
       }) as any,
     )
     await expect(sendMessage(actor, 'conv-1', 'hello')).resolves.toMatchObject({ id: 'm-1', body: 'hello' })

@@ -6,11 +6,10 @@ import { validateUuidField } from '@/lib/validation/id'
 import { requireManageableTarget } from '@/lib/services/users/admin-lifecycle'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import {
-  clearPrimaryForStudent,
+  callAddGuardian,
+  callMakeGuardianPrimary,
   deleteGuardian,
-  insertGuardian,
   selectGuardiansByStudent,
-  setGuardianPrimary,
   type GuardianRow,
 } from '@/lib/data/guardians'
 
@@ -46,9 +45,9 @@ export async function addGuardian(actor: Profile, studentId: string, raw: unknow
   if (!parsed.success) throw new ValidationError('Enter a guardian name (and a valid email, if you add one).')
   const g = parsed.data
 
-  // Only one primary per student: clear the others before marking this one.
-  if (g.is_primary) await clearPrimaryForStudent(studentId)
-  const guardianId = await insertGuardian({
+  // Only one primary per student: a primary guardian takes the flag from the others in the
+  // same write.
+  const guardianId = await callAddGuardian({
     student_id: studentId,
     name: g.name,
     phone: g.phone || null,
@@ -69,8 +68,7 @@ export async function removeGuardian(actor: Profile, studentId: string, guardian
 export async function makeGuardianPrimary(actor: Profile, studentId: string, guardianId: string): Promise<void> {
   await requireManageableTarget(actor, studentId)
   const id = validateUuidField(guardianId, 'Invalid guardian id.')
-  await clearPrimaryForStudent(studentId)
-  await setGuardianPrimary(id, studentId)
+  await callMakeGuardianPrimary(id, studentId)
   await auditGuardianChange(actor, 'guardian.make_primary', id, studentId)
 }
 

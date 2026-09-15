@@ -17,14 +17,6 @@ export type ConversationRow = {
   created_at: string
 }
 
-type NewConversation = {
-  kind: ConversationKind
-  title: string | null
-  created_by: string
-  last_message_at: string
-  direct_key: string | null
-}
-
 /**
  * ONE page of the given conversations, most recently active first, with the exact total.
  *
@@ -106,27 +98,31 @@ export async function updateConversationTitle(conversationId: string, title: str
   if (error) throw new Error(`data.messages.updateConversationTitle: ${error.message}`)
 }
 
-export async function insertConversation(
-  row: NewConversation,
-): Promise<{ conversation: ConversationRow | null; error: { message: string } | null }> {
+/**
+ * Create a conversation WITH its participants, in one transaction (0108). A thread with nobody
+ * in it cannot be left behind.
+ *
+ * A direct conversation is keyed by its pair: when one already exists - including one a
+ * concurrent request created a moment ago - that thread is returned (`created: false`), with
+ * any participant it is missing added back.
+ */
+export async function callCreateConversation(input: {
+  kind: ConversationKind
+  title: string | null
+  createdBy: string
+  directKey: string | null
+  participantIds: string[]
+}): Promise<{ id: string; created: boolean }> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('conversations').insert(row).select('*').single()
-  return { conversation: (data as ConversationRow) ?? null, error: error ?? null }
-}
-
-export async function deleteConversation(conversationId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('conversations').delete().eq('id', conversationId)
-  if (error) throw new Error(`data.messages.deleteConversation: ${error.message}`)
-}
-
-export async function updateConversationLastMessage(
-  conversationId: string,
-  patch: { last_message_at: string; last_message_body: string; last_message_sender_id: string },
-): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin.from('conversations').update(patch).eq('id', conversationId)
-  if (error) throw new Error(`data.messages.updateConversationLastMessage: ${error.message}`)
+  const { data, error } = await admin.rpc('create_conversation', {
+    p_kind: input.kind,
+    p_title: input.title,
+    p_created_by: input.createdBy,
+    p_direct_key: input.directKey,
+    p_participant_ids: input.participantIds,
+  })
+  if (error) throw new Error(`data.messages.createConversation: ${error.message}`)
+  return data as { id: string; created: boolean }
 }
 
 /**

@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Capability } from '@/lib/capabilities'
+import { refusalOf } from '@/lib/data/rpc-refusal'
 
 /**
  * Table access for `capability_overrides` - per-user grants and denials layered
@@ -30,17 +31,6 @@ export type CapabilityOverrideRow = {
   updated_at: string
 }
 
-type CapabilityOverrideInsert = {
-  profile_id: string
-  capability: string
-  effect: Effect
-  scope_type: string
-  scope_id: string | null
-  reason: string | null
-  status: CapabilityOverrideRow['status']
-  created_by: string | null
-}
-
 /** Capability + effect of a profile's ACTIVE GLOBAL overrides. Returns the raw
  *  strings; deciding which of them still map to a real capability is a domain
  *  rule, not a storage one. */
@@ -58,24 +48,32 @@ export async function selectActiveGlobalOverrides(
   return (data ?? []) as { capability: string; effect: Effect }[]
 }
 
-export async function insertOverride(row: CapabilityOverrideInsert): Promise<CapabilityOverrideRow> {
+/**
+ * Replace a profile's GLOBAL override for one capability, in one transaction (0108): the old
+ * row goes and the new one lands together, so a failure can never leave the capability with
+ * no override - which for a DENY would hand the capability back. `'default'` removes it.
+ *
+ * Returns the new override's id (null for `'default'`), or the refusal when the target is not
+ * an active account at the moment of writing.
+ */
+export async function callSetGlobalOverride(input: {
+  profileId: string
+  capability: string
+  effect: Effect | 'default'
+  reason: string | null
+  actorId: string
+}): Promise<{ ok: true; id: string | null } | { ok: false; reason: 'target_not_active' }> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('capability_overrides').insert(row).select('*').single()
-  if (error) throw new Error(`capabilityOverrides.create: ${error.message}`)
-  return data as CapabilityOverrideRow
-}
-
-/** Removes any GLOBAL override for one capability on one profile. Idempotent,
- *  and the reason setCapabilityOverride can never accumulate duplicate rows. */
-export async function deleteGlobalOverrideFor(profileId: string, capability: string): Promise<void> {
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('capability_overrides')
-    .delete()
-    .eq('profile_id', profileId)
-    .eq('capability', capability)
-    .eq('scope_type', 'global')
-  if (error) throw new Error(`capabilityOverrides.set.clear: ${error.message}`)
+  const { data, error } = await admin.rpc('set_global_capability_override', {
+    p_profile_id: input.profileId,
+    p_capability: input.capability,
+    p_effect: input.effect,
+    p_reason: input.reason,
+    p_actor_id: input.actorId,
+  })
+  if (refusalOf(error, ['target_not_active'] as const)) return { ok: false, reason: 'target_not_active' }
+  if (error) throw new Error(`capabilityOverrides.set: ${error.message}`)
+  return { ok: true, id: (data as string | null) ?? null }
 }
 
 /**
