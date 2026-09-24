@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { BLOG_POST_SLUGS } from '@/lib/content/blog-posts'
 
-const SITE = 'https://certedacademia.com'
+const SITE = 'https://www.certedacademia.com'
 
 // Read PORTAL_ONLY at REQUEST time (matching the middleware + robots.ts), so a
 // private preview host serves an empty sitemap regardless of build-time env.

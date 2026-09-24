@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 
-const SITE = 'https://certedacademia.com'
+const SITE = 'https://www.certedacademia.com'
 
 // Read PORTAL_ONLY at REQUEST time (matching the middleware), not baked at build,
 // so a private preview host is correctly de-indexed regardless of when the flag

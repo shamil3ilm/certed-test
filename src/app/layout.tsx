@@ -15,7 +15,7 @@ const brandDisplay = localFont({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://certedacademia.com'),
+  metadataBase: new URL('https://www.certedacademia.com'),
   title: 'Cert-Ed Academia',
   icons: {
     icon: [

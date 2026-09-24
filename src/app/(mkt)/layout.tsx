@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Cert-Ed Academia',
     description: 'Personalised online tuition for CBSE & ICSE students',
-    url: 'https://certedacademia.com',
+    url: 'https://www.certedacademia.com',
     siteName: 'Cert-Ed Academia',
     type: 'website',
   },
