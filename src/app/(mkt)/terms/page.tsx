@@ -9,7 +9,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-// Draft terms: must be reviewed by a qualified advocate before this page is treated as in force.
+// The terms in force. No governing law, court or city is named: the operating entity and its
+// seat are not settled. POLICY_EFFECTIVE_DATE is the version a consent row records.
 
 const TERMS: { title: string; body: string }[] = [
   {
@@ -43,10 +44,13 @@ const TERMS: { title: string; body: string }[] = [
   },
   { title: '9. Suspension and termination', body: 'We may suspend accounts for breach or misuse.' },
   { title: '10. Liability', body: 'Our liability is limited to the extent permitted by law.' },
-  { title: '11. Changes', body: 'We may update these Terms; material changes require re-acceptance.' },
   {
-    title: '12. Governing law',
-    body: 'These Terms are governed by the laws of India; courts of [city]. Contact: [contact email].',
+    title: '11. Changes',
+    body: 'We may update these Terms from time to time. The updated version is posted here with a new “Last updated” date, and material changes require re-acceptance.',
+  },
+  {
+    title: '12. Contact',
+    body: 'Questions about these Terms: info@certedacademia.com.',
   },
 ]
 
@@ -54,14 +58,6 @@ export default function TermsOfUse() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <div
-          role="note"
-          className="mb-8 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning-ink"
-        >
-          <strong>Draft: pending legal review.</strong> These terms are being finalised with legal counsel and are not
-          yet in force.
-        </div>
-
         <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Terms of Use</h1>
         <p className="mt-2 text-sm text-slate-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 

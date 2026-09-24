@@ -6,15 +6,16 @@ export const metadata: Metadata = {
   description:
     'How Cert-Ed Academia collects, uses, stores and protects personal data for students, guardians and staff.',
   // Unlinked is not unindexed. Nothing links here, but the page stays reachable by URL, so
-  // noindex is what keeps a draft pending review out of search results. Deliberately NOT a
-  // robots.txt disallow: a crawler barred from fetching the page never sees this directive,
-  // and the URL can remain indexed from outside links.
+  // noindex is what keeps it out of search results while the academy decides where to link it.
+  // Deliberately NOT a robots.txt disallow: a crawler barred from fetching the page never sees
+  // this directive, and the URL can remain indexed from outside links.
   robots: { index: false, follow: false },
 }
 
-// Draft policy: must be reviewed by a qualified advocate before this page is treated as in
-// force. Bracketed placeholders are filled once the operating entity and grievance contact
-// are confirmed.
+// The policy in force, stating what the platform actually does and nothing more: no statute,
+// regulator or registered entity is named, and no retention period is promised beyond the
+// deletions the platform performs. POLICY_EFFECTIVE_DATE is the version a consent row records,
+// so any text change here bumps it and re-asks for acceptance.
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -29,22 +30,12 @@ export default function PrivacyPolicy() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <div
-          role="note"
-          className="mb-8 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning-ink"
-        >
-          <strong>Draft: pending legal review.</strong> This policy is being finalised with legal counsel and is not yet
-          in force.
-        </div>
-
         <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Privacy Policy</h1>
         <p className="mt-2 text-sm text-slate-600">Last updated: {POLICY_EFFECTIVE_DATE}</p>
 
         <p className="mt-6 text-slate-700 leading-relaxed">
-          Cert-Ed Academia (&ldquo;we&rdquo;, &ldquo;us&rdquo;), operated by <strong>[legal entity name]</strong>,
-          provides an online tuition platform. This policy explains what personal data we handle and your rights under
-          India&rsquo;s Digital Personal Data Protection Act, 2023, and, where applicable, the data-protection laws of
-          the GCC states we serve.
+          Cert-Ed Academia (&ldquo;we&rdquo;, &ldquo;us&rdquo;) provides an online tuition platform. This policy
+          explains what personal data we handle, why, and the choices you have about it.
         </p>
 
         <Section title="1. What we collect">
@@ -103,18 +94,21 @@ export default function PrivacyPolicy() {
         <Section title="6. Where it is stored, and transfers">
           <p>
             Your account and the records you generate on the platform are stored and processed in <strong>India</strong>
-            . Files you upload are held by our file-storage provider, which may store them outside India. If you use the
-            platform from outside India (for example, from a GCC state), this involves transferring your data across
-            borders. We are finalising the legal basis for these transfers with legal counsel before this policy takes
-            effect.
+            . Coursework files you upload are held in the academy&rsquo;s own storage account with our file-storage
+            provider, which may keep them outside India. If you use the platform from outside India (for example, from a
+            GCC state), using it transfers your data to India. Accepting this policy when your account is set up covers
+            that transfer, and we record that acceptance, with its date and version, against your account.
           </p>
         </Section>
 
         <Section title="7. How long we keep it">
           <p>
-            We keep your data for as long as your account is active and as long as we need it for our records and to
-            meet legal obligations. Read notifications, queued emails and audit logs are purged automatically. Specific
-            retention periods are being confirmed with legal counsel.
+            We keep your data for as long as your account is active, and afterwards only as long as we need it for our
+            records and to meet legal obligations - financial records such as receipts, for example, must be kept for
+            the periods tax law requires. Some data is deleted automatically on a schedule: notifications you have read
+            after <strong>90 days</strong>, our record of sent emails after <strong>7 days</strong>, the security audit
+            log after <strong>24 months</strong>, and anti-abuse counters within the hour. If we set a fixed period for
+            academic or financial records, we will state it here.
           </p>
         </Section>
 
@@ -136,13 +130,21 @@ export default function PrivacyPolicy() {
 
         <Section title="10. Grievance and contact">
           <p>
-            <strong>[Grievance officer name/role]</strong>, <strong>[grievance email]</strong>. If a concern is
-            unresolved, you may approach the Data Protection Board of India (or the relevant GCC regulator).
+            <strong>Academy Administrator</strong>,{' '}
+            <a className="text-primary hover:underline" href="mailto:info@certedacademia.com">
+              info@certedacademia.com
+            </a>
+            . Write to us about access, correction, erasure, withdrawing consent, or any complaint about how we handle
+            your data. If a concern is unresolved, you may raise it with the relevant data-protection authority.
           </p>
         </Section>
 
         <Section title="11. Changes">
-          <p>We will post updates here and, for material changes, ask you to re-accept.</p>
+          <p>
+            This is the version in force. We may update it from time to time - for example when our registered entity
+            details, retention periods or service providers change. Updates are posted here with a new &ldquo;Last
+            updated&rdquo; date, and for material changes we ask you to accept the new version.
+          </p>
         </Section>
       </div>
     </div>
