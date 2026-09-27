@@ -1,4 +1,4 @@
-# Cert-Ed Academia
+# Cert-Ed Academia LMS
 
 Two applications share this repository and are split by host:
 
