@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission/personas', () => ({ loadActivePersonas: vi.fn(), hasPersona: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+// Notifying writes a row of its own through the admin client. Unmocked, each notification would
+// consume one of the queued clients below, and the call it was queued for would get undefined.
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
 
 import { loadActivePersonas, hasPersona } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
@@ -18,6 +21,7 @@ import {
   assignMentorFromActionInput,
   removeMentor,
   removeMentorFromActionInput,
+  replaceMentor,
   validateAssignMentorInput,
   validateRemoveMentorInput,
 } from '@/lib/services/mentorships'
@@ -123,6 +127,30 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
     })
   })
 
+  it('assigns a mentor to a freshly invited (pending) student - that is how a student is created', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(mentorProfile as any)
+      .mockResolvedValueOnce({ id: 'stud-2', role: 'student', status: 'pending' } as any)
+    assignWrite({ data: 'link-9', error: null })
+
+    await assignMentor(admin, { mentorId: 'ment-1', studentId: 'stud-2' })
+
+    expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'mentorship.assign' }))
+  })
+
+  it('refuses a REVOKED student: their mentor would hold access to a closed account', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(mentorProfile as any)
+      .mockResolvedValueOnce({ id: 'stud-3', role: 'student', status: 'disabled' } as any)
+
+    await expect(assignMentor(admin, { mentorId: 'ment-1', studentId: 'stud-3' })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
   it('refuses, and audits nothing, when the mentor is revoked between the check and the write', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
     vi.mocked(getProfileById)
@@ -151,6 +179,10 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
 
   it('removes and audits mentorship.remove for an admin', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    // The pair is read first (for the notification), then the RPC runs.
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any,
+    )
     const client = assignWrite({ data: true, error: null })
     await removeMentor(admin, 'link-1')
     expect(client.rpc).toHaveBeenCalledWith('remove_mentorship', { p_id: 'link-1' })
@@ -164,9 +196,77 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
 
   it('removeMentor on a bogus id throws NotFound and does not audit (no phantom remove)', async () => {
     vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
-    // remove_mentorship reports that the id names no mentorship.
+    // The pair read comes first, then remove_mentorship reports that the id names no mentorship.
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any,
+    )
     assignWrite({ data: false, error: null })
     await expect(removeMentor(admin, 'nope')).rejects.toBeInstanceOf(NotFoundError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+
+  it("refuses to remove an active student's only mentor, and says how to swap instead", async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    // removeMentor reads the pair first (for the notification), then calls the RPC.
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any,
+    )
+    // 0120 refuses the last live link of an active student: a student in nobody's mentee list
+    // is watched by nobody.
+    assignWrite({ data: null, error: { message: 'last_mentor' } })
+    await expect(removeMentor(admin, 'link-1')).rejects.toBeInstanceOf(ValidationError)
+    expect(writeAudit).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Swapping a mentor is the reason removing the last one can be refused without friction: the
+ * replacement is assigned first, so the student is never left unmentored and the guard never
+ * fires on a swap.
+ */
+describe('replaceMentor', () => {
+  /** One client for the whole swap, recording the RPCs it is asked for. The ORDER of that list is
+   *  the property under test, and it stays true however many notifications a step also sends. */
+  function recordingClient(answers: (fn: string) => { data: unknown; error: { message: string } | null }) {
+    const rpcs: string[] = []
+    const client = {
+      from: vi.fn(() => queryBuilder({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null })),
+      rpc: vi.fn(async (fn: string) => {
+        rpcs.push(fn)
+        return answers(fn)
+      }),
+    }
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    return rpcs
+  }
+
+  it('assigns the replacement BEFORE removing the old link, auditing both', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValue(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(mentorProfile as any)
+      .mockResolvedValueOnce(studentProfile as any)
+    const rpcs = recordingClient((fn) =>
+      fn === 'assign_mentorship' ? { data: 'link-2', error: null } : { data: true, error: null },
+    )
+
+    await replaceMentor(admin, { linkId: 'link-1', mentorId: 'ment-1', studentId: 'stud-1' })
+
+    expect(rpcs).toEqual(['assign_mentorship', 'remove_mentorship'])
+    expect(vi.mocked(writeAudit).mock.calls.map((c) => c[0].action)).toEqual(['mentorship.assign', 'mentorship.remove'])
+  })
+
+  it('leaves the existing mentor in place when the replacement cannot be assigned', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValue(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce(mentorProfile as any)
+      .mockResolvedValueOnce(studentProfile as any)
+    const rpcs = recordingClient(() => ({ data: null, error: { message: 'mentor_not_assignable' } }))
+
+    await expect(
+      replaceMentor(admin, { linkId: 'link-1', mentorId: 'ment-1', studentId: 'stud-1' }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    // The removal was never reached, so the student keeps the mentor they had.
+    expect(rpcs).toEqual(['assign_mentorship'])
     expect(writeAudit).not.toHaveBeenCalled()
   })
 })
@@ -216,6 +316,10 @@ describe('mentorship action-input helpers', () => {
       { persona_name: 'admin', scope_type: null, scope_id: null, status: 'active' },
     ] as any)
     vi.mocked(hasPersona).mockReturnValueOnce(true)
+    // The pair read precedes the RPC, as in removeMentor's own tests above.
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: { mentor_id: 'ment-1', student_id: 'stud-1' }, error: null }) as any,
+    )
     assignWrite({ data: true, error: null })
     await removeMentorFromActionInput(admin, { id: '550e8400-e29b-41d4-a716-446655440002' })
     expect(writeAudit).toHaveBeenLastCalledWith({

@@ -6,6 +6,7 @@ vi.mock('@/lib/services/class-tutors', () => ({
   activeMentorProfileIds: vi.fn(),
 }))
 vi.mock('@/lib/services/mentorships', () => ({ listMentorshipsForUsersHub: vi.fn() }))
+vi.mock('@/lib/services/authorization', () => ({ actorHasCapability: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({
   countUsersHubStats: vi.fn(),
   displayName: vi.fn((p: { full_name: string | null; email: string }) => p.full_name ?? p.email),
@@ -15,8 +16,9 @@ vi.mock('@/lib/services/users', () => ({
 }))
 
 import { isAdminTier } from '@/lib/capabilities'
+import { actorHasCapability } from '@/lib/services/authorization'
 import { activeMentorProfileIds, activeTeachingProfileIds } from '@/lib/services/class-tutors'
-import { loadAdminUsersPageData, usersUrl } from '@/lib/services/page-data/admin-users'
+import { loadAdminUsersPageData, ROLE_FILTERS, ROLE_TABS, usersUrl } from '@/lib/services/page-data/admin-users'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
 import {
   countUsersHubStats,
@@ -25,10 +27,17 @@ import {
   listProfilesByRole,
 } from '@/lib/services/users'
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  // The page data asks whether this viewer may assign mentors (it decides whether the student
+  // role is offered). Default to yes, so a test that primes its own reads still gets the
+  // ordinary answer; the withholding case sets it to no explicitly.
+  vi.mocked(actorHasCapability).mockResolvedValue(true as any)
+})
 
-function primeMocks(isSuper = true) {
+function primeMocks(isSuper = true, canAssignMentor = true) {
   vi.mocked(isAdminTier).mockReturnValue(isSuper as any)
+  vi.mocked(actorHasCapability).mockResolvedValue(canAssignMentor as any)
   vi.mocked(countUsersHubStats).mockResolvedValue({ students: 0, tutors: 0, adminTier: 0 } as any)
   vi.mocked(listActiveMentorCandidates).mockResolvedValue([] as any)
   vi.mocked(listMentorshipsForUsersHub).mockResolvedValue([] as any)
@@ -128,7 +137,6 @@ describe('loadAdminUsersPageData', () => {
     })
     expect(result.tabProfiles).toHaveLength(1)
     expect(result.roleOptions).toEqual(['student', 'tutor', 'mentor', 'sub_admin', 'admin'])
-    expect(result.assignedStudents).toBe(2)
     expect(result.mentorNames.get('t1')).toBe('Maya Mentor')
     expect(result.mentorsByStudent.get('s1')).toEqual([{ id: 'm1', mentor_id: 't1', student_id: 's1' }])
   })
@@ -165,6 +173,22 @@ describe('loadAdminUsersPageData', () => {
       sortOrder: undefined,
     })
     expect(result.roleOptions).toEqual(['student', 'tutor', 'mentor'])
+    expect(result.canAssignMentor).toBe(true)
+  })
+
+  /**
+   * A student is created WITH a mentor, and assigning one needs manageMentorships (admin and
+   * sub_admin hold it by default; an override can take it away). Offering the role to someone
+   * who cannot finish it would fail on submit, so it is withheld - and the form says why.
+   */
+  it('withholds the student role from a user manager who cannot assign mentors', async () => {
+    primeMocks(false, false)
+
+    const result = await loadAdminUsersPageData({ id: 'sub-1', role: 'sub_admin' } as any, {})
+
+    expect(actorHasCapability).toHaveBeenCalledWith('sub-1', 'manageMentorships')
+    expect(result.canAssignMentor).toBe(false)
+    expect(result.roleOptions).toEqual(['tutor', 'mentor'])
   })
 
   it('maps the role filter to the roles it loads (staff spans tutor + mentor; admin spans admin + sub_admin; all spans everyone)', async () => {
@@ -224,5 +248,28 @@ describe('loadAdminUsersPageData', () => {
     const result = await loadAdminUsersPageData({ id: 'a', role: 'admin' } as any, { tab: 'tutors' } as any)
     expect(result.filters).toMatchObject({ tab: 'people', role: 'staff' })
     expect(listProfilesByRole).toHaveBeenLastCalledWith(['tutor', 'mentor'], expect.objectContaining({ page: 1 }))
+  })
+})
+
+describe('ROLE_TABS', () => {
+  // The strip replaced the Role dropdown, so these two properties are what keep it honest:
+  // every tab must be a filter the page understands, and the tabs must not overlap.
+  it('offers one tab per account role, and every key is a real filter', () => {
+    expect(ROLE_TABS.map((r) => r.key)).toEqual(['all', 'student', 'tutor', 'mentor', 'admin'])
+    const known = new Set(ROLE_FILTERS.map((r) => r.key))
+    for (const tab of ROLE_TABS) expect(known.has(tab.key)).toBe(true)
+  })
+
+  it('leaves out "staff", which spans two roles, while keeping it a working URL', () => {
+    // A mentor who also tutors matches both 'tutor' and 'mentor', so a "Tutors & mentors" tab
+    // would show some people twice over. The stat tile still links to it.
+    expect(ROLE_TABS.map((r) => r.key)).not.toContain('staff')
+    expect(ROLE_FILTERS.map((r) => r.key)).toContain('staff')
+    expect(usersUrl({ tab: 'people', role: 'staff' })).toBe('/admin/users?tab=people&role=staff')
+  })
+
+  it('labels each tab the same as the filter it stands for', () => {
+    const labels = new Map(ROLE_FILTERS.map((r) => [r.key, r.label]))
+    for (const tab of ROLE_TABS) expect(tab.label).toBe(labels.get(tab.key))
   })
 })

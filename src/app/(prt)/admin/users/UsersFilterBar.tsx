@@ -1,16 +1,9 @@
-import {
-  ROLE_FILTERS,
-  STATUS_OPTIONS,
-  usersUrl,
-  type RoleFilter,
-  type UsersTab,
-} from '@/lib/services/page-data/admin-users'
+import { STATUS_OPTIONS, usersUrl, type RoleFilter, type UsersTab } from '@/lib/services/page-data/admin-users'
 import { FilterBar, SearchFilterField, SelectFilterField } from '@/lib/ui'
 
-/** Role + search + status + sort for the People list, all in one Apply. The tab
- *  travels as a hidden field so filtering keeps you on the People list; Role is
- *  what narrows it (default "All roles"), so you never need to know someone's
- *  role to find them. */
+/** Search + status + sort for the People list, all in one Apply. Role is the tab strip above,
+ *  and rides along as a hidden field; tab does too, so filtering keeps you on the People list
+ *  and within the role you are reading. */
 export function UsersFilterBar({
   tab,
   role,
@@ -27,19 +20,17 @@ export function UsersFilterBar({
   sortOrder?: string
 }) {
   return (
+    // Clearing empties the bar but keeps the role tab: the tab is where the reader is, not a
+    // filter they set here.
     <FilterBar
       className="mt-4"
-      clearHref={usersUrl({ tab })}
-      showClear={Boolean(role !== 'all' || q || status || sortBy || sortOrder)}
+      clearHref={usersUrl({ tab, role })}
+      showClear={Boolean(q || status || sortBy || sortOrder)}
     >
       <input type="hidden" name="tab" value={tab} />
-      <SelectFilterField label="Role" name="role" defaultValue={role}>
-        {ROLE_FILTERS.map((r) => (
-          <option key={r.key} value={r.key}>
-            {r.label}
-          </option>
-        ))}
-      </SelectFilterField>
+      {/* Role is chosen by the tab strip above the bar, not here. It travels as a hidden field so
+          searching or sorting stays within the role the reader is looking at. */}
+      <input type="hidden" name="role" value={role} />
       <SearchFilterField name="q" defaultValue={q ?? ''} placeholder="Name or email..." />
       <SelectFilterField label="Status" name="status" defaultValue={status ?? ''}>
         <option value="">All</option>

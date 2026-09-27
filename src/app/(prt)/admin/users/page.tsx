@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
-import { loadAdminUsersPageData, USER_TABS, usersUrl } from '@/lib/services/page-data/admin-users'
+import { loadAdminUsersPageData, ROLE_TABS, USER_TABS, usersUrl } from '@/lib/services/page-data/admin-users'
 import { AlertBanner, PageHeader, StatCard, StatGrid, EmptyState, cx } from '@/lib/ui'
 import { AddUserForm } from './AddUserForm'
 import { UserRow } from './UserRow'
@@ -46,9 +46,10 @@ export default async function AdminUsersPage(props: {
       )}
 
       <StatGrid cols={4}>
-        {/* Students/Admins map to exactly one role filter, so they double as a
-            one-click drill-in. "Tutors & mentors" spans two role filters and
-            "With a mentor" is a status (not a role), so those stay plain. */}
+        {/* Every tile drills into the list it counts - the first three by role, Pending by
+            status. Mentor coverage is not a tile: a student is created WITH a mentor
+            (validateAddUserInput refuses one without), so the count would only ever restate
+            Students. */}
         <StatCard label="Students" value={data.stats.students} href={usersUrl({ tab: 'people', role: 'student' })} />
         <StatCard
           label="Tutors & mentors"
@@ -56,16 +57,21 @@ export default async function AdminUsersPage(props: {
           href={usersUrl({ tab: 'people', role: 'staff' })}
         />
         <StatCard
-          label="With a mentor"
-          value={data.assignedStudents}
+          label="Pending"
+          value={data.stats.pending}
           tone="primary"
-          sub={`${Math.max(0, data.stats.students - data.assignedStudents)} without`}
+          href={usersUrl({ tab: 'people', status: 'pending' })}
+          sub="invited, not yet registered"
         />
         <StatCard label="Admins" value={data.stats.adminTier} href={usersUrl({ tab: 'people', role: 'admin' })} />
       </StatGrid>
 
       {canManage && (
-        <AddUserForm roles={data.roleOptions} mentorCandidates={canManageMentorships ? data.mentorCandidates : []} />
+        <AddUserForm
+          roles={data.roleOptions}
+          mentorCandidates={data.mentorCandidates}
+          canAssignMentor={data.canAssignMentor}
+        />
       )}
 
       <nav className="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200">
@@ -84,6 +90,39 @@ export default async function AdminUsersPage(props: {
           </Link>
         ))}
       </nav>
+
+      {/* Role strip: the same ?role= narrowing the filter bar used to carry, as tabs. A role is
+          how people look for someone ("show me the tutors"), so it belongs in navigation rather
+          than behind an Apply button. 'staff' has no tab (see ROLE_TABS) but still resolves. */}
+      {data.filters.tab === 'people' && (
+        <nav aria-label="Filter people by role" className="mt-4 flex gap-1 overflow-x-auto">
+          {ROLE_TABS.map((r) => {
+            const active = data.filters.role === r.key
+            return (
+              <Link
+                key={r.key}
+                href={usersUrl({
+                  tab: 'people',
+                  role: r.key,
+                  // Carry the reader's other narrowing across a role change; only the page
+                  // resets, because page 3 of students is not page 3 of tutors.
+                  q: data.filters.q,
+                  status: data.filters.status,
+                  sortBy: data.filters.sortBy,
+                  sortOrder: data.filters.sortOrder,
+                })}
+                aria-current={active ? 'page' : undefined}
+                className={cx(
+                  'shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold transition',
+                  active ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                )}
+              >
+                {r.label}
+              </Link>
+            )
+          })}
+        </nav>
+      )}
 
       {data.filters.tab === 'people' && (
         <UsersFilterBar

@@ -18,6 +18,7 @@ import {
   assertAssignableMentor,
   assignMentorFromActionInput,
   removeMentorFromActionInput,
+  replaceMentorFromActionInput,
 } from '@/lib/services/mentorships'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { ServiceError } from '@/lib/errors'
@@ -150,6 +151,23 @@ export async function assignMentorAction(formData: FormData) {
   const me = await requireCapability('manageMentorships')
   try {
     await assignMentorFromActionInput(me, {
+      mentor_id: formData.get('mentor_id'),
+      student_id: formData.get('student_id'),
+    })
+  } catch (error) {
+    if (error instanceof ServiceError) redirect(USERS_ERROR_URL)
+    throw error
+  }
+  revalidatePath('/admin/users')
+}
+
+/** Swap a student's mentor: the replacement is assigned before the old link goes, so the
+ *  student never sits without one (the guard in 0120 refuses that). */
+export async function replaceMentorAction(formData: FormData) {
+  const me = await requireCapability('manageMentorships')
+  try {
+    await replaceMentorFromActionInput(me, {
+      id: formData.get('id'),
       mentor_id: formData.get('mentor_id'),
       student_id: formData.get('student_id'),
     })

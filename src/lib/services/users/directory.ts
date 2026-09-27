@@ -23,7 +23,7 @@ export type PaginatedProfiles = { items: Profile[]; total: number }
 /** `tutors` counts TEACHING+MENTORING staff: tutors and dedicated mentors. Mentor is
  *  a first-class role, so counting only role='tutor' understated staff. */
 export type PeopleCounts = { students: number; tutors: number; pending: number }
-export type UsersHubStats = { students: number; tutors: number; adminTier: number }
+export type UsersHubStats = { students: number; tutors: number; adminTier: number; pending: number }
 export type ProfileLite = ProfileLiteRow
 
 /** Targeted admin-only slice read - avoids pulling the whole directory when a
@@ -59,12 +59,15 @@ export async function countPeople(): Promise<PeopleCounts> {
 /** Same head-count approach, for the Users hub's stat cards (admin-tier instead
  *  of pending). */
 export async function countUsersHubStats(): Promise<UsersHubStats> {
-  const [students, tutors, adminTier] = await Promise.all([
+  const [students, tutors, adminTier, pending] = await Promise.all([
     countProfiles({ role: 'student', status: 'active' }),
     countProfiles({ role: ['tutor', 'mentor'], status: 'active' }),
     countProfiles({ role: ['admin', 'sub_admin'], status: 'active' }),
+    // Invited but not yet registered. Nothing announces an account finishing setup, so this
+    // count is how the hub shows who is still outstanding.
+    countProfiles({ status: 'pending' }),
   ])
-  return { students, tutors, adminTier }
+  return { students, tutors, adminTier, pending }
 }
 
 /** A person's display name: their full name, or their email as a fallback. */

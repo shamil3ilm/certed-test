@@ -105,12 +105,14 @@ export async function callAssignMentorship(
 }
 
 /** End a mentorship: the access-granting persona goes and the link is soft-removed together
- *  (0108). Returns false for an id that names no mentorship; an inactive one is removed again. */
-export async function callRemoveMentorship(id: string): Promise<boolean> {
+ *  (0108). `not_found` for an id that names no mentorship; an inactive one is removed again.
+ *  `last_mentor` when it is the only live link of a student who has not been revoked (0120). */
+export async function callRemoveMentorship(id: string): Promise<'removed' | 'not_found' | 'last_mentor'> {
   const admin = createAdminClient()
   const { data, error } = await admin.rpc('remove_mentorship', { p_id: id })
+  if (refusalOf(error, ['last_mentor'] as const)) return 'last_mentor'
   if (error) throw new Error(`mentorships.remove: ${error.message}`)
-  return data === true
+  return data === true ? 'removed' : 'not_found'
 }
 
 /**

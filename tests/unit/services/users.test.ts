@@ -179,7 +179,7 @@ describe('addUser', () => {
 })
 
 describe('user action-input helpers', () => {
-  it('validates add-user payloads and optional mentor assignment', () => {
+  it("validates add-user payloads and the student's mentor assignment", () => {
     expect(
       validateAddUserInput({
         email: 'student@example.com',
@@ -208,6 +208,23 @@ describe('user action-input helpers', () => {
         role: 'bad',
       }),
     ).toThrow(ValidationError)
+  })
+
+  it('refuses a student with no mentor - the link is made when the account is created', () => {
+    // Left optional, a student can be added and never assigned one, sitting outside every
+    // mentor's list with nobody responsible for them.
+    expect(() =>
+      validateAddUserInput({
+        email: 'student@example.com',
+        role: 'student',
+        class_level: 'Grade 7',
+        country: 'India',
+      }),
+    ).toThrow(/Choose a mentor/)
+  })
+
+  it('asks for no mentor on a tutor or mentor account - the rule is student-only', () => {
+    expect(validateAddUserInput({ email: 'tutor@example.com', role: 'tutor' })).toMatchObject({ mentorId: null })
   })
 
   it('validates edit payloads (profile details only, never role) and user ids', () => {
@@ -468,12 +485,13 @@ describe('countPeople', () => {
 })
 
 describe('countUsersHubStats', () => {
-  it('runs three head-only counts (students/tutors/admin-tier)', async () => {
+  it('runs four head-only counts (students/tutors/admin-tier/pending)', async () => {
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(countClient(120) as any) // students
       .mockReturnValueOnce(countClient(15) as any) // tutors
       .mockReturnValueOnce(countClient(3) as any) // admin tier
-    await expect(countUsersHubStats()).resolves.toEqual({ students: 120, tutors: 15, adminTier: 3 })
+      .mockReturnValueOnce(countClient(7) as any) // pending: invited, not yet registered
+    await expect(countUsersHubStats()).resolves.toEqual({ students: 120, tutors: 15, adminTier: 3, pending: 7 })
   })
 })
 

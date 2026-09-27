@@ -1,6 +1,7 @@
 import { Card, Badge, profileStatusTone, roleLabel, statusLabel } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../../../form'
 import { EscapableDetails } from '../../../EscapableDetails'
+import { CloseDisclosureWhenDone } from '../../../CloseDisclosureWhenDone'
 import { COMMON_COUNTRIES } from '@/lib/geo/countries'
 import type { ProfileDetails } from '@/lib/services/users/directory'
 import { editDetailsAction } from './actions'
@@ -75,6 +76,7 @@ export function DetailsCard({ profile }: { profile: ProfileDetails }) {
             <SubmitButton className="btn-sm btn-primary" pendingLabel="Saving...">
               Save
             </SubmitButton>
+            <CloseDisclosureWhenDone />
           </form>
         </EscapableDetails>
       </div>

@@ -796,7 +796,10 @@ async function rpc(uid: string | null, fn: string, args: Args) {
       (p) => p.id === args.p_mentor_id && (p.role === 'mentor' || p.role === 'tutor') && p.status === 'active',
     )
     if (!mentorOk) return { data: null, error: { message: 'mentor_not_assignable' } }
-    const studentOk = profiles.some((p) => p.id === args.p_student_id && p.role === 'student' && p.status === 'active')
+    // Pending (invited) or active, as 0120 allows - a student is created WITH their mentor.
+    const studentOk = profiles.some(
+      (p) => p.id === args.p_student_id && p.role === 'student' && p.status !== 'disabled',
+    )
     if (!studentOk) return { data: null, error: { message: 'student_not_active' } }
     const now = new Date().toISOString()
     let link = table('mentorships').find((m) => m.mentor_id === args.p_mentor_id && m.student_id === args.p_student_id)
@@ -834,6 +837,13 @@ async function rpc(uid: string | null, fn: string, args: Args) {
   if (fn === 'remove_mentorship') {
     const link = table('mentorships').find((m) => m.id === args.p_id)
     if (!link) return { data: false, error: null }
+    // Mirrors 0120: a student who has not been revoked keeps at least one mentor. Only the last
+    // LIVE link is refused, so a repeat removal and a revoked account stay removable.
+    const student = table('profiles').find((p) => p.id === link.student_id)
+    const otherLive = table('mentorships').some((m) => m.student_id === link.student_id && m.active && m.id !== link.id)
+    if (link.active && student?.status !== 'disabled' && !otherLive) {
+      return { data: null, error: { message: 'last_mentor' } }
+    }
     removeWhere(
       'persona_assignments',
       (p) =>

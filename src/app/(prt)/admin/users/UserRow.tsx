@@ -6,6 +6,7 @@ import { Badge, Card, Avatar, profileStatusTone, staffRoleLabel, statusLabel } f
 import { Input, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { EscapableDetails } from '../../EscapableDetails'
+import { CloseDisclosureWhenDone } from '../../CloseDisclosureWhenDone'
 
 /** Map an account status to the shared Badge tone (the canonical status chip). */
 /**
@@ -103,6 +104,7 @@ export function UserRow({
                   <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving...">
                     Save
                   </SubmitButton>
+                  <CloseDisclosureWhenDone />
                 </form>
               </EscapableDetails>
               {canEditPermissions && !self && (

@@ -33,3 +33,16 @@ export function validateAssignMentorInput(input: AssignMentorActionInput): Mento
 export function validateRemoveMentorInput(input: RemoveMentorActionInput): string {
   return validateUuidField(input.id, 'Invalid mentorship id')
 }
+
+export type ReplaceMentorActionInput = {
+  id?: FormDataEntryValue | null
+  mentor_id?: FormDataEntryValue | null
+  student_id?: FormDataEntryValue | null
+}
+
+export type ReplaceMentorParams = MentorshipParams & { linkId: string }
+
+export function validateReplaceMentorInput(input: ReplaceMentorActionInput): ReplaceMentorParams {
+  const linkId = validateUuidField(input.id, 'Invalid mentorship id')
+  return { linkId, ...validateAssignMentorInput({ mentor_id: input.mentor_id, student_id: input.student_id }) }
+}

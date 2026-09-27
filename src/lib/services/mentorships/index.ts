@@ -8,8 +8,14 @@
  * in src/lib/data/personas - a mentorship is a link row PLUS the student-scoped
  * mentor persona that actually grants access.
  */
-export { validateAssignMentorInput, validateRemoveMentorInput } from './validation'
-export type { MentorshipParams, AssignMentorActionInput, RemoveMentorActionInput } from './validation'
+export { validateAssignMentorInput, validateRemoveMentorInput, validateReplaceMentorInput } from './validation'
+export type {
+  MentorshipParams,
+  AssignMentorActionInput,
+  RemoveMentorActionInput,
+  ReplaceMentorActionInput,
+  ReplaceMentorParams,
+} from './validation'
 
 export { listMentorships, listMentorshipsForUsersHub, studentIdsOfMentor } from './queries'
 export type { Mentorship } from './queries'
@@ -20,4 +26,6 @@ export {
   assignMentorFromActionInput,
   removeMentor,
   removeMentorFromActionInput,
+  replaceMentor,
+  replaceMentorFromActionInput,
 } from './commands'

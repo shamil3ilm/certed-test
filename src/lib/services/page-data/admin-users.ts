@@ -3,6 +3,7 @@ import { clampPage, parsePageParam } from '@/lib/pagination'
 import { isAdminTier } from '@/lib/capabilities'
 import { activeTeachingProfileIds, activeMentorProfileIds } from '@/lib/services/class-tutors'
 import { listMentorshipsForUsersHub } from '@/lib/services/mentorships'
+import { actorHasCapability } from '@/lib/services/authorization'
 import {
   countUsersHubStats,
   displayName,
@@ -39,6 +40,14 @@ export const ROLE_FILTERS: { key: RoleFilter; label: string }[] = [
   { key: 'admin', label: 'Admins' },
 ]
 
+/** The role strip under the People tab. A SUBSET of ROLE_FILTERS: one tab per account role, so
+ *  the tabs partition the list rather than overlap. 'staff' (tutors AND mentors together) stays a
+ *  valid URL - the "Tutors & mentors" stat tile links to it - but it is not a tab, because a
+ *  person would then appear under two of them. */
+export const ROLE_TABS: ReadonlyArray<{ key: RoleFilter; label: string }> = ROLE_FILTERS.filter(
+  (r) => r.key !== 'staff',
+)
+
 const ROLE_FILTER_KEYS = ROLE_FILTERS.map((r) => r.key)
 // Convenience aliases: a ?tab=students|tutors|admins link opens the People list
 // pre-filtered to that role, so those hrefs and bookmarks resolve directly.
@@ -62,13 +71,14 @@ type UsersHubMentorLink = {
 
 export type AdminUsersPageData = {
   isSuper: boolean
+  /** Whether this viewer may assign mentors - and so whether they may create students at all. */
+  canAssignMentor: boolean
   roleOptions: string[]
   filters: UsersPageFilters
   stats: Awaited<ReturnType<typeof countUsersHubStats>>
   mentorCandidates: { id: string; name: string }[]
   tabProfiles: Profile[]
   tabTotal: number
-  assignedStudents: number
   mentorNames: Map<string, string>
   mentorsByStudent: Map<string, UsersHubMentorLink[]>
   teachingStaffIds: Set<string>
@@ -195,7 +205,12 @@ export async function loadAdminUsersPageData(
   // Only a full admin creates the admin tier (sub_admin / admin); a sub_admin creates
   // every other non-admin account - students, tutors, and mentors (matches
   // canManageTarget / SUB_ADMIN_MANAGEABLE).
-  const roleOptions = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor', 'mentor']
+  const creatable = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor', 'mentor']
+  // A student is created WITH a mentor, and assigning one needs manageMentorships (admin and
+  // sub_admin hold it; an override can take it away). Without it the student option would fail
+  // on submit, so it is not offered - and the form says why.
+  const canAssignMentor = await actorHasCapability(me.id, 'manageMentorships')
+  const roleOptions = canAssignMentor ? creatable : creatable.filter((r) => r !== 'student')
 
   // The Mentor-assignments tab is student-centric (each row is a student + their
   // mentor links), so it always loads students regardless of the People role filter.
@@ -245,13 +260,13 @@ export async function loadAdminUsersPageData(
 
   return {
     isSuper,
+    canAssignMentor,
     roleOptions,
     filters: { ...filters, page: effectivePage },
     stats,
     mentorCandidates,
     tabProfiles: pageProfiles,
     tabTotal,
-    assignedStudents: new Set(links.map((l) => l.student_id)).size,
     mentorNames,
     mentorsByStudent,
     teachingStaffIds,

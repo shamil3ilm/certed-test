@@ -17,7 +17,16 @@ const initial: AddUserState = {}
  * shows contact + joined date. Softer fields (DOB, bio, qualifications) are
  * self-completed by the person at first sign-in, so they are not asked here.
  */
-export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; mentorCandidates: MentorCandidate[] }) {
+export function AddUserForm({
+  roles,
+  mentorCandidates,
+  canAssignMentor = true,
+}: {
+  roles: string[]
+  mentorCandidates: MentorCandidate[]
+  /** A student is created with their mentor, so without this capability the role is not offered. */
+  canAssignMentor?: boolean
+}) {
   const [state, formAction] = useFormState(addUserAction, initial)
   const [role, setRole] = useState(roles[0] ?? 'student')
   const isStudent = role === 'student'
@@ -42,6 +51,13 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
           </Select>
         </Field>
 
+        {!canAssignMentor && (
+          <p className="w-full text-xs text-slate-600">
+            Adding a student needs the mentor-assignment permission - a student is created with their mentor. Ask an
+            admin to add the student, or to grant you that permission.
+          </p>
+        )}
+
         {isStudent && (
           <>
             <Field label="Class / grade" className="w-full sm:w-28">
@@ -59,17 +75,14 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
             <Field label="Guardian phone" className="w-full sm:w-36">
               <Input name="guardian_phone" type="tel" placeholder="Optional" />
             </Field>
-            {mentorCandidates.length > 0 && (
-              <Field
-                label={
-                  <>
-                    Mentor <span className="text-slate-600">(students)</span>
-                  </>
-                }
-                className="w-full sm:w-40"
-              >
-                <Select name="mentor_id" defaultValue="">
-                  <option value="">None</option>
+            {mentorCandidates.length > 0 ? (
+              <Field label="Mentor" className="w-full sm:w-40">
+                {/* Required, matching the rule the service enforces: a student is created WITH
+                    their mentor, never left for a follow-up that can be forgotten. */}
+                <Select name="mentor_id" defaultValue="" required>
+                  <option value="" disabled>
+                    Choose a mentor
+                  </option>
                   {mentorCandidates.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
@@ -77,6 +90,12 @@ export function AddUserForm({ roles, mentorCandidates }: { roles: string[]; ment
                   ))}
                 </Select>
               </Field>
+            ) : (
+              // Every student needs a mentor, so with none on the books the service would refuse
+              // this account. Say that here rather than after the form is filled in.
+              <p className="w-full text-xs text-slate-600">
+                Add a tutor or mentor account first - every student is assigned a mentor.
+              </p>
             )}
           </>
         )}

@@ -1,5 +1,5 @@
 import type { AdminUsersPageData } from '@/lib/services/page-data/admin-users'
-import { assignMentorAction, removeMentorAction } from './actions'
+import { assignMentorAction, removeMentorAction, replaceMentorAction } from './actions'
 import { Card, Avatar, EmptyState } from '@/lib/ui'
 import { Select, SubmitButton } from '../../form'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
@@ -74,6 +74,34 @@ export function MentorshipsPanel({
                   className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 py-1 pl-3 pr-1.5 text-xs font-medium text-primary ring-1 ring-primary/15"
                 >
                   {data.mentorNames.get(l.mentor_id) ?? '-'}
+                  {/* Change assigns the replacement before dropping this link, so a swap never
+                      leaves the student without a mentor - which removal alone is refused for. */}
+                  {canManageMentorships && data.mentorCandidates.length > 1 && (
+                    <form action={replaceMentorAction} className="inline-flex items-center gap-1">
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="student_id" value={s.id} />
+                      <label className="min-w-0">
+                        <span className="sr-only">
+                          Change mentor {data.mentorNames.get(l.mentor_id) ?? ''} for {s.full_name ?? s.email}
+                        </span>
+                        <Select name="mentor_id" required defaultValue="" className="h-7 py-0 text-xs">
+                          <option value="" disabled>
+                            Change to...
+                          </option>
+                          {data.mentorCandidates
+                            .filter((t) => t.id !== l.mentor_id)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                        </Select>
+                      </label>
+                      <SubmitButton className="btn-sm btn-soft" pendingLabel="...">
+                        Change
+                      </SubmitButton>
+                    </form>
+                  )}
                   {canManageMentorships && (
                     <form action={removeMentorAction} className="inline-flex">
                       <input type="hidden" name="id" value={l.id} />

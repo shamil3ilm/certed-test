@@ -71,8 +71,14 @@ export function validateAddUserInput(input: AddUserActionInput): { user: AddUser
     throw new ValidationError(parsed.error.issues[0]?.message ?? 'Check the email and fields.')
   }
   const rawMentorId = String(input.mentor_id ?? '').trim()
-  if (parsed.data.role !== 'student' || !rawMentorId) {
+  if (parsed.data.role !== 'student') {
     return { user: parsed.data, mentorId: null }
+  }
+  // Every student has a mentor. Making the link part of creating the account - rather than a
+  // follow-up somebody has to remember - is what keeps a student from sitting outside every
+  // mentor's list, seen by nobody in the pastoral view.
+  if (!rawMentorId) {
+    throw new ValidationError('Choose a mentor for this student.')
   }
   const mentorId = profileIdSchema.safeParse(rawMentorId)
   if (!mentorId.success) {
