@@ -17,24 +17,33 @@ const MARKETING_PATHS = ['/', '/about', '/blogs', '/classes', '/contact', '/priv
  * middleware redirect goes through here so no branch can silently discard them.
  */
 /**
- * A top-level browser navigation asking for a document - as opposed to fetch/XHR.
+ * Whether the response will be RENDERED to a person - a top-level navigation, whatever its
+ * method. `Sec-Fetch-Dest: document` covers a `<form method="post">` submit as well as a typed
+ * URL or a stale bookmark.
  *
- * GET is part of the test deliberately: a `<form method="post">` submit is ALSO
- * `Sec-Fetch-Mode: navigate`, so keying on the mode alone would classify the sign-out form
- * post as a navigation and break signing out. Only a GET navigation renders a page.
- *
- * `Accept: text/html` is the fallback for clients that omit Sec-Fetch-* (older browsers,
- * some in-app webviews). A fetch caller sends neither header, so the machine-readable
- * contract below is untouched either way.
+ * `Accept: text/html` is the fallback for clients that omit Sec-Fetch-* (older browsers, some
+ * in-app webviews). A fetch caller sends none of them, so the machine-readable contract below
+ * is untouched either way.
  */
-function isDocumentNavigation(request: NextRequest): boolean {
-  if (request.method !== 'GET') return false
+function isDocumentRequest(request: NextRequest): boolean {
+  if (request.headers.get('sec-fetch-dest') === 'document') return true
   if (request.headers.get('sec-fetch-mode') === 'navigate') return true
   return (request.headers.get('accept') ?? '').includes('text/html')
 }
 
-function redirectPreserving(url: URL, base: NextResponse): NextResponse {
-  const redirect = NextResponse.redirect(url)
+/**
+ * A document request that is also a GET - the only kind safe to answer with a PAGE.
+ *
+ * The method test is deliberate: a `<form method="post">` submit is also
+ * `Sec-Fetch-Mode: navigate`, so keying on the mode alone would rewrite the sign-out post to
+ * the not-found page and break signing out outright.
+ */
+function isDocumentNavigation(request: NextRequest): boolean {
+  return request.method === 'GET' && isDocumentRequest(request)
+}
+
+function redirectPreserving(url: URL, base: NextResponse, status = 307): NextResponse {
+  const redirect = NextResponse.redirect(url, status)
   base.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
   const csp = base.headers.get('Content-Security-Policy')
   if (csp) redirect.headers.set('Content-Security-Policy', csp)
@@ -152,13 +161,19 @@ export async function proxy(request: NextRequest) {
     // 401 it can act on, not a 307 to the HTML /login it can't follow. Browsers on
     // page routes still get the redirect. Same envelope as the route handlers'
     // authFail so every 401 looks identical to a consumer.
-    if (pathname.startsWith('/api/')) {
+    //
+    // ...but only for a caller that can READ it. A top-level navigation renders whatever comes
+    // back, so the envelope becomes the page - which is exactly what pressing Sign out with an
+    // already-expired session put on screen. Those go to /login instead.
+    if (pathname.startsWith('/api/') && !isDocumentRequest(request)) {
       return NextResponse.json(
         { success: false, error: UNAUTHORIZED_MESSAGE, code: ERROR_CODES.unauthorized },
         { status: 401 },
       )
     }
-    return redirectPreserving(new URL('/login', request.url), response)
+    // 303 for anything but a GET: 307 preserves the method, so a form POST would be re-posted
+    // to /login - a page route, which answers 405. 303 turns it into the GET it should be.
+    return redirectPreserving(new URL('/login', request.url), response, request.method === 'GET' ? 307 : 303)
   }
   return response
 }

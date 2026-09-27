@@ -18,7 +18,10 @@ export async function POST(request: Request) {
       logError('logout.signOut', error)
     }
   }
-  const res = NextResponse.redirect(new URL('/login', request.url))
+  // 303, not the default 307: this answers a <form method="post">, and 307 preserves the
+  // method - the browser would re-POST to /login, a page route that answers 405. 303 is the
+  // "your POST is done, now GET this instead" status, as /api/dev/login already uses.
+  const res = NextResponse.redirect(new URL('/login', request.url), 303)
   res.cookies.delete(MOCK_COOKIE)
   return res
 }

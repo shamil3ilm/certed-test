@@ -194,4 +194,29 @@ describe('middleware: internal APIs are not navigable', () => {
     const res = await proxy(post)
     expect(res.headers.get('x-middleware-rewrite')).toBeNull()
   })
+
+  it('sends an expired Sign out to /login instead of rendering a JSON envelope', async () => {
+    // The session is already gone by the time the form posts (idle logout, another tab, an
+    // expired cookie). A browser renders whatever comes back, so the 401 envelope BECAME the
+    // page - the raw {"code":"UNAUTHORIZED"} seen at /api/logout.
+    vi.mocked(updateSession).mockResolvedValue(null as any)
+    const post = new NextRequest('https://app.local/api/logout', {
+      method: 'POST',
+      headers: { host: 'app.local', 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate', accept: 'text/html' },
+    })
+    const res = await proxy(post)
+    // 303, not 307: a preserved method would re-POST to /login, a page route answering 405.
+    expect(res.status).toBe(303)
+    expect(location(res)).toBe('https://app.local/login')
+    expect(res.headers.get('content-type') ?? '').not.toContain('application/json')
+  })
+
+  it('still answers a fetch POST with the machine-readable 401', async () => {
+    // No navigation headers: nothing renders this, so the envelope is what the caller needs.
+    vi.mocked(updateSession).mockResolvedValue(null as any)
+    const res = await proxy(
+      new NextRequest('https://app.local/api/logout', { method: 'POST', headers: { host: 'app.local' } }),
+    )
+    expect(res.status).toBe(401)
+  })
 })
