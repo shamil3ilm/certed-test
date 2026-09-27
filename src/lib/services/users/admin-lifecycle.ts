@@ -5,6 +5,7 @@ import { generateSetupCode, hashSetupCode, setupCodeExpiry } from '@/lib/auth/se
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { setAuthUserBanned, deleteAuthUser } from '@/lib/data/auth-accounts'
 import { logError } from '@/lib/observability/log'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { loadPersonaFlags, requireAdminPersona } from '@/lib/permission/personas'
 import {
@@ -145,6 +146,14 @@ export async function revokeUser(actor: Profile, id: string): Promise<void> {
     }
   }
   await auditPrivilegedAction(actor, 'user.revoke', 'profile', id)
+  // Say so. Otherwise access simply vanishes with no explanation, which is what turns a revoke
+  // into a support request. The in-app row is unreadable to a disabled account, but the email
+  // channel still reaches the address on file.
+  await notifyBestEffort([id], {
+    kind: 'account',
+    title: 'Your access has been revoked',
+    body: 'Contact the academy if you think this is a mistake.',
+  })
 }
 
 export async function revokeUserFromActionInput(actor: Profile, input: UserIdActionInput): Promise<void> {
@@ -188,6 +197,12 @@ export async function restoreUser(actor: Profile, id: string): Promise<void> {
     }
   }
   await auditPrivilegedAction(actor, 'user.restore', 'profile', id)
+  await notifyBestEffort([id], {
+    kind: 'account',
+    title: 'Your access has been restored',
+    body: 'You can sign in again.',
+    link: '/dashboard',
+  })
 }
 
 export async function restoreUserFromActionInput(actor: Profile, input: UserIdActionInput): Promise<void> {

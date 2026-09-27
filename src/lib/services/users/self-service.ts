@@ -13,6 +13,9 @@ import {
   verifyOwnPassword,
 } from '@/lib/data/auth-accounts'
 import { logError } from '@/lib/observability/log'
+import { notifyBestEffort } from '@/lib/services/notifications'
+import { enqueuePendingEmails } from '@/lib/data/pending-emails'
+import { escapeHtml } from '@/lib/email/resend'
 import { getProfileByEmail } from './directory'
 
 /** What a signed-in user may change about their OWN account. */
@@ -86,6 +89,14 @@ export async function changeOwnPassword(
     }
   }
   await auditPrivilegedAction(actor, 'profile.password', 'profile', actor.id)
+  // Tell the owner their own credential changed. If they did not do it, this is the only
+  // signal that somebody else is holding their session.
+  await notifyBestEffort([actor.id], {
+    kind: 'security',
+    title: 'Your password was changed',
+    body: 'If this was not you, contact the academy immediately.',
+    link: '/settings',
+  })
 }
 
 /** Self-service email change. Requires re-authentication with the CURRENT password:
@@ -136,4 +147,25 @@ export async function changeOwnEmail(
     }
   }
   await auditPrivilegedAction(actor, 'profile.email', 'profile', actor.id)
+  await notifyBestEffort([actor.id], {
+    kind: 'security',
+    title: 'Your sign-in email was changed',
+    body: `Sign in with ${email} from now on.`,
+    link: '/settings',
+  })
+  // ...and the PREVIOUS address directly. The notifier resolves addresses from the profile,
+  // which now holds the new one - so notifying only that tells whoever made the change and
+  // leaves the person who needs to know with nothing.
+  const previous = (actor.email ?? '').trim()
+  if (previous) {
+    await enqueuePendingEmails([
+      {
+        to_email: previous,
+        subject: 'Your sign-in email was changed',
+        html:
+          `<p>The sign-in email for your Cert-Ed Academia account was changed to ${escapeHtml(email)}.</p>` +
+          `<p>If this was not you, contact the academy immediately.</p>`,
+      },
+    ]).catch((error) => logError('profile.email.notifyPrevious', error, { profileId: actor.id }))
+  }
 }

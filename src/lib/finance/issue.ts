@@ -8,6 +8,7 @@ import type { BillingSource } from '@/lib/data/finance-docs-shared'
 import { monthWindow } from '@/lib/time/month-window'
 import { FINANCE_KINDS, isFinanceParty } from '@/lib/finance/kinds'
 import { convertIssuedDoc } from '@/lib/services/finance/fx-conversion'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { ValidationError } from '@/lib/errors'
 import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
 import { issueDocSchema, type IssueDocInput } from '@/lib/validation/finance'
@@ -129,6 +130,14 @@ async function issueDoc(
   } catch (fxError) {
     console.error(`[finance] base-currency conversion failed for issued ${kind} ${doc.id}:`, fxError)
   }
+  // Tell the party it is FOR. Nothing announced this before, so a tutor's pay slip and a
+  // student's receipt appeared in a list they had no reason to open that day.
+  await notifyBestEffort([party.id], {
+    kind: 'finance',
+    title: `${kindRules.title} ${doc.number} issued`,
+    body: `${currency} ${total}`,
+    link: kindRules.listPath,
+  })
   return { id: doc.id, number: doc.number }
 }
 

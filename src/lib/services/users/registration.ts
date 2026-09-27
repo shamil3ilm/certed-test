@@ -3,6 +3,7 @@ import { ERROR_CODES, type ErrorCode } from '@/lib/api/error-codes'
 import { setupCodeValid } from '@/lib/auth/setup-code'
 import type { RegisterInput } from '@/lib/validation/user'
 import { bindAuthUserToProfile, selectRegistrationFields, type RegistrationFieldsRow } from '@/lib/data/profiles'
+import { notifyAccountActivated } from './activation-notice'
 import { createAuthUser, deleteAuthUser } from '@/lib/data/auth-accounts'
 import { recordConsentAcceptance } from '@/lib/services/consents'
 import { requiresGuardianConsent } from '@/lib/auth/minor'
@@ -106,5 +107,7 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
   await recordConsentAcceptance(target.id, { guardianConsent: needsGuardian }).catch((e) =>
     console.error(`registration: consent record failed for profile ${target.id}`, e),
   )
+  // The account is live now; tell the people who manage accounts, since nothing else does.
+  await notifyAccountActivated(target.id)
   return { ok: true }
 }

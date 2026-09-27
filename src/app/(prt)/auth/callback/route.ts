@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { bindProfileOnFirstLogin } from '@/lib/auth/binding'
 import { recordConsentAcceptance } from '@/lib/services/consents'
+import { notifyAccountActivated } from '@/lib/services/users'
 import { logError } from '@/lib/observability/log'
 
 /**
@@ -40,6 +41,9 @@ export async function GET(request: Request) {
         await recordConsentAcceptance(bound.profileId).catch((e) =>
           console.error(`auth.callback: consent record failed for profile ${bound.profileId}`, e),
         )
+        // Parity again: an OAuth first login activates the invite, so it is an activation the
+        // account managers hear about, exactly as a password registration is.
+        await notifyAccountActivated(bound.profileId)
       }
     } catch (bindError) {
       logError('auth.callback.bind', bindError)

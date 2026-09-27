@@ -5,7 +5,10 @@ import {
   selectLatestConsent,
   selectProfileIdsWithCurrentConsent,
 } from '@/lib/data/consents'
-import { selectActiveProfileIds } from '@/lib/data/profiles-directory'
+import { selectActiveProfileIds, selectProfilesLiteByIds } from '@/lib/data/profiles-directory'
+import { accountManagerIds } from '@/lib/services/account-managers'
+import { notifyBestEffort } from '@/lib/services/notifications'
+import { logError } from '@/lib/observability/log'
 import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/policy/versions'
 
 /**
@@ -101,6 +104,19 @@ export async function reaffirmCurrentConsent(profileId: string): Promise<void> {
  */
 export async function withdrawConsent(profileId: string): Promise<void> {
   await markStandingConsentsWithdrawn(profileId, new Date().toISOString())
+  // A withdrawal is a privacy REQUEST, not a classroom event: somebody has to act on it, and
+  // nothing else reported it. Best-effort - the withdrawal itself is already recorded.
+  try {
+    const [person] = await selectProfilesLiteByIds([profileId])
+    await notifyBestEffort(await accountManagerIds(profileId), {
+      kind: 'account',
+      title: `${person?.full_name ?? person?.email ?? 'A member'} withdrew their consent`,
+      body: 'Their standing acceptance of the Terms and Privacy Policy no longer applies.',
+      link: `/admin/users/${profileId}`,
+    })
+  } catch (error) {
+    logError('consents.withdrawNotice', error, { profileId }, { toSentry: false })
+  }
 }
 
 /** How many missing-consent profile ids the sweep reports back. The COUNT is exact; the

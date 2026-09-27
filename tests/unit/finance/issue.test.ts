@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { notifyBestEffort } from '@/lib/services/notifications'
 
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/finance/org-settings', () => ({ getOrgSettings: vi.fn(), getInstituteTimeZone: vi.fn() }))
@@ -7,6 +8,7 @@ vi.mock('@/lib/services/finance/fx-conversion', () => ({ convertIssuedDoc: vi.fn
 vi.mock('@/lib/services/finance/hours-billing', () => ({ buildBillingDraft: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/data/finance-docs-reads', () => ({ callBillingSourceFingerprint: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
 
 import { getProfileById } from '@/lib/services/users'
 import { getInstituteTimeZone, getOrgSettings } from '@/lib/services/finance/org-settings'
@@ -67,6 +69,12 @@ describe('finance issue', () => {
     // issueDocRecord writes the one `receipt.issue` audit, with the number and party; a second,
     // thinner row from here would record every issuance twice.
     expect(writeAudit).not.toHaveBeenCalled()
+    // The party is told the document exists. Its wording and link come from FINANCE_KINDS, so a
+    // pay slip says "Pay slip" and points at /payslips without a second kind branch here.
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      [activeStudent.id],
+      expect.objectContaining({ kind: 'finance', title: 'Receipt CEA-R-1 issued', link: '/receipts' }),
+    )
   })
 
   it('snapshots no class level on a pay slip', async () => {

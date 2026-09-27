@@ -7,6 +7,7 @@
  *  - self-service.ts     what a signed-in user changes about their own account
  *  - admin-lifecycle.ts  add / revoke / restore / edit + the tier rules
  *  - validation.ts       action-boundary parsing for the management forms
+ *  - activation-notice.ts tells the people who manage accounts that an invite went live
  */
 export {
   listProfilesByFilter,
@@ -28,6 +29,8 @@ export type { PaginatedProfiles, PeopleCounts, UsersHubStats, ProfileLite } from
 
 export { completePasswordRegistration } from './registration'
 export type { RegistrationTarget, RegisterResult } from './registration'
+
+export { notifyAccountActivated } from './activation-notice'
 
 export { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwnEmail } from './self-service'
 

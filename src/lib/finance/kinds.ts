@@ -30,6 +30,8 @@ export const FINANCE_KINDS = {
     carriesClassLevel: true,
     /** What the party did in the sessions it bills. */
     sessionsVerb: 'attended',
+    /** Where the party reads their own copies - what a notification about one links to. */
+    listPath: '/receipts',
   },
   payslip: {
     noun: 'pay slip',
@@ -41,6 +43,7 @@ export const FINANCE_KINDS = {
     prefixField: 'payslip_prefix',
     carriesClassLevel: false,
     sessionsVerb: 'taught',
+    listPath: '/payslips',
   },
 } as const satisfies Record<
   FinanceKind,
@@ -54,6 +57,7 @@ export const FINANCE_KINDS = {
     prefixField: 'receipt_prefix' | 'payslip_prefix'
     carriesClassLevel: boolean
     sessionsVerb: string
+    listPath: string
   }
 >
 

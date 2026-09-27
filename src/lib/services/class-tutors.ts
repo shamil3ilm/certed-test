@@ -9,6 +9,7 @@ import { selectActiveProfileIdsByPersona } from '@/lib/data/personas'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
@@ -77,6 +78,12 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
     )
   }
   await auditPrivilegedAction(actor, 'class.assign_tutor', 'class_tutor', params.classId)
+  // The tutor is now responsible for this class; nothing told them so.
+  await notifyBestEffort([params.tutorId], {
+    kind: 'class',
+    title: 'You were assigned to a class',
+    link: `/classroom/${params.classId}`,
+  })
 }
 
 export async function addTutorFromActionInput(actor: Profile, input: ClassTutorActionInput): Promise<void> {

@@ -10,6 +10,7 @@ import { subjectRefusalOf } from '@/lib/data/class-subjects'
 import { canWriteClass } from '@/lib/permission/class-write'
 import { getProfileById, getProfileNamesByIds } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
@@ -83,6 +84,13 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
     throw error
   }
   await auditPrivilegedAction(actor, 'class.enroll', 'enrollment', params.classId)
+  // Every later event in a class notifies its students; joining it did not, so the first a
+  // student heard was an announcement about a class they did not know they were in.
+  await notifyBestEffort([params.studentId], {
+    kind: 'class',
+    title: 'You were added to a class',
+    link: `/classroom/${params.classId}`,
+  })
 }
 
 export async function enrolStudentFromActionInput(actor: Profile, input: EnrollmentActionInput): Promise<void> {

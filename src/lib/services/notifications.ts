@@ -20,7 +20,22 @@ import {
  */
 
 type NotificationKind =
-  'message' | 'grade' | 'announcement' | 'assignment' | 'submission' | 'resource' | 'attendance' | 'schedule'
+  | 'message'
+  | 'grade'
+  | 'announcement'
+  | 'assignment'
+  | 'submission'
+  | 'resource'
+  | 'attendance'
+  | 'schedule'
+  // Everything above is classroom activity. The kinds below are the rest of the app finally
+  // reporting itself: what happens to an ACCOUNT (activated, revoked, restored, consent
+  // withdrawn), to its CREDENTIALS, to money, to a mentorship, and to class membership.
+  | 'account'
+  | 'security'
+  | 'finance'
+  | 'mentorship'
+  | 'class'
 
 /** A notification as the app consumes it (the stored row, kind narrowed). */
 export type Notification = Omit<NotificationRow, 'kind'> & { kind: NotificationKind }

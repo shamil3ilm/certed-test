@@ -16,6 +16,14 @@ const KIND_META: Record<string, { label: string; className: string }> = {
   resource: { label: 'Document', className: 'bg-slate-100 text-slate-700' },
   attendance: { label: 'Attendance', className: 'bg-success-surface text-success-ink' },
   schedule: { label: 'Schedule', className: 'bg-danger-surface text-danger-ink' },
+  // Non-classroom kinds: what happened to an account, its credentials, its money, its
+  // mentorships and its class membership. Every kind needs an entry here - the feed falls back
+  // to the raw kind string for an unknown one, and the Type filter is built from these keys.
+  account: { label: 'Account', className: 'bg-primary/10 text-primary' },
+  security: { label: 'Security', className: 'bg-danger-surface text-danger-ink' },
+  finance: { label: 'Finance', className: 'bg-success-surface text-success-ink' },
+  mentorship: { label: 'Mentoring', className: 'bg-secondary/15 text-secondary-ink' },
+  class: { label: 'Class', className: 'bg-slate-100 text-slate-700' },
 }
 
 /** The read-state filter travels as `state`, NOT `read`: `?read=1` already means "the mark
@@ -80,7 +88,12 @@ export default async function NotificationsPage(props: { searchParams: Promise<N
         </AlertBanner>
       )}
 
-      <FilterBar className="mb-4" clearHref="/notifications" showClear={hasActiveFilters}>
+      <FilterBar
+        className="mb-4"
+        clearHref="/notifications"
+        showClear={hasActiveFilters}
+        hidden={total === 0 && !hasActiveFilters}
+      >
         <SelectFilterField label="Type" name="kind" defaultValue={kind}>
           <option value="">All types</option>
           {Object.entries(KIND_META).map(([value, meta]) => (

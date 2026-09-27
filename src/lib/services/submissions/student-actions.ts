@@ -155,6 +155,17 @@ export async function withdrawSubmission(actor: Profile, submissionId: string): 
   if (!withdrawn) {
     throw new ValidationError("Graded work can't be withdrawn - ask your tutor to reopen it.")
   }
+  // Turning work IN notifies the class tutors, so pulling it back must too - otherwise their
+  // grading queue still shows work that is no longer there to grade.
+  const assignment = await getAssignment(submission.assignment_id)
+  if (assignment) {
+    await notifyClassRoleBestEffort(assignment.class_id, 'tutors', {
+      kind: 'submission',
+      title: `${actor.full_name ?? actor.email} withdrew their submission`,
+      body: assignment.title,
+      link: `/classroom/${assignment.class_id}/classwork`,
+    })
+  }
   return { assignmentId: submission.assignment_id }
 }
 
