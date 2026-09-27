@@ -65,6 +65,8 @@ describe('loadHistoryPageData', () => {
         entity_type: 'submission',
         entity_id: '12345678-0000',
         entityShortId: '12345678',
+        // A submission is not a person, so the Target column keeps its type and short id.
+        targetLabel: null,
       },
     ])
   })
@@ -125,5 +127,83 @@ describe('loadHistoryPageData', () => {
     expect(searchProfileIds).toHaveBeenCalledWith('asha', ['student', 'tutor', 'mentor'])
     // The admin actor's identity is redacted to the tier.
     expect(result.rows[0].actorLabel).toBe('Administrator')
+  })
+})
+
+describe('the Target column names a person', () => {
+  const rowFor = (entity_type: string, entity_id: string | null) => ({
+    id: 'a1',
+    actor_id: 'p1',
+    action: 'user.revoke',
+    entity_type,
+    entity_id,
+    created_at: '2026-09-27T10:00:00.000Z',
+  })
+
+  it('resolves a profile target to their name, and fetches actors and targets in one lookup', async () => {
+    vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [rowFor('profile', 'p2')], total: 1 } as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([
+        ['p1', { id: 'p1', full_name: 'Ada Admin', email: 'ada@test.com', role: 'admin' }],
+        ['p2', { id: 'p2', full_name: 'Riya Student', email: 'riya@test.com', role: 'student' }],
+      ]) as any,
+    )
+
+    const result = await loadHistoryPageData(admin, {})
+
+    expect(result.rows[0].targetLabel).toBe('Riya Student')
+    // An id tells the reader nothing about whose account was revoked; the name does.
+    expect(result.rows[0].entityShortId).toBe('p2')
+    expect(getProfilesByIds).toHaveBeenCalledTimes(1)
+    expect(getProfilesByIds).toHaveBeenCalledWith(['p1', 'p2'])
+  })
+
+  it('redacts an admin-tier target for a viewer who is not admin-tier', async () => {
+    // The Who column refuses to be an admin oracle; Target must not become one either.
+    vi.mocked(isAdminTier).mockReturnValue(false)
+    vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [rowFor('profile', 'p2')], total: 1 } as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([['p2', { id: 'p2', full_name: 'Ada Admin', email: 'ada@test.com', role: 'admin' }]]) as any,
+    )
+
+    const result = await loadHistoryPageData(admin, {})
+
+    expect(result.rows[0].targetLabel).toBe('Administrator')
+  })
+
+  it('never shows an email to a viewer who is not admin-tier', async () => {
+    vi.mocked(isAdminTier).mockReturnValue(false)
+    vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [rowFor('profile', 'abcdef12-0000')], total: 1 } as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(
+      new Map([
+        ['abcdef12-0000', { id: 'abcdef12-0000', full_name: null, email: 'riya@test.com', role: 'student' }],
+      ]) as any,
+    )
+
+    const result = await loadHistoryPageData(admin, {})
+
+    expect(result.rows[0].targetLabel).toBe('User abcdef12')
+  })
+
+  it('leaves a non-person target as its type and short id', async () => {
+    vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [rowFor('receipt', '87654321-0000')], total: 1 } as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(new Map() as any)
+
+    const result = await loadHistoryPageData(admin, {})
+
+    expect(result.rows[0].targetLabel).toBeNull()
+    expect(result.rows[0].entity_type).toBe('receipt')
+    expect(result.rows[0].entityShortId).toBe('87654321')
+  })
+
+  it('keeps the row readable when the person is gone', async () => {
+    // Erasure removes the profile; the audit row outlives it, which is the point of the log.
+    vi.mocked(listAuditPage).mockResolvedValueOnce({ items: [rowFor('profile', 'deleted1-0000')], total: 1 } as any)
+    vi.mocked(getProfilesByIds).mockResolvedValueOnce(new Map() as any)
+
+    const result = await loadHistoryPageData(admin, {})
+
+    expect(result.rows[0].targetLabel).toBeNull()
+    expect(result.rows[0].entityShortId).toBe('deleted1')
   })
 })

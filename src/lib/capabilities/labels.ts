@@ -56,7 +56,11 @@ export const CAPABILITY_META: Record<Capability, CapabilityMeta> = {
     description: 'Open the admin finance ledger and exports.',
     group: 'Administration',
   },
-  viewHistory: { label: 'View history', description: 'See the audit / activity history.', group: 'Administration' },
+  viewHistory: {
+    label: 'View audit log',
+    description: 'See the record of sensitive actions across the academy.',
+    group: 'Administration',
+  },
   viewPayslips: { label: 'View own pay slips', description: 'See their own pay slips.', group: 'Self-service' },
   viewReceipts: { label: 'View own receipts', description: 'See their own fee receipts.', group: 'Self-service' },
   manageAdminTier: {

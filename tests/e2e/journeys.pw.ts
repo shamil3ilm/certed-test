@@ -88,12 +88,15 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // A student is role-aware: class/grade and country are required to add one.
   await add.locator('input[name=class_level]').fill('Grade 10')
   await add.locator('input[name=country]').fill('India')
+  // ...and a mentor: a student is created WITH one, so the service refuses an unassigned account.
+  // By index, so the spec does not pin itself to a particular seeded mentor's name.
+  await add.locator('select[name=mentor_id]').selectOption({ index: 1 })
   await submitAndReload(page, () => add.getByRole('button', { name: 'Add user' }).click())
   await expect(page.getByText(newbieEmail)).toBeVisible()
 
   // The activity log renders the audited actions just performed.
   await page.goto('/admin/history')
-  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
   await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
 })
 

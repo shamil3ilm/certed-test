@@ -46,6 +46,10 @@ type HistoryViewRow = {
   entity_type: string
   entity_id: string | null
   entityShortId: string | null
+  /** A person's name when the target IS a person and is still on the roster; null otherwise,
+   *  and the row falls back to type + short id. Tiered exactly like actorLabel - the Target
+   *  column must not become the admin oracle the Who column refuses to be. */
+  targetLabel: string | null
 }
 
 type HistoryPageData = {
@@ -107,31 +111,48 @@ export async function loadHistoryPageData(
   const currentPage = clampPage(filters.page, first.total, PAGE_SIZE)
   filters.page = currentPage
   const { items, total } = currentPage === requestedPage ? first : await read(currentPage)
-  const actors = await getProfilesByIds(items.map((r) => r.actor_id).filter((id): id is string => !!id))
+  // Actors and person-targets in ONE lookup: the same people appear in both columns (an admin
+  // revoking an account is the actor on one row and the target on another), so splitting it
+  // would fetch many of them twice.
+  const peopleIds = [
+    ...items.map((r) => r.actor_id).filter((id): id is string => !!id),
+    ...items
+      .filter((r) => r.entity_type === 'profile')
+      .map((r) => r.entity_id)
+      .filter((id): id is string => !!id),
+  ]
+  const people = await getProfilesByIds([...new Set(peopleIds)])
+
+  /**
+   * How a person is named to THIS viewer. A non-super viewer (viewHistory is
+   * override-grantable to a sub_admin/tutor/mentor) never sees an admin-tier identity - they
+   * get the tier - and never sees anyone's raw email: the name if set, else a short id, never
+   * PII. A super viewer (full admin) sees the full identity, email fallback included.
+   */
+  const personLabel = (id: string | null | undefined): string | null => {
+    const person = id ? people.get(id) : null
+    if (!person) return null
+    if (!isSuper && ADMIN_TIER_ROLES.has(person.role)) return 'Administrator'
+    if (isSuper) return person.full_name ?? person.email
+    return person.full_name ?? `User ${(id ?? '').slice(0, 8)}`
+  }
+
   const rows = items.map((r) => {
-    const actor = r.actor_id ? actors.get(r.actor_id) : null
-    // Actor identity, tiered by viewer. A non-super viewer (viewHistory can be
-    // override-granted to a sub_admin/tutor/mentor) never sees an admin-tier actor's
-    // identity (show the tier) and never sees ANYONE's raw email: the name if
-    // set, else a short id - never PII. A super viewer (full admin) sees the full
-    // identity, email fallback included.
-    let actorLabel: string | null = null
-    if (actor) {
-      if (!isSuper && ADMIN_TIER_ROLES.has(actor.role)) actorLabel = 'Administrator'
-      else if (isSuper) actorLabel = actor.full_name ?? actor.email
-      else actorLabel = actor.full_name ?? `User ${(r.actor_id ?? '').slice(0, 8)}`
-    }
     const { scope, verb } = actionParts(r.action)
     return {
       id: r.id,
       created_at: r.created_at,
-      actorLabel,
+      actorLabel: personLabel(r.actor_id),
       actionScope: scope,
       actionVerb: verb,
       actionVerbTone: VERB_TONE[verb] ?? 'text-slate-700',
       entity_type: r.entity_type,
       entity_id: r.entity_id,
       entityShortId: r.entity_id ? r.entity_id.slice(0, 8) : null,
+      // Only a profile row names a person. An erased or hard-deleted account resolves to
+      // nothing, and the row keeps its type + short id: the record of what happened survives
+      // the person's removal, which is the point of an audit trail.
+      targetLabel: r.entity_type === 'profile' ? personLabel(r.entity_id) : null,
     }
   })
 

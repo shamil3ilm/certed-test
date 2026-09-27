@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { navFor } from '@/app/(prt)/nav'
+import { NavIcon } from '@/app/(prt)/NavIcon'
 import { ALL_CAPABILITIES } from '@/lib/capabilities'
 
 /**
@@ -38,5 +41,12 @@ describe('nav dead-route guardrail', () => {
   it.each(navFor(allCaps))('nav item "$label" ($href) maps to a real page.tsx', ({ href }) => {
     const pagePath = path.join(process.cwd(), 'src', 'app', '(prt)', href, 'page.tsx')
     expect(existsSync(pagePath), `${href} -> ${pagePath} does not exist`).toBe(true)
+  })
+
+  it.each(navFor(allCaps))('nav item "$label" ($href) renders an icon', ({ href }) => {
+    // NavIcon renders NOTHING for an href it does not know, so a missing entry ships as bare
+    // text beside iconed siblings rather than failing anywhere - which is how Class hours went
+    // out without one.
+    expect(renderToStaticMarkup(createElement(NavIcon, { href })), `${href} has no NavIcon entry`).not.toBe('')
   })
 })

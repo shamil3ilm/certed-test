@@ -6,88 +6,95 @@ function labelsFor(personas: string[]) {
   return navFor(getBaseCapabilities(personas.map((persona_name) => ({ persona_name })))).map((item) => item.label)
 }
 
+/**
+ * The nav offers the same items to everyone who may reach them; what changes per persona is the
+ * ORDER, so the first thing each reader meets is the work they came to do. Dashboard is first
+ * for all of them.
+ */
 describe('nav ordering by persona', () => {
-  it('keeps the admin main-nav order stable', () => {
+  it('puts running the academy first for an admin, and classwork last', () => {
+    // An admin opens people, money and the record daily; a class or a grade is something they
+    // occasionally look into, so the teaching cluster sits behind the rest rather than in front.
     expect(labelsFor(['admin'])).toEqual([
       'Dashboard',
-      'Classes',
-      'Grading',
-      'Documents',
-      'Calendar',
-      'Mentoring', // admin holds viewUsers: /students is an oversight view, not "my mentees"
-      'Session times',
-      'Messages',
       'Users',
       'Finance',
-      'History',
       'Class hours',
       'Access management',
       'Organization',
-    ])
-  })
-
-  it('keeps the sub-admin main-nav order stable', () => {
-    // Sub-admin is now an operational admin: class management + mentoring on top of
-    // user administration (see capabilities/index.ts). Finance and History stay
-    // admin-only, so they remain absent here. Organization settings are admin-only too
-    // (the bank/IFSC fields the DB restricts to is_active_admin(), 0017), so despite
-    // holding manageUsers a sub_admin does NOT get the Organization item.
-    //
-    // "Session times" IS here. A sub_admin is oversight on the mentoring surfaces, and
-    // /students and /session-timings resolve that through the SAME predicate
-    // (mentoringScopeClassIds), so the two pages describe one population. Omitting the item
-    // would only make sense if the page were empty for a sub_admin, and an empty page there
-    // would be a scope bug to fix rather than a nav entry to drop.
-    expect(labelsFor(['sub_admin'])).toEqual([
-      'Dashboard',
+      'Audit log',
+      'Mentoring', // admin holds viewUsers: /students is an oversight view, not "my mentees"
+      'Session times',
+      'Messages',
       'Classes',
       'Grading',
       'Documents',
       'Calendar',
-      'Mentoring',
-      'Session times',
-      'Messages',
+    ])
+  })
+
+  it('orders a sub-admin the same way, minus what the tier does not hold', () => {
+    // Finance, Organization and the Audit log stay admin-only, so they are absent rather than
+    // reordered. "Session times" IS here: a sub_admin is oversight on the mentoring surfaces,
+    // and /students and /session-timings resolve that through the same predicate.
+    expect(labelsFor(['sub_admin'])).toEqual([
+      'Dashboard',
       'Users',
       'Class hours',
       'Access management',
+      'Mentoring',
+      'Session times',
+      'Messages',
+      'Classes',
+      'Grading',
+      'Documents',
+      'Calendar',
     ])
   })
 
-  it('keeps the tutor main-nav order stable', () => {
+  it('puts the classroom first for a tutor', () => {
     expect(labelsFor(['tutor'])).toEqual(['Dashboard', 'Classes', 'Grading', 'Documents', 'Calendar', 'Messages'])
   })
 
-  it('keeps the mentor main-nav order stable', () => {
-    // A mentor is an oversight persona: it can SEE its mentees' classes and
-    // grading context, so the read-only Classes and Grading items sit alongside
-    // Mentees. The write-side class powers stay with the tutor persona.
+  it('puts the mentees first for a mentor, with their classes right behind', () => {
+    // A mentor is an oversight persona: it can SEE its mentees' classes and grading context, so
+    // the read-only Classes and Grading items follow Mentees. Write-side class powers stay with
+    // the tutor persona.
     expect(labelsFor(['mentor'])).toEqual([
       'Dashboard',
+      'Mentees',
+      'Session times',
       'Classes',
       'Grading',
       'Documents',
       'Calendar',
-      'Mentees',
-      'Session times',
       'Messages',
     ])
   })
 
-  it('keeps the tutor-plus-mentor main-nav order stable', () => {
+  it('reads someone who both teaches and mentors as a mentor', () => {
+    // The mentee list is the narrower, more personal surface of the two, and their classes sit
+    // immediately behind it either way.
     expect(labelsFor(['tutor', 'mentor'])).toEqual([
       'Dashboard',
+      'Mentees',
+      'Session times',
       'Classes',
       'Grading',
       'Documents',
       'Calendar',
-      'Mentees',
-      'Session times',
       'Messages',
     ])
   })
 
-  it('keeps the student main-nav order stable', () => {
+  it('puts a student in their own classes first', () => {
     expect(labelsFor(['student'])).toEqual(['Dashboard', 'Classes', 'Grades', 'Documents', 'Calendar', 'Messages'])
+  })
+
+  it('starts every persona at the Dashboard', () => {
+    for (const personas of [['admin'], ['sub_admin'], ['tutor'], ['mentor'], ['tutor', 'mentor'], ['student']]) {
+      expect(labelsFor(personas)[0], personas.join('+')).toBe('Dashboard')
+    }
   })
 
   it('collapses self-service finance items into the finance hub when finance is present', () => {

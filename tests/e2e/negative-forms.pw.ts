@@ -16,6 +16,23 @@ test('negative form -- change-password flags a mismatch inline before any submit
   await expect(page.getByText('Passwords do not match.')).toBeVisible()
 })
 
+test('negative form -- a required field refused on submit says so in the app, not a browser bubble', async ({
+  page,
+}) => {
+  await loginAs(page, 'admin@mock.test')
+  await page.goto('/admin/users', { waitUntil: 'domcontentloaded', timeout: 45000 })
+  const form = page.locator('form', { has: page.getByRole('button', { name: 'Add user' }) })
+  await form.getByRole('button', { name: 'Add user' }).click()
+
+  // Our own message, under the field the form names - and the field is marked for a screen
+  // reader. The browser's own bubble renders no DOM, so its absence is this assertion passing.
+  await expect(form.getByText('Email is required.')).toBeVisible()
+  await expect(form.locator('input[name=email]')).toHaveAttribute('aria-invalid', 'true')
+
+  await form.locator('input[name=email]').fill('someone@example.com')
+  await expect(form.getByText('Email is required.')).toHaveCount(0)
+})
+
 test('negative ui -- a student sees no content-management controls on their own class', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
   // The student IS enrolled in the math class, so it opens - but a student manages
@@ -30,7 +47,7 @@ test('negative ui -- a student sees no content-management controls on their own 
 test('negative ui -- a student nav exposes no admin / oversight destinations', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
   await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45000 })
-  for (const label of ['Users', 'Finance', 'History', 'Access management', 'Mentees', 'Mentoring']) {
+  for (const label of ['Users', 'Finance', 'Audit log', 'Access management', 'Mentees', 'Mentoring']) {
     await expect(
       page.getByRole('link', { name: label, exact: true }),
       `student must not see a "${label}" link`,

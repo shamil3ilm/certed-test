@@ -101,6 +101,17 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M10 21v-5h4v5M9 11h.01M15 11h.01" />
     </>
   ),
+  // Class hours: the academy-wide hours REPORT, so bars rather than a third timepiece. History
+  // already owns the plain clock and Session times the stopwatch; at 18px another clock face
+  // would read as the same destination.
+  '/admin/teaching-hours': (
+    <>
+      <path d="M4 20h16" />
+      <rect x="6.5" y="12" width="3.5" height="6" rx="1" />
+      <rect x="12" y="8.5" width="3.5" height="9.5" rx="1" />
+      <rect x="17.5" y="5" width="3.5" height="13" rx="1" />
+    </>
+  ),
   // Access management: a shield-check (permissions / who-can-do-what).
   '/admin/messaging': (
     <>

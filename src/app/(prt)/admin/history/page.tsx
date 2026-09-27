@@ -13,11 +13,16 @@ export default async function HistoryPage(props: {
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <PageHeader
-        title="History"
+        title="Audit log"
         description="Sensitive actions across the academy - user changes, grading, finance and more - newest first. Read-only."
       />
 
-      <FilterBar className="mt-2" clearHref="/admin/history" showClear={Boolean(filters.action || filters.actor)}>
+      <FilterBar
+        className="mt-2"
+        clearHref="/admin/history"
+        showClear={Boolean(filters.action || filters.actor)}
+        hidden={total === 0 && !hasActiveFilters}
+      >
         <SearchFilterField
           label="Action"
           name="action"
@@ -73,9 +78,18 @@ export default async function HistoryPage(props: {
                     <span className={`font-semibold ${row.actionVerbTone}`}>{row.actionVerb}</span>
                   </td>
                   <td className="whitespace-nowrap text-slate-600">
-                    {row.entity_type}
-                    {row.entityShortId && (
-                      <span className="ml-1.5 font-mono text-xs text-slate-600">{row.entityShortId}</span>
+                    {/* A person is named, like the Who column - an id tells the reader nothing
+                        about whose account was revoked. Everything else keeps type + short id,
+                        and so does a person whose account no longer exists. */}
+                    {row.targetLabel ? (
+                      <span className="text-slate-700">{row.targetLabel}</span>
+                    ) : (
+                      <>
+                        {row.entity_type}
+                        {row.entityShortId && (
+                          <span className="ml-1.5 font-mono text-xs text-slate-600">{row.entityShortId}</span>
+                        )}
+                      </>
                     )}
                   </td>
                 </tr>
