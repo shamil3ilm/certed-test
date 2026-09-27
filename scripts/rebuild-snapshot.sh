@@ -232,16 +232,24 @@ BEGIN
       )
   LOOP
     EXECUTE format('revoke execute on function %s from public, anon, authenticated', fn.sig);
+    -- service_role is the SERVER's own identity (the admin client), and it calls functions from
+    -- both lists - finance_totals_base and replace_own_submission among them. It gets EXECUTE on
+    -- everything. Provisioning drops the stock public schema, taking Supabase's default grants
+    -- with it, so nothing else hands service_role anything: without this line a freshly
+    -- provisioned database answers "permission denied for function" on the dashboard.
+    EXECUTE format('grant execute on function %s to service_role', fn.sig);
     IF fn.name = ANY (keeps_authenticated) THEN
       EXECUTE format('grant execute on function %s to authenticated', fn.sig);
-    ELSE
-      EXECUTE format('grant execute on function %s to service_role', fn.sig);
     END IF;
   END LOOP;
 END
 $EPI$;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM public, anon, authenticated;
+-- ...and the server keeps reaching the next one. The pair mirrors what a Supabase project
+-- defines on its stock public schema; provisioning drops that schema, so the snapshot restates
+-- both halves rather than inheriting them.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
 FUNCEPI
 
 # Schema usage epilogue. The dump opens with CREATE SCHEMA public, so provisioning first drops
@@ -292,6 +300,8 @@ grep -Fq 'create extension if not exists btree_gist' "$BUILD" \
 # The two appended epilogues must be present too.
 grep -Fq 'INSERT INTO public.org_settings (id) VALUES (true)' "$BUILD"   || fail "the org_settings singleton seed did not reach the snapshot."
 grep -Fq 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS' "$BUILD"   || fail "the function privilege epilogue (C-01) did not reach the snapshot."
+grep -Fqx 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;' "$BUILD" \
+  || fail "the server's default EXECUTE grant did not reach the snapshot - a function added later would be unreachable by the app."
 grep -Fqx 'GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;' "$BUILD" \
   || fail "the schema usage epilogue did not reach the snapshot - the API roles could not use schema public."
 

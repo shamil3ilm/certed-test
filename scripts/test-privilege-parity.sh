@@ -80,7 +80,7 @@ union all
 select 'FUNCTION', r.rolname, p.proname, pg_get_function_identity_arguments(p.oid), 'EXECUTE'
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
-cross join (select rolname from pg_roles where rolname in ('anon','authenticated')) r
+cross join (select rolname from pg_roles where rolname in ('anon','authenticated','service_role')) r
 where n.nspname = 'public'
   and not exists (
     select 1 from pg_depend d
@@ -178,6 +178,28 @@ SQL
     correctness_failures=$((correctness_failures + 1))
   fi
 
+  # (d) The SERVER must be able to run every function it owns. service_role is the admin client's
+  # identity and calls functions from both halves of the epilogue's list. Provisioning drops the
+  # stock public schema - and Supabase's default grants with it - so nothing grants service_role
+  # implicitly; a missing grant here is a "permission denied for function" in production, which is
+  # how the dashboard broke on 2026-09-27.
+  server_denied=$(PSQL -d "$db" -tAq <<SQL
+select string_agg(p.proname, ', ' order by p.proname)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and not exists (select 1 from pg_depend d where d.objid = p.oid and d.classid = 'pg_proc'::regclass and d.deptype = 'e')
+  and not has_function_privilege('service_role', p.oid, 'EXECUTE');
+SQL
+)
+  if [ -n "$server_denied" ]; then
+    echo "== PRIVILEGE CORRECTNESS: FAILED ($label) =="
+    echo "The server (service_role) cannot execute these functions, so any page that calls one"
+    echo "fails with 'permission denied for function':"
+    echo "   $server_denied" | fold -sw 100 | sed 's/^/   /'
+    correctness_failures=$((correctness_failures + 1))
+  fi
+
   # (c) The API roles must be able to use schema public at all. Parity alone cannot see this
   # when both paths lose it, and a database without it refuses every API request.
   no_usage=$(PSQL -d "$db" -tAq -c "select string_agg(r, ', ') from unnest(array['anon','authenticated','service_role']) r where not has_schema_privilege(r, 'public', 'USAGE')")
@@ -209,14 +231,16 @@ done
 
 if [ "$correctness_failures" -ne 0 ]; then
   echo "----------------------------------------------------------------------------"
-  echo "Fix: apply the function sweep (migration 0096), or restore the snapshot's schema usage"
-  echo "epilogue (scripts/rebuild-snapshot.sh), and re-run."
+  echo "Fix: apply the function sweep (migration 0096) and the server grants (migration 0119), or"
+  echo "restore the snapshot's schema-usage and function epilogues (scripts/rebuild-snapshot.sh),"
+  echo "and re-run."
   exit 1
 fi
 echo "== PRIVILEGE CORRECTNESS: OK =="
 echo "   no service-role-only function is reachable by anon/authenticated, in either path"
 echo "   and DEFAULT PRIVILEGES deny EXECUTE on future functions"
 echo "   and anon, authenticated and service_role can use schema public"
+echo "   and the server (service_role) can execute every function in public"
 
 if diff -u "$TMPDIR/mig.privs" "$TMPDIR/snap.privs" >"$TMPDIR/diff.txt"; then
   echo "== PRIVILEGE PARITY: OK =="
