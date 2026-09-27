@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
-import { requireCapability } from '@/lib/auth/require-role'
+import { requireCapability, redirectDenied } from '@/lib/auth/require-role'
+import { getActorContext } from '@/lib/session/actor-context'
 import { isAdminTier } from '@/lib/capabilities'
 import { loadBillingRatesPageData } from '@/lib/services/finance/billing-rates-admin'
 import { BackLink, PageHeader } from '@/lib/ui'
@@ -19,7 +19,7 @@ import { RateRows } from './RateRows'
  */
 export default async function BillingRatesPage() {
   const me = await requireCapability('viewFinance')
-  if (!isAdminTier(me)) redirect('/dashboard?denied=1')
+  if (!isAdminTier(me)) redirectDenied(await getActorContext())
   const { students, payees, baseCurrency } = await loadBillingRatesPageData(me.id)
 
   const missing = [...students, ...payees].filter((p) => p.rate == null).length

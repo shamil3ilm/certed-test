@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getActorContext } from '@/lib/session/actor-context'
+import { getActorContext, type ActorContext } from '@/lib/session/actor-context'
 import { type Capability } from '@/lib/capabilities'
 import { redirectForAccessState } from './guards'
 import type { Profile } from './profile'
@@ -20,6 +20,21 @@ function hasAllowedPersona(allowed: Profile['role'][], personas: Array<{ persona
 }
 
 /**
+ * Where a refused page guard sends the caller. The dashboard carries the "no access" notice, but
+ * OPENING it needs viewDashboard - so an actor without that capability goes to the dead-end page
+ * instead, which renders for any active account and offers sign-out.
+ *
+ * Every refusal goes through here rather than naming /dashboard itself: an account with no
+ * persona holds no capability at all, and sending it to a page it cannot pass means the guard
+ * there refuses it again, forever. That is a lock-out, not a permission boundary - the person
+ * cannot even reach the sign-out control.
+ */
+export function redirectDenied(actor: ActorContext): never {
+  if (!actor.capabilities.allowed.has('viewDashboard')) redirect('/no-access')
+  redirect('/dashboard?denied=1')
+}
+
+/**
  * Page/Server-Action guard: enforces active status + one of the allowed personas,
  * redirecting (not throwing) on failure. Returns the caller's profile.
  */
@@ -29,7 +44,7 @@ export async function requireRole(allowed: Profile['role'][]): Promise<Profile> 
   // Flag WHY, exactly as requireCapability does: a persona-gated page (e.g. Organization
   // settings) otherwise bounces to the dashboard with no explanation at all, which reads as
   // a broken link rather than a permission boundary.
-  if (!hasAllowedPersona(allowed, actor.personas)) redirect('/dashboard?denied=1')
+  if (!hasAllowedPersona(allowed, actor.personas)) redirectDenied(actor)
   return actor.profile
 }
 
@@ -76,7 +91,7 @@ export async function requireCapability(capability: Capability): Promise<Profile
   if (!actor.profile || actor.accessState !== 'active') redirectForAccessState(actor)
   // Send them home, but flag WHY so the dashboard can show a brief "no access"
   // notice instead of a silent bounce (the route was never in their nav).
-  if (!actor.capabilities.allowed.has(capability)) redirect('/dashboard?denied=1')
+  if (!actor.capabilities.allowed.has(capability)) redirectDenied(actor)
   return actor.profile
 }
 

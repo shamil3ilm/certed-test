@@ -1,10 +1,9 @@
-import { requireCapability } from '@/lib/auth/require-role'
+import { requireCapability, redirectDenied } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getActorContext } from '@/lib/session/actor-context'
 import { getReportCardData } from '@/lib/report-card/data'
 import { StudentReportActions } from '@/lib/reports/student-report-actions'
 import { PageHeader, EmptyState } from '@/lib/ui'
-import { redirect } from 'next/navigation'
 import { Gradecard } from './Gradecard'
 
 /**
@@ -15,12 +14,10 @@ import { Gradecard } from './Gradecard'
 export default async function GradesPage() {
   const me = await requireCapability('viewClasses')
   const flags = await loadPersonaFlags(me.id)
+  const actor = await getActorContext()
   // Own grade card is student-only; a non-student is bounced through the shared
   // "no access" notice, matching requireCapability, not a silent redirect.
-  if (!flags.isStudent) {
-    redirect('/dashboard?denied=1')
-  }
-  const actor = await getActorContext()
+  if (!flags.isStudent) redirectDenied(actor)
   const data = await getReportCardData(actor, me.id)
   const marks = data?.marks ?? []
 

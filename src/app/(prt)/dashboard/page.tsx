@@ -1,4 +1,5 @@
-import { requireCapability } from '@/lib/auth/require-role'
+import { redirect } from 'next/navigation'
+import { requireActiveProfile } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadDashboardViewData } from '@/lib/services/page-data/dashboard'
 import { AlertBanner, PageHeader, personaLabel } from '@/lib/ui'
@@ -12,10 +13,12 @@ import {
 } from './views'
 
 export default async function Dashboard(props: { searchParams: Promise<{ denied?: string }> }) {
-  // Entry page: guarded by capability rather than a fixed role list, so the
-  // route stays aligned with the resolved access model.
-  const me = await requireCapability('viewDashboard')
+  // Active session first, then the capability check INLINE. This page must never refuse someone
+  // TO ITSELF: guarding it with requireCapability('viewDashboard') aimed the refusal at this very
+  // route, so an account without the capability was redirected here for as long as it kept trying.
+  const me = await requireActiveProfile()
   const actor = await getActorContext() // request-cached; already loaded by the header
+  if (!actor.capabilities.allowed.has('viewDashboard')) redirect('/no-access')
   const data = await loadDashboardViewData(me, actor.capabilities.allowed)
   // A capability guard elsewhere bounces here with ?denied=1 (the route was never
   // in this persona's nav) - show a brief notice rather than a silent redirect.

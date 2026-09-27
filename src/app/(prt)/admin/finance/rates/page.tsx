@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
-import { requireCapability } from '@/lib/auth/require-role'
+import { requireCapability, redirectDenied } from '@/lib/auth/require-role'
+import { getActorContext } from '@/lib/session/actor-context'
 import { isAdminTier } from '@/lib/capabilities'
 import { loadFxRatesPageData } from '@/lib/services/finance/fx-admin'
 import { BackLink, PageHeader } from '@/lib/ui'
@@ -13,7 +13,7 @@ import { RatesManager } from './RatesManager'
  */
 export default async function FxRatesPage() {
   const me = await requireCapability('viewFinance')
-  if (!isAdminTier(me)) redirect('/dashboard?denied=1')
+  if (!isAdminTier(me)) redirectDenied(await getActorContext())
   const data = await loadFxRatesPageData(me.id)
 
   return (
