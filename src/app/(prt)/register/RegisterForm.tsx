@@ -8,6 +8,16 @@ import { Field, Input, PasswordInput } from '../form'
 import { registerAction } from './actions'
 import { AlertBanner } from '@/lib/ui'
 
+/**
+ * Whether the under-18 guardian-consent tick is shown. Hidden for now.
+ *
+ * The SERVER rule is unchanged: completePasswordRegistration still refuses to set up an account
+ * whose date of birth makes it a minor unless guardian_consent arrives with the request
+ * (requiresGuardianConsent). While this is false, no one can tick the box, so such an account
+ * cannot finish registration. Set it back to true to restore the field - nothing else changes.
+ */
+const SHOW_GUARDIAN_CONSENT: boolean = false
+
 export function RegisterForm() {
   const router = useRouter()
   const authAvailability = getBrowserAuthAvailability()
@@ -79,18 +89,20 @@ export function RegisterForm() {
           onChange={(event) => setPassword(event.target.value)}
         />
       </Field>
-      <label className="flex items-start gap-2 text-sm text-slate-600">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={guardianConsent}
-          onChange={(event) => setGuardianConsent(event.target.checked)}
-        />
-        <span>
-          If the account holder is under 18, I confirm a parent or guardian has read and agrees to the Terms of Use and
-          Privacy Policy on their behalf.
-        </span>
-      </label>
+      {SHOW_GUARDIAN_CONSENT && (
+        <label className="flex items-start gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={guardianConsent}
+            onChange={(event) => setGuardianConsent(event.target.checked)}
+          />
+          <span>
+            If the account holder is under 18, I confirm a parent or guardian has read and agrees to the Terms of Use
+            and Privacy Policy on their behalf.
+          </span>
+        </label>
+      )}
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}
       <button type="submit" disabled={busy || !authAvailability.ok} className="btn btn-primary w-full">
