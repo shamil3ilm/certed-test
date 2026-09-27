@@ -38,7 +38,12 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
         description="Search question papers, practice sheets and other materials across all your classes."
       />
 
-      <FilterBar className="mt-2" clearHref="/documents" showClear={hasActiveFilters}>
+      <FilterBar
+        className="mt-2"
+        clearHref="/documents"
+        showClear={hasActiveFilters}
+        hidden={total === 0 && !hasActiveFilters}
+      >
         <SearchFilterField name="q" defaultValue={filters.q} placeholder="Title, description, subject..." />
         <SelectFilterField label="Category" name="cat" defaultValue={filters.category}>
           <option value="">All categories</option>

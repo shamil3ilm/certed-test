@@ -40,7 +40,12 @@ export default async function StudentsPage(props: { searchParams: Promise<{ page
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
       <PageHeader title={data.title} description={data.description} />
 
-      <FilterBar className="mb-4 mt-2" clearHref="/students" showClear={Boolean(search)}>
+      <FilterBar
+        className="mb-4 mt-2"
+        clearHref="/students"
+        showClear={Boolean(search)}
+        hidden={data.total === 0 && !search}
+      >
         <SearchFilterField name="q" defaultValue={search} placeholder="Name or email..." />
       </FilterBar>
 

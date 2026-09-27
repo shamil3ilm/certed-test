@@ -96,14 +96,23 @@ export function FilterBar({
   showClear = false,
   applyLabel = 'Apply',
   className = '',
+  hidden = false,
   children,
 }: {
   clearHref?: string
   showClear?: boolean
   applyLabel?: string
   className?: string
+  /**
+   * Render nothing at all. Pass `true` for "there is nothing to filter AND no filter is set":
+   * there, Apply reloads the same empty screen, so the control looks broken rather than
+   * pointless. Pass `false` as soon as a filter IS active, or a search matching nothing could
+   * never be cleared.
+   */
+  hidden?: boolean
   children: ReactNode
 }) {
+  if (hidden) return null
   return (
     <form className={cx('flex flex-wrap items-end gap-2', className)}>
       {children}

@@ -7,6 +7,7 @@ import { PortalHeader } from './PortalHeader'
 import { PortalProviders } from './Providers'
 import { ViewerTimeZoneProvider } from './ViewerTimeZone'
 import { IdleLogout } from './IdleLogout'
+import { FieldValidationMessages } from './FieldValidationMessages'
 
 export const metadata: Metadata = {
   title: 'Cert-Ed Academia - App',
@@ -56,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <ViewerTimeZoneProvider initialTz={viewerTz}>
         <PortalProviders>
           <IdleLogout />
+          <FieldValidationMessages />
           <PortalHeader />
           <div className="flex-1">{children}</div>
           <footer className="mt-8 border-t border-slate-200">

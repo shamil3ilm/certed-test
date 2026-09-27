@@ -10,6 +10,7 @@ import {
 import { ConfirmSubmit } from '../../ConfirmSubmit'
 import { CommentThread } from '../../CommentThread'
 import { EscapableDetails } from '../../EscapableDetails'
+import { CloseDisclosureWhenDone } from '../../CloseDisclosureWhenDone'
 import { Field, Input, SubmitButton, Textarea } from '../../form'
 import { restoreMeetLinkAction } from '../../meetings/actions'
 import { MeetList } from '../../meetings/MeetList'
@@ -176,6 +177,7 @@ export default async function ClassStreamPage(props: {
                           </Field>
                         </div>
                         <SubmitButton pendingLabel="Saving...">Save</SubmitButton>
+                        <CloseDisclosureWhenDone />
                       </form>
                     </EscapableDetails>
                     <form action={archiveAnnouncementAction}>

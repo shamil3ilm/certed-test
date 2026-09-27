@@ -76,7 +76,12 @@ export default async function GradingPage(props: { searchParams?: Promise<{ page
         description="Open a class to review submissions and record marks in its grading tab."
       />
 
-      <FilterBar className="mb-4 mt-2" clearHref="/grading" showClear={Boolean(filters.q)}>
+      <FilterBar
+        className="mb-4 mt-2"
+        clearHref="/grading"
+        showClear={Boolean(filters.q)}
+        hidden={total === 0 && !filters.q}
+      >
         <SearchFilterField label="Student" name="q" defaultValue={filters.q} placeholder="Student name..." />
       </FilterBar>
 

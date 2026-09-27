@@ -221,7 +221,12 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
       )}
 
       {(allSubjects.length > 0 || allTags.length > 0 || groupByStudentView) && (
-        <FilterBar className="mb-4" clearHref="/classroom" showClear={data.hasActiveFilters}>
+        <FilterBar
+          className="mb-4"
+          clearHref="/classroom"
+          showClear={data.hasActiveFilters}
+          hidden={nothingToShow && !data.hasActiveFilters}
+        >
           {/* Searching the ROSTER, which is what this list is paged by - so the field says
               so rather than implying it searches class names. */}
           {groupByStudentView && (
