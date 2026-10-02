@@ -9,6 +9,14 @@ const DISMISS_KEY = 'certed-cookie-notice-dismissed'
  * tracking/advertising cookies, so this is an informational notice (a "got it" dismiss),
  * NOT a consent banner with accept/reject. Dismissal is remembered per browser.
  *
+ * MOUNTED NOWHERE, deliberately. The MARKETING host sets no cookies at all - the middleware
+ * returns before updateSession there, and nothing on those pages writes one - so a notice on it
+ * would describe sign-in cookies that host never sets, and this banner's own localStorage
+ * dismissal would be the only browser storage on it. The cookies live on the PORTAL (Supabase
+ * auth, and the `tz` preference from ViewerTimeZone); mount it there if a visible statement is
+ * wanted. Consent is not required either way: strictly-necessary cookies are exempt, and the
+ * privacy page already discloses them.
+ *
  * The dismissed flag lives in localStorage, which doesn't exist during SSR - reading it
  * in render would hydration-mismatch, and reading it in an effect trips
  * react-hooks/set-state-in-effect. useSyncExternalStore is React's answer for exactly
