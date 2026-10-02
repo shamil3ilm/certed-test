@@ -34,6 +34,10 @@ export type TutorRosterItem = {
 const nameOf = (row: { full_name: string | null; email: string } | undefined): string | null =>
   row ? (row.full_name ?? row.email) : null
 
+/** One student's subjects and who teaches them. Reads through the service-role client, so RLS
+ *  never runs and the CALLER MUST have proved admin-tier authority first - the admin user-detail
+ *  page does. Anything exposing this by a caller-supplied id, a route especially, must prove it
+ *  too or it hands out any student's timetable. */
 export async function loadStudentSubjects(studentId: string): Promise<StudentSubject[]> {
   const classIds = await selectActiveClassIdsForStudent(studentId)
   if (classIds.length === 0) return []
@@ -65,6 +69,8 @@ export async function loadStudentSubjects(studentId: string): Promise<StudentSub
     .sort((a, b) => a.subjectName.localeCompare(b.subjectName))
 }
 
+/** One tutor's classes and the students in them. Same contract as loadStudentSubjects above:
+ *  service-role read, no RLS, so the caller carries the authority. */
 export async function loadTutorRoster(tutorId: string): Promise<TutorRosterItem[]> {
   const classIds = await selectActiveClassIdsForTutor(tutorId)
   if (classIds.length === 0) return []

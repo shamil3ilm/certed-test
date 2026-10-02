@@ -4,7 +4,7 @@ import { formatMark } from '@/lib/grades'
 import { getLatestAnnouncementForClasses } from '@/lib/services/announcements'
 import { getAssignment, listAssignments } from '@/lib/services/assignments'
 import { getLatestGrade, listMyActiveSubmissions } from '@/lib/services/submissions'
-import { getStudentGradeTrajectory } from '@/lib/services/page-data/grade-trajectory'
+import { getOwnGradeTrajectory } from '@/lib/services/page-data/grade-trajectory'
 import { LineChart, Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
 import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_STACK, resolveClassIds } from './widget-shared'
@@ -13,8 +13,8 @@ import { type ClassScopedWidgetData, WIDGET_CTA_LINK, WIDGET_ROW_STACK, resolveC
  *  progress view mentors get for a mentee) WITH the latest mark folded in, so the
  *  dashboard shows one coherent grades tile instead of two overlapping ones (the
  *  trajectory chart already includes the latest mark). */
-export async function GradeTrajectoryWidget({ studentId }: { studentId: string }) {
-  const [t, latest] = await Promise.all([getStudentGradeTrajectory(studentId), getLatestGrade(studentId)])
+export async function GradeTrajectoryWidget({ me }: { me: Profile }) {
+  const [t, latest] = await Promise.all([getOwnGradeTrajectory(me), getLatestGrade(me.id)])
   const latestAssignment = latest ? await getAssignment(latest.assignment_id) : null
   const feedbackHref =
     latest && latestAssignment

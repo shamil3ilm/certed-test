@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Profile } from '@/lib/auth/profile'
 import type { ChartPoint } from '@/lib/ui'
 import { markPercent, weightedAveragePercent } from '@/lib/grades'
 import { selectEvaluatedSubmissionsForStudentAsService } from '@/lib/data/submissions-service-reads'
@@ -24,8 +25,15 @@ export type GradeTrajectory = {
 
 const EMPTY: GradeTrajectory = { average: null, gradedCount: 0, points: [], direction: null, delta: null }
 
-export async function getStudentGradeTrajectory(studentId: string): Promise<GradeTrajectory> {
-  const subs = await selectEvaluatedSubmissionsForStudentAsService(studentId)
+/**
+ * The reads below go through the service-role client, so RLS never runs and this function is the
+ * only thing standing between a caller and another student's marks. It therefore takes the ACTOR
+ * and reads that person's own work - there is no student parameter for a route or a page to
+ * forward. Showing someone else's trajectory needs a function that proves the authority for it
+ * (mentor of the student, or tutor of their class); this is deliberately not that function.
+ */
+export async function getOwnGradeTrajectory(actor: Profile): Promise<GradeTrajectory> {
+  const subs = await selectEvaluatedSubmissionsForStudentAsService(actor.id)
   if (subs.length === 0) return EMPTY
 
   const assignments = await selectAssignmentsByIdsAsService([...new Set(subs.map((s) => s.assignment_id))])

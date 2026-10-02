@@ -7,7 +7,8 @@ vi.mock('@/lib/data/assignments', () => ({ selectAssignmentsByIdsAsService: vi.f
 
 import { selectEvaluatedSubmissionsForStudentAsService } from '@/lib/data/submissions-service-reads'
 import { selectAssignmentsByIdsAsService } from '@/lib/data/assignments'
-import { getStudentGradeTrajectory } from '@/lib/services/page-data/grade-trajectory'
+import type { Profile } from '@/lib/auth/profile'
+import { getOwnGradeTrajectory } from '@/lib/services/page-data/grade-trajectory'
 
 const sub = (assignment_id: string, score: number, graded_at: string) => ({
   assignment_id,
@@ -18,13 +19,23 @@ const sub = (assignment_id: string, score: number, graded_at: string) => ({
   drive_link: null,
 })
 const assignment = (id: string, max_marks: number | null) => ({ id, title: id, topic: null, class_id: 'c1', max_marks })
+const me = { id: 's1' } as Profile
 
 beforeEach(() => vi.resetAllMocks())
 
-describe('getStudentGradeTrajectory', () => {
+describe('getOwnGradeTrajectory', () => {
+  it("reads the ACTOR's own work - there is no student id for a caller to supply", async () => {
+    // The reads underneath go through the service-role client, so RLS never runs. The only thing
+    // keeping one student out of another's marks is that this function asks for nobody else's.
+    vi.mocked(selectEvaluatedSubmissionsForStudentAsService).mockResolvedValue([])
+    await getOwnGradeTrajectory({ id: 'someone-else' } as Profile)
+    expect(selectEvaluatedSubmissionsForStudentAsService).toHaveBeenCalledWith('someone-else')
+    expect(selectEvaluatedSubmissionsForStudentAsService).toHaveBeenCalledTimes(1)
+  })
+
   it('returns an empty trajectory when the student has no graded work', async () => {
     vi.mocked(selectEvaluatedSubmissionsForStudentAsService).mockResolvedValue([])
-    await expect(getStudentGradeTrajectory('s1')).resolves.toEqual({
+    await expect(getOwnGradeTrajectory(me)).resolves.toEqual({
       average: null,
       gradedCount: 0,
       points: [],
@@ -41,7 +52,7 @@ describe('getStudentGradeTrajectory', () => {
     ] as any)
     vi.mocked(selectAssignmentsByIdsAsService).mockResolvedValue([assignment('a1', 10), assignment('a2', 10)] as any)
 
-    const t = await getStudentGradeTrajectory('s1')
+    const t = await getOwnGradeTrajectory(me)
     // (6 + 9) / (10 + 10) * 100 = 75
     expect(t.average).toBe(75)
     expect(t.gradedCount).toBe(2)
@@ -61,13 +72,13 @@ describe('getStudentGradeTrajectory', () => {
       sub('a1', 90, '2026-01-01T00:00:00Z'),
       sub('a1', 60, '2026-02-01T00:00:00Z'),
     ] as any)
-    expect((await getStudentGradeTrajectory('s1')).direction).toBe('down')
+    expect((await getOwnGradeTrajectory(me)).direction).toBe('down')
 
     vi.mocked(selectEvaluatedSubmissionsForStudentAsService).mockResolvedValue([
       sub('a1', 80, '2026-01-01T00:00:00Z'),
       sub('a1', 81, '2026-02-01T00:00:00Z'),
     ] as any)
-    expect((await getStudentGradeTrajectory('s1')).direction).toBe('flat')
+    expect((await getOwnGradeTrajectory(me)).direction).toBe('flat')
   })
 
   it('excludes submissions whose assignment has no positive maximum', async () => {
@@ -77,7 +88,7 @@ describe('getStudentGradeTrajectory', () => {
     ] as any)
     vi.mocked(selectAssignmentsByIdsAsService).mockResolvedValue([assignment('a1', 10), assignment('a2', null)] as any)
 
-    const t = await getStudentGradeTrajectory('s1')
+    const t = await getOwnGradeTrajectory(me)
     expect(t.gradedCount).toBe(1)
     expect(t.points).toEqual([{ label: '10 Jan', value: 80 }])
     expect(t.direction).toBeNull() // only one usable point

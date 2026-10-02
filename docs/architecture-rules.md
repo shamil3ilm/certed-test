@@ -228,6 +228,20 @@ API routes must not:
 7. Global identity flags and scoped authority must not be conflated.
 8. A helper named or documented as a global persona helper must not be used as proof of scoped authority.
 9. If a module intentionally relies on caller-enforced permission checks, that exception must be stated clearly in the module contract.
+10. **Where a write or read goes through the service-role client, RLS never runs, so the app guard is the only control — not a second line of defence.** Grading, attendance clearing and the `*AsService` reads are in this category. Weakening such a guard is not defence-in-depth traded away; it is the whole defence removed.
+11. **A function that reads one person's data through the service-role client must derive that person from the actor, not accept them as an argument** — unless it checks the authority itself and says so in its contract. A caller-supplied id with no check becomes an IDOR the first time any new transport forwards a path parameter to it, which is why `getStudentGradeTrajectory` became `getOwnGradeTrajectory(actor)`. **Enforced by `tests/unit/service-role-authority.test.ts`**, which fails on any new function of that shape unless it is listed there with the reason its caller carries the authority.
+12. **Guard pairs that differ by one persona are load-bearing and must be reused, never restated.** A mentor may mark attendance (`canManageClass`) but not clear a session (`canWriteClass`); may oversee but never grade; may write a session's times and summary but not its staff-private note (`canEditStaffNote`, one definition in `src/lib/permission/staff-note.ts`). Calling the existing helper is the rule; re-deriving "is this person a mentor" in a page, an action or a route is a review failure.
+
+---
+
+## 6.1 Layer invariants a newcomer should not have to discover
+
+These hold today, are relied upon, and are cheap to break by accident:
+
+1. **Services are pure functions of `(actor, input)`.** Nothing under `src/lib/services` reads `cookies()`, `headers()`, or calls `redirect()` or `revalidatePath()`. That is what lets the same service back both a server action and, later, an HTTP API. Reaching for request-scoped state inside a service breaks it.
+2. **Cache invalidation belongs to the action layer.** All `revalidatePath` calls live in `src/app/(prt)/**/actions.ts`. A service that invalidates a path has assumed its caller is a browser navigation.
+3. **Authority is layered, and each layer has a job**: the capability guard answers "may this kind of person do this at all", the service answers "may this person do this to this row", and RLS answers "may this database role see this row". Removing a layer because another one covers it is how the gaps in rule 10 appear.
+4. **Form parsing belongs beside the service it feeds**, as a `*FromActionInput` adapter, not inside the action. The assembled input is usually what a security boundary filters, so it is worth testing on its own.
 
 ---
 

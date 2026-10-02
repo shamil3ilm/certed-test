@@ -212,7 +212,7 @@ export function StudentDashboardContent({
           <StudentDueWork me={me} now={now} classIdsPromise={classIdsPromise} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
-          <GradeTrajectoryWidget studentId={me.id} />
+          <GradeTrajectoryWidget me={me} />
         </Suspense>
         <Suspense fallback={<WidgetSkeleton />}>
           <StudentLatestAnnouncement me={me} classIdsPromise={classIdsPromise} />
