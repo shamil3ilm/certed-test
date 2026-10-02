@@ -1,19 +1,10 @@
-import { timingSafeEqual } from 'node:crypto'
-import { authFail, ok, serverError } from '@/lib/api/response'
+import { ok, serverError } from '@/lib/api/response'
+import { cronAuthFailure } from '@/lib/api/cron-auth'
 import { reconcileAttachments } from '@/lib/services/attachments/reconcile'
 import { logError } from '@/lib/observability/log'
 
 // Node runtime: reconciliation lists + deletes files through the Drive REST API.
 export const runtime = 'nodejs'
-
-/** Length-checked constant-time compare (mirrors the drain-emails cron guard):
- *  timingSafeEqual throws on unequal lengths, so length is checked first and only
- *  the length can leak, never how many leading bytes matched. */
-function safeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a)
-  const bb = Buffer.from(b)
-  return ba.length === bb.length && timingSafeEqual(ba, bb)
-}
 
 /**
  * Sweeps the custodial-attachment two-phase-commit gap: rows stuck `pending` past
@@ -29,7 +20,7 @@ function safeEqual(a: string, b: string): boolean {
  *
  *   B. pg_cron + pg_net (plan-independent), run once with your URL + secret:
  *        select cron.schedule('reconcile-attachments', '0 3 * * *', $q$
- *          select net.http_post(
+ *          select net.http_get(
  *            url     := 'https://app.certedacademia.com/api/cron/reconcile-attachments',
  *            headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>')
  *          );
@@ -39,11 +30,9 @@ function safeEqual(a: string, b: string): boolean {
  * and an orphan file only wastes space), and the stale-pending cutoff is an hour.
  */
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET
-  const provided = req.headers.get('authorization')
-  if (!secret || !provided || !safeEqual(provided, `Bearer ${secret}`)) {
-    return authFail(new Error('unauthorized'))
-  }
+  // Fail closed, in constant time, from one definition shared by every cron route.
+  const denied = cronAuthFailure(req)
+  if (denied) return denied
   try {
     return ok(await reconcileAttachments())
   } catch (error) {

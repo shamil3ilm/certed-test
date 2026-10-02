@@ -1,17 +1,9 @@
-import { timingSafeEqual } from 'node:crypto'
-import { authFail, ok, serverError } from '@/lib/api/response'
+import { ok, serverError } from '@/lib/api/response'
+import { cronAuthFailure } from '@/lib/api/cron-auth'
 import { reconcileConsents } from '@/lib/services/consents'
 import { logError } from '@/lib/observability/log'
 
 export const runtime = 'nodejs'
-
-/** Length-checked constant-time compare (mirrors the other cron guards): timingSafeEqual
- *  throws on unequal lengths, so length is checked first and only the length can leak. */
-function safeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a)
-  const bb = Buffer.from(b)
-  return ba.length === bb.length && timingSafeEqual(ba, bb)
-}
 
 /**
  * Reports active people with no current acceptance on the consent log.
@@ -31,7 +23,7 @@ function safeEqual(a: string, b: string): boolean {
  *
  *   B. pg_cron + pg_net (plan-independent), run once with your URL + secret:
  *        select cron.schedule('reconcile-consents', '0 4 * * *', $q$
- *          select net.http_post(
+ *          select net.http_get(
  *            url     := 'https://app.certedacademia.com/api/cron/reconcile-consents',
  *            headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>')
  *          );
@@ -41,11 +33,9 @@ function safeEqual(a: string, b: string): boolean {
  * keeps working either way, and the settings page re-prompts them whenever they visit.
  */
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET
-  const provided = req.headers.get('authorization')
-  if (!secret || !provided || !safeEqual(provided, `Bearer ${secret}`)) {
-    return authFail(new Error('unauthorized'))
-  }
+  // Fail closed, in constant time, from one definition shared by every cron route.
+  const denied = cronAuthFailure(req)
+  if (denied) return denied
   try {
     const result = await reconcileConsents()
     // Surfaced, not just returned: the cron response is read by whatever invoked it, which
