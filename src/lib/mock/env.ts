@@ -52,10 +52,10 @@ function isSanctionedMockContext(): boolean {
  * fail LOUDLY (build + boot) rather than tolerate it silently.
  *
  * Fails CLOSED: the guard fires in EVERY production-like context that is not positively
- * sanctioned. It previously keyed on VERCEL_ENV==='production' alone, so a
- * self-hosted `next start` (NODE_ENV=production, no VERCEL_ENV) slipped through - the
- * exact deployment where isMock() can still activate the bypass via ALLOW_MOCK_AUTH=1.
- * Now the only production-like context that keeps mock is the E2E build (E2E_BUILD=1).
+ * sanctioned, which is why it cannot key on VERCEL_ENV==='production' alone: a self-hosted
+ * `next start` (NODE_ENV=production, no VERCEL_ENV) would slip through, and that is the exact
+ * deployment where isMock() can still activate the bypass via ALLOW_MOCK_AUTH=1. The only
+ * production-like context that keeps mock is the E2E build (E2E_BUILD=1).
  * Called from next.config (build time) and instrumentation.register() (runtime boot).
  */
 export function assertNoMockConfigInProduction(): void {

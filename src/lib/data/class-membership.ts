@@ -167,9 +167,9 @@ export async function callUnassignClassTutor(classId: string, tutorId: string): 
 /**
  * Head count of active enrolments per class, for the "students per class" tally.
  *
- * Counted in Postgres (0105). This previously read every active enrolment in the academy -
- * paging through the PostgREST row cap to stay correct - and folded them into a Map here,
- * transferring rows whose only purpose was to be counted and thrown away.
+ * Counted in Postgres (0105), not in application code: counting here means reading every active
+ * enrolment in the academy - paging through the PostgREST row cap to stay correct - and folding
+ * them into a Map, transferring rows whose only purpose is to be counted and thrown away.
  *
  * Still RLS-scoped: the function is SECURITY INVOKER and called on the RLS client, so the
  * tally covers exactly the classes this caller could already see.

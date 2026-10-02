@@ -17,12 +17,11 @@ import { getDoc, getDocLines, type FinanceKind } from '@/lib/services/finance/fi
  * Short digest of exactly the org_settings fields that get BAKED INTO a rendered
  * document, for the PDF cache validator.
  *
- * The ETag used to encode only the document id and its void flag, on the reasoning that
- * an issued document is immutable. But the letterhead is not part of the document record -
- * it is read from org_settings at render time - so correcting a bank account or signatory
- * left every already-fetched PDF revalidating to a 304 and showing the OLD details
- * indefinitely (and, for a voided document, `immutable` meant not even revalidating for a
- * year). Folding this digest into the ETag makes the letterhead part of the cache key.
+ * An issued document is immutable, so its id and void flag look like ETag enough - but the
+ * letterhead is NOT part of the document record; it is read from org_settings at render time.
+ * Without this digest in the cache key, correcting a bank account or signatory leaves every
+ * already-fetched PDF revalidating to a 304 and showing the OLD details indefinitely, and a
+ * voided document's `immutable` would not revalidate for a year.
  *
  * Derived from orgInfo() itself, so a field added to the letterhead is covered
  * automatically rather than needing to be remembered here.

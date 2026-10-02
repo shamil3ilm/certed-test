@@ -118,7 +118,7 @@ export function SubjectsPanel({
                         {/* ConfirmSubmit, like the two other destructive controls in this
                             file: removeTutor also deactivates the global tutor persona of a
                             mentor account left with no classes - an audited privilege
-                            change - and this was the smallest click target on the page. */}
+                            change - and it is the smallest click target on the page. */}
                         <ConfirmSubmit
                           className="text-slate-600 hover:text-danger-ink"
                           aria-label={`Remove ${t.name}`}

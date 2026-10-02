@@ -10,15 +10,17 @@ function ageYears(dob: string): number {
 
 /**
  * Whether an account requires a parent/guardian's consent to be set up. Shared by the
- * password-registration path AND the OAuth first-login activation, so one rule covers both
- * (an earlier version lived only in registration.ts, letting a minor activate via Google with
- * no consent - round-5 HIGH).
+ * password-registration path AND the OAuth first-login activation, so ONE rule covers both.
+ * It has to live here, not in registration.ts: a rule the OAuth path cannot see lets a minor
+ * activate via Google with no consent at all (round-5 HIGH).
  *
  * The academy is KG-12, so a STUDENT is treated as a minor by DEFAULT - fail CLOSED. Only a
  * date_of_birth proving 18+ lifts the requirement (an adult student, rare). A recorded guardian
  * is a strengthening signal but not required to trigger it. Non-students never require it.
- * (Previously this returned false when a student had neither DOB nor guardian on record - a
- * fail-open the round-5 audit flagged.)
+ *
+ * A student with NEITHER a DOB nor a guardian on record therefore still requires consent:
+ * missing records are the ordinary state of a fresh invite, and reading absence as "adult"
+ * fails open exactly where the protection matters most (round-5).
  */
 export function requiresGuardianConsent(target: {
   role: string

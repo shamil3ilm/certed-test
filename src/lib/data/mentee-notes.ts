@@ -38,9 +38,9 @@ export async function deleteMenteeNotesForStudent(studentId: string): Promise<vo
 /**
  * ONE page of a student's pastoral notes, newest first, with the exact total.
  *
- * Previously a flat newest-200 with no pager: a mentor writing weekly reaches that in four
- * years, and this is the record you would least want quietly shortened - the older notes
- * simply stopped existing as far as the page was concerned.
+ * Paged with an exact total, never a flat newest-N: a mentor writing weekly passes 200 notes in
+ * four years, and this is the record you would least want quietly shortened - under a silent cap
+ * the older notes stop existing as far as the page is concerned.
  */
 export async function selectMenteeNotePage(
   studentId: string,

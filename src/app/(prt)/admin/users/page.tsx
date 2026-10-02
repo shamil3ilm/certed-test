@@ -91,7 +91,7 @@ export default async function AdminUsersPage(props: {
         ))}
       </nav>
 
-      {/* Role strip: the same ?role= narrowing the filter bar used to carry, as tabs. A role is
+      {/* Role strip: the ?role= narrowing, as tabs rather than a filter-bar field. A role is
           how people look for someone ("show me the tutors"), so it belongs in navigation rather
           than behind an Apply button. 'staff' has no tab (see ROLE_TABS) but still resolves. */}
       {data.filters.tab === 'people' && (

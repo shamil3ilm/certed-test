@@ -133,8 +133,8 @@ export async function FinanceDocList({
               }
               // issue_date is a calendar `date`, not an instant, so it is formatted in UTC
               // rather than converted to a viewer zone (which would shift it a day west of
-              // UTC). Same call the PDF makes, so the list and the downloaded document now
-              // agree - this line used to print the raw "2026-09-05" beside a formatted total.
+              // UTC). Same call the PDF makes, so the list and the downloaded document agree,
+              // and the date reads as a date rather than a raw "2026-09-05" beside a total.
               subtitle={`${formatDate(d.issue_date, 'UTC')} - ${formatMoney(d.total, d.currency)}`}
               trailing={
                 <ExternalActionLink href={`/api/${kind}s/${d.id}/pdf`} className="min-h-11">
