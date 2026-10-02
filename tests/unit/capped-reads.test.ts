@@ -81,6 +81,14 @@ const CAPPED_BY_DESIGN: Record<string, string> = {
   'src/lib/data/timetable-slots.ts:selectSlots':
     'COMPLETE - a weekly timetable is bounded by the week: slots per class per day, not a ' +
     'history. The limit is an optional caller guard on top of that, not the bound.',
+  'src/lib/data/assignments-due-sweep.ts:claimAssignmentsDueSoon':
+    'COMPLETE across passes - the same work-queue claim as claimDueReminders, and nothing ' +
+    'renders it either. The cap bounds how many assignments ONE pass announces; the next run 15 ' +
+    'minutes later takes the rest, and the window it scans is a day wide.',
+  'src/lib/data/reminders-sweep.ts:claimDueReminders':
+    'COMPLETE across passes - a work-queue claim, not a view. Nothing renders this result, so ' +
+    'the cap cannot misreport a total to anybody; it bounds how much ONE pass claims, and the ' +
+    'next run (every 15 minutes) takes whatever is left. Same shape as the email drain.',
 }
 
 function walk(dir: string): string[] {

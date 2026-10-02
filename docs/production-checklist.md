@@ -141,6 +141,8 @@ variables decide whether that split behaves, and one of them is dangerous to cop
 - [ ] Email **drain** cron wired (`/api/cron/drain-emails`), else queued mail never sends
       <br>On Hobby wire it from Postgres (`pg_cron` + `pg_net`, migration `0058`), not `vercel.json`. Nothing to drain until the three email vars are set - see [Integrations deferred](#integrations-deferred---free-tier-2026-09-13).
 - [ ] Attachment **reconcile** cron wired (`/api/cron/reconcile-attachments`) if Drive storage is on
+- [ ] Reminder **delivery** cron wired (`/api/cron/send-reminders`, every ~15 min), else a reminder's time passes and nobody is told, and nothing says work is due tomorrow
+      <br>Needs migrations `0121` and `0122` applied first; the job runs both sweeps and its response says which one ran.
 - [ ] Keepalive cron present (`vercel.json`)
 - [ ] Sentry DSNs set (server + browser); a test event appears in Sentry
       <br>Deferred - errors still reach Vercel's platform logs via `console.error`. See [Integrations deferred](#integrations-deferred---free-tier-2026-09-13).

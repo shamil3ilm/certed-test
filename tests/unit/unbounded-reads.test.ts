@@ -104,6 +104,15 @@ const WRITE = /\.(insert|update|upsert|delete)\(|\.rpc\(/
 /** Reads allowed to be unbounded, each with WHY the set cannot grow without limit.
  *  Keyed by "file:functionName". */
 const BOUNDED_BY_DESIGN: Record<string, string> = {
+  'src/lib/data/assignments-due-sweep.ts:selectLiveClassIds':
+    'The classes of ONE claimed batch of assignments, so it is bounded by CLAIM_BATCH (100) ' +
+    'before it is bounded by anything else - the sweep asks only about what it just claimed.',
+  'src/lib/data/assignments-due-sweep.ts:selectEnrolledStudentsByClass':
+    'The rosters of that same claimed batch: at most CLAIM_BATCH classes, and this academy is ' +
+    'largely 1:1. The next pass claims the next batch rather than widening this read.',
+  'src/lib/data/assignments-due-sweep.ts:selectSubmittedStudentsByAssignment':
+    'Active submissions for at most CLAIM_BATCH assignments, one row per student who has turned ' +
+    'in. Bounded by the batch times a class roster, not by the submissions table.',
   'src/lib/data/class-membership.ts:selectActiveClassIdsForTutor':
     'ONE person own membership - the classes they are enrolled in, or the ones they teach. Bounded by how much a single human can study or teach, the smallest scope in the schema.',
   'src/lib/data/class-membership.ts:selectActiveClassIdsForStudent':

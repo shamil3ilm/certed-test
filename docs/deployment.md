@@ -40,21 +40,22 @@ Seed the founding admin, teacher, and student allowlist rows with `scripts/seed-
 { "regions": ["bom1"], "crons": [{ "path": "/api/cron/keepalive", "schedule": "0 6 * * *" }] }
 ```
 
-Two more jobs must be wired **at deploy time on the production project**, or the features they back do not run:
+These jobs must be wired **at deploy time on the production project**, or the features they back do not run:
 
-| Job                  | Route                             | Cadence       | If unwired                                        |
-| -------------------- | --------------------------------- | ------------- | ------------------------------------------------- |
-| Email drain          | `/api/cron/drain-emails`          | every ~5 min  | Queued `pending_emails` are never sent            |
-| Consent reconcile    | `/api/cron/reconcile-consents`    | daily         | A failed consent write stays an unread log line   |
-| Attachment reconcile | `/api/cron/reconcile-attachments` | daily         | Orphaned uploads / pending rows accumulate        |
-| Queue health (alarm) | `/api/cron/queue-health`          | every ~15 min | A backed-up email/attachment queue fails silently |
+| Job                  | Route                             | Cadence       | If unwired                                                                     |
+| -------------------- | --------------------------------- | ------------- | ------------------------------------------------------------------------------ |
+| Email drain          | `/api/cron/drain-emails`          | every ~5 min  | Queued `pending_emails` are never sent                                         |
+| Consent reconcile    | `/api/cron/reconcile-consents`    | daily         | A failed consent write stays an unread log line                                |
+| Attachment reconcile | `/api/cron/reconcile-attachments` | daily         | Orphaned uploads / pending rows accumulate                                     |
+| Queue health (alarm) | `/api/cron/queue-health`          | every ~15 min | A backed-up email/attachment queue fails silently                              |
+| Reminder delivery    | `/api/cron/send-reminders`        | every ~15 min | A reminder's time passes and nobody is told; nothing says work is due tomorrow |
 
 The queue-health alarm checks email-queue depth/age and failed-upload counts and, on a breach, logs a structured `queue.health` error (surfaced by whatever ingests server logs — it is deliberately not an email, since the email queue itself may be the fault). The **drain cron already runs the same check after each pass** for free, so wiring queue-health separately only matters as an independent signal for when the drain itself isn't running. Thresholds live in `src/lib/services/queue-health.ts`.
 
 Wire them one of two ways (both hit the same `CRON_SECRET`-guarded routes; Vercel auto-sends `Authorization: Bearer $CRON_SECRET` when the secret is set, and every `/api/cron/*` route fails closed without it):
 
 - **Vercel Cron (needs Pro)** — add them to the production project's `vercel.json` `crons`. The 5-minute drain is sub-daily, which requires **Vercel Pro**; Hobby caps crons at 2 jobs, once-daily. Do **not** commit these to the repo's `vercel.json` if any deploy target (a preview or test fork) is on Hobby — Vercel rejects the whole deployment.
-- **pg_cron + pg_net (plan-independent)** — schedule a Postgres job that `POST`s to the route with the `Authorization: Bearer <CRON_SECRET>` header. The `0058` migration ships this option commented at the bottom; use it when you are not on Vercel Pro everywhere.
+- **pg_cron + pg_net (plan-independent)** — schedule a Postgres job that `GET`s the route (`net.http_get` - the routes accept GET only, so an `http_post` is answered 405) with the `Authorization: Bearer <CRON_SECRET>` header. The `0058` migration ships this option commented at the bottom; use it when you are not on Vercel Pro everywhere.
 
 ## 6. Custodial Drive storage (optional)
 

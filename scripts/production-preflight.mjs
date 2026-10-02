@@ -126,7 +126,10 @@ manual('B2 backups', 'Supabase Pro + daily backups AND PITR enabled (dashboard)'
 manual('B3 smtp', 'Auth email on custom SMTP (Resend) - send yourself a real password reset')
 manual('B4 plan', 'Vercel Pro (needed for >2 crons and sub-daily schedules)')
 manual('B6 envs', 'preview and production are separate projects with separate secrets')
-manual('crons', 'drain-emails (~5-15 min) and reconcile-attachments (daily) scheduled on the project')
+manual(
+  'crons',
+  'scheduled on the project: drain-emails (~5-15 min), send-reminders (~15 min), reconcile-attachments and reconcile-consents (daily)',
+)
 manual('B7 restore', 'a real restore drill against an actual Supabase backup, RTO recorded in docs/operations.md')
 
 // ── verdict ──────────────────────────────────────────────────────────────────

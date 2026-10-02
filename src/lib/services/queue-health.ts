@@ -1,5 +1,6 @@
 import 'server-only'
 import { selectEmailQueueStats } from '@/lib/data/pending-emails'
+import { selectDueReminderBacklog } from '@/lib/data/reminders-sweep'
 import { countFailedAttachments } from '@/lib/data/attachments'
 import { selectRlsDisabledTables } from '@/lib/data/schema-health'
 import { logError } from '@/lib/observability/log'
@@ -19,6 +20,10 @@ const EMAIL_DEPTH_ALARM = 50 // pending emails waiting
 const EMAIL_AGE_ALARM_MIN = 30 // oldest pending older than this = drain is stuck
 const EMAIL_FAILED_ALARM = 10 // terminal send failures piling up
 const ATTACH_FAILED_ALARM = 20 // failed custodial uploads piling up
+// The sweep runs every 15 minutes, so a reminder still undelivered an hour after its time means
+// roughly four passes did not happen. A reminder is the one payload where lateness IS the failure:
+// arriving after the moment it names is no better than not arriving.
+const REMINDER_AGE_ALARM_MIN = 60
 
 // The data/PII tables whose per-row access relies on RLS; if any has RLS disabled
 // (a hand-misconfigured DB) reads could fail open. This turns the "are the security
@@ -67,14 +72,16 @@ export const RLS_REQUIRED_TABLES = [
 
 export type QueueHealth = {
   emails: { pending: number; failed: number; oldestPendingMinutes: number | null }
+  reminders: { due: number; oldestDueMinutes: number | null }
   attachmentsFailed: number
   rlsDisabledTables: string[]
   alarms: string[]
 }
 
 export async function assessQueueHealth(nowMs: number): Promise<QueueHealth> {
-  const [emails, attachmentsFailed, rlsDisabledTables] = await Promise.all([
+  const [emails, reminders, attachmentsFailed, rlsDisabledTables] = await Promise.all([
     selectEmailQueueStats(),
+    selectDueReminderBacklog(new Date(nowMs).toISOString()),
     countFailedAttachments(),
     selectRlsDisabledTables(RLS_REQUIRED_TABLES),
   ])
@@ -83,6 +90,11 @@ export async function assessQueueHealth(nowMs: number): Promise<QueueHealth> {
       ? null
       : Math.max(0, Math.floor((nowMs - new Date(emails.oldestPendingAt).getTime()) / 60000))
 
+  const oldestDueMinutes =
+    reminders.oldestDueAt == null
+      ? null
+      : Math.max(0, Math.floor((nowMs - new Date(reminders.oldestDueAt).getTime()) / 60000))
+
   const alarms: string[] = []
   if (emails.pending >= EMAIL_DEPTH_ALARM) alarms.push(`email queue depth ${emails.pending}`)
   if (oldestPendingMinutes != null && oldestPendingMinutes >= EMAIL_AGE_ALARM_MIN) {
@@ -90,6 +102,11 @@ export async function assessQueueHealth(nowMs: number): Promise<QueueHealth> {
   }
   if (emails.failed >= EMAIL_FAILED_ALARM) alarms.push(`${emails.failed} failed emails`)
   if (attachmentsFailed >= ATTACH_FAILED_ALARM) alarms.push(`${attachmentsFailed} failed attachments`)
+  // Age, not depth: one reminder left undelivered for an hour is already a failed reminder, and a
+  // small academy may never have enough of them at once to breach any sensible depth threshold.
+  if (oldestDueMinutes != null && oldestDueMinutes >= REMINDER_AGE_ALARM_MIN) {
+    alarms.push(`oldest undelivered reminder ${oldestDueMinutes}m past its time (${reminders.due} due)`)
+  }
   // Any table without RLS is a security fault, not a threshold - alarm on the first.
   if (rlsDisabledTables.length > 0) alarms.push(`RLS disabled on: ${rlsDisabledTables.join(', ')}`)
 
@@ -99,6 +116,7 @@ export async function assessQueueHealth(nowMs: number): Promise<QueueHealth> {
 
   return {
     emails: { pending: emails.pending, failed: emails.failed, oldestPendingMinutes },
+    reminders: { due: reminders.due, oldestDueMinutes },
     attachmentsFailed,
     rlsDisabledTables,
     alarms,

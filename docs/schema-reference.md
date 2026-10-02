@@ -339,7 +339,11 @@ Purpose:
 
 ### `reminders`
 
-- self-scoped reminder records
+- a person's own reminders, and reminders a tutor or mentor sets for a student (0086): `user_id` is
+  whose reminder it is, `created_by` who wrote it - equal for a personal one
+- `is_sent` (with `completed_at`) is the OWNER'S done tick; `notified_at` is the delivery marker the
+  sweep stamps (0121, `/api/cron/send-reminders`). The two are independent - a delivered reminder is
+  still outstanding until its owner ticks it
 
 ### `audit_log`
 
