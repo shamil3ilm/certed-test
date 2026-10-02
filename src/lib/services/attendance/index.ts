@@ -20,7 +20,7 @@ export {
 } from './queries'
 export type { AttendanceRow, PaginatedAttendance, SessionSummary, AttendanceHistoryFilters } from './queries'
 
-export { markAttendance, clearAttendanceSession } from './marking'
+export { markAttendance, markAttendanceFromActionInput, clearAttendanceSession } from './marking'
 export type { MarkAttendanceInput } from './marking'
 export type { AttendanceMark } from '@/lib/data/attendance'
 

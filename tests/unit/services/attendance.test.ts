@@ -25,6 +25,7 @@ import { writeAudit } from '@/lib/data/audit'
 import { callEnsureDaySession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
 import {
   markAttendance,
+  markAttendanceFromActionInput,
   clearAttendanceSession,
   listSessionSummariesForClass,
   listAttendanceForStudentPage,
@@ -152,6 +153,92 @@ describe('markAttendance', () => {
     })
     // The marked student is notified (best-effort); the dropped foreign id is not.
     expect(notifyBestEffort).toHaveBeenCalledWith([enrolledStudentId], expect.objectContaining({ kind: 'attendance' }))
+  })
+})
+
+describe('markAttendanceFromActionInput', () => {
+  const form = (fields: Record<string, string>) => {
+    const fd = new FormData()
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v)
+    return fd
+  }
+  const markable = () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(getClassMembers).mockResolvedValueOnce(roster as never)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: null }) as never)
+  }
+
+  it('assembles one mark per student from the status:/join:/leave: fields', async () => {
+    markable()
+    const result = await markAttendanceFromActionInput(
+      actor,
+      form({
+        class_id: classId,
+        session_date: '2026-07-15',
+        [`status:${enrolledStudentId}`]: 'late',
+        [`join:${enrolledStudentId}`]: '2026-07-15T09:10:00.000Z',
+        [`leave:${enrolledStudentId}`]: '2026-07-15T10:00:00.000Z',
+      }),
+    )
+    expect(result).toEqual({ saved: 1 })
+  })
+
+  it('ignores a join/leave with no status beside it, rather than writing a blank status', async () => {
+    vi.mocked(canManageClass).mockResolvedValueOnce(true)
+    vi.mocked(getClassMembers).mockResolvedValueOnce(roster as never)
+    // No mark survives, so the service refuses rather than writing nothing silently.
+    await expect(
+      markAttendanceFromActionInput(
+        actor,
+        form({
+          class_id: classId,
+          session_date: '2026-07-15',
+          [`join:${enrolledStudentId}`]: '2026-07-15T09:10:00.000Z',
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('still drops a forged status for a student who is not on this roster', async () => {
+    // The roster filter is the security boundary, and it must survive the move out of the
+    // action: a hand-posted status:<foreignId> reaches the same rejection it always did.
+    markable()
+    const result = await markAttendanceFromActionInput(
+      actor,
+      form({
+        class_id: classId,
+        session_date: '2026-07-15',
+        [`status:${enrolledStudentId}`]: 'present',
+        [`status:${foreignStudentId}`]: 'absent',
+      }),
+    )
+    expect(result).toEqual({ saved: 1 })
+    expect(notifyBestEffort).toHaveBeenCalledWith([enrolledStudentId], expect.objectContaining({ kind: 'attendance' }))
+  })
+
+  it('passes a named session through, so a day can hold one mark per session', async () => {
+    markable()
+    await markAttendanceFromActionInput(
+      actor,
+      form({
+        class_id: classId,
+        session_date: '2026-07-15',
+        session_id: SESSION_ID,
+        [`status:${enrolledStudentId}`]: 'present',
+      }),
+    )
+    expect(selectSessionsForDateAsService).toHaveBeenCalledWith(classId, '2026-07-15')
+    expect(callEnsureDaySession).not.toHaveBeenCalled()
+  })
+
+  it('refuses a form with no class or date before reaching the service', async () => {
+    await expect(markAttendanceFromActionInput(actor, form({ session_date: '2026-07-15' }))).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    await expect(markAttendanceFromActionInput(actor, form({ class_id: classId }))).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(canManageClass).not.toHaveBeenCalled()
   })
 })
 

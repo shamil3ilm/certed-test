@@ -46,6 +46,49 @@ async function resolveMarkingSession(classId: string, sessionDate: string, sessi
 }
 
 /**
+ * Form transport for `markAttendance`: the browser posts one `status:<studentId>` field per
+ * student, with optional `join:<studentId>` / `leave:<studentId>` beside it, and this turns
+ * that into the typed marks array the core takes.
+ *
+ * It sits beside the core, like the other `*FromActionInput` adapters, because the array it
+ * assembles is exactly what the roster check filters - so the assembly is worth testing on its
+ * own rather than only through a Server Action. A caller that already holds JSON calls
+ * `markAttendance` directly and never comes through here.
+ */
+export async function markAttendanceFromActionInput(actor: Profile, form: FormData): Promise<{ saved: number }> {
+  const classId = String(form.get('class_id') ?? '')
+  const sessionDate = String(form.get('session_date') ?? '')
+  if (!classId || !sessionDate) throw new ValidationError('Missing class or date.')
+  return markAttendance(actor, {
+    classId,
+    sessionDate,
+    // Present when marking a specific session's roster; absent records/uses the day's.
+    sessionId: String(form.get('session_id') ?? '') || undefined,
+    marks: collectMarks(form),
+  })
+}
+
+/** One mark per student, from the form's per-student fields. Only a student given a status is
+ *  marked - a stray join/leave without one is ignored rather than written as a blank status. */
+function collectMarks(form: FormData): MarkAttendanceInput[] {
+  const byStudent = new Map<string, MarkAttendanceInput>()
+  const forStudent = (id: string) => {
+    const existing = byStudent.get(id)
+    if (existing) return existing
+    const created: MarkAttendanceInput = { student_id: id, status: '' }
+    byStudent.set(id, created)
+    return created
+  }
+  for (const [key, value] of form.entries()) {
+    const v = String(value)
+    if (key.startsWith('status:')) forStudent(key.slice('status:'.length)).status = v
+    else if (key.startsWith('join:')) forStudent(key.slice('join:'.length)).join_at = v || null
+    else if (key.startsWith('leave:')) forStudent(key.slice('leave:'.length)).leave_at = v || null
+  }
+  return [...byStudent.values()].filter((m) => m.status)
+}
+
+/**
  * Marks a whole class for one session in a single atomic write.
  *
  * Every student_id must be on this class's roster. That check is the security

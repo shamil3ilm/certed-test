@@ -2,15 +2,14 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
-import { getActorContext } from '@/lib/session/actor-context'
-import { actionFail, actionOk, toActionError, type ActionResult } from '@/lib/api/action-error'
+import { canEditStaffNote } from '@/lib/permission'
+import { actionOk, toActionError, type ActionResult } from '@/lib/api/action-error'
 import {
   clearAttendanceSession,
-  markAttendance,
+  markAttendanceFromActionInput,
   deleteSessionTimes,
   saveSessionTimes,
   saveSessionFeedback,
-  type MarkAttendanceInput,
 } from '@/lib/services/attendance'
 import { setMissingClassSubject } from '@/lib/services/class-subjects'
 import { PermissionError, ServiceError } from '@/lib/errors'
@@ -23,36 +22,8 @@ import { PermissionError, ServiceError } from '@/lib/errors'
 export async function markAttendanceAction(formData: FormData): Promise<ActionResult<{ saved: number }>> {
   const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
-  const date = String(formData.get('session_date') ?? '')
-  if (!classId || !date) return actionFail('Missing class or date.')
-
-  // Each student's status arrives as `status:<id>`, with optional join/leave times
-  // as `join:<id>` / `leave:<id>`. Collect them per student; only students given a
-  // status are marked.
-  const byStudent = new Map<string, MarkAttendanceInput>()
-  const forStudent = (id: string) => {
-    const existing = byStudent.get(id)
-    if (existing) return existing
-    const created: MarkAttendanceInput = { student_id: id, status: '' }
-    byStudent.set(id, created)
-    return created
-  }
-  for (const [key, value] of formData.entries()) {
-    const v = String(value)
-    if (key.startsWith('status:')) forStudent(key.slice('status:'.length)).status = v
-    else if (key.startsWith('join:')) forStudent(key.slice('join:'.length)).join_at = v || null
-    else if (key.startsWith('leave:')) forStudent(key.slice('leave:'.length)).leave_at = v || null
-  }
-  const marks = [...byStudent.values()].filter((m) => m.status)
-
   try {
-    const { saved } = await markAttendance(me, {
-      classId,
-      sessionDate: date,
-      // Present when marking a specific session's roster; absent records/uses the day's.
-      sessionId: String(formData.get('session_id') ?? '') || undefined,
-      marks,
-    })
+    const { saved } = await markAttendanceFromActionInput(me, formData)
     revalidatePath(`/classroom/${classId}/attendance`)
     return actionOk({ saved })
   } catch (e) {
@@ -68,9 +39,6 @@ export async function markAttendanceAction(formData: FormData): Promise<ActionRe
 export async function saveSessionAction(formData: FormData): Promise<ActionResult<{ ok: true }>> {
   const me = await requireCapability('manageAttendance')
   const classId = String(formData.get('class_id') ?? '')
-  // Only a manageClassContent holder (tutor / admin) may write the staff-private note;
-  // a mentor editing times/summary cannot. Resolve it here from the actor's capabilities.
-  const canEditStaffNote = (await getActorContext()).capabilities.allowed.has('manageClassContent')
   try {
     await saveSessionTimes(me, {
       classId,
@@ -82,7 +50,9 @@ export async function saveSessionAction(formData: FormData): Promise<ActionResul
       actual_end: formData.get('actual_end'),
       summary: formData.get('summary'),
       staff_note: formData.get('staff_note'),
-      canEditStaffNote,
+      // Only a manageClassContent holder (tutor / admin) may write the staff-private note;
+      // a mentor editing times or summary may not. One definition, in the permission layer.
+      canEditStaffNote: await canEditStaffNote(),
     })
     revalidatePath(`/classroom/${classId}/attendance`)
     return actionOk({ ok: true })

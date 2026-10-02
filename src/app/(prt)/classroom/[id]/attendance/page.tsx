@@ -1,5 +1,5 @@
 import { requireClassAccess } from '../../access'
-import { getActorContext } from '@/lib/session/actor-context'
+import { canEditStaffNote } from '@/lib/permission'
 import {
   attendanceHistoryPageUrl,
   attendanceRecordPageUrl,
@@ -171,7 +171,9 @@ export default async function AttendancePage(props: {
   // destructive "clear session" need manageClassContent (tutor / admin). Strip the note
   // VALUE from a non-content actor's payload so it never reaches their browser, and hide
   // the field + the clear control below.
-  const canManageContent = (await getActorContext()).capabilities.allowed.has('manageClassContent')
+  // Resolved from the one definition the WRITE also uses (permission/staff-note.ts), so the
+  // field this form hides is exactly the field the service will refuse to write.
+  const canManageContent = await canEditStaffNote()
   const rosterBySession = new Map(data.sessionRosters.map((r) => [r.session.id, r.roster]))
   const sessionsForForm = canManageContent
     ? daySessions
@@ -251,8 +253,8 @@ export default async function AttendancePage(props: {
               />
             )}
             {canManageContent && (rosterBySession.get(session.id)?.length ?? 0) > 0 && (
-              // Per SESSION, not per day: this used to sit below the whole date and delete
-              // every mark on it, so clearing the morning silently wiped the afternoon.
+              // Per SESSION, not per day: a date can hold several sessions, so a control scoped
+              // to the whole day would wipe the afternoon when someone clears the morning.
               // Distinct from "Remove session" above, which also drops the recorded hours.
               <form action={clearAttendanceAction} className="flex justify-end">
                 <input type="hidden" name="class_id" value={course.id} />
