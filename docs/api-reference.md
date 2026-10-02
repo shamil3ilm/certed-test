@@ -2,6 +2,10 @@
 
 Every route under `src/app/api`. "Guard" is the primary access check at the entry point; most reads are additionally scoped by RLS, and class-scoped writes re-check class authority inside the service. Authenticated guards use `requireCapabilityApi(...)`.
 
+> **Two surfaces, two sets of rules.** Everything below is the **internal** surface: it authenticates by cookie session, serves the web app from the same deployment, and may therefore change freely — it carries no contract with anyone. The mobile apps will get a **separate** `/api/v1`, authenticating by bearer token, which is versioned and additive-only because shipped app builds live on phones for months and cannot be updated in step with the server. Nothing here is moving under `/api/v1`, and only `/api/v1` becomes bearer-reachable: these routes were designed for a cookie world and must not be opened to tokens without review. See [adr/0007](adr/0007-mobile-apps-expo-and-api-v1.md).
+>
+> Cron routes are the existing exception — they authenticate with `CRON_SECRET` as a bearer token, through the single guard in `src/lib/api/cron-auth.ts`.
+
 ## Authenticated (app host)
 
 | Route                              | Method(s)     | Guard                                                                                                                                                         |
@@ -29,16 +33,18 @@ Every route under `src/app/api`. "Guard" is the primary access check at the entr
 
 ## Public and infrastructure
 
-| Route                             | Method(s) | Guard                                                        |
-| --------------------------------- | --------- | ------------------------------------------------------------ |
-| `/api/contact`                    | POST      | none (public form) - shared IP rate limit + honeypot         |
-| `/api/health`                     | GET       | none - trivial DB read for an uptime pinger                  |
-| `/api/cron/keepalive`             | GET       | `CRON_SECRET` (fails closed)                                 |
-| `/api/cron/drain-emails`          | GET       | `CRON_SECRET` (fails closed) - sends queued `pending_emails` |
-| `/api/cron/reconcile-attachments` | GET       | `CRON_SECRET` (fails closed) - sweeps orphaned uploads       |
-| `/api/cron/queue-health`          | GET       | `CRON_SECRET` (fails closed) - alarms on a stalled queue     |
-| `/api/dev/login`                  | GET, POST | dev/mock only - no-op unless mock mode                       |
-| `/api/dev/logout`                 | GET       | dev/mock only                                                |
+| Route                             | Method(s) | Guard                                                                        |
+| --------------------------------- | --------- | ---------------------------------------------------------------------------- |
+| `/api/contact`                    | POST      | none (public form) - shared IP rate limit + honeypot                         |
+| `/api/health`                     | GET       | none - trivial DB read for an uptime pinger                                  |
+| `/api/cron/keepalive`             | GET       | `CRON_SECRET` (fails closed)                                                 |
+| `/api/cron/drain-emails`          | GET       | `CRON_SECRET` (fails closed) - sends queued `pending_emails`                 |
+| `/api/cron/reconcile-attachments` | GET       | `CRON_SECRET` (fails closed) - sweeps orphaned uploads                       |
+| `/api/cron/queue-health`          | GET       | `CRON_SECRET` (fails closed) - alarms on a stalled queue                     |
+| `/api/cron/reconcile-consents`    | GET       | `CRON_SECRET` (fails closed) - retries a failed consent write                |
+| `/api/cron/send-reminders`        | GET       | `CRON_SECRET` (fails closed) - reminders that are due, and work due tomorrow |
+| `/api/dev/login`                  | GET, POST | dev/mock only - no-op unless mock mode                                       |
+| `/api/dev/logout`                 | GET       | dev/mock only                                                                |
 
 The public routes above are the allowlist in [`src/lib/routing/public-paths.ts`](../src/lib/routing/public-paths.ts); everything else on the app host requires a session (middleware) and a capability (the route/page guard).
 

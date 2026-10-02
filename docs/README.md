@@ -9,6 +9,8 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 - [setup-guide.md](setup-guide.md) — run locally and the path to going live
 - [mock-mode.md](mock-mode.md) — the keyless JSON-file mock stack for local dev and E2E
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — how to contribute, the CI gates, and the git hooks
+- [handover.md](handover.md) — **canonical** register of what is still open on the running system; read it before assuming green CI means finished
+- [accounts-and-access.md](accounts-and-access.md) — **canonical** inventory of every external account, what it is for, and who owns it
 
 ## Architecture and standards
 
@@ -18,7 +20,7 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 - [design-system.md](design-system.md) — **canonical** visual system: tokens, typography, and `@/lib/ui` primitives
 - [content-pipeline.md](content-pipeline.md) — **canonical** marketing content: the structured copy modules and the MDX blog (how to add a post)
 - [architecture-implementation-plan.md](architecture-implementation-plan.md) — status of the (mostly shipped) architecture overhaul
-- [adr/README.md](adr/README.md) — architecture decision records (0001–0006)
+- [adr/README.md](adr/README.md) — architecture decision records (0001–0007)
 
 ## Schema and data
 
