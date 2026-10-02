@@ -5,12 +5,13 @@ import {
   countActiveEnrollmentsPerClass,
   upsertEnrollment,
 } from '@/lib/data/class-membership'
-import { selectClassStatus } from '@/lib/data/classes'
+import { selectClassNamesByIdsAsService, selectClassStatus } from '@/lib/data/classes'
 import { subjectRefusalOf } from '@/lib/data/class-subjects'
 import { canWriteClass } from '@/lib/permission/class-write'
 import { getProfileById, getProfileNamesByIds } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyBestEffort } from '@/lib/services/notifications'
+import { logError } from '@/lib/observability/log'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
@@ -84,8 +85,8 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
     throw error
   }
   await auditPrivilegedAction(actor, 'class.enroll', 'enrollment', params.classId)
-  // Every later event in a class notifies its students; joining it did not, so the first a
-  // student heard was an announcement about a class they did not know they were in.
+  // Every later event in a class notifies its students, so joining must too: otherwise the first
+  // a student hears is an announcement about a class they do not know they are in.
   await notifyBestEffort([params.studentId], {
     kind: 'class',
     title: 'You were added to a class',
@@ -95,6 +96,18 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
 
 export async function enrolStudentFromActionInput(actor: Profile, input: EnrollmentActionInput): Promise<void> {
   await enrolStudent(actor, validateEnrollmentParams(input))
+}
+
+/** The class's name for a notification body, or null. A name lookup must never fail a
+ *  membership change that is already written, so a read failure degrades to no name. */
+async function classNameBestEffort(classId: string): Promise<string | null> {
+  try {
+    const [cls] = await selectClassNamesByIdsAsService([classId])
+    return cls?.name ?? null
+  } catch (error) {
+    logError('enrollments.classNameForNotice', error, { classId }, { toSentry: false })
+    return null
+  }
 }
 
 /** Soft-remove (scoped by class + student) - keeps the row for later re-enrol. */
@@ -108,6 +121,15 @@ export async function removeStudent(actor: Profile, params: EnrollmentParams): P
   }
   await deactivateEnrollment(params.classId, params.studentId)
   await auditPrivilegedAction(actor, 'class.unenroll', 'enrollment', params.classId)
+  // Joining notifies (above), so leaving must: otherwise the class simply stops appearing and
+  // the student is left to infer it. The body names the class because the link cannot go to it -
+  // the row is deactivated, so RLS closes /classroom/<id> to them as this returns.
+  await notifyBestEffort([params.studentId], {
+    kind: 'class',
+    title: 'You were removed from a class',
+    body: await classNameBestEffort(params.classId),
+    link: '/dashboard',
+  })
 }
 
 export async function removeStudentFromActionInput(actor: Profile, input: EnrollmentActionInput): Promise<void> {

@@ -18,6 +18,7 @@ import { assertTimeOrder } from '@/lib/validation/time-order'
 import { canWriteCalendar, assertClassActive } from '@/lib/permission'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyClassOfSlotChange } from '@/lib/services/timetable-notify'
 import { PermissionError, NotFoundError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
@@ -67,6 +68,7 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
     active: true,
   })
   await auditPrivilegedAction(actor, 'timetable.create', 'timetable_slot', created.id)
+  await notifyClassOfSlotChange(created, 'added')
   return created
 }
 
@@ -92,6 +94,7 @@ export async function updateSlot(actor: Profile, id: string, patch: UpdateSlotIn
 
   const updated = await updateSlotRowInDb(id, patch)
   await auditPrivilegedAction(actor, patch.tutor_id ? 'timetable.reassign' : 'timetable.update', 'timetable_slot', id)
+  await notifyClassOfSlotChange(updated, 'changed')
   return updated
 }
 
@@ -109,6 +112,7 @@ export async function deactivateSlot(actor: Profile, id: string): Promise<Timeta
   }
   const updated = await updateSlotRowInDb(id, { active: false })
   await auditPrivilegedAction(actor, 'timetable.deactivate', 'timetable_slot', id)
+  await notifyClassOfSlotChange(updated, 'removed')
   return updated
 }
 

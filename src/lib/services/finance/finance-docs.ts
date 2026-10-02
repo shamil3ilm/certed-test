@@ -1,6 +1,9 @@
 import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { ValidationError } from '@/lib/errors'
+import { FINANCE_KINDS } from '@/lib/finance/kinds'
+import { notifyBestEffort } from '@/lib/services/notifications'
+import { logError } from '@/lib/observability/log'
 import { z } from 'zod'
 import { toRange } from '@/lib/pagination'
 import {
@@ -142,6 +145,36 @@ export async function voidDoc(actorId: string, kind: FinanceKind, id: string): P
   // Only a real transition is audited. updateDocVoided returns false for an unknown id or
   // one already void, and recording those would fill the trail with events that never
   // happened - the same reason a disclosure that discloses nothing is not audited.
-  if (voided) await auditPrivilegedAction({ id: actorId }, `${kind}.void`, kind, id)
+  if (voided) {
+    await auditPrivilegedAction({ id: actorId }, `${kind}.void`, kind, id)
+    await notifyPartyOfVoid(kind, id)
+  }
   return voided
+}
+
+/**
+ * Tell the party their document no longer stands.
+ *
+ * Issuance notifies them (lib/finance/issue.ts) and a correction is void + reissue, so without
+ * this they hear about the replacement and never about what it replaced. The reissue may also
+ * never come - a void that simply cancels is the end of the story.
+ *
+ * Best-effort throughout, the read included: the void is committed and audited before this runs,
+ * and a document must not stay live because a notification could not be composed.
+ */
+async function notifyPartyOfVoid(kind: FinanceKind, id: string): Promise<void> {
+  try {
+    const doc = await selectDocById(kind, id)
+    // party_id is nullable in the row type, and a document with no party has nobody to tell.
+    if (!doc?.party_id) return
+    const rules = FINANCE_KINDS[kind]
+    await notifyBestEffort([doc.party_id], {
+      kind: 'finance',
+      title: `${rules.title} ${doc.number} was voided`,
+      body: `It no longer stands. ${doc.currency} ${doc.total}`,
+      link: rules.listPath,
+    })
+  } catch (error) {
+    logError('finance.voidNotice', error, { kind, id }, { toSentry: false })
+  }
 }

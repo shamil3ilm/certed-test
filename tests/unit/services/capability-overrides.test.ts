@@ -8,6 +8,11 @@ vi.mock('@/lib/permission/personas', () => ({
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
+// Setting an override notifies the person it happens to, and that write goes through the same
+// stub client - which would read here as the override doing a second table write. Mocked so the
+// "ONE rpc, no table write" assertions below still describe the override path itself.
+// The notification's own content is proved in capability-override-notice.test.ts.
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
 vi.mock('@/lib/services/capability-overrides', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/services/capability-overrides')>()
   return { ...actual, getCapabilityOverrides: vi.fn(actual.getCapabilityOverrides) }

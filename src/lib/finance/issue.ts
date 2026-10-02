@@ -130,8 +130,8 @@ async function issueDoc(
   } catch (fxError) {
     console.error(`[finance] base-currency conversion failed for issued ${kind} ${doc.id}:`, fxError)
   }
-  // Tell the party it is FOR. Nothing announced this before, so a tutor's pay slip and a
-  // student's receipt appeared in a list they had no reason to open that day.
+  // Tell the party it is FOR: a tutor's pay slip and a student's receipt otherwise sit in a list
+  // they have no reason to open that day. The matching void notice is in finance-docs.ts.
   await notifyBestEffort([party.id], {
     kind: 'finance',
     title: `${kindRules.title} ${doc.number} issued`,

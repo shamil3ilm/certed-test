@@ -2,7 +2,15 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { insertClass, updateClassName, updateClassStatus, type ClassRow } from '@/lib/data/classes'
+import {
+  insertClass,
+  selectClassNamesByIdsAsService,
+  updateClassName,
+  updateClassStatus,
+  type ClassRow,
+} from '@/lib/data/classes'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
+import { logError } from '@/lib/observability/log'
 import { subjectRefusalOf } from '@/lib/data/class-subjects'
 import { ValidationError } from '@/lib/errors'
 import {
@@ -53,6 +61,34 @@ export async function archiveClass(actor: Profile, id: string): Promise<void> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   await updateClassStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'class.archive', 'class', id)
+  await notifyMembersOfArchive(id)
+}
+
+/**
+ * Tell a class's members it was archived.
+ *
+ * Archiving stops the class accepting anything (0114) and drops it out of the live lists, so to
+ * everyone in it the class simply stops being there. Enrolment and removal both notify now, and
+ * this is the same event arriving by another route - the whole class loses it at once.
+ *
+ * Best-effort in full, the name lookup included: the class is already archived and audited.
+ */
+async function notifyMembersOfArchive(id: string): Promise<void> {
+  try {
+    const [cls] = await selectClassNamesByIdsAsService([id])
+    const input = {
+      kind: 'class' as const,
+      title: 'A class was archived',
+      body: cls?.name ?? null,
+      // Not the classroom page: an archived class is out of the live lists, and the dashboard is
+      // where the classes someone still has are.
+      link: '/dashboard',
+    }
+    await notifyClassRoleBestEffort(id, 'students', input)
+    await notifyClassRoleBestEffort(id, 'tutors', input)
+  } catch (error) {
+    logError('classes.archiveNotice', error, { classId: id }, { toSentry: false })
+  }
 }
 
 export async function archiveClassFromActionInput(actor: Profile, input: ClassIdActionInput): Promise<void> {

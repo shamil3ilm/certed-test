@@ -14,6 +14,8 @@ import {
 import { requireAdminPersona } from '@/lib/permission/personas'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { getProfileById } from '@/lib/services/users'
+import { notifyBestEffort } from '@/lib/services/notifications'
+import { CAPABILITY_META } from '@/lib/capabilities/labels'
 import { ValidationError } from '@/lib/errors'
 
 // Global overrides cannot widen capabilities whose real boundary is a specific
@@ -103,7 +105,41 @@ export async function setCapabilityOverride(actor: Profile, input: SetCapability
 
   if (result.id === null) {
     await auditPrivilegedAction(actor, 'capability_override.clear', 'profile', input.profileId)
+    await notifyTargetOfOverride(input.profileId, capability, 'default')
     return
   }
   await auditPrivilegedAction(actor, 'capability_override.create', 'capability_override', result.id)
+  await notifyTargetOfOverride(input.profileId, capability, input.effect)
+}
+
+/**
+ * Tell the person whose access changed.
+ *
+ * Activation, revocation and restoration all notify the account they happen to, and this is the
+ * same class of event at a finer grain: what they can do in the app is different from one moment
+ * to the next, and they would otherwise learn it by finding a page missing, or by trying
+ * something that now refuses. The capability's own editor label is what they are told, because it
+ * is the only name for it written for a person rather than for the code.
+ *
+ * The REASON is deliberately not included: it is written by an admin for the audit trail and the
+ * permission editor, and may say things about someone that were never meant to be read back to
+ * them. What changed is theirs to know; why is the trail's.
+ */
+async function notifyTargetOfOverride(
+  profileId: string,
+  capability: Capability,
+  effect: 'allow' | 'deny' | 'default',
+): Promise<void> {
+  const label = CAPABILITY_META[capability].label
+  const wording = {
+    allow: { title: 'Your access was extended', body: `${label} is now available to you.` },
+    deny: { title: 'Your access was restricted', body: `${label} is no longer available to you.` },
+    default: { title: 'Your access changed', body: `${label} follows your role again.` },
+  }[effect]
+  await notifyBestEffort([profileId], {
+    kind: 'account',
+    title: wording.title,
+    body: wording.body,
+    link: '/dashboard',
+  })
 }

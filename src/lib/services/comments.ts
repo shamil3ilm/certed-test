@@ -9,6 +9,7 @@ import { ValidationError, RateLimitError, NotFoundError } from '@/lib/errors'
 import { validateUuidField } from '@/lib/validation/id'
 import { getProfilesByIds } from '@/lib/services/users'
 import { assertCanComment } from '@/lib/services/comment-auth'
+import { notifyCommentThread } from '@/lib/services/comment-notify'
 import { addCommentSchema } from '@/lib/validation/comment'
 import { rateLimit } from '@/lib/security/rate-limit'
 import type { Profile } from '@/lib/auth/profile'
@@ -95,7 +96,10 @@ export async function createCommentFromActionInput(author: Profile, input: Creat
   // App-side authorization: the author must be able to access the parent entity
   // (mirrors its read rule), not merely hold viewClasses. See assertCanComment.
   await assertCanComment(author, parsed.entity_type, parsed.entity_id)
-  return createComment(parsed.entity_type, parsed.entity_id, author.id, parsed.content)
+  const comment = await createComment(parsed.entity_type, parsed.entity_id, author.id, parsed.content)
+  // After the insert, and never able to fail it: see notifyCommentThread for who is told.
+  await notifyCommentThread(parsed.entity_type, parsed.entity_id, author.id, parsed.content)
+  return comment
 }
 
 /** Delete a comment. RLS (comments_delete) scopes the delete to the author (or an
