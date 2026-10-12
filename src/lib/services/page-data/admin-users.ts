@@ -28,13 +28,22 @@ import {
  * A student is created WITH a mentor, and assigning one needs manageMentorships (admin and
  * sub_admin hold it; an override can take it away). Without it the student option would fail
  * on submit, so it is not offered - and the form says why.
+ *
+ * `isSuper` is returned rather than left to the caller so the whole page load asks
+ * `isAdminTier` ONCE. Two reads would be two answers to one question about who the top tier
+ * is - and manageAdminTier is a hard rule, so they must never be able to disagree.
  */
-export async function creatableRolesFor(me: Profile): Promise<{ roleOptions: string[]; canAssignMentor: boolean }> {
-  const creatable = isAdminTier(me)
-    ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin']
-    : ['student', 'tutor', 'mentor']
+export async function creatableRolesFor(
+  me: Profile,
+): Promise<{ roleOptions: string[]; canAssignMentor: boolean; isSuper: boolean }> {
+  const isSuper = isAdminTier(me)
+  const creatable = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor', 'mentor']
   const canAssignMentor = await actorHasCapability(me.id, 'manageMentorships')
-  return { roleOptions: canAssignMentor ? creatable : creatable.filter((r) => r !== 'student'), canAssignMentor }
+  return {
+    roleOptions: canAssignMentor ? creatable : creatable.filter((r) => r !== 'student'),
+    canAssignMentor,
+    isSuper,
+  }
 }
 
 export const USERS_PAGE_SIZE = 20
@@ -223,10 +232,7 @@ export async function loadAdminUsersPageData(
   },
 ): Promise<AdminUsersPageData> {
   const filters = parseFilters(searchParams)
-  // Hard-rule identity (manageAdminTier is never override-granted), so the Profile
-  // overload already equals the resolved answer - no resolved-set threading needed.
-  const isSuper = isAdminTier(me)
-  const { roleOptions, canAssignMentor } = await creatableRolesFor(me)
+  const { roleOptions, canAssignMentor, isSuper } = await creatableRolesFor(me)
 
   // The Mentor-assignments tab is student-centric (each row is a student + their
   // mentor links), so it always loads students regardless of the People role filter.
