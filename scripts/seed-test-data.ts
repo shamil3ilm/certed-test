@@ -24,8 +24,8 @@ type TestUser = {
   key: 'admin' | 'subadmin' | 'teacher' | 'mentor' | 'student'
   email: string
   fullName: string
-  role: 'admin' | 'sub_admin' | 'teacher' | 'student'
-  globalPersona: 'admin' | 'sub_admin' | 'tutor' | 'student'
+  role: 'admin' | 'sub_admin' | 'tutor' | 'mentor' | 'student'
+  globalPersona: 'admin' | 'sub_admin' | 'tutor' | 'mentor' | 'student'
 }
 
 const testUsers: TestUser[] = [
@@ -47,10 +47,10 @@ const testUsers: TestUser[] = [
     key: 'teacher',
     email: 'teacher@test.example.com',
     fullName: 'Teacher User',
-    role: 'teacher',
+    role: 'tutor',
     globalPersona: 'tutor',
   },
-  { key: 'mentor', email: 'mentor@test.example.com', fullName: 'Mentor User', role: 'teacher', globalPersona: 'tutor' },
+  { key: 'mentor', email: 'mentor@test.example.com', fullName: 'Mentor User', role: 'mentor', globalPersona: 'mentor' },
   {
     key: 'student',
     email: 'student@test.example.com',
@@ -219,17 +219,19 @@ async function main() {
   ).filter((value): value is string => Boolean(value))
 
   console.log()
-  console.log('Assigning class teachers')
+  console.log('Assigning class tutors')
+  // The TUTOR alone teaches here. A mentor may also teach, but the DB grants them the tutor
+  // persona through assign_class_tutor, and this script writes class_tutors directly - seeding
+  // the mentor in would leave them teaching a class with no persona for the teaching workflows.
+  // The mentor's authority over their mentee comes from the mentorship + scoped persona below.
   for (const classId of classIds) {
-    for (const key of ['teacher', 'mentor'] as const) {
-      const teacherId = profileIds[key]
-      if (!teacherId) continue
-      const { error } = await supabase
-        .from('class_teachers')
-        .upsert({ class_id: classId, teacher_id: teacherId, active: true }, { onConflict: 'teacher_id,class_id' })
-      if (error) console.log(`  FAIL class teacher ${key}: ${error.message}`)
-      else console.log(`  OK   class teacher ${key}`)
-    }
+    const tutorId = profileIds.teacher
+    if (!tutorId) continue
+    const { error } = await supabase
+      .from('class_tutors')
+      .upsert({ class_id: classId, tutor_id: tutorId, active: true }, { onConflict: 'tutor_id,class_id' })
+    if (error) console.log(`  FAIL class tutor: ${error.message}`)
+    else console.log('  OK   class tutor')
   }
 
   console.log()
@@ -251,8 +253,8 @@ async function main() {
     const { error: mentorshipError } = await supabase
       .from('mentorships')
       .upsert(
-        { teacher_id: profileIds.mentor, student_id: studentId, active: true },
-        { onConflict: 'teacher_id,student_id' },
+        { mentor_id: profileIds.mentor, student_id: studentId, active: true },
+        { onConflict: 'mentor_id,student_id' },
       )
     if (mentorshipError) {
       console.log(`  FAIL mentorship: ${mentorshipError.message}`)
@@ -321,8 +323,8 @@ async function main() {
       .from('payslips')
       .insert({
         number: 'CEA-P-2026-9001',
-        teacher_id: profileIds.teacher,
-        teacher_name_snapshot: 'Teacher User',
+        tutor_id: profileIds.teacher,
+        tutor_name_snapshot: 'Tutor User',
         issue_date: '2026-07-17',
         currency: 'INR',
         note: 'Verification payslip',

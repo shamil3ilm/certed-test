@@ -18,10 +18,41 @@ const c = createClient(url, secret)
 const USERS = [
   { email: 'superadmin@certed.test', full_name: 'Super Admin', role: 'admin' },
   { email: 'subadmin@certed.test', full_name: 'Admin', role: 'sub_admin' },
-  { email: 'tutor@certed.test', full_name: 'Test Tutor', role: 'teacher' },
-  { email: 'mentor@certed.test', full_name: 'Test Mentor', role: 'teacher' },
+  { email: 'tutor@certed.test', full_name: 'Test Tutor', role: 'tutor' },
+  { email: 'mentor@certed.test', full_name: 'Test Mentor', role: 'mentor' },
   { email: 'student@certed.test', full_name: 'Test Student', role: 'student', class_level: 'Grade 10' },
 ]
+
+/**
+ * Grant the account its GLOBAL persona.
+ *
+ * `profiles.role` does not confer access: getActorContext resolves an actor's capabilities from
+ * persona_assignments alone, and the role-based set in lib/capabilities is identity/display only.
+ * An account seeded without this row signs in to an empty nav and an empty dashboard, which
+ * reads exactly like a broken login.
+ *
+ * Select-then-write rather than upsert: the table's UNIQUE(profile_id, persona_name, scope_id)
+ * does not constrain a global row, because scope_id is NULL there and Postgres treats every NULL
+ * as distinct - see migration 0025, which added a partial unique index for that reason.
+ */
+async function ensureGlobalPersona(profileId, role) {
+  const { data: existing, error: findErr } = await c
+    .from('persona_assignments')
+    .select('id')
+    .eq('profile_id', profileId)
+    .eq('persona_name', role)
+    .eq('scope_type', 'global')
+    .is('scope_id', null)
+    .maybeSingle()
+  if (findErr) return findErr.message
+
+  const { error } = existing?.id
+    ? await c.from('persona_assignments').update({ status: 'active' }).eq('id', existing.id)
+    : await c
+        .from('persona_assignments')
+        .insert({ profile_id: profileId, persona_name: role, scope_type: 'global', scope_id: null, status: 'active' })
+  return error?.message ?? null
+}
 
 async function findAuthUserId(email) {
   // Paginate the admin user list to find an existing auth user by email.
@@ -78,6 +109,11 @@ async function seed() {
       console.error(`❌ bind ${u.email}: ${bErr.message}`)
       continue
     }
+    const personaErr = await ensureGlobalPersona(prof.id, u.role)
+    if (personaErr) {
+      console.error(`❌ persona ${u.email}: ${personaErr}`)
+      continue
+    }
     console.log(`✅ ${u.role.padEnd(9)} ${u.email}`)
   }
 
@@ -87,9 +123,25 @@ async function seed() {
   if (mentor && student) {
     const { error } = await c
       .from('mentorships')
-      .upsert({ teacher_id: mentor.id, student_id: student.id, active: true }, { onConflict: 'teacher_id,student_id' })
+      .upsert({ mentor_id: mentor.id, student_id: student.id, active: true }, { onConflict: 'mentor_id,student_id' })
     if (error) console.error(`❌ mentorship: ${error.message}`)
     else console.log('✅ mentorship  mentor@certed.test → student@certed.test')
+
+    // The mentorship row alone grants nothing: the mentors_student RLS policy (0037) and
+    // canMentor both require a mentor persona scoped to THAT student. scope_id is non-null
+    // here, so the table's own UNIQUE(profile_id, persona_name, scope_id) carries the upsert.
+    const { error: scopeErr } = await c.from('persona_assignments').upsert(
+      {
+        profile_id: mentor.id,
+        persona_name: 'mentor',
+        scope_type: 'student',
+        scope_id: student.id,
+        status: 'active',
+      },
+      { onConflict: 'profile_id,persona_name,scope_id' },
+    )
+    if (scopeErr) console.error(`❌ mentor persona scope: ${scopeErr.message}`)
+    else console.log('✅ mentor scope  mentor@certed.test → student@certed.test')
   }
 
   console.log(`\nAll set. Sign in with any of the above and password: ${PASSWORD}`)
