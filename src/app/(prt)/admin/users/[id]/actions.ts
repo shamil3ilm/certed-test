@@ -7,7 +7,7 @@ import { createOrReuseSubject } from '@/lib/services/subjects'
 import { addSubjectToStudent, setMissingClassSubject } from '@/lib/services/class-subjects'
 import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/services/class-tutors'
 import { archiveClassFromActionInput } from '@/lib/services/classes/lifecycle'
-import { editUserFromActionInput } from '@/lib/services/users'
+import { editUserFromActionInput, reissueSetupCode } from '@/lib/services/users'
 
 /** Assignment + detail edits for one user, from /admin/users/[id]. A service error
  *  (bad id, inactive target, archived class) redirects back with ?error=1 rather
@@ -112,4 +112,27 @@ export async function editDetailsAction(formData: FormData) {
     throw error
   }
   revalidatePath(`/admin/users/${id}`)
+}
+
+export type ReissueState = { ok?: boolean; code?: string; expiresAt?: string; email?: string; error?: string }
+
+/**
+ * Re-issue a setup code and return it in the action result.
+ *
+ * Deliberately NOT the redirect-on-error shape the rest of this file uses: the code is shown
+ * exactly once, so redirecting would issue it and throw it away in the same breath. The
+ * failure message comes from the service and is already user-facing; an unknown error is not
+ * forwarded to the browser.
+ */
+export async function reissueCodeAction(_prev: ReissueState, formData: FormData): Promise<ReissueState> {
+  const me = await requireCapability('manageUsers')
+  const id = String(formData.get('id') ?? '')
+  try {
+    const { profile, code, expiresAt } = await reissueSetupCode(me, id)
+    revalidatePath(`/admin/users/${id}`)
+    return { ok: true, code, expiresAt, email: profile.email }
+  } catch (error) {
+    if (error instanceof ServiceError) return { error: error.message }
+    throw error
+  }
 }

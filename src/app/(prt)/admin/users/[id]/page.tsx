@@ -10,6 +10,14 @@ import { AlertBanner, BackLink, Card, EmptyState } from '@/lib/ui'
 import { DetailsCard } from './DetailsCard'
 import { SubjectsPanel } from './SubjectsPanel'
 import { GuardiansPanel } from './GuardiansPanel'
+import { SetupCodePanel } from './SetupCodePanel'
+
+/** The render clock, read outside the component so the page stays a pure render (the
+ *  repo's other surfaces take `now` from a loader for the same reason). The invite panel
+ *  needs it only to say whether an outstanding code has lapsed. */
+function serverClockMs(): number {
+  return Date.now()
+}
 
 export default async function UserDetailPage(props: {
   params: Promise<{ id: string }>
@@ -40,6 +48,19 @@ export default async function UserDetailPage(props: {
       )}
 
       <DetailsCard profile={profile} />
+
+      {/* The UI half of the service guard: an account that has signed in has no invite to
+          manage, so the panel is absent rather than present-and-refusing. The page has
+          already authorised this target, so the panel does not restate that gate. */}
+      {!profile.auth_user_id && (
+        <SetupCodePanel
+          id={id}
+          email={profile.email}
+          fullName={profile.full_name}
+          expiresAt={profile.setup_code_expires_at}
+          now={serverClockMs()}
+        />
+      )}
 
       {isStudent && <StudentSubjects studentId={id} />}
       {isStudent && <StudentGuardians studentId={id} actor={me} />}
