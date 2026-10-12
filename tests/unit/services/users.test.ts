@@ -35,7 +35,6 @@ import { setAuthUserBanned, verifyOwnPassword } from '@/lib/data/auth-accounts'
 import { loadActivePersonas, hasPersona, loadPersonaFlags } from '@/lib/permission/personas'
 import {
   addUser,
-  addUserFromActionInput,
   deleteUnregisteredProfile,
   revokeUser,
   revokeUserFromActionInput,
@@ -255,7 +254,7 @@ describe('user action-input helpers', () => {
           { data: { id: 'new-1', email: 'new@example.com', role: 'tutor', status: 'pending' }, error: null },
         ) as any,
       ) // create_invited_profile: profile + persona
-    const created = await addUserFromActionInput(superAdmin, {
+    const created = await addUser(superAdmin, {
       email: 'new@example.com',
       role: 'tutor',
     })

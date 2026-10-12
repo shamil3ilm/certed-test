@@ -19,10 +19,8 @@ import { callEraseProfile, callRestoreProfile, clearErasedAuthLink } from '@/lib
 import { deletePersonasForProfile } from '@/lib/data/personas'
 import { getProfileByEmail, getProfileById } from './directory'
 import {
-  validateAddUserInput,
   validateEditUserInput,
   validateUserIdInput,
-  type AddUserActionInput,
   type EditUserActionInput,
   type UserIdActionInput,
 } from './validation'
@@ -91,15 +89,6 @@ export async function addUser(actor: Profile, input: AddUserInput): Promise<AddU
   if (!created.ok) throw new ValidationError(EMAIL_TAKEN)
   await auditPrivilegedAction(actor, 'user.add', 'profile', created.profile.id)
   return { profile: created.profile, code }
-}
-
-export async function addUserFromActionInput(
-  actor: Profile,
-  input: AddUserActionInput,
-): Promise<{ profile: Profile; code: string; mentorId: string | null }> {
-  const parsed = validateAddUserInput(input)
-  const { profile, code } = await addUser(actor, parsed.user)
-  return { profile, code, mentorId: parsed.mentorId }
 }
 
 export type ReissueResult = { profile: Profile; code: string; expiresAt: string }

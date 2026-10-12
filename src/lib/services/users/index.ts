@@ -36,7 +36,6 @@ export { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwn
 
 export {
   addUser,
-  addUserFromActionInput,
   reissueSetupCode,
   deleteUnregisteredProfile,
   revokeUser,
