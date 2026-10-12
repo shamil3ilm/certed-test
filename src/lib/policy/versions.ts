@@ -5,7 +5,7 @@
  * never disagree. Bump these (to the new effective date) whenever the policy text
  * changes so re-acceptance records the new version.
  */
-export const POLICY_EFFECTIVE_DATE = '2026-09-24'
+export const POLICY_EFFECTIVE_DATE = '2026-10-07'
 
 export const TERMS_VERSION = POLICY_EFFECTIVE_DATE
 export const PRIVACY_VERSION = POLICY_EFFECTIVE_DATE

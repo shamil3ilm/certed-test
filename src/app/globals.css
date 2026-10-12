@@ -58,8 +58,8 @@
   --color-danger-border: var(--danger-border);
   --color-danger-ink: var(--danger-ink);
   --font-sans: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
-  /* Temporary: use Louis George Cafe (brand sans) everywhere, including headings.
-     Restore Dagger Square by putting var(--font-brand-display) first again. */
+  /* The portal reads as product UI, so its headings stay on the brand sans; the
+     marketing site sets its own face in `.mkt-scope`. */
   --font-display: var(--font-brand-sans), ui-sans-serif, system-ui, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   /* Typography scale below Tailwind's text-xs (0.75rem). Two named steps so the
@@ -120,6 +120,17 @@ html {
   ::after {
     border-color: #e2e8f0;
   }
+}
+
+/* ------------------------ Marketing site typography ------------------------
+   Scoped to `.mkt-scope` (the marketing layout). The public pages are set in
+   Inter, loaded by that layout; the portal keeps the brand sans. The scope sets
+   both the inherited family (descendants inherit from here, not from `body`)
+   and `--font-display`, so the `h1, h2, h3, .brand-display` rule above resolves
+   to Inter as well - the marketing site has no separate display face. */
+.mkt-scope {
+  --font-display: var(--font-mkt-sans), ui-sans-serif, system-ui, Arial, sans-serif;
+  font-family: var(--font-mkt-sans), ui-sans-serif, system-ui, Arial, sans-serif;
 }
 
 /* ------------------------- Portal design system -------------------------

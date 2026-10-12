@@ -1,10 +1,11 @@
 import type { MetadataRoute } from 'next'
 import { BLOG_POST_SLUGS } from '@/lib/content/blog-posts'
+import { isIndexableHost } from '@/lib/routing/public-host'
 
 const SITE = 'https://www.certedacademia.com'
 
-// Read PORTAL_ONLY at REQUEST time (matching the middleware + robots.ts), so a
-// private preview host serves an empty sitemap regardless of build-time env.
+// Decided at REQUEST time (matching robots.ts), because the answer depends on the host the
+// request arrived on rather than on anything known at build.
 export const dynamic = 'force-dynamic'
 
 /** The publicly indexable marketing pages. Portal routes are private and are
@@ -12,10 +13,11 @@ export const dynamic = 'force-dynamic'
  *  registry so a new post is indexed automatically, with no list to update here. */
 const PUBLIC_PATHS = ['', '/about', '/contact', '/blogs', ...BLOG_POST_SLUGS.map((slug) => `/blogs/${slug}`)]
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  // A PORTAL_ONLY deploy is a private preview/test host with no public marketing
-  // pages to index (robots also disallows all there).
-  if (process.env.PORTAL_ONLY === '1') return []
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // A host that is not the canonical public one has no public pages to offer a crawler, and
+  // listing production's URLs from a staging host would only invite confusion about which is
+  // authoritative. robots.ts disallows everything on those hosts for the same reason.
+  if (!(await isIndexableHost())) return []
   return PUBLIC_PATHS.map((path) => ({
     url: `${SITE}${path}`,
     changeFrequency: path.startsWith('/blogs') ? 'monthly' : 'weekly',

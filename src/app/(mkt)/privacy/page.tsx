@@ -55,7 +55,8 @@ export default function PrivacyPolicy() {
             </li>
             <li>
               <strong>Technical:</strong> essential cookies that keep you signed in and, to prevent abuse, your IP
-              address for rate-limiting. We use <strong>no advertising or analytics trackers.</strong>
+              address for rate-limiting. We use cookie-less, aggregate analytics on our public pages, and{' '}
+              <strong>no advertising trackers.</strong>
             </li>
           </ul>
         </Section>

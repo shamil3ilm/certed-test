@@ -60,13 +60,25 @@ Set the flag back to `true` once the policy wording is final. A store submission
 
 The legal entity name and the retention periods are still to be confirmed by the owners. The pages are live and honest about what they say; these are gaps to fill, not drafts to replace.
 
-### 6. Smaller open threads
+### 6. Next.js is deliberately a minor behind — revisit by late October 2026
+
+Pinned at **16.3.8**, which is stable and carries every security fix published so far. `latest` is 16.4.0 (6 October), and the project is staying off it on purpose: nothing needs 16.4 features, production is live, and a two-day-old minor is not where a live academy should be.
+
+The reason this is written down rather than left as a judgement: the project sat on **16.3.4 from 31 August to 7 October** and drifted five patch releases behind, so when a critical advisory was disclosed the fix had already been on the registry for over two weeks. Staying a minor behind is fine; forgetting that you are is not, because the next advisory may be fixed only in 16.4.x and then the bump happens under incident pressure.
+
+**Done looks like** either moving to 16.4.x once 16.4.1+ exists and the full gate passes, or a dependency bot (Dependabot or Renovate) raising the PRs so the decision surfaces on its own. The CI gate is strong enough to judge such a PR: typecheck, lint, the unit suite, Playwright, RLS and privilege parity.
+
+Check with `npm outdated next` and `npm audit --omit=dev`. Production dependencies should read zero; the remaining dev-only advisories come from `eslint-config-next@16.0.8`, which has no 16.3.x line and so cannot be cleared without the 16.4 move.
+
+### 7. Smaller open threads
 
 - **Leaked-password protection** is off in Supabase auth settings; it was deliberately deferred.
 - **Publishing status of the Google OAuth consent screen** is settled — it is In production, which is what makes the Drive refresh token long-lived.
 - **`GOOGLE_SCRIPT_URL`** (the contact-form Apps Script endpoint) is unset.
 - **Deploys are owner-triggered.** Pushing to `main` does not release; the owner redeploys.
 - **Supabase JWT expiry is still the one-hour default.** Drop it to 15–30 minutes before the mobile apps ship: access tokens on phones live in more places than cookies on a laptop, and the client refreshes silently.
+- **Production's `public` schema is not byte-identical to a chain-built one, and never has been.** `PROD-0` drops the stock schema, so what `PROD-1` recreates is owned by `postgres` rather than `pg_database_owner`, and USAGE is granted explicitly to `anon`, `authenticated` and `service_role` instead of being inherited by `PUBLIC`. The net effect is **stricter** than the chain, so it is left alone — but a schema dump compared against the migration chain will show those three lines, and a rehearsal on 2026-10-02 confirmed they are the only differences. Table, column and function privileges match exactly (3450 rows).
+- **Web Analytics must be enabled in the Vercel dashboard**, and the **sitemap submitted in Search Console**. The code side of both is done: `@vercel/analytics` and `@vercel/speed-insights` are mounted on the marketing group only, and `sitemap.xml` and `robots.txt` serve correctly on the canonical host. Neither collects or reports anything until those two dashboard steps are taken.
 
 ---
 
