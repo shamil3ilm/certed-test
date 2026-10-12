@@ -17,8 +17,10 @@ import { cx } from './core'
  * call sites throughout the app - a security-critical migration to buy a vocabulary change.
  * See docs/persona-model.md and docs/specs/2026-10-12-roles-relabel-and-bulk-user-add.md.
  *
- * This file is where the words are DECIDED. A few surfaces still spell a label themselves
- * because they need a plural or a persona-keyed record; prefer roleLabel/personaLabel. */
+ * This file decides the words. A surface that needs a plural or a persona-keyed record keeps
+ * its own map - NewMessageForm, MessagingMatrixForm, recipient-policy-shared, settings-page -
+ * and tests/unit/role-labels-single-source.test.ts fails if the retired wording returns to any
+ * string literal under src/. */
 
 /** Display label for a profile's role (its fixed identity). Use for rows that
  *  carry a stored role - comment authors, the Users list - where loading personas

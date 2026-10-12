@@ -105,7 +105,7 @@ export function buildSeed(): MockDb {
         id: IDS.subAdmin,
         auth_user_id: 'u-subadmin',
         email: 'subadmin@mock.test',
-        full_name: 'Sunil Sub-Admin',
+        full_name: 'Sunil Admin',
         role: 'sub_admin',
         status: 'active',
         class_level: null,
