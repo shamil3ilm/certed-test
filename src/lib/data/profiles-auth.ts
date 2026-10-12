@@ -213,3 +213,35 @@ export async function claimAllowlistRowOnOAuth(profileId: string, authUserId: st
   if (error) throw new Error(`data.profiles.claimAllowlistRow: ${error.message}`)
   return (data as { id: string } | null)?.id ?? null
 }
+
+/**
+ * Stamp a FRESH setup code hash on an invite nobody has claimed.
+ *
+ * The two guards are the point. `auth_user_id is null` refuses an account that has already
+ * signed in, so re-issue can never reset a live user's invite out from under them.
+ * `status = 'pending'` refuses a REVOKED invite: revoking an unclaimed account leaves
+ * auth_user_id null, so without this an admin would be handed a code that registration then
+ * refuses anyway (bindAuthUserToProfile pins the same status), looking like a bug in the code
+ * rather than a closed account.
+ *
+ * Returns whether THIS call matched a row. A write error throws instead: reporting it as
+ * "no match" would tell an admin the account is already claimed when the database merely
+ * failed.
+ */
+export async function reissueSetupCodeForUnclaimed(
+  profileId: string,
+  setupCodeHash: string,
+  expiresAt: string,
+): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profiles')
+    .update({ setup_code_hash: setupCodeHash, setup_code_expires_at: expiresAt })
+    .eq('id', profileId)
+    .is('auth_user_id', null)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle()
+  if (error) throw new Error(`data.profiles.reissueSetupCode: ${error.message}`)
+  return !!data
+}
