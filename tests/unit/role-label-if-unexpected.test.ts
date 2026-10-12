@@ -24,7 +24,7 @@ describe('roleLabelIfUnexpected', () => {
     // sitting in a column headed TUTOR.
     expect(roleLabelIfUnexpected('mentor', 'tutor')).toBe('Mentor')
     expect(roleLabelIfUnexpected('admin', 'tutor')).toBe('Super Admin')
-    expect(roleLabelIfUnexpected('sub_admin', 'tutor')).toBe('Sub Admin')
+    expect(roleLabelIfUnexpected('sub_admin', 'tutor')).toBe('Admin')
   })
 
   it('says nothing for an absent role rather than guessing one', () => {

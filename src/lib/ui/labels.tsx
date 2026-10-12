@@ -3,7 +3,22 @@ import { cx } from './core'
 
 /* Text labels and small status chips. These map a stored role / persona set to a
  * DISPLAY string only - the authorization meaning of a persona lives in
- * src/lib/capabilities, never here. */
+ * src/lib/capabilities, never here.
+ *
+ * THE WORDS DO NOT MATCH THE IDENTIFIERS, deliberately:
+ *
+ *     stored `admin`      reads "Super Admin"
+ *     stored `sub_admin`  reads "Admin"
+ *     stored `mentor` / `tutor` / `student`  read as themselves
+ *
+ * So `role === 'admin'` is the TOP tier, not the ordinary Admin a user sees. The identifiers
+ * were left alone on purpose: renaming them means a Postgres enum rename (with an intermediate
+ * name, because `admin` and `sub_admin` would collide), every RLS policy that names a tier, and
+ * call sites throughout the app - a security-critical migration to buy a vocabulary change.
+ * See docs/persona-model.md and docs/specs/2026-10-12-roles-relabel-and-bulk-user-add.md.
+ *
+ * This file is where the words are DECIDED. A few surfaces still spell a label themselves
+ * because they need a plural or a persona-keyed record; prefer roleLabel/personaLabel. */
 
 /** Display label for a profile's role (its fixed identity). Use for rows that
  *  carry a stored role - comment authors, the Users list - where loading personas
@@ -13,7 +28,7 @@ export function roleLabel(role?: string | null): string {
   if (role === 'tutor') return 'Tutor'
   if (role === 'mentor') return 'Mentor'
   if (role === 'admin') return 'Super Admin'
-  if (role === 'sub_admin') return 'Sub Admin'
+  if (role === 'sub_admin') return 'Admin'
   return 'Student'
 }
 
@@ -116,7 +131,7 @@ export function personaLabel(
     personas.some((p) => p.persona_name === name && p.scope_type === 'global' && p.status === 'active')
   const hasMentor = personas.some((p) => p.persona_name === 'mentor' && p.status === 'active')
   if (hasGlobal('admin')) return 'Super Admin'
-  if (hasGlobal('sub_admin')) return 'Sub Admin'
+  if (hasGlobal('sub_admin')) return 'Admin'
   // A tutor who also mentors is a hybrid: the mentor dashboard shows their mentees,
   // so the identity label must say so too rather than read as a plain Tutor.
   if (hasGlobal('tutor')) return hasMentor ? 'Tutor & Mentor' : 'Tutor'

@@ -8,12 +8,22 @@ const persona = (persona_name: string, scope_type = 'global', status = 'active')
 })
 
 describe('roleLabel', () => {
-  it('maps each role, defaulting unknown/empty to Student', () => {
-    expect(roleLabel('tutor')).toBe('Tutor')
-    expect(roleLabel('mentor')).toBe('Mentor')
-    expect(roleLabel('admin')).toBe('Super Admin')
-    expect(roleLabel('sub_admin')).toBe('Sub Admin')
-    expect(roleLabel('student')).toBe('Student')
+  // The academy's five role names, pinned. The stored identifiers deliberately do NOT match
+  // the words - `admin` reads "Super Admin" and `sub_admin` reads "Admin" - so an edit that
+  // "tidies" one of these would silently rename a tier for every user. A table rather than one
+  // assertion per line, so a failure names the role that broke.
+  it.each([
+    ['admin', 'Super Admin'],
+    ['sub_admin', 'Admin'],
+    ['mentor', 'Mentor'],
+    ['tutor', 'Tutor'],
+    ['student', 'Student'],
+  ])('labels %s as %s', (role, expected) => {
+    expect(roleLabel(role)).toBe(expected)
+  })
+
+  it('falls back to Student for an unknown or absent role', () => {
+    expect(roleLabel('nonsense')).toBe('Student')
     expect(roleLabel(null)).toBe('Student')
     expect(roleLabel(undefined)).toBe('Student')
   })
@@ -48,7 +58,7 @@ describe('staffRoleLabel', () => {
 describe('personaLabel', () => {
   it('returns the highest-privilege label across active personas', () => {
     expect(personaLabel([persona('admin')])).toBe('Super Admin')
-    expect(personaLabel([persona('sub_admin')])).toBe('Sub Admin')
+    expect(personaLabel([persona('sub_admin')])).toBe('Admin')
     expect(personaLabel([persona('tutor'), persona('mentor')])).toBe('Tutor & Mentor')
     expect(personaLabel([persona('tutor')])).toBe('Tutor')
     expect(personaLabel([persona('mentor')])).toBe('Mentor')
