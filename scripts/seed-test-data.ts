@@ -29,11 +29,17 @@ type TestUser = {
 }
 
 const testUsers: TestUser[] = [
-  { key: 'admin', email: 'admin@test.example.com', fullName: 'Admin User', role: 'admin', globalPersona: 'admin' },
+  {
+    key: 'admin',
+    email: 'admin@test.example.com',
+    fullName: 'Super Admin User',
+    role: 'admin',
+    globalPersona: 'admin',
+  },
   {
     key: 'subadmin',
     email: 'subadmin@test.example.com',
-    fullName: 'Sub-Admin User',
+    fullName: 'Admin User',
     role: 'sub_admin',
     globalPersona: 'sub_admin',
   },

@@ -36,8 +36,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
  * enum: admin | sub_admin | tutor | mentor | student.
  */
 const PERSONAS = [
-  { role: 'admin', env: 'PRODUCTION_SEED_ADMIN_EMAIL', full_name: 'Academy Admin' },
-  { role: 'sub_admin', env: 'PRODUCTION_SEED_SUB_ADMIN_EMAIL', full_name: 'Sub Admin' },
+  { role: 'admin', env: 'PRODUCTION_SEED_ADMIN_EMAIL', full_name: 'Super Admin' },
+  { role: 'sub_admin', env: 'PRODUCTION_SEED_SUB_ADMIN_EMAIL', full_name: 'Admin' },
   // PRODUCTION_SEED_TEACHER_EMAIL kept as an alias so existing .env files keep working.
   { role: 'tutor', env: 'PRODUCTION_SEED_TUTOR_EMAIL', alias: 'PRODUCTION_SEED_TEACHER_EMAIL', full_name: 'Tutor' },
   { role: 'mentor', env: 'PRODUCTION_SEED_MENTOR_EMAIL', full_name: 'Mentor' },

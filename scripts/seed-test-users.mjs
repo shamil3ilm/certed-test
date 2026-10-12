@@ -17,7 +17,7 @@ const c = createClient(url, secret)
 
 const USERS = [
   { email: 'superadmin@certed.test', full_name: 'Super Admin', role: 'admin' },
-  { email: 'subadmin@certed.test', full_name: 'Sub Admin', role: 'sub_admin' },
+  { email: 'subadmin@certed.test', full_name: 'Admin', role: 'sub_admin' },
   { email: 'tutor@certed.test', full_name: 'Test Tutor', role: 'teacher' },
   { email: 'mentor@certed.test', full_name: 'Test Mentor', role: 'teacher' },
   { email: 'student@certed.test', full_name: 'Test Student', role: 'student', class_level: 'Grade 10' },

@@ -24,12 +24,15 @@ import { roleLabel } from '@/lib/ui/labels'
  *     or hyphen between "sub" and "admin" is what separates a word someone reads from an
  *     identifier nobody does: it flags "Sub Admin" and "sub-admin", and ignores
  *     `subadmin@mock.test`, `'u-subadmin'` and `sub_admin`.
+ *   - `scripts/` is scanned as well as `src/`, because a seeding script writes a `full_name`
+ *     straight into a database and that name is then shown on the People page like any other.
+ *     Scanning only the app missed three of them, one seeding PRODUCTION.
  *
  * A rule like "only these files may contain the word Students" was tried and flagged 18 files,
  * because "Students" and "Tutors" are ordinary heading words. A guard that cries wolf gets
  * deleted, so this one checks only the retired forms.
  */
-const SRC = join(process.cwd(), 'src')
+const SCANNED = ['src', 'scripts'].map((d) => join(process.cwd(), d))
 
 /**
  * Comments are not code, and they have to go FIRST.
@@ -53,12 +56,16 @@ const withoutComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\/
  */
 const RETIRED_IN_A_STRING = /'[^'\n]*sub[ -]admins?[^'\n]*'|"[^"\n]*sub[ -]admins?[^"\n]*"|`[^`]*sub[ -]admins?[^`]*`/i
 
+// `.mjs` is in the list because two of the seeding scripts are plain ES modules, and those are
+// exactly the files that write a display name into a database.
 const files = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const full = join(dir, e.name)
     if (e.isDirectory()) return files(full)
-    return /\.(ts|tsx)$/.test(e.name) ? [full] : []
+    return /\.(ts|tsx|mjs|js)$/.test(e.name) ? [full] : []
   })
+
+const scanned = (): string[] => SCANNED.flatMap(files)
 
 describe('the role names stay distinct', () => {
   // The trap this nearly fell into: MessagingMatrixForm labelled the TOP tier "Admin", so
@@ -72,20 +79,22 @@ describe('the role names stay distinct', () => {
 })
 
 describe('the retired tier name is not shown to anyone', () => {
-  it('the scan reads files at all (an empty walk would pass vacuously)', () => {
-    expect(files(SRC).length).toBeGreaterThan(0)
+  // Both roots are asserted separately: a typo in one path would otherwise leave that half of
+  // the scan silently empty while the other half kept the test green.
+  it.each(SCANNED)('reads files under %s at all (an empty walk would pass vacuously)', (dir) => {
+    expect(files(dir).length).toBeGreaterThan(0)
   })
 
-  it('no string literal under src/ says "Sub Admin"', () => {
-    const offenders = files(SRC)
+  it('no string literal under src/ or scripts/ says "Sub Admin"', () => {
+    const offenders = scanned()
       .filter((f) => RETIRED_IN_A_STRING.test(withoutComments(readFileSync(f, 'utf8'))))
-      .map((f) => relative(SRC, f).split(sep).join('/'))
+      .map((f) => relative(process.cwd(), f).split(sep).join('/'))
     expect(
       offenders,
       offenders.length === 0
         ? ''
         : `These show a user the retired tier name. The second tier reads "Admin" now, and\n` +
-            `lib/ui/labels.tsx is the one file that decides the words:\n` +
+            `src/lib/ui/labels.tsx is the one file that decides the words:\n` +
             offenders.map((o) => `  - ${o}`).join('\n'),
     ).toEqual([])
   })
