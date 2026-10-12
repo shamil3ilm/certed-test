@@ -1,6 +1,5 @@
 'use client'
-import { useState } from 'react'
-import { useFormState } from 'react-dom'
+import { useActionState, useState } from 'react'
 import { AlertBanner, CARD, cx, roleLabel } from '@/lib/ui'
 import { addUserAction, type AddUserState } from './actions'
 import { Field, Input, Select, SubmitButton } from '../../form'
@@ -27,7 +26,9 @@ export function AddUserForm({
   /** A student is created with their mentor, so without this capability the role is not offered. */
   canAssignMentor?: boolean
 }) {
-  const [state, formAction] = useFormState(addUserAction, initial)
+  // useActionState, not react-dom's useFormState: React 19 renamed the hook, and the old
+  // name logs a console error on every render.
+  const [state, formAction] = useActionState(addUserAction, initial)
   const [role, setRole] = useState(roles[0] ?? 'student')
   const isStudent = role === 'student'
   const isTeacher = role === 'tutor' || role === 'mentor'
