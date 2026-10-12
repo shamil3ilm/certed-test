@@ -637,7 +637,9 @@ Append after `await expect(page.getByText(newbieEmail)).toBeVisible()`:
 ```ts
 // ADR-0008: a code is issued, never read back. Two re-issues must produce two different
 // codes; the same code twice would mean the plaintext was stored somewhere.
-await page.getByRole('link', { name: newbieEmail }).click()
+// UserRow links by `full_name ?? email`, and the add step above fills 'Eve Newbie', so the
+// link text is the NAME - not the email the row also displays.
+await page.getByRole('link', { name: 'Eve Newbie' }).click()
 const panel = page.locator('form', { has: page.getByRole('button', { name: /issue setup code/i }) })
 const shown = page.locator('[role=status] code')
 
@@ -655,7 +657,7 @@ await expect(page.getByText(/previous code no longer works/i)).toBeVisible()
 
 Two things to adapt rather than assume:
 
-1. **Reaching the detail page.** The suite may not link to a user by email. If `getByRole('link', { name: newbieEmail })` finds nothing, read how `/admin/users` renders a row and use whatever it actually offers - a name link, a "View" action - and say in your report what you used.
+1. **Reaching the detail page.** `UserRow.tsx:57` renders the link only when the row is `manageable`, which a super admin always is for a student. If the click finds nothing, read that component rather than guessing a locator, and say in your report what you used.
 2. **The second click.** `await expect(shown).not.toHaveText(first)` is what waits for the new code to land; without it the second read can race and return the first code, which would make this test pass for the wrong reason. Keep it.
 
 - [ ] **Step 2: Run the suite**
