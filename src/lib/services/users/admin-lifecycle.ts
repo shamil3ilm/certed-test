@@ -14,6 +14,7 @@ import {
   revokeProfileGuarded,
   updateProfile,
 } from '@/lib/data/profiles'
+import { reissueSetupCodeForUnclaimed } from '@/lib/data/profiles-auth'
 import { callEraseProfile, callRestoreProfile, clearErasedAuthLink } from '@/lib/data/profile-lifecycle'
 import { deletePersonasForProfile } from '@/lib/data/personas'
 import { getProfileByEmail, getProfileById } from './directory'
@@ -99,6 +100,40 @@ export async function addUserFromActionInput(
   const parsed = validateAddUserInput(input)
   const { profile, code } = await addUser(actor, parsed.user)
   return { profile, code, mentorId: parsed.mentorId }
+}
+
+export type ReissueResult = { profile: Profile; code: string; expiresAt: string }
+
+const NOT_REISSUABLE = 'That account has already been claimed, or its invite was revoked - no new code was issued.'
+
+/**
+ * Replace the setup code on an invite nobody has claimed, and hand the admin the new one.
+ *
+ * A code is ISSUED, never read back: only its hash is stored, so a lost code is replaced
+ * rather than recovered (ADR-0008). Re-issuing invalidates the previous code, which is the
+ * intent - someone mid-registration with the old code has to use the new one.
+ *
+ * Authority is the tier rule addUser already applies, so an Admin may re-issue for a tutor,
+ * mentor or student and never for the admin tier. No capability is added by this feature.
+ */
+export async function reissueSetupCode(actor: Profile, id: string): Promise<ReissueResult> {
+  // getProfileById, not the detail projection: a Profile already carries the email, name and
+  // role this needs, and the page - not the service - is what renders the expiry.
+  const target = await getProfileById(id)
+  if (!target) throw new NotFoundError('User not found')
+  if (!(await canManageTarget(actor, target.role))) {
+    throw new PermissionError('Not authorized to manage this user.')
+  }
+
+  const code = generateSetupCode()
+  const expiresAt = setupCodeExpiry()
+  // The write carries the guards, so it is the single source of truth on whether this invite
+  // was re-issuable - re-reading the row first would be a race.
+  const reissued = await reissueSetupCodeForUnclaimed(id, hashSetupCode(code), expiresAt)
+  if (!reissued) throw new ValidationError(NOT_REISSUABLE)
+
+  await auditPrivilegedAction(actor, 'user.reissue_code', 'profile', id)
+  return { profile: target, code, expiresAt }
 }
 
 /**

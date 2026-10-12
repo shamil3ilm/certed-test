@@ -37,6 +37,7 @@ export { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwn
 export {
   addUser,
   addUserFromActionInput,
+  reissueSetupCode,
   deleteUnregisteredProfile,
   revokeUser,
   revokeUserFromActionInput,
@@ -47,7 +48,7 @@ export {
   editUser,
   editUserFromActionInput,
 } from './admin-lifecycle'
-export type { AddUserResult } from './admin-lifecycle'
+export type { AddUserResult, ReissueResult } from './admin-lifecycle'
 
 export { validateAddUserInput, validateEditUserInput, validateUserIdInput } from './validation'
 export type { AddUserActionInput, EditUserActionInput, UserIdActionInput } from './validation'
