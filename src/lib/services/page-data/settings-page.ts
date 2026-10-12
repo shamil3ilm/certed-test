@@ -33,7 +33,7 @@ function labelFromFlags(flags: {
   hasMentorAuthority: boolean
 }): string {
   if (flags.isAdmin) return 'Super Admin'
-  if (flags.isSubAdmin) return 'Sub Admin'
+  if (flags.isSubAdmin) return 'Admin'
   if (flags.isTutor) return flags.hasMentorAuthority ? 'Tutor & Mentor' : 'Tutor'
   if (flags.hasMentorAuthority) return 'Mentor'
   return flags.isStudent ? 'Student' : 'Member'

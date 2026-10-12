@@ -37,6 +37,15 @@ const student = {
   class_level: 'Grade 8',
   auth_user_id: 'auth-2',
 } as any
+const subAdmin = {
+  id: 'sa-1',
+  email: 'sa@x.c',
+  full_name: null,
+  role: 'sub_admin',
+  status: 'active',
+  class_level: null,
+  auth_user_id: 'auth-sa',
+} as any
 beforeEach(() => vi.clearAllMocks())
 
 describe('loadSettingsPageData', () => {
@@ -83,5 +92,22 @@ describe('loadSettingsPageData', () => {
       roleLabel: 'Student',
       consent: CONSENT,
     })
+  })
+
+  it('labels the second admin tier "Admin" - the same word the header uses', async () => {
+    // labelFromFlags restates the wording instead of calling personaLabel, and its own comment
+    // says the two must stay in step. This is the assertion that catches them drifting apart.
+    vi.mocked(loadPersonaFlags).mockResolvedValueOnce({
+      personas: [],
+      isAdmin: false,
+      isSubAdmin: true,
+      isTutor: false,
+      isManager: false,
+      isStudent: false,
+      isMentor: false,
+    } as any)
+    vi.mocked(getConsentStatus).mockResolvedValueOnce(CONSENT)
+    const data = await loadSettingsPageData(subAdmin, {}, false)
+    expect(data.roleLabel).toBe('Admin')
   })
 })
