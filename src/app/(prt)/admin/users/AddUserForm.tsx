@@ -29,7 +29,24 @@ export function AddUserForm({
   // useActionState, not react-dom's useFormState: React 19 renamed the hook, and the old
   // name logs a console error on every render.
   const [state, formAction] = useActionState(addUserAction, initial)
-  const [role, setRole] = useState(roles[0] ?? 'student')
+  const defaultRole = roles[0] ?? 'student'
+  const [role, setRole] = useState(defaultRole)
+
+  // React resets this form once its action completes, which clears the uncontrolled inputs and
+  // puts the Role <select> back on its first option. `role` is React state and survives that,
+  // so without this the dropdown reads "Super Admin" while the form still shows the fields for
+  // whatever was submitted - and the next submit posts the role the admin can no longer see.
+  //
+  // Reset it rather than writing the value back to the DOM: the form really has been cleared,
+  // for the next person, so the role belongs back at its default with everything else. Adjusting
+  // state during render is React's own pattern for reacting to a changed input; an effect would
+  // render the wrong dropdown first and fix it afterwards.
+  const [settled, setSettled] = useState(state)
+  if (state !== settled) {
+    setSettled(state)
+    setRole(defaultRole)
+  }
+
   const isStudent = role === 'student'
   const isTeacher = role === 'tutor' || role === 'mentor'
 
