@@ -39,6 +39,22 @@ A setup code is **issued**, never **read back**. Recovery is replacement:
   copyable invite message — the person's name and email, the code, the `/register` link and the
   expiry — so the natural next action is to send it on rather than to memorise it.
 
+**Implemented 2026-10-12.** The write is `reissueSetupCodeForUnclaimed` in
+`src/lib/data/profiles-auth.ts`, the service is `reissueSetupCode` in
+`src/lib/services/users/admin-lifecycle.ts`, and the surface is the "Sign-in invite" card on
+`/admin/users/[id]`, rendered only while the account is unclaimed.
+
+The guard is one condition stricter than described above: `status = 'pending'` as well as
+`auth_user_id is null`. Revoking an unclaimed invite leaves `auth_user_id` null, so without it an
+admin could be handed a code for a revoked account - which `bindAuthUserToProfile` would then
+refuse anyway, so the code would simply appear broken. Both predicates live in the `UPDATE`, not
+in a prior read, so "is this still unclaimed?" cannot be raced.
+
+Authority is inherited rather than restated: the service gates through `requireManageableTarget`,
+the same helper revoke, restore, edit and erase use. Re-issue is also strictly tighter than
+`addUser`, because it can only touch an account that has never been signed into - it cannot take
+over a live account of any tier, including one the actor may otherwise fully manage.
+
 ## Consequences
 
 - No schema change. `setup_code_hash` and `setup_code_expires_at` already carry everything needed.
