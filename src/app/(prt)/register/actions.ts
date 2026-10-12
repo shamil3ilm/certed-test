@@ -31,7 +31,7 @@ export async function registerAction(_prev: RegisterState, formData: FormData): 
     email: String(formData.get('email') ?? ''),
     code: String(formData.get('code') ?? ''),
     password: String(formData.get('password') ?? ''),
-    guardian_consent: formData.get('guardian_consent') === 'on',
+    policies_accepted: formData.get('policies_accepted') === 'on',
   })
   if (!parsed.success) {
     return actionFail('Check your email, code, and password (min 8 characters).', ERROR_CODES.invalidInput)

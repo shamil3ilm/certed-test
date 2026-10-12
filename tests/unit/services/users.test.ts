@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -674,7 +674,7 @@ describe('completePasswordRegistration', () => {
         email: 'missing@x.c',
         code: '12345678',
         password: 'password123',
-        guardian_consent: false,
+        policies_accepted: true,
       }),
     ).resolves.toEqual({
       error: "That email or code isn't valid, or the account is already set up.",
@@ -701,7 +701,7 @@ describe('completePasswordRegistration', () => {
         email: 'student@x.c',
         code: 'bad-code',
         password: 'password123',
-        guardian_consent: false,
+        policies_accepted: true,
       }),
     ).resolves.toEqual({
       error: "That email or code isn't valid, or the account is already set up.",
@@ -733,7 +733,7 @@ describe('completePasswordRegistration', () => {
         email: 'Student@x.c',
         code: 'valid-code',
         password: 'password123',
-        guardian_consent: false,
+        policies_accepted: true,
       }),
     ).resolves.toEqual({ ok: true })
     expect(createUser).toHaveBeenCalledWith({
@@ -771,7 +771,7 @@ describe('completePasswordRegistration', () => {
         email: 'student@x.c',
         code: 'valid-code',
         password: 'password123',
-        guardian_consent: false,
+        policies_accepted: true,
       }),
     ).resolves.toEqual({
       error: 'This account was just set up by someone else.',
@@ -806,7 +806,7 @@ describe('completePasswordRegistration', () => {
         email: 'student@x.c',
         code: 'valid-code',
         password: 'password123',
-        guardian_consent: false,
+        policies_accepted: true,
       }),
     ).resolves.toEqual({
       error: 'Could not finish setting up your account. Please try again.',
@@ -814,39 +814,9 @@ describe('completePasswordRegistration', () => {
     })
   })
 
-  it('rejects a minor student (guardian on record) without guardian consent', async () => {
+  it('refuses anyone who has not ticked the policy box, before creating any login', async () => {
     vi.mocked(setupCodeValid).mockReturnValue(true as any)
-    vi.mocked(createAdminClient).mockReturnValueOnce(
-      makeClient({
-        data: {
-          id: 'kid',
-          auth_user_id: null,
-          status: 'pending',
-          setup_code_hash: 'hash',
-          setup_code_expires_at: '2099-01-01T00:00:00.000Z',
-          role: 'student',
-          guardian_name: 'A Parent',
-          date_of_birth: null,
-        },
-        error: null,
-      }) as any,
-    )
-    await expect(
-      completePasswordRegistration({
-        email: 'kid@x.c',
-        code: 'valid-code',
-        password: 'password123',
-        guardian_consent: false,
-      }),
-    ).resolves.toEqual({
-      error: 'A parent or guardian must consent before a student under 18 can set up their account.',
-      code: ERROR_CODES.invalidInput,
-    })
-  })
-
-  it('lets a minor student register WITH guardian consent', async () => {
-    vi.mocked(setupCodeValid).mockReturnValue(true as any)
-    const createUser = vi.fn(async () => ({ data: { user: { id: 'auth-kid' } }, error: null }))
+    const createUser = vi.fn()
     vi.mocked(createAdminClient)
       .mockReturnValueOnce(
         makeClient({
@@ -864,15 +834,89 @@ describe('completePasswordRegistration', () => {
         }) as any,
       )
       .mockReturnValueOnce({ auth: { admin: { createUser, deleteUser: vi.fn() } } } as any)
-      .mockReturnValueOnce(makeClient({ data: { id: 'kid' }, error: null }) as any) // bind
-      .mockReturnValueOnce(makeClient({ data: null, error: null }) as any) // consent insert
     await expect(
       completePasswordRegistration({
         email: 'kid@x.c',
         code: 'valid-code',
         password: 'password123',
-        guardian_consent: true,
+        policies_accepted: false,
+      }),
+    ).resolves.toEqual({
+      error: 'Please agree to the Terms of Use and Privacy Policy to set up your account.',
+      code: ERROR_CODES.invalidInput,
+    })
+    // Refused BEFORE the auth account exists, so a refusal leaves no orphan login behind.
+    expect(createUser).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The same tick, the same payload - and the server decides what it means. This is the whole
+   * of ADR-0009: the form cannot know who is registering, so it must not be the thing that
+   * asserts guardian consent.
+   */
+  function registrationWith(row: Record<string, unknown>) {
+    const createUser = vi.fn(async () => ({ data: { user: { id: 'auth-1' } }, error: null }))
+    const consent = makeClientCapturing({ data: null, error: null })
+    vi.mocked(setupCodeValid).mockReturnValue(true as any)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: row, error: null }) as any)
+      .mockReturnValueOnce({ auth: { admin: { createUser, deleteUser: vi.fn() } } } as any)
+      .mockReturnValueOnce(makeClient({ data: { id: row.id }, error: null }) as any) // bind
+      .mockReturnValueOnce(consent.client as any) // consent insert
+      .mockReturnValue(makeClient({ data: null, error: null }) as any) // activation notice
+    return consent
+  }
+
+  const PENDING = {
+    auth_user_id: null,
+    status: 'pending',
+    setup_code_hash: 'hash',
+    setup_code_expires_at: '2099-01-01T00:00:00.000Z',
+  }
+
+  it('records the tick as GUARDIAN consent for a minor', async () => {
+    const consent = registrationWith({ ...PENDING, id: 'kid', role: 'student', date_of_birth: null })
+
+    await expect(
+      completePasswordRegistration({
+        email: 'kid@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        policies_accepted: true,
       }),
     ).resolves.toEqual({ ok: true })
+
+    expect(consent.builder.insert).toHaveBeenCalledWith(expect.objectContaining({ guardian_consent: true }))
+  })
+
+  it('records a plain acceptance for an adult, from an IDENTICAL payload', async () => {
+    const consent = registrationWith({ ...PENDING, id: 'tutor', role: 'tutor', date_of_birth: null })
+
+    await expect(
+      completePasswordRegistration({
+        email: 'tutor@x.c',
+        code: 'valid-code',
+        password: 'password123',
+        policies_accepted: true,
+      }),
+    ).resolves.toEqual({ ok: true })
+
+    expect(consent.builder.insert).toHaveBeenCalledWith(expect.objectContaining({ guardian_consent: false }))
+  })
+
+  it('stamps the consent with the policy versions it was given against', async () => {
+    const consent = registrationWith({ ...PENDING, id: 'kid', role: 'student', date_of_birth: null })
+
+    await completePasswordRegistration({
+      email: 'kid@x.c',
+      code: 'valid-code',
+      password: 'password123',
+      policies_accepted: true,
+    })
+
+    // A version is what makes the record mean anything: it names the words that were agreed to.
+    expect(consent.builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ terms_version: expect.any(String), privacy_version: expect.any(String) }),
+    )
   })
 })

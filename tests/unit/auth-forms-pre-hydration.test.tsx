@@ -36,6 +36,7 @@ vi.mock('@/app/(prt)/auth-client', () => ({
 }))
 
 import { PasswordLoginForm } from '@/app/(prt)/login/PasswordLoginForm'
+import { RegisterForm } from '@/app/(prt)/register/RegisterForm'
 import { ForgotPasswordForm } from '@/app/(prt)/login/forgot/ForgotPasswordForm'
 import { ResetPasswordForm } from '@/app/(prt)/login/reset/ResetPasswordForm'
 
@@ -43,6 +44,8 @@ const FORMS: Array<[string, () => string]> = [
   ['sign-in', () => renderToStaticMarkup(<PasswordLoginForm />)],
   ['forgot-password', () => renderToStaticMarkup(<ForgotPasswordForm />)],
   ['reset-password', () => renderToStaticMarkup(<ResetPasswordForm />)],
+  // Register carries a password AND the one-time setup code, so it has the most to leak.
+  ['register', () => renderToStaticMarkup(<RegisterForm termsBody={<p>terms</p>} privacyBody={<p>privacy</p>} />)],
 ]
 
 describe('auth forms are inert before hydration', () => {

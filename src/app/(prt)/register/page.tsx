@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { isMock } from '@/lib/mock/env'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadRegisterPageData } from '@/lib/services/page-data/auth-entry-page'
+import { PrivacyBody } from '@/lib/policy/privacy-body'
+import { TermsBody } from '@/lib/policy/terms-body'
 import { AuthShell } from '../auth/AuthShell'
 import { RegisterForm } from './RegisterForm'
 
@@ -14,15 +16,14 @@ export default async function RegisterPage() {
       title="Set up your account"
       subtitle="Enter your email, the setup code from your admin, and a new password."
     >
-      <RegisterForm />
+      {/* The policy bodies are rendered HERE, on the server, and handed to the client form as
+          elements - so the text travels in the RSC payload instead of the client bundle. */}
+      <RegisterForm termsBody={<TermsBody />} privacyBody={<PrivacyBody />} />
       <p className="mt-6 text-center text-xs text-slate-600">
         Already set up?{' '}
         <a href="/login" className="font-medium text-primary hover:underline">
           Sign in
         </a>
-      </p>
-      <p className="mt-2 text-center text-xs text-slate-600">
-        By setting up your account you agree to the Terms of Use and Privacy Policy.
       </p>
     </AuthShell>
   )
