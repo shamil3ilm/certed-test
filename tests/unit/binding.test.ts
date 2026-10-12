@@ -7,7 +7,7 @@ vi.mock('@/lib/data/profiles', () => ({
 }))
 
 import { claimAllowlistRowOnOAuth, selectAllowlistRowByEmail, selectProfileIdByAuthUserId } from '@/lib/data/profiles'
-import { bindProfileOnFirstLogin } from '@/lib/auth/binding'
+import { bindProfileOnFirstLogin, isBound } from '@/lib/auth/binding'
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -18,10 +18,10 @@ describe('bindProfileOnFirstLogin', () => {
     expect(selectAllowlistRowByEmail).not.toHaveBeenCalled()
   })
 
-  it('returns null when the email is not allowlisted, and never writes', async () => {
+  it('refuses an email nobody has added, and never writes', async () => {
     vi.mocked(selectProfileIdByAuthUserId).mockResolvedValueOnce(null)
     vi.mocked(selectAllowlistRowByEmail).mockResolvedValueOnce(null)
-    expect(await bindProfileOnFirstLogin('u1', 'nope@b.com')).toBeNull()
+    expect(await bindProfileOnFirstLogin('u1', 'nope@b.com')).toEqual({ refused: 'not_invited' })
     expect(claimAllowlistRowOnOAuth).not.toHaveBeenCalled()
   })
 
@@ -43,14 +43,16 @@ describe('bindProfileOnFirstLogin', () => {
       date_of_birth: null,
       guardian_name: null,
     } as never)
-    expect(await bindProfileOnFirstLogin('u9', 'kid@b.com')).toBeNull()
+    // The REASON matters: it is the one refusal with a route that works, and the callback
+    // turns it into "use your setup code" rather than a dead end.
+    expect(await bindProfileOnFirstLogin('u9', 'kid@b.com')).toEqual({ refused: 'guardian_consent_required' })
     expect(claimAllowlistRowOnOAuth).not.toHaveBeenCalled()
   })
 
   it('refuses to rebind a row already bound to a different user', async () => {
     vi.mocked(selectProfileIdByAuthUserId).mockResolvedValueOnce(null)
     vi.mocked(selectAllowlistRowByEmail).mockResolvedValueOnce({ id: 'p3', auth_user_id: 'other' } as never)
-    expect(await bindProfileOnFirstLogin('u3', 'taken@b.com')).toBeNull()
+    expect(await bindProfileOnFirstLogin('u3', 'taken@b.com')).toEqual({ refused: 'claimed_by_another' })
     expect(claimAllowlistRowOnOAuth).not.toHaveBeenCalled()
   })
 
@@ -61,11 +63,29 @@ describe('bindProfileOnFirstLogin', () => {
     expect(claimAllowlistRowOnOAuth).not.toHaveBeenCalled()
   })
 
-  it('returns null when the row is not claimable (not pending, or a concurrent login won)', async () => {
+  it('refuses a row that is not claimable (not pending, or a concurrent login won)', async () => {
     vi.mocked(selectProfileIdByAuthUserId).mockResolvedValueOnce(null)
     vi.mocked(selectAllowlistRowByEmail).mockResolvedValueOnce({ id: 'p5', auth_user_id: null } as never)
     // The status='pending' + auth_user_id null guard matched no row.
     vi.mocked(claimAllowlistRowOnOAuth).mockResolvedValueOnce(null)
-    expect(await bindProfileOnFirstLogin('u5', 'race@b.com')).toBeNull()
+    expect(await bindProfileOnFirstLogin('u5', 'race@b.com')).toEqual({ refused: 'not_claimable' })
+  })
+})
+
+/**
+ * isBound is what the callback branches on, so a refusal must never read as a bind - that
+ * mistake is what forwarded a refused student into the app holding a session nobody owned.
+ */
+describe('isBound', () => {
+  it('accepts a bind and rejects every refusal', () => {
+    expect(isBound({ profileId: 'p1', activated: true })).toBe(true)
+    for (const refused of [
+      'not_invited',
+      'claimed_by_another',
+      'guardian_consent_required',
+      'not_claimable',
+    ] as const) {
+      expect(isBound({ refused })).toBe(false)
+    }
   })
 })
