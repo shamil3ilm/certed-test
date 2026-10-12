@@ -125,7 +125,7 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
       // billable hours onto THEIR pay slip (0095), so it stays an academy-authority act.
       const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
       if (!isAdmin && !isSubAdmin) {
-        throw new PermissionError('Only an admin or sub-admin may record a session for another tutor.')
+        throw new PermissionError('Only a Super Admin or Admin may record a session for another tutor.')
       }
     }
     validateUuidField(explicitTutorId, 'Invalid tutor id.')
