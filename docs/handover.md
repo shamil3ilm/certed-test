@@ -18,7 +18,11 @@ Each item says what is wrong or missing, what "done" looks like, and where the d
 
 The chain head is `0122_assignments_fall_due.sql`. Production was last taken to `0118` plus the out-of-band server-function grants. Migrations **0119, 0120, 0121 and 0122** have not been applied there.
 
-**Done looks like:** production at the chain head, and the verification query for each returning all `true`. Staging also needs 0121 and 0122, and a re-run of the 0119/0120 script so the two mentorship function bodies match the chain byte for byte.
+**Staging is at the chain head as of 2026-10-12** — `MIGRATIONS_0119_to_0122.sql` was run there, which also re-ran 0119/0120 so the two mentorship function bodies match the chain byte for byte. Production is the remaining half.
+
+**Done looks like:** production at the chain head, and the verification query for each returning all `true`.
+
+**The order of work, decided 2026-10-12:** everything is proven on staging first, then production follows. So a fix that is "done" in this register means done on staging unless it says otherwise, and production is taken through the same steps afterwards.
 
 ---
 
