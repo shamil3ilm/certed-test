@@ -10,7 +10,7 @@ import { Badge, CARD, Card, cx, initials, pillButtonClass } from '@/lib/ui'
 
 const CONTACT_GROUP_LABELS: Record<Contact['personaKey'], string> = {
   admin: 'Super Admins',
-  sub_admin: 'Sub Admins',
+  sub_admin: 'Admins',
   mentor: 'Mentors',
   tutor: 'Tutors',
   student: 'Students',

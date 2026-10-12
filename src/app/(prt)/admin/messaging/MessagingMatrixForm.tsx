@@ -14,8 +14,8 @@ import { useUI } from '../../Providers'
 import { saveMessagingMatrixAction } from './actions'
 
 const LABELS: Record<MessagingPersona, string> = {
-  admin: 'Admin',
-  sub_admin: 'Sub-admin',
+  admin: 'Super Admin',
+  sub_admin: 'Admin',
   tutor: 'Tutor',
   mentor: 'Mentor',
   student: 'Student',

@@ -46,7 +46,7 @@ export function resolveContactPersona(
     )
   const hasMentor = personas.some((persona) => persona.persona_name === 'mentor' && persona.status === 'active')
   if (hasGlobal('admin')) return { personaKey: 'admin', personaLabel: 'Super Admin' }
-  if (hasGlobal('sub_admin')) return { personaKey: 'sub_admin', personaLabel: 'Sub Admin' }
+  if (hasGlobal('sub_admin')) return { personaKey: 'sub_admin', personaLabel: 'Admin' }
   if (hasGlobal('tutor')) {
     return hasMentor
       ? { personaKey: 'mentor', personaLabel: 'Tutor & Mentor' }
