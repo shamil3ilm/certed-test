@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { isMock } from '@/lib/mock/env'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadLoginPageData, type LoginSearchParams } from '@/lib/services/page-data/auth-entry-page'
+import { AlertBanner } from '@/lib/ui'
 import { AuthShell } from '../auth/AuthShell'
 import { DevLoginForm } from './DevLoginForm'
 import { GoogleSignInGate } from './GoogleSignInGate'
@@ -41,6 +42,11 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
 
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to your account.">
+      {data.signInMessage && (
+        <AlertBanner tone="warning" className="mb-4">
+          {data.signInMessage}
+        </AlertBanner>
+      )}
       {data.showRegisteredBanner && (
         <p className="mb-4 rounded-lg border border-success-border bg-success-surface px-3 py-2 text-sm text-success-ink">
           Account created - sign in below.

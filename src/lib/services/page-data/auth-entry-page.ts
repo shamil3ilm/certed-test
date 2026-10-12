@@ -23,7 +23,26 @@ type LoginPageData = {
   mockMode: boolean
   showRegisteredBanner: boolean
   mockLoginError: boolean
+  /** What to tell someone a failed sign-in sent back here, or null. */
+  signInMessage: string | null
   demoEmails: string[]
+}
+
+/**
+ * Messages for the `?error=` the OAuth callback redirects with. Outside mock mode the page
+ * showed nothing at all for these, so a refused Google sign-in looked like a login page that
+ * had simply forgotten the attempt.
+ *
+ * The student message names the route that WORKS. The others are deliberately vague: there is
+ * nothing the person can do beyond asking an administrator, and a precise reason would only
+ * tell them which of several internal states they are in.
+ */
+const SIGN_IN_MESSAGES: Record<string, string> = {
+  'needs-setup-code':
+    'A student account is set up with the setup code from your administrator, so a parent or guardian can give consent. Google sign-in cannot complete that step.',
+  'not-invited':
+    "That account is not on the academy's list yet. Ask an administrator to add the email address you want to sign in with.",
+  signin: 'That sign-in did not complete. Please try again.',
 }
 
 type RegisterPageData = {
@@ -49,6 +68,7 @@ export async function loadLoginPageData(
       mockMode,
       showRegisteredBanner: false,
       mockLoginError: false,
+      signInMessage: null,
       demoEmails: [],
     }
   }
@@ -63,6 +83,9 @@ export async function loadLoginPageData(
     mockMode,
     showRegisteredBanner: Boolean(searchParams.registered),
     mockLoginError: Boolean(searchParams.error),
+    // An unrecognised value falls back to the generic message rather than rendering nothing:
+    // whatever sent the person back here, something went wrong and they should hear so.
+    signInMessage: searchParams.error ? (SIGN_IN_MESSAGES[searchParams.error] ?? SIGN_IN_MESSAGES.signin) : null,
     demoEmails,
   }
 }

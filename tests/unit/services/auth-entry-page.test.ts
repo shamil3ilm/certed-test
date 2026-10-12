@@ -25,8 +25,42 @@ describe('loadLoginPageData', () => {
       mockMode: true,
       showRegisteredBanner: true,
       mockLoginError: true,
+      signInMessage: 'That sign-in did not complete. Please try again.',
       demoEmails: ['admin@mock.test', 'subadmin@mock.test', 'tutor@mock.test', 'mentor@mock.test', 'student@mock.test'],
     })
+  })
+})
+
+/**
+ * Outside mock mode the page rendered NOTHING for `?error=`, so a Google sign-in the callback
+ * refused looked like a login page that had forgotten the attempt. Each reason the callback can
+ * redirect with has to arrive as something a person can read.
+ */
+describe('loadLoginPageData - what a refused sign-in is told', () => {
+  const loggedOut = { profile: null, accessState: 'unauthenticated' } as const
+  const messageFor = async (error?: string) =>
+    (await loadLoginPageData(loggedOut, error ? { error } : {}, false)).signInMessage
+
+  it('names the route that WORKS for a student refused by Google', async () => {
+    const message = await messageFor('needs-setup-code')
+    expect(message).toMatch(/setup code/i)
+    expect(message).toMatch(/parent or guardian/i)
+  })
+
+  it('tells an unlisted account to ask an administrator', async () => {
+    expect(await messageFor('not-invited')).toMatch(/not on the academy's list/i)
+  })
+
+  it('stays generic for a plain sign-in failure', async () => {
+    expect(await messageFor('signin')).toBe('That sign-in did not complete. Please try again.')
+  })
+
+  it('falls back to the generic message for an unrecognised value rather than showing nothing', async () => {
+    expect(await messageFor('something-we-never-set')).toBe('That sign-in did not complete. Please try again.')
+  })
+
+  it('says nothing when no error was passed', async () => {
+    expect(await messageFor()).toBeNull()
   })
 })
 
