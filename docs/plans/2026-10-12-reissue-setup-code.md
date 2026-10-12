@@ -51,7 +51,7 @@ The reason: revoking an unclaimed invite sets `status = 'disabled'` and leaves `
 
 ### Task 0: Record the branch point
 
-- [ ] **Step 1: Branch and capture the base**
+- [x] **Step 1: Branch and capture the base**
 
 ```bash
 git checkout -b feature/reissue-setup-code
@@ -71,7 +71,7 @@ If the working tree is not clean, **stop and report** — a shared tree means ev
 - Modify: `src/lib/data/profiles-auth.ts`
 - Test: `tests/unit/data/reissue-setup-code.test.ts` (create)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/unit/data/reissue-setup-code.test.ts`. Mock the admin client the way the existing data tests do — **open `tests/unit/data/` first and copy the mocking style of the nearest sibling test rather than inventing one.** The behaviour to pin:
 
@@ -127,12 +127,12 @@ describe('reissueSetupCodeForUnclaimed', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/unit/data/reissue-setup-code.test.ts`
 Expected: FAIL — `reissueSetupCodeForUnclaimed` is not exported.
 
-- [ ] **Step 3: Write the function**
+- [x] **Step 3: Write the function**
 
 Append to `src/lib/data/profiles-auth.ts`, directly after `claimAllowlistRowOnOAuth` so the three conditionally-guarded writes sit together:
 
@@ -170,12 +170,12 @@ export async function reissueSetupCodeForUnclaimed(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/unit/data/reissue-setup-code.test.ts`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/data/profiles-auth.ts tests/unit/data/reissue-setup-code.test.ts
@@ -191,7 +191,7 @@ git commit -m "feat(data): re-issue a setup code only for an unclaimed, pending 
 - Modify: `src/lib/services/users/admin-lifecycle.ts`
 - Test: `tests/unit/services/reissue-setup-code.test.ts` (create)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/unit/services/reissue-setup-code.test.ts`. Copy the mocking style of `tests/unit/services/admin-lifecycle-tier.test.ts`, which already mocks `loadPersonaFlags`:
 
@@ -268,12 +268,12 @@ describe('reissueSetupCode', () => {
 
 Note on the code regex: the alphabet in `setup-code.ts` excludes `I`, `O`, `0` and `1`, which is what `[A-HJ-NP-Z2-9]` encodes. If that assertion fails, read the alphabet rather than loosening the regex.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/unit/services/reissue-setup-code.test.ts`
 Expected: FAIL — `reissueSetupCode` is not exported.
 
-- [ ] **Step 3: Write the service function**
+- [x] **Step 3: Write the service function**
 
 In `src/lib/services/users/admin-lifecycle.ts`, add the import and the function. Place it immediately after `addUserFromActionInput`, because it is the other half of inviting someone:
 
@@ -323,12 +323,12 @@ export async function reissueSetupCode(actor: Profile, id: string): Promise<Reis
 
 Export it from `src/lib/services/users/index.ts` alongside `addUser`. **Open that file and match how the neighbouring exports are written** (it re-exports by name).
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/unit/services/reissue-setup-code.test.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/services/users/admin-lifecycle.ts src/lib/services/users/index.ts tests/unit/services/reissue-setup-code.test.ts
@@ -344,7 +344,7 @@ git commit -m "feat(users): re-issue a setup code behind the tier gate addUser u
 - Modify: `src/lib/data/profiles-directory.ts:158,170`
 - Test: `tests/unit/data/profile-detail-columns.test.ts` (create)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 The valuable assertion here is the NEGATIVE one. Create `tests/unit/data/profile-detail-columns.test.ts`:
 
@@ -389,12 +389,12 @@ describe('the admin profile projections', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and watch the first test fail**
+- [x] **Step 2: Run it and watch the first test fail**
 
 Run: `npx vitest run tests/unit/data/profile-detail-columns.test.ts`
 Expected: the expiry assertion FAILS; the other two PASS. If the hash assertion fails, **stop and report** — something already selects the hash into a page.
 
-- [ ] **Step 3: Add the one column**
+- [x] **Step 3: Add the one column**
 
 In `src/lib/data/profiles-directory.ts`, add `setup_code_expires_at: string | null` to the `ProfileDetails` type (line 158-168) and `setup_code_expires_at` to the end of `PROFILE_DETAIL_COLUMNS` (line 170).
 
@@ -406,12 +406,12 @@ Add this comment above `PROFILE_DETAIL_COLUMNS`:
 // alphabet, so shipping it to a page would make an outstanding code guessable.
 ```
 
-- [ ] **Step 4: Run it and watch both pass**
+- [x] **Step 4: Run it and watch both pass**
 
 Run: `npx vitest run tests/unit/data/profile-detail-columns.test.ts`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/data/profiles-directory.ts tests/unit/data/profile-detail-columns.test.ts
@@ -426,7 +426,7 @@ git commit -m "feat(users): the detail projection carries the invite expiry, nev
 
 - Modify: `src/app/(prt)/admin/users/[id]/actions.ts`
 
-- [ ] **Step 1: Add the action**
+- [x] **Step 1: Add the action**
 
 This file's other actions redirect on `ServiceError`. This one must NOT: the code can only be shown once, so a redirect would issue a code and then throw the response away. It returns state instead, like `addUserAction` does.
 
@@ -461,12 +461,12 @@ export async function reissueCodeAction(_prev: ReissueState, formData: FormData)
 
 Check that `ServiceError` is the right base for both `PermissionError` and `ValidationError` — `src/lib/errors.ts` defines the hierarchy. If they do not share it, catch both explicitly rather than widening the catch.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
 Expected: clean.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add "src/app/(prt)/admin/users/[id]/actions.ts"
@@ -482,7 +482,7 @@ git commit -m "feat(users): the re-issue action returns the code instead of redi
 - Create: `src/app/(prt)/admin/users/[id]/SetupCodePanel.tsx`
 - Modify: `src/app/(prt)/admin/users/[id]/page.tsx`
 
-- [ ] **Step 1: Write the panel**
+- [x] **Step 1: Write the panel**
 
 Match `AddUserForm.tsx` for the success treatment and `@/lib/ui` for primitives. **Open `AddUserForm.tsx:133-151` and reuse those exact classes** so the two surfaces read as one feature.
 
@@ -582,7 +582,7 @@ Two things to check against the codebase rather than trusting this draft:
 1. `useFormState` — confirm whether this repo imports it from `react-dom` or uses `useActionState` from `react`. **Copy whatever `AddUserForm.tsx` does.** Next 16 may have moved it; `AddUserForm.tsx:30` is the authority.
 2. `AlertBanner` — confirm it accepts `className`. If not, wrap it in a `div` instead of passing one.
 
-- [ ] **Step 2: Render it, for an unclaimed account only**
+- [x] **Step 2: Render it, for an unclaimed account only**
 
 In `src/app/(prt)/admin/users/[id]/page.tsx`, import the panel and add it after `<DetailsCard profile={profile} />`:
 
@@ -601,7 +601,7 @@ In `src/app/(prt)/admin/users/[id]/page.tsx`, import the panel and add it after 
 
 The `!profile.auth_user_id` condition is the UI half of the service guard: an account that has signed in has no invite to manage, so the panel is absent rather than present-and-refusing.
 
-- [ ] **Step 3: Verify in mock mode**
+- [x] **Step 3: Verify in mock mode**
 
 ```
 npm run dev
@@ -609,7 +609,7 @@ npm run dev
 
 Open `/admin/users` as the super admin, add a user, then open that user's detail page. Expect the panel, an outstanding code, and a working re-issue that prints a new code and the copyable message. Then open an account that HAS signed in (any seeded persona) and expect no panel at all.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add "src/app/(prt)/admin/users/[id]/SetupCodePanel.tsx" "src/app/(prt)/admin/users/[id]/page.tsx"
@@ -624,7 +624,7 @@ git commit -m "feat(users): manage an unclaimed account's sign-in invite from th
 
 - Modify: `tests/e2e/journeys.pw.ts`
 
-- [ ] **Step 1: Extend the admin journey**
+- [x] **Step 1: Extend the admin journey**
 
 `journeys.pw.ts` adds a user around line 83-103. **Read that block before editing**: the email is in a local called `newbieEmail`, and the submit goes through `submitAndReload`.
 
@@ -660,12 +660,12 @@ Two things to adapt rather than assume:
 1. **Reaching the detail page.** `UserRow.tsx:57` renders the link only when the row is `manageable`, which a super admin always is for a student. If the click finds nothing, read that component rather than guessing a locator, and say in your report what you used.
 2. **The second click.** `await expect(shown).not.toHaveText(first)` is what waits for the new code to land; without it the second read can race and return the first code, which would make this test pass for the wrong reason. Keep it.
 
-- [ ] **Step 2: Run the suite**
+- [x] **Step 2: Run the suite**
 
 Run: `npx playwright test --project=chromium`
 Expected: all specs passing, 87 or more.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/e2e/journeys.pw.ts
@@ -682,7 +682,7 @@ git commit -m "test(users): a re-issued setup code is a different code"
 - Modify: `docs/adr/README.md:53`
 - Modify: `docs/handover.md`
 
-- [ ] **Step 1: The ADR is now implemented**
+- [x] **Step 1: The ADR is now implemented**
 
 In `docs/adr/README.md` line 53, change `**Accepted** (decided; re-issue action not yet built)` to `**Accepted** (implemented)`.
 
@@ -697,16 +697,16 @@ The guard is one condition stricter than described above: `status = 'pending'` a
 registration would reject anyway.
 ```
 
-- [ ] **Step 2: Note it in the handover register**
+- [x] **Step 2: Note it in the handover register**
 
 `docs/handover.md` §7 lists smaller open threads. If any line there refers to a lost setup code needing a developer and hand-written SQL, replace it with one line saying an admin re-issues it from the user's detail page. If no such line exists, add nothing — this plan closes a gap the register did not track.
 
-- [ ] **Step 3: Check the links still resolve**
+- [x] **Step 3: Check the links still resolve**
 
 Run: `npm run check:doc-links`
 Expected: `All documentation links resolve.`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/adr/0008-setup-codes-are-reissued-not-recovered.md docs/adr/README.md docs/handover.md
@@ -717,7 +717,7 @@ git commit -m "docs(adr): 0008 is implemented"
 
 ### Task 8: The whole gate
 
-- [ ] **Step 1: Every check this repo gates on**
+- [x] **Step 1: Every check this repo gates on**
 
 ```bash
 npm run format:check && npm run lint && npm run typecheck && npm test && npm run check:doc-links
@@ -725,12 +725,12 @@ npm run format:check && npm run lint && npm run typecheck && npm test && npm run
 
 Expected: formatting clean, zero lint warnings, typecheck clean, every test file passing, all links resolving.
 
-- [ ] **Step 2: The browser suite**
+- [x] **Step 2: The browser suite**
 
 Run: `npx playwright test --project=chromium`
 Expected: all specs passing.
 
-- [ ] **Step 3: Prove no schema changed**
+- [x] **Step 3: Prove no schema changed**
 
 Using the hash from Task 0:
 
@@ -740,7 +740,7 @@ git diff --stat $BASE -- supabase/
 
 Expected: **empty.** ADR-0008 says "No schema change", and this proves it. If anything prints, revert it before going further.
 
-- [ ] **Step 4: Prove no capability was added**
+- [x] **Step 4: Prove no capability was added**
 
 ```bash
 git diff $BASE -- src/lib/capabilities/
@@ -748,7 +748,7 @@ git diff $BASE -- src/lib/capabilities/
 
 Expected: **empty.** Re-issue reuses `manageUsers` and `canManageTarget`; a diff here means authority was invented rather than inherited.
 
-- [ ] **Step 5: Confirm the tree is clean**
+- [x] **Step 5: Confirm the tree is clean**
 
 ```bash
 git status --porcelain
@@ -765,3 +765,49 @@ Expected: empty, apart from this plan file if it has been ticked.
 - **Email the code.** Blocked while `EMAIL_NOTIFICATIONS_ENABLED` is off. It is the thing that would make a lost code irrelevant.
 - **Add a capability.** `manageUsers` plus the existing tier gate is the whole authority story. Task 8 Step 4 proves it.
 - **Touch piece 3.** The add-several modal is the next plan, and it depends on this one existing.
+
+---
+
+## What shipped, and where it differed from this plan
+
+Executed 2026-10-12 in ten commits, `b740ffe` through `b9331bc`. The gate ran clean at the end:
+formatting, zero lint warnings, typecheck, 235 test files / 1994 unit tests, 86/86 Playwright
+chromium specs (run twice, to be sure the two new server actions did not make the journey flaky),
+and all documentation links resolving. `git diff` against the branch point is empty for both
+`supabase/` and `src/lib/capabilities/`, which is the proof that ADR-0008's "no schema change, no
+new capability" held.
+
+Five places the shipped work is not what the task text above prescribed. Each is recorded because
+the plan was wrong, not the implementation:
+
+1. **Task 1 used the repo's shared query-builder stub, not the inline mock in the task text.**
+   `tests/stubs/supabase-query-builder.ts` already exists and `tests/unit/data/` uses it, including
+   `makeClientCapturing` for exactly this job - asserting WHICH predicates a write applied.
+
+2. **Task 2's gate collapsed to `requireManageableTarget`.** The four lines the plan spelled out
+   were byte-for-byte that existing helper, down to both error strings, and every sibling write
+   (revoke, restore, edit, erase) goes through it. A sixth test covers the missing-id branch the
+   plan's five left untested. Committed separately as `3389a03`.
+
+3. **Task 5 uses `useActionState`, not `useFormState`.** The plan said to copy `AddUserForm.tsx`,
+   which imports `useFormState` from `react-dom` - and React 19.2 logs a console error on every
+   render of it, with Next 16 raising its error overlay. `AddUserForm` was switched too (`31ba736`),
+   so the two sibling surfaces do not drift.
+
+4. **Task 5 takes a `now: number` prop and renders the expiry through `<LocalTime>`.** Calling
+   `Date.now()` in a component body fails the repo's `react-hooks/purity` rule, and
+   `src/lib/time/format.ts` forbids bare `toLocale*` in components - a rule written after a real
+   bug where a server-zone date showed the previous day.
+
+5. **Task 6's link locator needed `exact: true` and a row scope.** `getByRole`'s `name` is a
+   substring match, so `'Eve Newbie'` also matched the Permissions link's aria-label; and because
+   `retries: 1` is configured while the mock DB resets once per run, a retry leaves the previous
+   attempt's row behind, so the click has to be scoped by the attempt-unique email.
+
+One fix outside the plan's scope rode along in `0995362`. `scripts/reset-e2e-state.mjs` identified
+the mock-database holder by a bare pid and `process.kill(pid, 0)`, which succeeds for any live
+process - so once the OS recycled a dead server's pid, the script refused every subsequent run and
+printed `taskkill /PID <n> /T /F` for it. That happened during Task 6, and the pid had become a
+Chrome renderer in the developer's own browser. The script now probes the process image and treats
+a non-node holder as stale, and no longer advises killing anything it cannot identify. All three
+branches - dead pid, live non-node pid, live node pid - were exercised directly before committing.
