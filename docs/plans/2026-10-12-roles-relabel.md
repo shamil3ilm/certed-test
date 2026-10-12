@@ -664,7 +664,22 @@ classes`) opens a pseudo-literal that runs on until it swallows a nearby docstri
 3. **Task 7 commits two files, not one.** Step 1b edits a second file that Step 3's `git add`
    never listed.
 
+**The plan scoped the guard too narrowly, and three files slipped through.** Task 5 scans `src/`,
+which is where the app's own strings live — but a seeding script writes a `full_name` directly
+into a database, and that name is then shown on the People page like any other. Three scripts
+still wrote the retired wording, `scripts/seed-production-allowlist.mjs` among them, which seeds
+**production**. `3d9dc70` renames them (and the top tier's seeded name to "Super Admin", so the
+two tiers do not both seed something called "Admin") and widens the guard to scan `scripts/` as
+well, including `.mjs`, since two of those scripts are plain ES modules. The widened guard was
+proven to fail by reintroducing one of the three.
+
 One fix outside the plan's scope rode along in `01d6c61`: `.gitignore` covered
 `playwright-report/` and `playwright-report-staging/` but not
 `playwright-report-staging-workflows/`, so listing or running that third suite left an untracked
 report folder in the tree.
+
+**Found while doing this, deliberately not fixed:** both `scripts/seed-test-users.mjs` and
+`scripts/seed-test-data.ts` still pass `role: 'teacher'`, a `user_role` value that migration
+`0019_rename_teacher_to_tutor.sql` renamed to `tutor`, so those inserts cannot succeed; and in
+both, the mentor row asks for a tutor rather than a mentor. That is a behaviour bug in dev
+tooling, not wording, and fixing it means deciding what those rows are meant to create.
