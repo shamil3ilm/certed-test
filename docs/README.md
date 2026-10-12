@@ -20,7 +20,7 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 - [design-system.md](design-system.md) — **canonical** visual system: tokens, typography, and `@/lib/ui` primitives
 - [content-pipeline.md](content-pipeline.md) — **canonical** marketing content: the structured copy modules and the MDX blog (how to add a post)
 - [architecture-implementation-plan.md](architecture-implementation-plan.md) — status of the (mostly shipped) architecture overhaul
-- [adr/README.md](adr/README.md) — architecture decision records (0001–0007)
+- [adr/README.md](adr/README.md) — architecture decision records (0001–0008)
 
 ## Schema and data
 

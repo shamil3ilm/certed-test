@@ -50,3 +50,4 @@ Use a numbered kebab-case name, for example:
 - [0005 — RLS-scoped reads by default, service-role for aggregation](0005-rls-with-service-role-layering.md)
 - [0006 — Custodial attachment storage in an academy-owned Google Drive](0006-custodial-attachment-storage.md) — **Accepted** (implemented, migration 0057); supersedes 0004
 - [0007 — Native apps in Expo, over a versioned API that reuses the existing guards](0007-mobile-apps-expo-and-api-v1.md) — **Accepted** (decided; preparatory work landed, API and app not started)
+- [0008 — Setup codes are re-issued, never recovered](0008-setup-codes-are-reissued-not-recovered.md) — **Accepted** (decided; re-issue action not yet built)
