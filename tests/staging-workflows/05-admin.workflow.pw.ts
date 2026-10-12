@@ -147,7 +147,7 @@ test.describe.serial('ADMIN', () => {
     expect(await sawMessage(page, /archived/i), 'the tutor is told the class is archived').toBe(true)
   })
 
-  test('sub-admin may create only students, tutors and mentors', async ({ page }) => {
+  test('an Admin may create only students, tutors and mentors', async ({ page }) => {
     await loginAs(page, 'subadmin')
     await open(page, '/admin/users')
     const roles = await page
@@ -155,7 +155,9 @@ test.describe.serial('ADMIN', () => {
       .filter({ has: page.getByRole('button', { name: 'Add user' }) })
       .locator('select[name=role] option')
       .allInnerTexts()
-    expect(roles.map((r) => r.trim())).toEqual(['student', 'tutor', 'mentor'])
+    // The option TEXT is now the role name, not the stored identifier. The identifiers are
+    // still the option values - what this test cares about is which tiers are offered at all.
+    expect(roles.map((r) => r.trim())).toEqual(['Student', 'Tutor', 'Mentor'])
   })
 
   test('super admin revokes, restores and finally erases the account', async ({ page }) => {
