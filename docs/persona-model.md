@@ -2,6 +2,27 @@
 
 The live identity, persona, and capability model the application uses.
 
+## The words and the identifiers disagree
+
+What a person reads is not what the database stores, and the difference is load-bearing:
+
+| Tier   | Stored identifier | What a person reads |
+| ------ | ----------------- | ------------------- |
+| Top    | `admin`           | **Super Admin**     |
+| Second | `sub_admin`       | **Admin**           |
+|        | `mentor`          | Mentor              |
+|        | `tutor`           | Tutor               |
+|        | `student`         | Student             |
+
+So `role === 'admin'` is the TOP tier, not the ordinary Admin a user sees, and the tier a user
+calls "Admin" is `sub_admin` in every column, enum, RLS policy and type. The identifiers were
+deliberately not renamed: it would need a Postgres enum rename with an intermediate name
+(`admin` and `sub_admin` collide), 86 RLS policy references and ~1300 occurrences across the
+codebase — a security-critical migration to buy a vocabulary change.
+
+`src/lib/ui/labels.tsx` is the only file that knows the words, and
+`tests/unit/role-labels-single-source.test.ts` fails if another one learns them.
+
 ## 1. Two-layer model
 
 The application uses two related but different concepts:

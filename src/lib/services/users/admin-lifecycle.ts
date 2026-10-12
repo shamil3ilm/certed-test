@@ -29,15 +29,15 @@ import {
 /** The account lifecycle an administrator drives: add, revoke, restore, edit -
  *  plus the tier rules that decide who may act on whom. */
 
-// User management: the roles a Sub Admin may create/manage - every non-admin staff /
-// student account (tutor, mentor, student). Only the admin tier itself stays a
-// full-admin responsibility, so a sub_admin can never create or act on another admin.
+// User management: the roles the Admin tier (stored as `sub_admin`) may create/manage - every
+// non-admin staff / student account (tutor, mentor, student). Only the admin tier itself stays a
+// Super Admin responsibility, so a `sub_admin` can never create or act on another admin.
 const SUB_ADMIN_MANAGEABLE = new Set(['tutor', 'mentor', 'student'])
 
-/** A Sub Admin may only act on tutor/student accounts; a Super Admin on anyone.
- *  Exported so the READ surfaces (the user-detail page) gate on the same tier rule
- *  the writes here enforce - otherwise a sub_admin could open an admin-tier or
- *  mentor profile and read its personal detail even though every write is refused. */
+/** An Admin (`sub_admin`) may only act on tutor/mentor/student accounts; a Super Admin
+ *  (`admin`) on anyone. Exported so the READ surfaces (the user-detail page) gate on the same
+ *  tier rule the writes here enforce - otherwise a `sub_admin` could open an admin-tier
+ *  profile and read its personal detail even though every write is refused. */
 export async function canManageTarget(actor: Profile, targetRole: string): Promise<boolean> {
   const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
   if (isAdmin) return true
@@ -64,7 +64,7 @@ const EMAIL_TAKEN = 'A user with that email already exists - edit them in the li
  *  services/mentorships.ts's assignMentor - kept apart so each service
  *  function does exactly one thing. */
 export async function addUser(actor: Profile, input: AddUserInput): Promise<AddUserResult> {
-  // A Sub Admin can create tutor/mentor/student accounts - never another admin.
+  // An Admin (`sub_admin`) can create tutor/mentor/student accounts - never another admin.
   if (!(await canManageTarget(actor, input.role))) {
     throw new PermissionError('You can only add tutors, mentors, and students.')
   }
