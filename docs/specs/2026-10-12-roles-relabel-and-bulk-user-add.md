@@ -1,7 +1,7 @@
 # Roles relabelled, and adding several users at once
 
 - **Date:** 2026-10-12
-- **Status:** Designed, not built. Three pieces, to be built in the order below.
+- **Status:** Built, 2026-10-12. All three pieces. See "What shipped" at the end for the two places this spec was wrong.
 
 ## Context
 
@@ -166,3 +166,56 @@ If a row fails during create — realistically only the email race — that row 
 The existing gate covers all three pieces, and must stay green: `format:check`, `lint`, `typecheck`, the unit suite, the Playwright E2E suite, the RLS suite and privilege parity. No migration is introduced, so the snapshot and the migration checklist are untouched.
 
 Because piece 1 changes strings that tests assert on, run the unit suite before the E2E suite — a missed label assertion is cheaper to find there.
+
+---
+
+## What shipped
+
+All three pieces landed on 2026-10-12, each on its own branch with its own plan:
+
+| Piece                      | Plan                                                                          | Branch                       |
+| -------------------------- | ----------------------------------------------------------------------------- | ---------------------------- |
+| 1 — Relabelling            | [2026-10-12-roles-relabel.md](../plans/2026-10-12-roles-relabel.md)           | `feature/roles-relabel`      |
+| 2 — Re-issue a setup code  | [2026-10-12-reissue-setup-code.md](../plans/2026-10-12-reissue-setup-code.md) | `feature/reissue-setup-code` |
+| 3 — Adding several at once | [2026-10-12-add-several-users.md](../plans/2026-10-12-add-several-users.md)   | `feature/add-several-users`  |
+
+Each plan carries its own record of where the implementation diverged from it. Two divergences
+were this SPEC's error rather than a plan's, and both are worth reading before trusting the text
+above:
+
+**1. "The Create phase calls the existing `addUser` once per row" is wrong, and following it would
+have shipped mentorless students.** Creating one invited account is five steps, and `addUser` is
+only the third: validate (which REQUIRES a mentor for a student), pre-flight that mentor before
+anything is written, create, assign the mentor, and roll the account back if the assign fails. A
+batch calling `addUser` alone would have created students sitting outside every mentor's list,
+seen by nobody in the pastoral view - the exact failure the validation exists to prevent - and
+would have skipped the pre-flight, so an actor without `manageMentorships` would have burned 25
+one-time setup codes before failing.
+
+The fix honours this spec's _intent_ ("the batch is a caller, not a second path") rather than its
+letter: all five steps now live in `inviteUser` in `src/lib/services/user-invites.ts`, and the
+single Add-user form and the batch both call it. `addUserFromActionInput`, which did
+validate-then-`addUser` and handed its caller a `mentorId` nobody acted on, was deleted - it was
+dead in `src/` and was precisely the function a batch author would have reached for by name.
+
+The batch also pre-flights each DISTINCT mentor once before its first write. `inviteUser` checks
+per row, which is correct for any caller, but in a batch that means a stale mentor on row 12 is
+discovered after eleven accounts exist and eleven codes have been shown.
+
+**2. The results table is not only "the feature" - it is the single copy of the credentials, and
+that needed guarding twice.** Two ways to destroy it were found and closed:
+
+- Closing the modal. The shared `Modal` closes on the backdrop, on Escape and on the X, none of
+  them deliberate, on a `size="lg"` panel with a lot of backdrop to misclick. A confirm now
+  appears only when there is something to lose, and says what is lost.
+- A refused RESUBMIT. `useActionState` replaces the whole state, and a validation failure returns
+  `created: []`, so adding three people, typing three more rows and fat-fingering a duplicate
+  email destroyed the first three codes. The modal now accumulates every code it has issued
+  across submits, separately from the per-submit failures.
+
+**Also worth recording:** the "No schema change" and "no change to authority" promises held, and
+are proven rather than asserted - `git diff` against each branch point is empty for both
+`supabase/` and `src/lib/capabilities/`.
+
+**Out of scope and still out:** CSV paste or upload, emailing the codes (blocked while
+`EMAIL_NOTIFICATIONS_ENABLED` is off), an atomic batch, and renaming the stored identifiers.

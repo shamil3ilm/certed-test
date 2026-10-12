@@ -70,7 +70,7 @@ The results table builds the CSV from its own state with a `Blob` and an object 
 
 ### Task 0: Record the branch point
 
-- [ ] **Step 1: Branch and capture the base**
+- [x] **Step 1: Branch and capture the base**
 
 ```bash
 git checkout -b feature/add-several-users
@@ -91,11 +91,11 @@ If the tree is not clean, **stop and report**: a parallel session shares it, so 
 - Modify: `src/app/(prt)/admin/users/actions.ts`
 - Test: `tests/unit/services/invite-user.test.ts` (create)
 
-- [ ] **Step 1: Read the code you are extracting**
+- [x] **Step 1: Read the code you are extracting**
 
 `src/app/(prt)/admin/users/actions.ts:42-86`. Read the whole `addUserAction`, including the long comment on the mentor pre-flight — **that comment moves with the code**, because it records why the pre-flight is before the create and not after.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `tests/unit/services/invite-user.test.ts`. These five assertions are the parity contract — they are what prove the extraction did not quietly drop a step:
 
@@ -175,12 +175,12 @@ describe('inviteUser - the whole per-row create', () => {
 })
 ```
 
-- [ ] **Step 3: Run it and watch it fail**
+- [x] **Step 3: Run it and watch it fail**
 
 Run: `npx vitest run tests/unit/services/invite-user.test.ts`
 Expected: FAIL — the module `@/lib/services/user-invites` does not exist.
 
-- [ ] **Step 4: Create the module**
+- [x] **Step 4: Create the module**
 
 `src/lib/services/user-invites.ts`:
 
@@ -244,12 +244,12 @@ export async function inviteUser(actor: Profile, input: AddUserActionInput): Pro
 
 `@/lib/services/users` re-exports `AddUserActionInput` (its `index.ts:54`) and `getProfileByEmail` (`:26`), so both come from the barrel — verified, no need to reach into `./validation` for them.
 
-- [ ] **Step 5: Run it and watch it pass**
+- [x] **Step 5: Run it and watch it pass**
 
 Run: `npx vitest run tests/unit/services/invite-user.test.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 6: Rewire the single action**
+- [x] **Step 6: Rewire the single action**
 
 In `src/app/(prt)/admin/users/actions.ts`, `addUserAction`'s body becomes:
 
@@ -281,13 +281,13 @@ Then **delete the imports that are now unused** — `addUser`, `validateAddUserI
 
 Keep the comment block that sat below `addUserAction` (the one about permission checks living in the services) — it still describes the file.
 
-- [ ] **Step 7: Prove the single path is unchanged**
+- [x] **Step 7: Prove the single path is unchanged**
 
 Run: `npm test` then `npx playwright test --project=chromium`
 
 Expected: both green, with **no test edited**. The existing suites already cover add-user through the action and the browser; if either needed changing to pass, the extraction changed behaviour — **stop and report** rather than updating the assertion.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/services/user-invites.ts "src/app/(prt)/admin/users/actions.ts" tests/unit/services/invite-user.test.ts
@@ -303,7 +303,7 @@ git commit -m "refactor(users): one per-row create, so a batch cannot skip the m
 - Create: `src/lib/services/user-invites-validation.ts`
 - Test: `tests/unit/services/invite-batch-validation.test.ts` (create)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Four rules, and the cap. Create `tests/unit/services/invite-batch-validation.test.ts`:
 
@@ -397,12 +397,12 @@ describe('validateInviteBatch', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/unit/services/invite-batch-validation.test.ts`
 Expected: FAIL — the module does not exist.
 
-- [ ] **Step 3: Write the validator**
+- [x] **Step 3: Write the validator**
 
 `src/lib/services/user-invites-validation.ts`. It is **pure** — no database, no actor lookups: the caller passes `creatable` and `taken`, which is what makes every case above testable without mocks.
 
@@ -504,12 +504,12 @@ export function validateInviteBatch(
 
 If `addUserSchema.safeParse` reports the student `country`/`class_level` issues in a different order than the test expects, read the schema's `superRefine` and fix the **test's** expectation to match the real order — the schema is the authority on its own messages.
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/unit/services/invite-batch-validation.test.ts`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/services/user-invites-validation.ts tests/unit/services/invite-batch-validation.test.ts
@@ -525,7 +525,7 @@ git commit -m "feat(users): validate a whole batch of invites before writing any
 - Modify: `src/lib/services/user-invites.ts`
 - Test: `tests/unit/services/invite-batch.test.ts` (create)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 The behaviour that matters is what happens when row 2 of 3 fails. Create `tests/unit/services/invite-batch.test.ts`:
 
@@ -607,12 +607,12 @@ describe('inviteUsersBatch', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/unit/services/invite-batch.test.ts`
 Expected: FAIL — `inviteUsersBatch` is not exported.
 
-- [ ] **Step 3: Write it**
+- [x] **Step 3: Write it**
 
 Append to `src/lib/services/user-invites.ts`:
 
@@ -683,12 +683,12 @@ Add the imports this needs: `getProfileByEmail` from `@/lib/services/users`, `va
 
 **An unknown error is reported as a generic message, never `error.message`** — an unexpected throw may carry database or configuration detail, and this string is rendered in the browser.
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/unit/services/invite-batch.test.ts`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/services/user-invites.ts tests/unit/services/invite-batch.test.ts
@@ -703,7 +703,7 @@ git commit -m "feat(users): add several invites in one pass, validate-all then c
 
 - Modify: `src/app/(prt)/admin/users/actions.ts`
 
-- [ ] **Step 1: Add the action**
+- [x] **Step 1: Add the action**
 
 Like `reissueCodeAction` (piece 2) and unlike the rest of the file, this returns state rather than redirecting — the codes are shown once, so a redirect would discard them.
 
@@ -742,12 +742,12 @@ export async function addUsersBatchAction(_prev: BatchState, formData: FormData)
 
 Do not trust a `creatable` value from the request. That is the whole reason for recomputing it here.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `npm run typecheck && npm run lint`
 Expected: both clean.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add "src/app/(prt)/admin/users/actions.ts" src/lib/services/page-data/admin-users.ts
@@ -764,13 +764,13 @@ git commit -m "feat(users): the batch action recomputes what the actor may creat
 - Create: `src/app/(prt)/admin/users/BatchResults.tsx`
 - Modify: `src/app/(prt)/admin/users/page.tsx`
 
-- [ ] **Step 1: Read the three things you are reusing**
+- [x] **Step 1: Read the three things you are reusing**
 
 1. `src/app/(prt)/Modal.tsx` — the shared shell. Use `size="lg"`. Do not write another overlay.
 2. `src/app/(prt)/admin/users/AddUserForm.tsx` — the role-aware field logic (`isStudent`), the `@/lib/ui` primitives (`Field`, `Input`, `Select`, `SubmitButton` from `../../form`), and the success-panel classes.
 3. `src/app/(prt)/admin/users/[id]/SetupCodePanel.tsx` (piece 2) — the copyable-invite treatment to match.
 
-- [ ] **Step 2: Build the row editor**
+- [x] **Step 2: Build the row editor**
 
 `AddSeveralButton.tsx` is a client component holding `rows` state. Requirements, each with its reason:
 
@@ -785,7 +785,7 @@ git commit -m "feat(users): the batch action recomputes what the actor may creat
 
 Keep this component focused on editing rows; the results go in `BatchResults.tsx`. `docs/application-standards.md` sets the file-size thresholds — if the row editor approaches them, extract the row itself into a third component and say so.
 
-- [ ] **Step 3: Build the results**
+- [x] **Step 3: Build the results**
 
 `BatchResults.tsx` takes `outcome: BatchOutcome` and renders:
 
@@ -812,7 +812,7 @@ Serve it with a `Blob` and `URL.createObjectURL`, and **revoke the URL after the
 
 Render roles through `roleLabel` from `@/lib/ui` — stored values never reach a screen (piece 1), and `tests/unit/role-labels-single-source.test.ts` will fail the build if a label is spelled here instead.
 
-- [ ] **Step 4: Render the trigger**
+- [x] **Step 4: Render the trigger**
 
 In `src/app/(prt)/admin/users/page.tsx`, beside the existing `<AddUserForm .../>` inside the same `{canManage && ...}` block:
 
@@ -826,7 +826,7 @@ In `src/app/(prt)/admin/users/page.tsx`, beside the existing `<AddUserForm .../>
 
 The single form stays exactly as it is and remains the place for full detail (phone, guardian, joined-on). The batch deliberately captures less.
 
-- [ ] **Step 5: Verify it in the browser, in mock mode**
+- [x] **Step 5: Verify it in the browser, in mock mode**
 
 ```
 npm run dev
@@ -844,7 +844,7 @@ Sign in as the super admin and check each of these, reporting what you saw:
 8. **Download CSV** opens a file whose columns line up, including for a name containing a comma.
 9. As a **sub-admin** (`subadmin@mock.test`): the role options offer no Admin or Super Admin.
 
-- [ ] **Step 6: Verify the gate**
+- [x] **Step 6: Verify the gate**
 
 ```
 npm run typecheck
@@ -853,7 +853,7 @@ npm test
 npx prettier --check "src/app/(prt)/admin/users/AddSeveralButton.tsx" "src/app/(prt)/admin/users/BatchResults.tsx" "src/app/(prt)/admin/users/page.tsx"
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add "src/app/(prt)/admin/users/AddSeveralButton.tsx" "src/app/(prt)/admin/users/BatchResults.tsx" "src/app/(prt)/admin/users/page.tsx"
@@ -868,7 +868,7 @@ git commit -m "feat(users): add several people at once, with their codes in one 
 
 - Modify: `tests/e2e/journeys.pw.ts`
 
-- [ ] **Step 1: Add the batch to the admin journey**
+- [x] **Step 1: Add the batch to the admin journey**
 
 Follow the conventions already in that file: `attemptName(...)` for attempt-unique emails (the mock DB resets once per run and `retries: 1` is configured, so hard-coded values collide on a retry), and scope locators to the modal.
 
@@ -893,13 +893,13 @@ Then the rule that upfront validation exists for:
 
 Add a `data-testid` to the code cell in `BatchResults.tsx` if that is what makes the count assertion robust, include that file in this commit, and say so in your report. Prefer a role- or text-based locator if one is already unambiguous.
 
-- [ ] **Step 2: Run the suite twice**
+- [x] **Step 2: Run the suite twice**
 
 Run: `npx playwright test --project=chromium`
 
 It stood at **86 passed**. Run it a second time: this adds several sequential server actions to a long journey, and a racy assertion that passes once is worse than no test.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/e2e/journeys.pw.ts
@@ -916,18 +916,18 @@ git commit -m "test(users): three mixed rows in one pass yield three codes"
 
 `docs/api-reference.md` is **not** in scope: it documents "every route under `src/app/api`", and this feature adds a server action, not a route. Verified — do not add a section there.
 
-- [ ] **Step 1: Close the spec**
+- [x] **Step 1: Close the spec**
 
 Mark piece 3 implemented, and record the one place the spec was wrong: creating a user is five steps, not just `addUser`, so a `user-invites.ts` composition layer now backs both the single form and the batch. A reader following the spec's letter would have shipped mentorless students.
 
-- [ ] **Step 2: Every check this repo gates on**
+- [x] **Step 2: Every check this repo gates on**
 
 ```bash
 npm run format:check && npm run lint && npm run typecheck && npm test && npm run check:doc-links
 npx playwright test --project=chromium
 ```
 
-- [ ] **Step 3: Prove no schema and no capability changed**
+- [x] **Step 3: Prove no schema and no capability changed**
 
 ```bash
 git diff --stat $BASE -- supabase/
@@ -936,7 +936,7 @@ git diff $BASE -- src/lib/capabilities/
 
 Expected: **both empty.** The spec promises "No schema change" and "Any change to authority: none". If either prints, revert it before going further.
 
-- [ ] **Step 4: Confirm the tree is clean**
+- [x] **Step 4: Confirm the tree is clean**
 
 ```bash
 git status --porcelain
@@ -951,3 +951,60 @@ git status --porcelain
 - **Emailing the codes.** Blocked while `EMAIL_NOTIFICATIONS_ENABLED` is off, and the thing that would make this table unnecessary.
 - **Changing the single Add-user form.** It keeps every field it has and stays the place for full detail. Task 1 refactors what runs _behind_ it, and its tests must pass unedited.
 - **Any change to authority.** No capability is added or re-scoped; `creatable` is recomputed from the actor on every request.
+
+---
+
+## What shipped, and where it differed from this plan
+
+Executed 2026-10-12 in twelve commits, `93c2ef4` through `d18fe76`. The gate ran clean: formatting,
+zero lint warnings, typecheck, 238 test files / 2017 unit tests, and 87/87 Playwright chromium specs
+run twice. `git diff` against the branch point is empty for both `supabase/` and
+`src/lib/capabilities/`, proving the spec's "no schema change, no change to authority".
+
+Six places the shipped work is not what the task text prescribed:
+
+1. **`addUserFromActionInput` was deleted** (`b304415`). After Task 1 it had no caller in `src/`,
+   and it was the exact trap this plan exists to remove: validate, then `addUser`, returning a
+   `mentorId` nobody acts on. It is the function a batch author would have reached for by name.
+
+2. **Task 2's validator also checks the mentor id's SHAPE** (`d70124d`), not merely that one is
+   present. `validateAddUserInput` parses it as a uuid, so a junk value - a pasted partial, a
+   truncated token - passed the batch check and then threw inside `inviteUser` on that row, after
+   the preceding rows had been created and their codes shown. The same commit makes a row that
+   fails for one reason still claim its email, so a later duplicate is reported in the same pass
+   rather than on the next round trip.
+
+3. **Task 3 pre-flights each distinct mentor once, before the first write.** The plan left this
+   implicit. `inviteUser` checks per row, which is right for any caller, but in a batch that means
+   a stale mentor on row 12 is found after eleven accounts exist.
+
+4. **`creatableRolesFor` returns `isSuper` as well** (`b46d05b`). Extracting it left `isAdminTier`
+   being called twice per page load, which broke a test whose `mockReturnValueOnce` the first call
+   consumed. Two reads are two answers to one question about who the top tier is, and
+   `manageAdminTier` is a hard rule, so they must not be able to disagree.
+
+5. **Task 5 needed a third component** - `AddSeveralRow.tsx` - because the editor passed the
+   250-line threshold in `docs/application-standards.md`. It also writes the row selects' values
+   back to the DOM after a submit: React resets the form when its action completes, and a
+   controlled `<select>` carries no default to reset TO, so every Role dropdown landed on its
+   first option while React state held the real value.
+
+6. **Two ways to destroy the codes were found and closed**, neither anticipated here. Closing the
+   modal now confirms when there is something to lose (`e921423`); and a refused RESUBMIT used to
+   take the previous batch's codes with it, because `useActionState` replaces the whole state and
+   a validation failure returns `created: []` (`d18fe76`). The modal now accumulates every code it
+   has issued, separately from the per-submit failures. **The E2E spec had encoded that bug as
+   expected behaviour** - asserting zero codes after a refused resubmit - so fixing the component
+   correctly broke the test, and the assertion was inverted to the property that actually matters.
+
+Two fixes outside this plan's scope rode along, both pre-existing and both verified before being
+changed:
+
+- `AddUserForm`'s Role dropdown disagreed with its own fields after any submit, for the same React
+  form-reset reason as (5). Measured: without the fix the dropdown read `student` while the
+  student-only `class_level` field was hidden. `tests/e2e/add-user-form-state.pw.ts` now pins it.
+  The first probe written for this was BLIND - it used `country` and `phone`, which render in both
+  the student and the tutor branches and so discriminate nothing.
+- `ProfileMenu` registered a `document`-level Escape handler with no `open` guard, so every Escape
+  in the portal pulled focus to the account avatar - overriding the focus every modal in the app
+  had just restored to its trigger.
