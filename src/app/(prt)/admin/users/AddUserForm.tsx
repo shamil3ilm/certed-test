@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useFormState } from 'react-dom'
-import { AlertBanner, CARD, cx } from '@/lib/ui'
+import { AlertBanner, CARD, cx, roleLabel } from '@/lib/ui'
 import { addUserAction, type AddUserState } from './actions'
 import { Field, Input, Select, SubmitButton } from '../../form'
 import { COMMON_COUNTRIES } from '@/lib/geo/countries'
@@ -45,7 +45,7 @@ export function AddUserForm({
           <Select name="role" value={role} onChange={(event) => setRole(event.target.value)}>
             {roles.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {roleLabel(r)}
               </option>
             ))}
           </Select>

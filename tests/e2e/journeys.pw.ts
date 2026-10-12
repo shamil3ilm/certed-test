@@ -82,6 +82,14 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // Add a new user
   await page.goto('/admin/users')
   const add = page.locator('form', { has: page.getByRole('button', { name: 'Add user' }) })
+  // The Role select is the only place that ever rendered a raw stored value. A super admin may
+  // create every tier, so the words must be offered - and none of the identifiers. Asserts on
+  // TEXT, not value: the option values stay the stored identifiers, which the last line pins.
+  const roleSelect = add.locator('select[name=role]')
+  await expect(roleSelect).toContainText('Super Admin')
+  await expect(roleSelect).toContainText('Admin')
+  await expect(roleSelect).not.toContainText('sub_admin')
+  await expect(roleSelect.locator('option[value=sub_admin]')).toHaveCount(1)
   await add.locator('input[name=email]').fill(newbieEmail)
   await add.locator('input[name=full_name]').fill('Eve Newbie')
   await add.locator('select[name=role]').selectOption('student')
