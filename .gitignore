@@ -40,6 +40,7 @@ next-env.d.ts
 test-results/
 playwright-report/
 playwright-report-staging/
+playwright-report-staging-workflows/
 .playwright/
 
 # Local Claude Code tooling config (per-machine; never shared)
