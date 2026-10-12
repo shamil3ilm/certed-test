@@ -19,7 +19,7 @@ import {
  * An account's whole life, from the admin's side, with the people it touches checking in:
  * add a student, give them a subject (which creates the class and assigns the tutor), add a
  * guardian, override a permission, archive the class (the tutor can no longer add to it), revoke,
- * restore, and finally erase. A sub-admin is offered only the roles they may create.
+ * restore, and finally erase. An Admin is offered only the roles they may create.
  */
 
 const EMAIL = `e2e-${STAMP}@certed.test`

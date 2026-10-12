@@ -45,7 +45,7 @@ test.describe('staging - Super Admin', () => {
   })
 })
 
-test.describe('staging - Sub Admin', () => {
+test.describe('staging - Admin', () => {
   test('signs in and lands on a real dashboard (not a blank lock-out), and can reach People', async ({ page }) => {
     await landsOnDashboard(page, 'subadmin')
 
