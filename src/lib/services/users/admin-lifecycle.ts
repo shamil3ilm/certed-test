@@ -117,13 +117,10 @@ const NOT_REISSUABLE = 'That account has already been claimed, or its invite was
  * mentor or student and never for the admin tier. No capability is added by this feature.
  */
 export async function reissueSetupCode(actor: Profile, id: string): Promise<ReissueResult> {
-  // getProfileById, not the detail projection: a Profile already carries the email, name and
-  // role this needs, and the page - not the service - is what renders the expiry.
-  const target = await getProfileById(id)
-  if (!target) throw new NotFoundError('User not found')
-  if (!(await canManageTarget(actor, target.role))) {
-    throw new PermissionError('Not authorized to manage this user.')
-  }
+  // The same gate revoke, restore, edit and erase apply, and it returns the lean Profile -
+  // which already carries the email, name and role this needs. The EXPIRY is the page's
+  // business, not the service's, so the richer detail projection is not read here.
+  const target = await requireManageableTarget(actor, id)
 
   const code = generateSetupCode()
   const expiresAt = setupCodeExpiry()

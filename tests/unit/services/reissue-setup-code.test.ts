@@ -10,7 +10,7 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { reissueSetupCodeForUnclaimed } from '@/lib/data/profiles-auth'
 import { getProfileById } from '@/lib/services/users/directory'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { PermissionError, ValidationError } from '@/lib/errors'
+import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 
 /**
  * A setup code is ISSUED, never read back (ADR-0008): only its hash is stored, so a lost code is
@@ -64,6 +64,12 @@ describe('reissueSetupCode', () => {
     vi.mocked(reissueSetupCodeForUnclaimed).mockResolvedValue(false)
     await expect(reissueSetupCode(actor, 'p1')).rejects.toThrow(ValidationError)
     expect(auditPrivilegedAction).not.toHaveBeenCalled()
+  })
+
+  it('refuses a missing id, and issues no code for it', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(null as never)
+    await expect(reissueSetupCode(actor, 'nope')).rejects.toThrow(NotFoundError)
+    expect(reissueSetupCodeForUnclaimed).not.toHaveBeenCalled()
   })
 
   it('writes one user.reissue_code audit row on success', async () => {
