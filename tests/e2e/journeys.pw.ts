@@ -136,6 +136,95 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   await page.goto('/admin/history')
   await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
   await expect(page.locator('table.data-table tbody tr').first()).toBeVisible()
+
+  // ADD SEVERAL -- three mixed rows in ONE pass produce three codes.
+  //
+  // A mixed batch, not three of a kind: an intake is a cohort plus the staff who teach it, and
+  // a student is the heaviest row (country, class/grade and a mentor on top of the identity
+  // three). The roles read back as WORDS - a stored identifier never reaches a screen, and
+  // tests/unit/role-labels-single-source.test.ts pins the wording itself.
+  const batchPrefix = attemptName('e2e-batch', testInfo).replace(' ', '-')
+  const batchEmails = [1, 2, 3].map((n) => `${batchPrefix}-${n}@mock.test`)
+
+  await page.goto('/admin/users')
+  await page.getByRole('button', { name: 'Add several' }).click()
+  const dialog = page.getByRole('dialog')
+  // One row addressed by its own "Person N" block, so no field assertion can reach into a
+  // neighbour's row. Scoped to the FORM because the results panel renders an `li` per created
+  // account and, for a row that failed at the write, one headed "Person N" too.
+  const person = (n: number) => dialog.locator('form li').filter({ hasText: `Person ${n}` })
+  await expect(person(3)).toBeVisible() // three rows are the default - no "Add row" needed
+
+  // Role first: it decides what else the row even shows. Chosen by VALUE, because the stored
+  // identifier is what a row posts - the words are what the results below are read for.
+  for (const [i, role] of ['tutor', 'mentor', 'student'].entries()) {
+    const row = person(i + 1)
+    await row.locator('select[data-batch-field=role]').selectOption(role)
+    await row.locator('input[type=email]').fill(batchEmails[i])
+    await row.getByLabel('Name', { exact: true }).fill(`Batch Person ${i + 1}`)
+  }
+  // The student's three extras. The mentor goes by INDEX (option 0 is "Choose a mentor"), as
+  // the single form's step above does, so the spec does not pin itself to a seeded person.
+  const studentRow = person(3)
+  await studentRow.getByLabel('Country', { exact: true }).fill('India')
+  await studentRow.getByLabel('Class / grade', { exact: true }).fill('Grade 9')
+  await studentRow.locator('select[data-batch-field=mentor_id]').selectOption({ index: 1 })
+
+  // The submit label counts the rows it is about to create, so matching it exactly is itself
+  // an assertion about what is being submitted.
+  await dialog.getByRole('button', { name: /^Add 3 people$/ }).click()
+  // Scoped to the results panel throughout: it is the one and only sighting of these codes
+  // (ADR-0008), while the row editor behind it still holds the same three emails.
+  const results = dialog.getByRole('status')
+  await expect(results.getByRole('heading', { name: 'Added 3 people' })).toBeVisible({ timeout: 30000 })
+  // The table, not the whole panel: each created account also gets a ready-worded invite below
+  // it, which repeats the email and would make an email locator ambiguous.
+  const codes = results.locator('table')
+  await expect(codes.locator('code')).toHaveCount(3)
+  for (const email of batchEmails) await expect(codes.getByText(email)).toBeVisible()
+  // One word per row - which is also how you see that a MIXED batch created what it was asked
+  // to, rather than three of whatever the first row was.
+  await expect(codes.getByText('Tutor', { exact: true })).toBeVisible()
+  await expect(codes.getByText('Mentor', { exact: true })).toBeVisible()
+  await expect(codes.getByText('Student', { exact: true })).toBeVisible()
+
+  // A DUPLICATE EMAIL INSIDE THE BATCH CREATES NOTHING AT ALL - not even the valid rows above
+  // it. That is the whole return on validating every row before writing any of it: the
+  // alternative creates Person 1, shows its one-time code, and only then refuses Person 2 -
+  // with a credential already burned on a batch the admin has to redo.
+  //
+  // Submitted through the SAME open modal: closing it is the one destructive act on this
+  // screen (it takes the codes with it, behind a confirm), and reopening would prove nothing
+  // extra. All three emails are new ones - the three above are taken now, which is a
+  // different rule with a different message.
+  const refusedPrefix = attemptName('e2e-refused', testInfo).replace(' ', '-')
+  const twiceEmail = `${refusedPrefix}-twice@mock.test`
+  const validEmail = `${refusedPrefix}-valid@mock.test`
+  await person(1).locator('input[type=email]').fill(twiceEmail)
+  await person(2).locator('input[type=email]').fill(twiceEmail)
+  await person(3).locator('input[type=email]').fill(validEmail)
+
+  await dialog.getByRole('button', { name: /^Add 3 people$/ }).click()
+  // Asserted FIRST, and on content that cannot predate this submit: useActionState serves the
+  // previous result while the action is in flight, so every absence below is only meaningful
+  // once the new state has landed.
+  await expect(dialog.getByRole('alert')).toContainText('Nothing was created.')
+  // Flagged on the LATER row - the one to change - and on no other, so Person 1 is reported as
+  // fine and still created nothing.
+  await expect(person(2).getByText('Email: This email appears twice in the list.')).toBeVisible()
+  await expect(dialog.locator('form li').getByText('This email appears twice in the list.')).toHaveCount(1)
+  // A refused batch renders no results panel at all, so the three codes from the submit above
+  // are gone with it: this is zero codes on screen, not the previous three still showing.
+  await expect(dialog.getByRole('status')).toHaveCount(0)
+  await expect(dialog.locator('code')).toHaveCount(0)
+
+  // ...and no account exists. The same search over the batch that DID go through is the
+  // control: it finds all three, so the empty result that follows is an absence in the
+  // database rather than a list that never shows a newly added account.
+  await page.goto(`/admin/users?q=${batchPrefix}`)
+  for (const email of batchEmails) await expect(page.getByText(email)).toBeVisible()
+  await page.goto(`/admin/users?q=${refusedPrefix}`)
+  await expect(page.getByText('No people match these filters.')).toBeVisible()
 })
 
 test('TUTOR -- create assignment + comment on a student submission', async ({ page }, testInfo) => {
