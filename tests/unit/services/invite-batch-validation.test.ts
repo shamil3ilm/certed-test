@@ -79,6 +79,30 @@ describe('validateInviteBatch', () => {
     expect(validateInviteBatch(tooMany, { creatable: ['tutor'], taken: [] }).errors[0].message).toMatch(/25/)
   })
 
+  // A junk mentor id would otherwise pass this check and throw inside inviteUser on that row,
+  // after the earlier rows were created and their one-time codes already shown.
+  it('reports a mentor id that is not a real id, not just a missing one', () => {
+    const result = validateInviteBatch([student('a@x.test', { mentor_id: '1111-not-a-uuid' })], {
+      creatable: ['student'],
+      taken: [],
+    })
+    expect(result.errors).toEqual([{ index: 0, field: 'mentor_id', message: expect.stringMatching(/from the list/i) }])
+    expect(result.rows).toEqual([])
+  })
+
+  // Both problems in one pass: the admin should not fix the role and only then learn that the
+  // email was repeated.
+  it('still reports a duplicate email when the earlier row failed for another reason', () => {
+    const result = validateInviteBatch([{ email: 'dup@x.test', full_name: 'A', role: 'admin' }, tutor('dup@x.test')], {
+      creatable: ['tutor'],
+      taken: [],
+    })
+    expect(result.errors.map((e) => [e.index, e.field])).toEqual([
+      [0, 'role'],
+      [1, 'email'],
+    ])
+  })
+
   // One pass must surface EVERY bad row, or the admin fixes one and resubmits twenty times.
   it('collects every bad row, not just the first', () => {
     const result = validateInviteBatch([tutor('nope'), tutor('also-bad')], { creatable: ['tutor'], taken: [] })

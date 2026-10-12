@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { addUserSchema } from '@/lib/validation/user'
 import type { AddUserActionInput } from '@/lib/services/users/validation'
 
@@ -6,6 +7,9 @@ import type { AddUserActionInput } from '@/lib/services/users/validation'
  * enough that a pasted list of 500 cannot become 500 sequential writes.
  */
 export const MAX_BATCH_ROWS = 25
+
+/** Same shape validateAddUserInput parses a mentor_id with, so the two agree. */
+const MENTOR_ID = z.string().uuid()
 
 export type BatchRowInput = Record<string, string | undefined>
 export type BatchRowError = { index: number; field: string; message: string }
@@ -50,6 +54,13 @@ export function validateInviteBatch(
     const email = normalizeEmail(raw.email)
     const role = (raw.role ?? '').trim()
 
+    // Claimed before any other check, so a row that fails for an unrelated reason still makes
+    // a LATER duplicate of its email visible in this same pass. Otherwise the admin fixes the
+    // first problem, resubmits, and only then learns about the duplicate - the extra round
+    // trip this function exists to avoid.
+    const alreadySeen = email !== '' && seen.has(email)
+    if (email !== '') seen.add(email)
+
     if (!context.creatable.includes(role)) {
       errors.push({ index, field: 'role', message: 'You cannot add that role.' })
       return
@@ -72,15 +83,28 @@ export function validateInviteBatch(
       return
     }
 
-    // Every student has a mentor - the rule validateAddUserInput enforces for the single
-    // form, restated here only so the admin sees it before any row is written. inviteUser
-    // still enforces it per row.
-    if (role === 'student' && !raw.mentor_id?.trim()) {
-      errors.push({ index, field: 'mentor_id', message: 'Choose a mentor for this student.' })
-      return
+    // Every student has a mentor - the rule validateAddUserInput enforces for the single form,
+    // restated here only so the admin sees it before any row is written. inviteUser still
+    // enforces it per row.
+    //
+    // The SHAPE is checked too, not just presence, and that is the load-bearing half:
+    // validateAddUserInput parses mentor_id as a uuid and throws 'Invalid mentor assignment.'
+    // So a junk id - a pasted partial, a truncated value - would pass a presence-only check
+    // here and then throw inside inviteUser on THAT row, after the preceding rows had been
+    // created and their one-time codes already shown. Checking it here costs nothing.
+    if (role === 'student') {
+      const mentorId = (raw.mentor_id ?? '').trim()
+      if (!mentorId) {
+        errors.push({ index, field: 'mentor_id', message: 'Choose a mentor for this student.' })
+        return
+      }
+      if (!MENTOR_ID.safeParse(mentorId).success) {
+        errors.push({ index, field: 'mentor_id', message: 'Choose a mentor from the list.' })
+        return
+      }
     }
 
-    if (seen.has(email)) {
+    if (alreadySeen) {
       errors.push({ index, field: 'email', message: 'This email appears twice in the list.' })
       return
     }
@@ -89,7 +113,6 @@ export function validateInviteBatch(
       return
     }
 
-    seen.add(email)
     rows.push({ ...parsed.data, mentor_id: raw.mentor_id?.trim() || null })
   })
 
