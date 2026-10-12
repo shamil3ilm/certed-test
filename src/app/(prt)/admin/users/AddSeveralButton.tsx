@@ -4,6 +4,7 @@ import { Plus, UsersRound } from 'lucide-react'
 import { AlertBanner, createClientId } from '@/lib/ui'
 import { COMMON_COUNTRIES } from '@/lib/geo/countries'
 import { MAX_BATCH_ROWS } from '@/lib/services/user-invites-validation'
+import type { BatchCreated } from '@/lib/services/user-invites'
 import { Modal } from '../../Modal'
 import { SubmitButton } from '../../form'
 import { addUsersBatchAction, type BatchState } from './actions'
@@ -51,6 +52,28 @@ export function AddSeveralButton({
   // useActionState, not react-dom's useFormState: React 19 renamed the hook, and the old
   // name logs a console error on every render.
   const [state, formAction] = useActionState(addUsersBatchAction, initial)
+
+  /**
+   * Every code this modal has issued, kept ACROSS submits.
+   *
+   * `useActionState` replaces the whole state on each submit, so reading the codes straight off
+   * the latest outcome loses them the moment a later submit returns none - and a validation
+   * failure returns `created: []`. The real sequence that destroyed them: add three people, type
+   * three more rows, fat-finger a duplicate email, submit. The batch is correctly refused and
+   * writes nothing, and the three codes from the first submit vanish with it, recoverable only
+   * by re-issuing one person at a time.
+   *
+   * Accumulated rather than merely retained, so adding three and then three more shows all six.
+   * `index` is not displayed for a created row (only for a failed one, which stays per-submit),
+   * so rows from different submits sitting in one list cannot mislabel anything.
+   */
+  const [issued, setIssued] = useState<BatchCreated[]>([])
+  const [settled, setSettled] = useState(state)
+  if (state !== settled) {
+    setSettled(state)
+    const created = state.outcome?.created ?? []
+    if (created.length > 0) setIssued((current) => [...current, ...created])
+  }
 
   const setRow = (index: number, patch: Partial<BatchRow>) =>
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -107,12 +130,14 @@ export function AddSeveralButton({
   }, [state, rows])
 
   const outcome = state.outcome
-  // `failed` is shown too when nothing at all was created: every row racing to a taken email
-  // is rare, but reporting it as silence would be worse than rare.
-  const showResults = outcome !== undefined && (outcome.created.length > 0 || outcome.failed.length > 0)
+  // `failed` is per-submit - it describes the attempt just made - while the codes are every one
+  // this modal has issued. So the panel stays up for as long as there is either, and a refused
+  // resubmit no longer takes the earlier codes down with it.
+  const failed = outcome?.failed ?? []
+  const showResults = issued.length > 0 || failed.length > 0
 
   /**
-   * Closing is the only thing on this screen that destroys anything.
+   * Closing is now the only thing on this screen that destroys anything.
    *
    * The codes are stored nowhere - only a hash is (ADR-0008) - so they exist in this panel and
    * nowhere else. The shared Modal closes on the backdrop, on Escape and on the X, all through
@@ -125,7 +150,7 @@ export function AddSeveralButton({
    * per person, which is the cost this prevents.
    */
   const closeModal = () => {
-    const created = outcome?.created.length ?? 0
+    const created = issued.length
     if (created > 0) {
       const subject = created === 1 ? 'This setup code has' : `These ${created} setup codes have`
       const ok = window.confirm(
@@ -158,9 +183,9 @@ export function AddSeveralButton({
 
         {/* Above the form on purpose: with twenty rows still on screen, codes rendered below
             them would be off-screen on the very submit that created them. */}
-        {outcome && showResults && (
+        {showResults && (
           <div className="mb-3">
-            <BatchResults outcome={outcome} />
+            <BatchResults created={issued} failed={failed} />
           </div>
         )}
 

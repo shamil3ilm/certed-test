@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { ClipboardCopy, Download } from 'lucide-react'
 import { AlertBanner, cx, roleLabel } from '@/lib/ui'
-import type { BatchCreated, BatchOutcome } from '@/lib/services/user-invites'
+import type { BatchCreated, BatchFailed } from '@/lib/services/user-invites'
 
 /**
  * The result of adding several people - the one and only sighting of their setup codes.
@@ -33,11 +33,11 @@ const inviteMessage = (row: BatchCreated): string =>
 
 type CopyNote = { tone: 'success' | 'warning'; message: string }
 
-export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
+export function BatchResults({ created, failed }: { created: BatchCreated[]; failed: BatchFailed[] }) {
   const [note, setNote] = useState<CopyNote | null>(null)
 
   // Tab-separated so a paste lands in a spreadsheet's columns, not one cell.
-  const asText = [HEADERS.join('\t'), ...outcome.created.map((row) => cellsOf(row).join('\t'))].join('\n')
+  const asText = [HEADERS.join('\t'), ...created.map((row) => cellsOf(row).join('\t'))].join('\n')
 
   const copyAll = async () => {
     // Clipboard access can be refused outright (an insecure origin has no navigator.clipboard
@@ -45,7 +45,7 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
     // as a dead button, with the codes still on screen and no hint of what to do instead.
     try {
       await navigator.clipboard.writeText(asText)
-      setNote({ tone: 'success', message: `Copied ${outcome.created.length} rows.` })
+      setNote({ tone: 'success', message: `Copied ${created.length} rows.` })
     } catch {
       setNote({
         tone: 'warning',
@@ -61,7 +61,7 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
     //
     // Every cell is quoted and inner quotes doubled: a name holding a comma would otherwise
     // shift the code into the wrong column, which is a credential silently mis-filed.
-    const csv = [HEADERS, ...outcome.created.map(cellsOf)]
+    const csv = [HEADERS, ...created.map(cellsOf)]
       .map((cells) => cells.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(','))
       .join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -80,7 +80,7 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
 
   return (
     <>
-      {outcome.created.length > 0 && (
+      {created.length > 0 && (
         <div
           role="status"
           aria-live="polite"
@@ -88,7 +88,7 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-success-ink">
-              Added {outcome.created.length} {outcome.created.length === 1 ? 'person' : 'people'}
+              Added {created.length} {created.length === 1 ? 'person' : 'people'}
             </h3>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={copyAll} className="btn btn-sm btn-soft">
@@ -125,7 +125,7 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
                 </tr>
               </thead>
               <tbody>
-                {outcome.created.map((row) => (
+                {created.map((row) => (
                   <tr key={row.index} className="border-t border-success-border">
                     <td className="px-2 py-1 text-slate-800">{row.full_name ?? '-'}</td>
                     <td className="break-all px-2 py-1 text-slate-800">{row.email}</td>
@@ -142,7 +142,7 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
           </div>
 
           <ul className="mt-3 space-y-1">
-            {outcome.created.map((row) => (
+            {created.map((row) => (
               <li key={row.index}>
                 {/* Collapsed by default: 25 open invites would bury the table above, and the
                     table is what an admin reads first. */}
@@ -164,22 +164,19 @@ export function BatchResults({ outcome }: { outcome: BatchOutcome }) {
         </div>
       )}
 
-      {outcome.failed.length > 0 && (
+      {failed.length > 0 && (
         <div
-          className={cx(
-            'rounded-xl border border-danger-border bg-danger-surface p-3',
-            outcome.created.length > 0 && 'mt-3',
-          )}
+          className={cx('rounded-xl border border-danger-border bg-danger-surface p-3', created.length > 0 && 'mt-3')}
         >
           <h3 className="text-sm font-semibold text-danger-ink">
-            {outcome.failed.length} {outcome.failed.length === 1 ? 'person was' : 'people were'} not added
+            {failed.length} {failed.length === 1 ? 'person was' : 'people were'} not added
           </h3>
           <p className="mt-0.5 text-xs text-danger-ink">
             Nothing was created for these - usually the email was taken between the check and the write. Add them again;
             the accounts above are already done.
           </p>
           <ul className="mt-2 space-y-1 text-sm text-danger-ink">
-            {outcome.failed.map((row) => (
+            {failed.map((row) => (
               <li key={row.index}>
                 <span className="font-medium">Person {row.index + 1}</span> - {row.email}: {row.message}
               </li>

@@ -213,10 +213,12 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   // fine and still created nothing.
   await expect(person(2).getByText('Email: This email appears twice in the list.')).toBeVisible()
   await expect(dialog.locator('form li').getByText('This email appears twice in the list.')).toHaveCount(1)
-  // A refused batch renders no results panel at all, so the three codes from the submit above
-  // are gone with it: this is zero codes on screen, not the previous three still showing.
-  await expect(dialog.getByRole('status')).toHaveCount(0)
-  await expect(dialog.locator('code')).toHaveCount(0)
+  // ...and the three codes from the submit above are STILL on screen. This is the property that
+  // matters most here: a refused batch writes nothing, so it must take nothing away either. The
+  // codes exist in this panel and nowhere else (ADR-0008), and losing them to a mistyped email
+  // would mean re-issuing three people one at a time to undo a typo.
+  await expect(dialog.getByRole('status')).toContainText('Added 3 people')
+  await expect(dialog.getByRole('status').locator('table').locator('code')).toHaveCount(3)
 
   // ...and no account exists. The same search over the batch that DID go through is the
   // control: it finds all three, so the empty result that follows is an absence in the
