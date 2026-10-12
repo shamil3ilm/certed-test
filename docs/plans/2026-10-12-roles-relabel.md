@@ -30,7 +30,7 @@
 - Modify: `tests/unit/role-label-if-unexpected.test.ts:27`
 - Modify: `src/lib/ui/labels.tsx:12-18` and `:112-125`
 
-- [ ] **Step 0: Record where you started, for the final check**
+- [x] **Step 0: Record where you started, for the final check**
 
 Task 8 proves this plan changed no stored identifier, which needs the commit you began from:
 
@@ -40,36 +40,37 @@ git rev-parse HEAD
 
 Write that hash down. It is referred to below as `$BASE`.
 
-- [ ] **Step 1: Change the three existing assertions to the new wording, and add one that pins every label**
+- [x] **Step 1: Change the three existing assertions to the new wording, and add one that pins every label**
 
 In `tests/unit/ui-labels.test.ts`, inside `describe('roleLabel')`, change the `sub_admin` line and add a second test after the existing one:
 
+Replace the whole of `describe('roleLabel')` with a table, so a failure names the role that broke rather than reporting a positional diff — and so the five values are asserted once rather than in two tests that flip together:
+
 ```ts
 describe('roleLabel', () => {
-  it('maps each role, defaulting unknown/empty to Student', () => {
-    expect(roleLabel('tutor')).toBe('Tutor')
-    expect(roleLabel('mentor')).toBe('Mentor')
-    expect(roleLabel('admin')).toBe('Super Admin')
-    expect(roleLabel('sub_admin')).toBe('Admin')
-    expect(roleLabel('student')).toBe('Student')
+  // The academy's five role names, pinned. The stored identifiers deliberately do NOT match
+  // the words - `admin` reads "Super Admin" and `sub_admin` reads "Admin" - so an edit that
+  // "tidies" one of these would silently rename a tier for every user. A table rather than one
+  // assertion per line, so a failure names the role that broke.
+  it.each([
+    ['admin', 'Super Admin'],
+    ['sub_admin', 'Admin'],
+    ['mentor', 'Mentor'],
+    ['tutor', 'Tutor'],
+    ['student', 'Student'],
+  ])('labels %s as %s', (role, expected) => {
+    expect(roleLabel(role)).toBe(expected)
+  })
+
+  it('falls back to Student for an unknown or absent role', () => {
+    expect(roleLabel('nonsense')).toBe('Student')
     expect(roleLabel(null)).toBe('Student')
     expect(roleLabel(undefined)).toBe('Student')
   })
-
-  // The academy's five role names, pinned. The stored identifiers deliberately do NOT match
-  // the words - `admin` reads "Super Admin" and `sub_admin` reads "Admin" - so an edit that
-  // "tidies" one of these would silently rename a tier for every user. It must fail here first.
-  it('spells the five role names exactly', () => {
-    expect(['admin', 'sub_admin', 'mentor', 'tutor', 'student'].map(roleLabel)).toEqual([
-      'Super Admin',
-      'Admin',
-      'Mentor',
-      'Tutor',
-      'Student',
-    ])
-  })
 })
 ```
+
+Do not write `.map(roleLabel)` anywhere here: `Array.map` passes `(value, index, array)`, which is harmless for a one-parameter function and a trap the day the signature grows.
 
 In the same file, inside `describe('personaLabel')`, change the `sub_admin` expectation:
 
@@ -83,13 +84,13 @@ In `tests/unit/role-label-if-unexpected.test.ts`, change the third expectation i
 expect(roleLabelIfUnexpected('sub_admin', 'tutor')).toBe('Admin')
 ```
 
-- [ ] **Step 2: Run the two tests and watch them fail**
+- [x] **Step 2: Run the two tests and watch them fail**
 
 Run: `npx vitest run tests/unit/ui-labels.test.ts tests/unit/role-label-if-unexpected.test.ts`
 
 Expected: FAIL — three assertions report `expected 'Sub Admin' to be 'Admin'`, and the new pinning test fails on the second element.
 
-- [ ] **Step 3: Flip the single source and record why the names differ from the identifiers**
+- [x] **Step 3: Flip the single source and record why the names differ from the identifiers**
 
 In `src/lib/ui/labels.tsx`, replace the comment block and `roleLabel` (lines 4-18) with:
 
@@ -106,12 +107,12 @@ In `src/lib/ui/labels.tsx`, replace the comment block and `roleLabel` (lines 4-1
  *
  * So `role === 'admin'` is the TOP tier, not the ordinary Admin a user sees. The identifiers
  * were left alone on purpose: renaming them means a Postgres enum rename (with an intermediate
- * name, because `admin` and `sub_admin` would collide), 86 RLS policy references and ~1300
- * occurrences across the codebase - a security-critical migration to buy a vocabulary change.
+ * name, because `admin` and `sub_admin` would collide), every RLS policy that names a tier, and
+ * call sites throughout the app - a security-critical migration to buy a vocabulary change.
  * See docs/persona-model.md and docs/specs/2026-10-12-roles-relabel-and-bulk-user-add.md.
  *
- * This file is the ONLY place that knows the words. tests/unit/role-labels-single-source.test.ts
- * fails if any other file under src/ spells a role label itself. */
+ * This file is where the words are DECIDED. A few surfaces still spell a label themselves
+ * because they need a plural or a persona-keyed record; prefer roleLabel/personaLabel. */
 
 /** Display label for a profile's role (its fixed identity). Use for rows that
  *  carry a stored role - comment authors, the Users list - where loading personas
@@ -132,13 +133,13 @@ In the same file, in `personaLabel`, change the `sub_admin` line:
 if (hasGlobal('sub_admin')) return 'Admin'
 ```
 
-- [ ] **Step 4: Run the tests and watch them pass**
+- [x] **Step 4: Run the tests and watch them pass**
 
 Run: `npx vitest run tests/unit/ui-labels.test.ts tests/unit/role-label-if-unexpected.test.ts`
 
 Expected: PASS — all tests in both files.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/ui/labels.tsx tests/unit/ui-labels.test.ts tests/unit/role-label-if-unexpected.test.ts
@@ -156,7 +157,7 @@ git commit -m "feat(roles): the second admin tier reads Admin, not Sub Admin"
 - Modify: `tests/unit/services/settings-page.test.ts`
 - Modify: `src/lib/services/page-data/settings-page.ts:36`
 
-- [ ] **Step 1: Assert the new wording through the loader**
+- [x] **Step 1: Assert the new wording through the loader**
 
 In `tests/unit/services/settings-page.test.ts`, add this fixture beside the existing `tutor` and `student` ones (after line 38):
 
@@ -193,13 +194,13 @@ it('labels the second admin tier "Admin" - the same word the header uses', async
 })
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/unit/services/settings-page.test.ts`
 
 Expected: FAIL — `expected 'Sub Admin' to be 'Admin'`.
 
-- [ ] **Step 3: Change the one string**
+- [x] **Step 3: Change the one string**
 
 In `src/lib/services/page-data/settings-page.ts`, line 36:
 
@@ -207,13 +208,13 @@ In `src/lib/services/page-data/settings-page.ts`, line 36:
 if (flags.isSubAdmin) return 'Admin'
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/unit/services/settings-page.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/services/page-data/settings-page.ts tests/unit/services/settings-page.test.ts
@@ -232,7 +233,7 @@ Both keep their own label maps because they need plurals and a persona-keyed rec
 - Modify: `src/app/(prt)/admin/messaging/MessagingMatrixForm.tsx:16-22`
 - Modify: `src/lib/messaging/recipient-policy-shared.ts:49`
 
-- [ ] **Step 1: Fix the three maps**
+- [x] **Step 1: Fix the three maps**
 
 In `src/app/(prt)/messages/NewMessageForm.tsx`:
 
@@ -264,13 +265,13 @@ In `src/lib/messaging/recipient-policy-shared.ts`, line 49:
 if (hasGlobal('sub_admin')) return { personaKey: 'sub_admin', personaLabel: 'Admin' }
 ```
 
-- [ ] **Step 2: Run the messaging tests**
+- [x] **Step 2: Run the messaging tests**
 
 Run: `npx vitest run tests/unit/messaging`
 
 Expected: PASS. If a test asserts `'Sub Admin'` or `'Sub Admins'`, change that expectation to `'Admin'` / `'Admins'` — it is asserting the old wording, which is the thing being changed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add "src/app/(prt)/messages/NewMessageForm.tsx" "src/app/(prt)/admin/messaging/MessagingMatrixForm.tsx" src/lib/messaging/recipient-policy-shared.ts
@@ -288,26 +289,28 @@ git commit -m "fix(messaging): role groups read Super Admins and Admins"
 - Modify: `tests/e2e/journeys.pw.ts` (near line 84, where the Add-user form is already located)
 - Modify: `src/app/(prt)/admin/users/AddUserForm.tsx:46-48`
 
-- [ ] **Step 1: Assert the dropdown shows words, not identifiers**
+- [x] **Step 1: Assert the dropdown shows words, not identifiers**
 
 In `tests/e2e/journeys.pw.ts`, immediately after the line that locates the Add-user form (`const add = page.locator('form', { has: page.getByRole('button', { name: 'Add user' }) })`), add:
 
 ```ts
-// The Role select is the only place that ever rendered a raw stored value. A super admin
-// may create every tier, so all five words must be offered - and none of the identifiers.
-const roleSelect = add.getByLabel('Role')
+// The Role select is the only place that ever rendered a raw stored value. A super admin may
+// create every tier, so the words must be offered - and none of the identifiers. Asserts on
+// TEXT, not value: the option values stay the stored identifiers, which the last line pins.
+const roleSelect = add.locator('select[name=role]')
 await expect(roleSelect).toContainText('Super Admin')
 await expect(roleSelect).toContainText('Admin')
 await expect(roleSelect).not.toContainText('sub_admin')
+await expect(roleSelect.locator('option[value=sub_admin]')).toHaveCount(1)
 ```
 
-- [ ] **Step 2: Run that spec and watch it fail**
+- [x] **Step 2: Run that spec and watch it fail**
 
 Run: `npx playwright test --project=chromium tests/e2e/journeys.pw.ts`
 
 Expected: FAIL — the select contains `sub_admin`, and `not.toContainText('sub_admin')` rejects it.
 
-- [ ] **Step 3: Render the label, keep the value**
+- [x] **Step 3: Render the label, keep the value**
 
 In `src/app/(prt)/admin/users/AddUserForm.tsx`, add `roleLabel` to the existing `@/lib/ui` import on line 4 — the barrel re-exports it, and components import from the barrel rather than the module:
 
@@ -327,13 +330,13 @@ Then change the option body (lines 46-48) so the value stays the stored identifi
 }
 ```
 
-- [ ] **Step 4: Run that spec and watch it pass**
+- [x] **Step 4: Run that spec and watch it pass**
 
 Run: `npx playwright test --project=chromium tests/e2e/journeys.pw.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add "src/app/(prt)/admin/users/AddUserForm.tsx" tests/e2e/journeys.pw.ts
@@ -351,7 +354,7 @@ The repo already keeps source-scanning invariant tests (`capped-reads`, `unbound
 - Modify: `src/lib/mock/seed.ts:108`
 - Create: `tests/unit/role-labels-single-source.test.ts`
 
-- [ ] **Step 1: Rename the mock person first, because the guard scans `src/`**
+- [x] **Step 1: Rename the mock person first, because the guard scans `src/`**
 
 In `src/lib/mock/seed.ts`, line 108:
 
@@ -361,12 +364,13 @@ In `src/lib/mock/seed.ts`, line 108:
 
 Leave the id, the email (`subadmin@mock.test`) and `role: 'sub_admin'` alone — those are identifiers, not words a user reads.
 
-- [ ] **Step 2: Write the guard**
+- [x] **Step 2: Write the guard**
 
 ```ts
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import { roleLabel } from '@/lib/ui/labels'
 
 /**
  * No surface shows a user the retired tier name.
@@ -390,8 +394,20 @@ import { join, relative, sep } from 'node:path'
  */
 const SRC = join(process.cwd(), 'src')
 
-/** The retired display forms, inside a single- or double-quoted string. */
-const RETIRED_IN_A_STRING = /'[^']*Sub[- ]?[Aa]dmins?[^']*'|"[^"]*Sub[- ]?[Aa]dmins?[^"]*"/
+/**
+ * The retired display forms, inside a single- or double-quoted string.
+ *
+ * Two things this pattern gets right, both learned the hard way:
+ *
+ *   - CASE-INSENSITIVE. The first version required a capital S and sailed straight past a
+ *     user-visible `PermissionError('Only an admin or sub-admin may record a session...')`.
+ *     Prose inside a sentence is lower-case; only a standalone label is title-case.
+ *   - The SEPARATOR IS REQUIRED — a space or a hyphen between "sub" and "admin". That is what
+ *     distinguishes a word someone reads from an identifier nobody does: it flags "Sub Admin"
+ *     and "sub-admin", and deliberately ignores `subadmin@mock.test`, `'u-subadmin'` and
+ *     `sub_admin`, which are a fake address, a fixture id and the stored value.
+ */
+const RETIRED_IN_A_STRING = /'[^']*sub[ -]admins?[^']*'|"[^"]*sub[ -]admins?[^"]*"/i
 
 const files = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -399,6 +415,17 @@ const files = (dir: string): string[] =>
     if (e.isDirectory()) return files(full)
     return /\.(ts|tsx)$/.test(e.name) ? [full] : []
   })
+
+describe('the role names stay distinct', () => {
+  // The trap this nearly fell into: MessagingMatrixForm labelled the TOP tier "Admin", so
+  // relabelling the second tier to "Admin" would have put the same word on two rows of one
+  // matrix, with no way to tell which was which. Two tiers sharing a word is the failure that
+  // matters, and it is cheapest to assert at the source.
+  it('gives the five roles five different words', () => {
+    const words = ['admin', 'sub_admin', 'mentor', 'tutor', 'student'].map((r) => roleLabel(r))
+    expect(new Set(words).size).toBe(words.length)
+  })
+})
 
 describe('the retired tier name is not shown to anyone', () => {
   it('no string literal under src/ says "Sub Admin"', () => {
@@ -417,20 +444,38 @@ describe('the retired tier name is not shown to anyone', () => {
 })
 ```
 
-- [ ] **Step 3: Run it**
+- [x] **Step 3: Run it**
 
 Run: `npx vitest run tests/unit/role-labels-single-source.test.ts`
 
 Expected: PASS. Before this plan there were exactly seven offending string literals — `ui/labels.tsx:16`, `:119`, `settings-page.ts:36`, `NewMessageForm.tsx:13`, `MessagingMatrixForm.tsx:18`, `recipient-policy-shared.ts:49` and `mock/seed.ts:108` — and Tasks 1, 2, 3 and this task's Step 1 remove all seven. If it fails, it is naming a file one of those steps missed.
 
-- [ ] **Step 4: Prove the guard actually fails**
+- [x] **Step 4: Prove the guard actually fails**
 
 A guard that has never failed is decoration. Temporarily add `const retired = 'Sub Admin'` to `src/lib/ui/core.ts`, run the test, confirm it fails and names `lib/ui/core.ts`, then remove the line and re-run to green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 4b: Now the claim is true, make the comment say it**
+
+Task 1 deliberately left `src/lib/ui/labels.tsx` claiming only that the words are _decided_ here, because at that point four surfaces still spelled them and this guard did not exist. Both are now resolved, so replace the closing two lines of that comment block:
+
+```
+ * This file is where the words are DECIDED. A few surfaces still spell a label themselves
+ * because they need a plural or a persona-keyed record; prefer roleLabel/personaLabel. */
+```
+
+with:
+
+```
+ * This file decides the words. A surface that needs a plural or a persona-keyed record keeps
+ * its own map - NewMessageForm, MessagingMatrixForm, recipient-policy-shared, settings-page -
+ * and tests/unit/role-labels-single-source.test.ts fails if the retired wording returns to any
+ * string literal under src/. */
+```
+
+- [x] **Step 5: Commit**
 
 ```bash
-git add tests/unit/role-labels-single-source.test.ts src/lib/mock/seed.ts
+git add tests/unit/role-labels-single-source.test.ts src/lib/mock/seed.ts src/lib/ui/labels.tsx
 git commit -m "test(roles): the retired tier name cannot come back"
 ```
 
@@ -443,7 +488,7 @@ git commit -m "test(roles): the retired tier name cannot come back"
 - Modify: `docs/persona-model.md` (after the `# Persona model` heading, before `## 1. Two-layer model`)
 - Modify: `src/lib/services/users/admin-lifecycle.ts:32-40`
 
-- [ ] **Step 1: Put the mapping where a developer meets the model**
+- [x] **Step 1: Put the mapping where a developer meets the model**
 
 In `docs/persona-model.md`, insert immediately after the opening heading and its intro paragraph:
 
@@ -470,7 +515,7 @@ codebase — a security-critical migration to buy a vocabulary change.
 `tests/unit/role-labels-single-source.test.ts` fails if another one learns them.
 ```
 
-- [ ] **Step 2: Reword the three comments that describe the tier by its retired name**
+- [x] **Step 2: Reword the three comments that describe the tier by its retired name**
 
 In `src/lib/services/users/admin-lifecycle.ts`, replace lines 32-40 with:
 
@@ -488,13 +533,13 @@ const SUB_ADMIN_MANAGEABLE = new Set(['tutor', 'mentor', 'student'])
 
 The constant keeps its name: renaming `SUB_ADMIN_MANAGEABLE` would be the identifier rename this plan exists to avoid.
 
-- [ ] **Step 3: Check the docs still link up**
+- [x] **Step 3: Check the docs still link up**
 
 Run: `npm run check:doc-links`
 
 Expected: `All documentation links resolve.`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/persona-model.md src/lib/services/users/admin-lifecycle.ts
@@ -503,13 +548,14 @@ git commit -m "docs(roles): record that the words and the stored identifiers dis
 
 ---
 
-### Task 7: The staging suite's describe block
+### Task 7: The staging suites' stale wording
 
 **Files:**
 
 - Modify: `tests/staging/personas.staging.pw.ts:48`
+- Modify: `tests/staging-workflows/05-admin.workflow.pw.ts:22`
 
-- [ ] **Step 1: Rename the describe block**
+- [x] **Step 1: Rename the describe block**
 
 In `tests/staging/personas.staging.pw.ts`, line 48:
 
@@ -519,16 +565,26 @@ test.describe('staging - Admin', () => {
 
 Leave the `'subadmin'` persona key passed to `landsOnDashboard` alone — that is a fixture identifier, not a word anyone reads.
 
-- [ ] **Step 2: Run the suites that read the renamed fixture**
+- [x] **Step 1b: Fix the header comment that now contradicts its own test**
+
+`tests/staging-workflows/05-admin.workflow.pw.ts:22` reads "A sub-admin is offered only the roles they may create." Task 4 renamed the test below it to "an Admin may create only students, tutors and mentors", so the file header now describes a tier by a name the test no longer uses. Change it to:
+
+```
+ * An Admin is offered only the roles they may create.
+```
+
+**Deliberately left alone** in both staging suites: code comments, `console.log` labels, and the string arguments to `expect(..., 'message')` that are assertion failure messages. A sweep found ten such hits across three files; none is an asserted value, so none can fail a run, and rewording them all is cosmetic churn beyond what this work needs. The two changes above are made because each is a _title or header_ that now disagrees with the test it describes.
+
+- [x] **Step 2: Run the suites that read the renamed fixture**
 
 Run: `npm test`
 
 Expected: PASS, all files. If a test asserted the old fixture name "Sunil Sub-Admin", update that assertion to `'Sunil Admin'`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
-git add tests/staging/personas.staging.pw.ts
+git add tests/staging/personas.staging.pw.ts tests/staging-workflows/05-admin.workflow.pw.ts
 git commit -m "test(roles): the staging suite names the Admin tier"
 ```
 
@@ -536,7 +592,7 @@ git commit -m "test(roles): the staging suite names the Admin tier"
 
 ### Task 8: The whole gate
 
-- [ ] **Step 1: Run every check this repo gates on**
+- [x] **Step 1: Run every check this repo gates on**
 
 ```bash
 npm run format:check && npm run lint && npm run typecheck && npm test && npm run check:doc-links
@@ -544,13 +600,13 @@ npm run format:check && npm run lint && npm run typecheck && npm test && npm run
 
 Expected: formatting clean, zero lint warnings, typecheck clean, all test files passing, all documentation links resolving.
 
-- [ ] **Step 2: Run the browser suite**
+- [x] **Step 2: Run the browser suite**
 
 Run: `npx playwright test --project=chromium`
 
 Expected: all specs passing. A failure here is most likely a spec asserting the retired wording — change the assertion, not the label.
 
-- [ ] **Step 3: Confirm nothing stored changed**
+- [x] **Step 3: Confirm nothing stored changed**
 
 Using the hash recorded in Task 1 Step 0:
 
@@ -561,7 +617,7 @@ git diff $BASE -- src/lib/auth/profile.ts src/lib/permission/personas.ts src/lib
 
 Expected: **both empty.** This plan changes no migration, no enum value, no persona name and no capability. If either prints anything, something has strayed outside piece 1 and should be reverted before going further.
 
-- [ ] **Step 4: Commit anything outstanding**
+- [x] **Step 4: Commit anything outstanding**
 
 ```bash
 git status --porcelain
@@ -576,3 +632,39 @@ Expected: empty. If not, commit the remainder with a message naming what it is.
 - **Rename any stored identifier.** `sub_admin` stays `sub_admin` in the database, the enums, the 86 RLS policy references and every TypeScript type. Task 8 Step 3 proves it.
 - **Change any authority.** No capability is added, removed or re-scoped. Who may create or manage whom is exactly as before.
 - **Touch pieces 2 or 3.** The re-issue action and the add-several modal have their own plans.
+
+---
+
+## What shipped, and where it differed from this plan
+
+Executed 2026-10-12 in eight commits, `d175d97` through `f5297a0`. The gate ran clean at the end:
+formatting, zero lint warnings, typecheck, 232 test files / 1980 unit tests, 86/86 Playwright
+chromium specs, and all documentation links resolving. `git diff` against the branch point is
+empty for both `supabase/` and the identifier files, which is the proof that this stayed a
+relabel.
+
+Three places the shipped work is deliberately not what the task text above prescribed, each
+recorded because the plan was wrong rather than the implementation:
+
+1. **Task 5's scanner strips comments, and its quoted arms stop at a newline.** The pattern for
+   the retired forms is unchanged, but as written the scan flagged twelve files, every one a
+   docstring correctly describing the stored `sub_admin` tier. Two causes: nothing removed
+   comments, and `[^']*` crosses newlines, so an apostrophe in ordinary prose (`a student's
+classes`) opens a pseudo-literal that runs on until it swallows a nearby docstring. The
+   shipped test removes comments first and bounds the `'`/`"` arms with `[^'\n]`, which a real
+   literal cannot contain anyway; a third arm covers template literals, which legitimately span
+   lines. A vacuity check that the walk reads any files at all was added alongside.
+
+2. **Task 6's JSDoc does not say "or mentor".** The prescribed replacement claimed a `sub_admin`
+   is refused writes to "an admin-tier or mentor profile". `SUB_ADMIN_MANAGEABLE` contains
+   `mentor`, and `tests/unit/services/admin-lifecycle-tier.test.ts` asserts
+   `canManageTarget(subAdmin, 'mentor')` is true, so the clause was false. The shipped comment
+   names the admin tier only.
+
+3. **Task 7 commits two files, not one.** Step 1b edits a second file that Step 3's `git add`
+   never listed.
+
+One fix outside the plan's scope rode along in `01d6c61`: `.gitignore` covered
+`playwright-report/` and `playwright-report-staging/` but not
+`playwright-report-staging-workflows/`, so listing or running that third suite left an untracked
+report folder in the tree.
