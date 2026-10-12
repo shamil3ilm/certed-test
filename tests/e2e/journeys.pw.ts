@@ -102,6 +102,36 @@ test('ADMIN -- create class (as a student subject) -> announce -> issue receipt 
   await submitAndReload(page, () => add.getByRole('button', { name: 'Add user' }).click())
   await expect(page.getByText(newbieEmail)).toBeVisible()
 
+  // ADR-0008: a setup code is issued, never read back. Two re-issues must produce two
+  // DIFFERENT codes; the same code twice would mean the plaintext was stored somewhere.
+  // UserRow links by `full_name ?? email`, so the link text is the NAME. Two reasons this is
+  // not a bare getByRole: the row's "Permissions" link is labelled "Permissions for Eve Newbie
+  // (email)", which a substring name match also hits, hence `exact`; and the name is fixed
+  // while only the email is attempt-unique, so a retry leaves a second "Eve Newbie" row behind.
+  await page
+    .locator('li', { has: page.getByText(newbieEmail) })
+    .getByRole('link', { name: 'Eve Newbie', exact: true })
+    .click()
+  // Adding the user already issued a code, so the button reads "Re-issue setup code" here and
+  // "Issue a setup code" on an account with none; the substring matches both. SubmitButton's
+  // "Issuing..." pending label replaces it only AFTER the click has resolved the locator.
+  const invite = page.locator('form', { has: page.getByRole('button', { name: /issue setup code/i }) })
+  const shown = page.locator('[role=status] code')
+
+  await invite.getByRole('button', { name: /issue setup code/i }).click()
+  await expect(shown).toBeVisible()
+  const first = ((await shown.textContent()) ?? '').trim()
+  expect(first).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
+
+  await invite.getByRole('button', { name: /issue setup code/i }).click()
+  // This wait is what makes the second read trustworthy: useActionState holds the PREVIOUS
+  // result while the action is in flight, so without it the read can race and return the
+  // first code - and the test would pass for the wrong reason.
+  await expect(shown).not.toHaveText(first)
+  const second = ((await shown.textContent()) ?? '').trim()
+  expect(second).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
+  await expect(page.getByText(/previous code no longer works/i)).toBeVisible()
+
   // The activity log renders the audited actions just performed.
   await page.goto('/admin/history')
   await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
