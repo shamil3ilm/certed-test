@@ -111,6 +111,32 @@ export function AddSeveralButton({
   // is rare, but reporting it as silence would be worse than rare.
   const showResults = outcome !== undefined && (outcome.created.length > 0 || outcome.failed.length > 0)
 
+  /**
+   * Closing is the only thing on this screen that destroys anything.
+   *
+   * The codes are stored nowhere - only a hash is (ADR-0008) - so they exist in this panel and
+   * nowhere else. The shared Modal closes on the backdrop, on Escape and on the X, all through
+   * this one handler and none of them deliberate: a `size="lg"` panel leaves a lot of backdrop
+   * to misclick, and Escape is reflex after reading something. One of those takes up to 25
+   * credentials with it.
+   *
+   * So the confirm is only ever shown when there is something to lose, and the wording says
+   * what is lost rather than asking "are you sure?". Re-issuing each code afterwards is a click
+   * per person, which is the cost this prevents.
+   */
+  const closeModal = () => {
+    const created = outcome?.created.length ?? 0
+    if (created > 0) {
+      const subject = created === 1 ? 'This setup code has' : `These ${created} setup codes have`
+      const ok = window.confirm(
+        `${subject} not been copied anywhere yet, and cannot be shown again.\n\n` +
+          `Close this window and each person needs a new code issued one at a time.`,
+      )
+      if (!ok) return
+    }
+    setOpen(false)
+  }
+
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className="btn btn-soft">
@@ -118,7 +144,7 @@ export function AddSeveralButton({
         Add several
       </button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Add several people" size="lg">
+      <Modal open={open} onClose={closeModal} title="Add several people" size="lg">
         <p className="mb-3 text-sm text-slate-600">
           Up to {MAX_BATCH_ROWS} at a time. Every row is checked before anything is written, so one bad row costs
           nothing - and each account created gets a setup code shown here once.

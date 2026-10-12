@@ -13,10 +13,15 @@ export function ProfileMenu({ name, email, roleLabel }: { name: string; email: s
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
-    // Escape closes the menu and returns focus to the trigger, so a keyboard
-    // user isn't left with focus stranded inside a dismissed menu.
+    // Escape closes the menu and returns focus to the trigger, so a keyboard user isn't left
+    // with focus stranded inside a dismissed menu.
+    //
+    // Guarded on `open`, and that guard is load-bearing: the listener is on `document`, so
+    // without it EVERY Escape in the portal pulled focus to this avatar - including the one
+    // that dismisses a dialog, which had just restored focus to whatever opened it. The
+    // account menu would silently win that race on every modal in the app.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && open) {
         setOpen(false)
         triggerRef.current?.focus()
       }
@@ -27,7 +32,7 @@ export function ProfileMenu({ name, email, roleLabel }: { name: string; email: s
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onKey)
     }
-  }, [])
+  }, [open])
 
   const badge = initials(name || email)
 
