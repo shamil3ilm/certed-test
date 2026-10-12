@@ -15,7 +15,9 @@ import {
   removeMentorFromActionInput,
   replaceMentorFromActionInput,
 } from '@/lib/services/mentorships'
-import { inviteUser } from '@/lib/services/user-invites'
+import { inviteUser, inviteUsersBatch, type BatchOutcome } from '@/lib/services/user-invites'
+import type { BatchRowInput } from '@/lib/services/user-invites-validation'
+import { creatableRolesFor } from '@/lib/services/page-data/admin-users'
 import { ServiceError } from '@/lib/errors'
 
 export type AddUserState = {
@@ -53,6 +55,41 @@ export async function addUserAction(_prev: AddUserState, formData: FormData): Pr
     return { ok: true, code, email: profile.email }
   } catch (e) {
     return mapAddUserError(e)
+  }
+}
+
+export type BatchState = { ok?: boolean; outcome?: BatchOutcome; error?: string }
+
+/**
+ * Add several invited accounts, and return the result with the codes in it.
+ *
+ * Returns state rather than redirecting, like addUserAction and the re-issue action: each code
+ * is shown exactly once, so a redirect would issue up to 25 of them and discard them all.
+ *
+ * The rows arrive as JSON in one field rather than as `rows[0][email]`-style keys, because the
+ * modal owns a dynamic list and one parsed payload keeps the row shape in a single place. The
+ * payload is untrusted either way: every row goes through validateInviteBatch, and `creatable`
+ * is recomputed HERE from the actor - never read from the request - so a crafted payload cannot
+ * widen what it may create.
+ */
+export async function addUsersBatchAction(_prev: BatchState, formData: FormData): Promise<BatchState> {
+  const me = await requireCapability('manageUsers')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(String(formData.get('rows') ?? '[]'))
+  } catch {
+    return { error: 'Could not read the list of people.' }
+  }
+  if (!Array.isArray(parsed)) return { error: 'Could not read the list of people.' }
+
+  try {
+    const { roleOptions } = await creatableRolesFor(me)
+    const outcome = await inviteUsersBatch(me, parsed as BatchRowInput[], roleOptions)
+    revalidatePath('/admin/users')
+    return { ok: outcome.created.length > 0, outcome }
+  } catch (error) {
+    if (error instanceof ServiceError) return { error: error.message }
+    throw error
   }
 }
 

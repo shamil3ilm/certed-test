@@ -13,6 +13,30 @@ import {
   type ProfileLite,
 } from '@/lib/services/users'
 
+/**
+ * The roles this actor may create, and whether they may assign a mentor.
+ *
+ * Exported because TWO callers need the identical answer: this page loader, which renders the
+ * options, and the add-several-users action, which recomputes it server-side rather than
+ * trusting the submitted payload. A second copy of these rules would be a copy that drifts,
+ * and the drift would be an authority bug - one surface offering a role the other refuses.
+ *
+ * Only a full admin creates the admin tier (sub_admin / admin); a sub_admin creates every
+ * other non-admin account - students, tutors, and mentors (matches canManageTarget /
+ * SUB_ADMIN_MANAGEABLE).
+ *
+ * A student is created WITH a mentor, and assigning one needs manageMentorships (admin and
+ * sub_admin hold it; an override can take it away). Without it the student option would fail
+ * on submit, so it is not offered - and the form says why.
+ */
+export async function creatableRolesFor(me: Profile): Promise<{ roleOptions: string[]; canAssignMentor: boolean }> {
+  const creatable = isAdminTier(me)
+    ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin']
+    : ['student', 'tutor', 'mentor']
+  const canAssignMentor = await actorHasCapability(me.id, 'manageMentorships')
+  return { roleOptions: canAssignMentor ? creatable : creatable.filter((r) => r !== 'student'), canAssignMentor }
+}
+
 export const USERS_PAGE_SIZE = 20
 export const STATUS_OPTIONS = ['active', 'pending', 'disabled'] as const
 type UsersStatus = (typeof STATUS_OPTIONS)[number]
@@ -202,15 +226,7 @@ export async function loadAdminUsersPageData(
   // Hard-rule identity (manageAdminTier is never override-granted), so the Profile
   // overload already equals the resolved answer - no resolved-set threading needed.
   const isSuper = isAdminTier(me)
-  // Only a full admin creates the admin tier (sub_admin / admin); a sub_admin creates
-  // every other non-admin account - students, tutors, and mentors (matches
-  // canManageTarget / SUB_ADMIN_MANAGEABLE).
-  const creatable = isSuper ? ['student', 'tutor', 'mentor', 'sub_admin', 'admin'] : ['student', 'tutor', 'mentor']
-  // A student is created WITH a mentor, and assigning one needs manageMentorships (admin and
-  // sub_admin hold it; an override can take it away). Without it the student option would fail
-  // on submit, so it is not offered - and the form says why.
-  const canAssignMentor = await actorHasCapability(me.id, 'manageMentorships')
-  const roleOptions = canAssignMentor ? creatable : creatable.filter((r) => r !== 'student')
+  const { roleOptions, canAssignMentor } = await creatableRolesFor(me)
 
   // The Mentor-assignments tab is student-centric (each row is a student + their
   // mentor links), so it always loads students regardless of the People role filter.
