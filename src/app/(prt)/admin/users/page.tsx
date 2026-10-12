@@ -4,6 +4,7 @@ import { getActorContext } from '@/lib/session/actor-context'
 import { loadAdminUsersPageData, ROLE_TABS, USER_TABS, usersUrl } from '@/lib/services/page-data/admin-users'
 import { AlertBanner, PageHeader, StatCard, StatGrid, EmptyState, cx } from '@/lib/ui'
 import { AddUserForm } from './AddUserForm'
+import { AddSeveralButton } from './AddSeveralButton'
 import { UserRow } from './UserRow'
 import { UsersFilterBar } from './UsersFilterBar'
 import { UsersPagination } from './UsersPagination'
@@ -67,11 +68,22 @@ export default async function AdminUsersPage(props: {
       </StatGrid>
 
       {canManage && (
-        <AddUserForm
-          roles={data.roleOptions}
-          mentorCandidates={data.mentorCandidates}
-          canAssignMentor={data.canAssignMentor}
-        />
+        <>
+          <AddUserForm
+            roles={data.roleOptions}
+            mentorCandidates={data.mentorCandidates}
+            canAssignMentor={data.canAssignMentor}
+          />
+          {/* The same props, so what a batch may create is the same server-side decision the
+              single form already made - never a second copy of the rule. */}
+          <div className="mt-3 flex justify-end">
+            <AddSeveralButton
+              roles={data.roleOptions}
+              mentorCandidates={data.mentorCandidates}
+              canAssignMentor={data.canAssignMentor}
+            />
+          </div>
+        </>
       )}
 
       <nav className="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200">
