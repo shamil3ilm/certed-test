@@ -165,9 +165,13 @@ export type ProfileDetails = Profile & {
   joined_on: string | null
   qualifications: string | null
   bio: string | null
+  setup_code_expires_at: string | null
 }
 
-const PROFILE_DETAIL_COLUMNS = `${PROFILE_COLUMNS_WITH_CREATED}, country, phone, guardian_name, guardian_phone, date_of_birth, joined_on, qualifications, bio`
+// `setup_code_expires_at` is here so the detail page can say whether an invite is still live.
+// The HASH is deliberately absent: it is an unsalted SHA-256 over an 8-character alphabet, so
+// shipping it to a page would make an outstanding code guessable.
+const PROFILE_DETAIL_COLUMNS = `${PROFILE_COLUMNS_WITH_CREATED}, country, phone, guardian_name, guardian_phone, date_of_birth, joined_on, qualifications, bio, setup_code_expires_at`
 
 export async function selectProfileDetailsById(id: string): Promise<ProfileDetails | null> {
   const admin = createAdminClient()
