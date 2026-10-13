@@ -14,16 +14,18 @@ import { TERMS_VERSION, PRIVACY_VERSION } from '@/lib/policy/versions'
 /**
  * Record a person's acceptance of the CURRENT Terms + Privacy Policy - the append-only
  * audit trail the privacy policy promises: which versions were accepted, and when.
- * Called when someone completes account setup (the register form states that completing
- * it is the acceptance).
+ * Called when someone completes account setup, where a required tick states what they are
+ * agreeing to.
  *
- * Records ONLY the signals actually captured at the call site. The self-setup flow
- * captures just the account holder's acceptance of the two policy versions, so it passes
- * no options and the remaining columns keep their honest defaults - a record must not
- * assert a signal the flow never captured:
- *   - guardian_consent -> false unless a genuine guardian-consent step captured it. A
- *     child completing their OWN setup is not guardian consent and must never be logged
- *     as such (the policy names guardian consent as the lawful basis for a minor).
+ * Records ONLY the signals actually captured at the call site - a record must not assert a
+ * signal the flow never captured:
+ *   - guardian_consent -> true only where the tick carried the guardian attestation and the
+ *     SERVER resolved the account as a minor's (ADR-0009). The box reads "if the account holder
+ *     is under 18, I confirm a parent or guardian has read them and consents on their behalf",
+ *     so for a minor it is a specific statement about a named adult, recorded with its version
+ *     and timestamp - not an incidental by-product of someone setting up an account. It is an
+ *     ATTESTATION, not verified consent: whoever ticks it may not have asked anyone. Describe it
+ *     that way in any assessment, and prefer the guardian-side consent link once email is live.
  *   - cross_border_consent -> false unless a distinct cross-border step captured it. The
  *     policy states the transfer basis is still being finalised, so accepting the policy
  *     is NOT an affirmative cross-border consent and is not recorded as one.

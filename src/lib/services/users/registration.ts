@@ -51,17 +51,20 @@ export async function completePasswordRegistration(input: RegisterInput): Promis
   const codeHash = target.setup_code_hash
   if (!codeHash || !setupCodeValid(input.code, codeHash, target.setup_code_expires_at)) return invalid
 
-  // Guardian consent: a minor may only set up their account with a parent/guardian's
-  // attested consent. Checked BEFORE creating the auth account so a refusal leaves no orphan.
-  // A distinct (non-uniform) message: this is a genuine "what to do next", not a probe vector -
-  // it only fires once the email + code have already validated.
-  const needsGuardian = requiresGuardianConsent(target)
-  if (needsGuardian && !input.guardian_consent) {
+  // Nobody gets an account without accepting the policies. Checked BEFORE creating the auth
+  // account so a refusal leaves no orphan login behind. A distinct (non-uniform) message: this
+  // is a genuine "what to do next", not a probe vector - it only fires once the email and code
+  // have already validated.
+  if (!input.policies_accepted) {
     return {
-      error: 'A parent or guardian must consent before a student under 18 can set up their account.',
+      error: 'Please agree to the Terms of Use and Privacy Policy to set up your account.',
       code: ERROR_CODES.invalidInput,
     }
   }
+  // Whether that tick ALSO counts as guardian consent is decided HERE, never by the form: the
+  // form cannot know who is registering, and the box is worded to cover the under-18 case
+  // precisely so this decision can be made on the server (ADR-0009).
+  const needsGuardian = requiresGuardianConsent(target)
 
   const created = await createAuthUser(input.email, input.password)
   if (!created) {
