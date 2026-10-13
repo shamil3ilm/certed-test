@@ -5,6 +5,7 @@ import { type ClassSummary } from '@/lib/services/classes'
 import { listTags, type Tag } from '@/lib/services/tags'
 import { listSubjects } from '@/lib/services/subjects'
 import { classroomUrl, loadClassroomPageData, type ClassroomSearchParams } from '@/lib/services/page-data/classroom'
+import { usersUrl } from '@/lib/services/page-data/admin-users'
 import {
   AlertBanner,
   PageHeader,
@@ -23,13 +24,19 @@ import {
 import { TagChips } from '../tags/TagChips'
 import { StudentGroup } from './StudentGroup'
 
-/** A class is always a student's SUBJECT (created from the student's page - "Add
- *  subject"), so there is no standalone "new class" here; admins are pointed to the
- *  student directory where subjects (= classes) are set up. */
+/** A class is always a student's SUBJECT (created from the student's page - "Add subject"),
+ *  so there is no standalone "new class" here; admins are pointed to the student directory
+ *  where subjects (= classes) are set up.
+ *
+ *  The label names the student explicitly and the link lands on the STUDENT list, because a
+ *  button reading "Add a subject" that silently navigates to a page headed by an add-a-PERSON
+ *  form reads as a misrouted link. The page says as much already - "open a student and use
+ *  'Add subject'" - but only in its empty state, so an academy that has any classes at all
+ *  never sees the one sentence that explains where the button goes. */
 function AddSubjectCta() {
   return (
-    <Link href="/admin/users" className="btn btn-primary btn-sm">
-      Add a subject
+    <Link href={usersUrl({ tab: 'people', role: 'student' })} className="btn btn-primary btn-sm">
+      Add a subject to a student
     </Link>
   )
 }
