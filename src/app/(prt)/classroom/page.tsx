@@ -5,7 +5,7 @@ import { type ClassSummary } from '@/lib/services/classes'
 import { listTags, type Tag } from '@/lib/services/tags'
 import { listSubjects } from '@/lib/services/subjects'
 import { classroomUrl, loadClassroomPageData, type ClassroomSearchParams } from '@/lib/services/page-data/classroom'
-import { listActiveProfilesByRoles } from '@/lib/services/users/directory'
+import { listActiveProfilesByRoles, listAssignableStudents } from '@/lib/services/users/directory'
 import {
   AlertBanner,
   PageHeader,
@@ -200,7 +200,11 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
   // A second, guarded step rather than another leg of the Promise.all above: the condition
   // (flags.isClassAdmin) is itself one of that call's results, so it cannot be known earlier.
   const [studentOptions, staffOptions] = isAdmin
-    ? await Promise.all([listActiveProfilesByRoles(['student']), listActiveProfilesByRoles(['tutor', 'mentor'])])
+    ? // Students: PENDING ones too. Setting a new student's subjects up before they have ever
+      // signed in is the ordinary onboarding order, and addSubjectToStudent accepts them -
+      // an active-only picker would hide exactly the students this dialog is most used for.
+      // Tutors: active only, because a pending tutor cannot yet be given work.
+      await Promise.all([listAssignableStudents(), listActiveProfilesByRoles(['tutor', 'mentor'])])
     : [[], []]
 
   // Student and tutor are mutually exclusive (role is fixed and single; a student

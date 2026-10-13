@@ -225,6 +225,35 @@ export async function selectActiveProfilesByRoles(
   return (data ?? []) as NamedProfileRow[]
 }
 
+/**
+ * Students a subject may be assigned to: everyone whose account is not REVOKED.
+ *
+ * Separate from selectActiveProfilesByRoles because the rule is different, and the difference
+ * is the point. A picker of people to assign WORK to wants active accounts only. A picker of
+ * students to set up SUBJECTS for must include `pending` ones, because that is the onboarding
+ * case - the admin adds the person, then gives them their subjects, before they have ever
+ * signed in. `addSubjectToStudent` encodes exactly that rule ("only a revoked account is
+ * rejected"), so this read mirrors it rather than offering a list the service would refuse,
+ * or hiding students the service would accept.
+ */
+export async function selectAssignableStudents(): Promise<NamedProfileRow[]> {
+  const admin = createAdminClient()
+  // Paged, because `profiles` grows with the academy and a bare select is truncated at the
+  // PostgREST row cap without saying so - which here would be a picker quietly missing
+  // students, with nothing on screen to suggest the list was cut. `id` is a total order.
+  return (await fetchAllPaged<NamedProfileRow>(
+    (from, to) =>
+      admin
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .eq('role', 'student')
+        .neq('status', 'disabled')
+        .order('id', { ascending: true })
+        .range(from, to),
+    'data.profiles.selectAssignableStudents',
+  )) as NamedProfileRow[]
+}
+
 export async function selectProfileByEmail(email: string): Promise<Profile | null> {
   const admin = createAdminClient()
   const { data, error } = await admin

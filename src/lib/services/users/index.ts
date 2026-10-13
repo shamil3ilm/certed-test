@@ -21,6 +21,7 @@ export {
   getProfileById,
   listActiveByRole,
   listActiveMentorCandidates,
+  listAssignableStudents,
   listActiveTeacherCandidates,
   searchProfileIds,
   getProfileByEmail,

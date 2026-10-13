@@ -3,6 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import {
   countProfiles,
   selectActiveProfilesByRoles,
+  selectAssignableStudents,
   selectProfileByEmail,
   selectProfileById,
   selectProfileDetailsById,
@@ -147,6 +148,18 @@ export async function getProfileByEmail(email: string): Promise<Profile | null> 
  *  manageable-target check on the admin page; self-scope in settings). */
 export async function getProfileDetails(id: string): Promise<ProfileDetails | null> {
   return selectProfileDetailsById(id)
+}
+
+/** Students a subject may be assigned to - pending ones included, because setting up a new
+ *  student's subjects before they first sign in is the ordinary onboarding order. Mirrors the
+ *  rule addSubjectToStudent enforces, so the picker cannot offer a student the write refuses. */
+export async function listAssignableStudents(): Promise<
+  { id: string; full_name: string | null; email: string; role: string | null }[]
+> {
+  // Sorted HERE, not in the query: the read pages by `id` because that is the only stable
+  // total order to page on, so the rows arrive in id order and a picker wants them by name.
+  const rows = await selectAssignableStudents()
+  return rows.sort((a, b) => (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email))
 }
 
 /** A profile's fixed-identity role, used to pick the right detail view. */
