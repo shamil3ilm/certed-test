@@ -10,6 +10,8 @@ import {
 } from '@/lib/services/classes'
 import { enrolStudentFromActionInput, removeStudentFromActionInput } from '@/lib/services/enrollments'
 import { addTutorFromActionInput, removeTutorFromActionInput } from '@/lib/services/class-tutors'
+import { createOrReuseSubject } from '@/lib/services/subjects'
+import { addSubjectToStudent } from '@/lib/services/class-subjects'
 import { classErrorUrl } from '../action-redirect'
 
 // The '(prt)' route GROUP is part of the tag Next derives: a built page is identified as
@@ -36,9 +38,11 @@ const peopleErrorUrl = (formData: FormData) => classErrorUrl(formData, { sub: 'p
 // here, requireActorCapability in the service), so the two can't disagree. Day-to-day
 // enrolment (bottom) uses manageClassContent because its service is not class-admin-only.
 
-// A class is created only as a student's SUBJECT (services/class-subjects →
-// addSubjectToStudent), so there is no standalone create action here - classes always
-// carry a subject_id. Lifecycle below is rename / archive / restore / staffing.
+// A class is created only as a NAMED STUDENT's subject (services/class-subjects →
+// addSubjectToStudent), so classes always carry a student and a subject_id - there is still
+// no way to create one standing on its own. addSubjectForStudentAction at the foot of this
+// file is that create, reached from the Classes page; the student's own page reaches the same
+// service through addSubjectAction. Lifecycle below is rename / archive / restore / staffing.
 
 // Whole-class management (rename, archive/restore, co-tutor add/remove) requires
 // manageClasses - a single tutor shouldn't be able to rename/hide a shared class or
@@ -136,4 +140,46 @@ export async function removeStudentAction(formData: FormData) {
     throw error
   }
   refresh()
+}
+
+/** `added` is the created class's name, which already reads "Sara Student - Physics" - the
+ *  student AND the subject, straight from the row that was written. The dialog keeps the
+ *  student selected between submits, so a name the CLIENT remembered could label this add
+ *  with whoever is selected by the time it is read. */
+export type AddSubjectState = { ok?: boolean; error?: string; added?: string }
+
+/**
+ * Create a class for a student from the Classes page: pick the student, the subject and
+ * (optionally) the tutor. Same two services the student's own page uses - both take the
+ * student id as input, so neither needed widening for this entry point.
+ *
+ * Deliberately NOT the redirect-on-error shape the rest of this file uses: this one is
+ * submitted from a MODAL on /classroom, and a redirect to ?error=1 would throw the admin off
+ * the page and take the half-filled dialog with it. Returns state instead, like
+ * reissueCodeAction and addUsersBatchAction. The message comes from the service and is already
+ * user-facing; an unknown error is re-thrown rather than forwarded to the browser.
+ */
+export async function addSubjectForStudentAction(_prev: AddSubjectState, formData: FormData): Promise<AddSubjectState> {
+  const me = await requireCapability('manageClasses')
+  const studentId = String(formData.get('student_id') ?? '').trim()
+  // The <select> opens on a blank option, so an unanswered form posts an empty id. Named here
+  // rather than left to the uuid schema, whose message is about the shape of a value the admin
+  // never sees.
+  if (!studentId) return { error: 'Choose a student.' }
+  try {
+    const subject = await createOrReuseSubject(me, { name: formData.get('subject') })
+    const created = await addSubjectToStudent(me, {
+      studentId,
+      subjectId: subject.id,
+      tutorId: String(formData.get('tutor_id') ?? '').trim() || undefined,
+    })
+    // Both views of the same fact: the Classes list this was added from, and the student's
+    // own page where the subject also appears.
+    refresh()
+    revalidatePath(`/admin/users/${studentId}`)
+    return { ok: true, added: created.name }
+  } catch (error) {
+    if (error instanceof ServiceError) return { error: error.message }
+    throw error
+  }
 }

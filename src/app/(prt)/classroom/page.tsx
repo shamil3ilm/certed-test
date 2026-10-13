@@ -5,7 +5,7 @@ import { type ClassSummary } from '@/lib/services/classes'
 import { listTags, type Tag } from '@/lib/services/tags'
 import { listSubjects } from '@/lib/services/subjects'
 import { classroomUrl, loadClassroomPageData, type ClassroomSearchParams } from '@/lib/services/page-data/classroom'
-import { usersUrl } from '@/lib/services/page-data/admin-users'
+import { listActiveProfilesByRoles } from '@/lib/services/users/directory'
 import {
   AlertBanner,
   PageHeader,
@@ -23,23 +23,7 @@ import {
 
 import { TagChips } from '../tags/TagChips'
 import { StudentGroup } from './StudentGroup'
-
-/** A class is always a student's SUBJECT (created from the student's page - "Add subject"),
- *  so there is no standalone "new class" here; admins are pointed to the student directory
- *  where subjects (= classes) are set up.
- *
- *  The label names the student explicitly and the link lands on the STUDENT list, because a
- *  button reading "Add a subject" that silently navigates to a page headed by an add-a-PERSON
- *  form reads as a misrouted link. The page says as much already - "open a student and use
- *  'Add subject'" - but only in its empty state, so an academy that has any classes at all
- *  never sees the one sentence that explains where the button goes. */
-function AddSubjectCta() {
-  return (
-    <Link href={usersUrl({ tab: 'people', role: 'student' })} className="btn btn-primary btn-sm">
-      Add a subject to a student
-    </Link>
-  )
-}
+import { AddSubjectModal } from './AddSubjectModal'
 
 /** A 1-on-1 class names its single member; a group class (or an empty one) keeps
  *  the count. A student sees who teaches them; everyone else sees who is taught. */
@@ -208,6 +192,17 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
   const isStudent = flags.isStudent
   const isTeacher = flags.isTutor
 
+  // The pickers inside the Add-a-subject dialog, and nothing else on this page, need these two
+  // lists - so they are fetched only for the reader who gets the button. This page is also
+  // served to every student and tutor, and reading the whole student directory for someone who
+  // will never see the dialog is a wasted round trip on every page view.
+  //
+  // A second, guarded step rather than another leg of the Promise.all above: the condition
+  // (flags.isClassAdmin) is itself one of that call's results, so it cannot be known earlier.
+  const [studentOptions, staffOptions] = isAdmin
+    ? await Promise.all([listActiveProfilesByRoles(['student']), listActiveProfilesByRoles(['tutor', 'mentor'])])
+    : [[], []]
+
   // Student and tutor are mutually exclusive (role is fixed and single; a student
   // is never granted a tutor persona and vice-versa), so there is no learner+teacher
   // hybrid to caption for.
@@ -221,7 +216,22 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Classes" description={subtitle} action={isAdmin ? <AddSubjectCta /> : undefined} />
+      <PageHeader
+        title="Classes"
+        description={subtitle}
+        action={
+          isAdmin ? (
+            <AddSubjectModal
+              students={studentOptions.map((s) => ({ id: s.id, name: s.full_name ?? s.email }))}
+              // The picker offers tutors AND mentors, so it carries the role: assigning someone
+              // to teach attributes their sessions and their hours, which reach payslips, and a
+              // name on its own does not say which kind of account is being chosen.
+              tutors={staffOptions.map((t) => ({ id: t.id, name: t.full_name ?? t.email, role: t.role }))}
+              subjectNames={allSubjects.map((s) => s.name)}
+            />
+          ) : undefined
+        }
+      />
 
       {searchParams?.error === '1' && (
         <AlertBanner className="mb-4">That change couldn&apos;t be applied. Please try again.</AlertBanner>
@@ -267,7 +277,9 @@ export default async function ClassroomPage(props: { searchParams?: Promise<Clas
           {data.hasActiveFilters
             ? 'No classes match these filters.'
             : isAdmin
-              ? 'No classes yet - open a student and use "Add subject" to create one.'
+              ? // The create is on this page now, so the hint names the button above rather
+                // than sending an admin to the student directory to find it.
+                'No classes yet - use "Add a subject" above to create one.'
               : isStudent
                 ? 'You are not enrolled in any classes yet. An admin will add you.'
                 : isTeacher

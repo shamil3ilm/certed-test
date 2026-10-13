@@ -123,6 +123,21 @@ export function staffRoleLabel(input: { role?: string | null; teaches?: boolean;
   return roleLabel(input.role)
 }
 
+/**
+ * Name plus role for an assignable-staff option.
+ *
+ * One picker list holds tutors AND mentors, and choosing either assigns them to TEACH a
+ * subject - their sessions are attributed to them and their hours reach payslips. The role is
+ * shown so that is a decision rather than a guess at whose name is whose.
+ *
+ * Shared (§7.4) because two surfaces now offer that choice: the student's own Subjects panel
+ * and the Add-a-subject dialog on the Classes page. One wording, so the same list of people
+ * cannot read two ways depending on where it is opened.
+ */
+export function staffPickerLabel(option: { name: string; role?: string | null }): string {
+  return option.role ? `${option.name} - ${roleLabel(option.role)}` : option.name
+}
+
 /** Highest-privilege label for a set of active personas - the persona-native
  *  counterpart to roleLabel, reflecting the real authorization model rather than
  *  a single profiles.role value. */

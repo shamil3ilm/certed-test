@@ -1,5 +1,5 @@
 'use client'
-import { Card, EmptyState, roleLabel } from '@/lib/ui'
+import { Card, EmptyState, staffPickerLabel } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import type { StudentSubject } from '@/lib/services/page-data/user-detail'
@@ -12,16 +12,6 @@ import {
 } from './actions'
 
 type TutorOption = { id: string; name: string; role?: string | null }
-
-/** Name plus role for the assignable-staff options.
- *
- *  This one list holds tutors and mentors, and picking either assigns them to TEACH the
- *  subject - their sessions are attributed to them and their hours reach payslips. The role
- *  is shown so that is a decision rather than a guess at whose name is whose.
- */
-function staffPickerLabel(option: TutorOption): string {
-  return option.role ? `${option.name} - ${roleLabel(option.role)}` : option.name
-}
 
 /**
  * Manage a student's subjects (each = one of their 1:1 classes) - add a subject with

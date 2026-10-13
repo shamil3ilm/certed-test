@@ -25,6 +25,7 @@ export {
   submissionLabel,
   mentoringSectionLabel,
   staffRoleLabel,
+  staffPickerLabel,
   personaLabel,
   Badge,
   SectionLabel,
