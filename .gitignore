@@ -43,6 +43,10 @@ playwright-report-staging/
 playwright-report-staging-workflows/
 .playwright/
 
+# Screenshots captured for the staff handbook. The guide embeds them and lives outside the
+# repo, so the PNGs are a build artifact of writing it - never source.
+guide-shots/
+
 # Local Claude Code tooling config (per-machine; never shared)
 .claude/
 
