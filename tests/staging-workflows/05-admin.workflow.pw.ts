@@ -100,34 +100,28 @@ test.describe.serial('ADMIN', () => {
     await expect(page.locator('main').getByText(NAME).first()).toBeVisible()
   })
 
-  test('super admin cannot override a capability on a pending account, and is told why', async ({ page }) => {
+  test('the permissions page of a pending account says so, and is not editable', async ({ page }) => {
     await loginAs(page, 'superadmin')
     await open(page, `/admin/users/${userId}/permissions`)
+
+    // Overrides apply to ACTIVE accounts only (0108). The page used to let an admin try and
+    // only refuse on save; it now says so up front and locks the controls, so this asserts the
+    // explanation and the lock rather than a refusal message that no longer fires.
+    await expect(page.getByText(/pending - it has not signed in yet/i)).toBeVisible()
+    await expect(page.getByText(/apply to active accounts only/i)).toBeVisible()
+
     const row = page.getByRole('group', { name: 'Permission' }).first()
     await expect(row).toBeVisible()
-    const before = await textOf(row)
-
-    // The new account has never signed in, so it is Pending: overrides apply to active accounts
-    // only (0108). The choice must be refused with a reason, not kept on screen.
     const deny = row.getByRole('button', { name: 'Deny', exact: true })
-    const refusal = page.getByText('You can only change capabilities for an active user.').first()
-    await expect(async () => {
-      if (!(await refusal.isVisible())) await deny.click()
-      await expect(refusal).toBeVisible({ timeout: 3000 })
-    }).toPass({ timeout: 30_000 })
+    await expect(deny).toBeDisabled()
+    await expect(deny).toHaveAttribute('aria-pressed', 'false')
 
+    // And the lock is not merely visual: clicking changes nothing, here or after a reload.
+    await deny.click({ force: true }).catch(() => null)
     await reload(page)
     await expect(
       page.getByRole('group', { name: 'Permission' }).first().getByRole('button', { name: 'Deny', exact: true }),
     ).toHaveAttribute('aria-pressed', 'false')
-    const main = await page.locator('main').innerText()
-    if (!/pending|active user|not active/i.test(main)) {
-      note(
-        'the permissions page of a pending account does not say overrides need an active account; ' +
-          'every control looks editable until it is refused',
-      )
-    }
-    console.log(`permission row: ${before.slice(0, 120)}`)
   })
 
   test('an archived class takes no new classwork', async ({ page }) => {
