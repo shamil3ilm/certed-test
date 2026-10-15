@@ -64,6 +64,18 @@ export async function insertSlot(row: TimetableSlotInsert): Promise<TimetableSlo
   return data as TimetableSlotRow
 }
 
+/**
+ * Remove a slot outright. Distinct from updateSlot({ active: false }), which only pauses it.
+ *
+ * Safe for the events it generated: calendar_events.slot_id is ON DELETE SET NULL, so sessions
+ * already on the calendar survive the slot being removed and simply stop pointing at it.
+ */
+export async function deleteSlot(id: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('timetable_slots').delete().eq('id', id)
+  if (error) throw new Error(`deleteSlot: ${error.message}`)
+}
+
 export async function updateSlot(id: string, patch: TimetableSlotPatch): Promise<TimetableSlotRow> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('timetable_slots').update(patch).eq('id', id).select('*').single()

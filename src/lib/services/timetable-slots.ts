@@ -4,6 +4,7 @@ import {
   selectSlotById,
   selectSlots,
   updateSlot as updateSlotRowInDb, // aliased: the domain's own updateSlot is the gated one
+  deleteSlot as deleteSlotRowInDb, // likewise - the gated one below carries the authority
   type SlotFilters,
   type TimetableSlotRow,
 } from '@/lib/data/timetable-slots'
@@ -103,20 +104,37 @@ export async function updateSlotFromApiInput(actor: Profile, id: unknown, input:
   return updateSlot(actor, validateSlotId(id), validateUpdateSlotInput(input))
 }
 
-// Deactivate = soft-delete (spec section 8: content soft-deleted; the slot stops expanding).
-export async function deactivateSlot(actor: Profile, id: string): Promise<TimetableSlot> {
+/**
+ * Remove a slot from the timetable for good.
+ *
+ * Pausing is the other operation and stays available: PATCH { active: false } leaves the slot
+ * listed, struck through, with an Activate button. The two were the same call once, so "Delete"
+ * only deactivated - leaving the row on screen looking as though nothing had happened, and no
+ * way to remove a slot at all.
+ *
+ * A HARD delete, deliberately, where the spec soft-deletes CONTENT (announcements, submissions)
+ * so a record of what was said survives. A timetable slot is not content - it is schedule
+ * configuration, and a struck-through list that only ever grows is the cost of keeping every
+ * one forever. Nothing is lost by removing it: calendar_events.slot_id is ON DELETE SET NULL,
+ * so sessions already on the calendar survive and simply stop pointing at the slot, and the
+ * audit row records the removal.
+ *
+ * The row is read before the delete so the caller still has something to report and the class
+ * can be told what went.
+ */
+export async function deleteSlot(actor: Profile, id: string): Promise<TimetableSlot> {
   const existing = await getSlot(id)
   if (!existing) throw new NotFoundError('Timetable slot not found')
   if (!(await canWriteCalendar(actor, existing.class_id))) {
     throw new PermissionError('Not authorized for this class.')
   }
-  const updated = await updateSlotRowInDb(id, { active: false })
-  await auditPrivilegedAction(actor, 'timetable.deactivate', 'timetable_slot', id)
-  await notifyClassOfSlotChange(updated, 'removed')
-  return updated
+  await deleteSlotRowInDb(id)
+  await auditPrivilegedAction(actor, 'timetable.delete', 'timetable_slot', id)
+  await notifyClassOfSlotChange(existing, 'removed')
+  return existing
 }
 
-export async function deactivateSlotFromApiInput(actor: Profile, id: unknown): Promise<TimetableSlot> {
+export async function deleteSlotFromApiInput(actor: Profile, id: unknown): Promise<TimetableSlot> {
   throttleWrite('timetable', actor.id, 'timetable')
-  return deactivateSlot(actor, validateSlotId(id))
+  return deleteSlot(actor, validateSlotId(id))
 }

@@ -19,8 +19,8 @@ import {
   createSlotFromApiInput,
   updateSlot,
   updateSlotFromApiInput,
-  deactivateSlot,
-  deactivateSlotFromApiInput,
+  deleteSlot,
+  deleteSlotFromApiInput,
   listSlots,
   validateCreateSlotInput,
   validateUpdateSlotInput,
@@ -170,23 +170,32 @@ describe('updateSlot', () => {
   })
 })
 
-describe('deactivateSlot', () => {
+describe('deleteSlot', () => {
   it('throws NotFoundError for a missing id', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
-    await expect(deactivateSlot(tutor, 'missing')).rejects.toBeInstanceOf(NotFoundError)
+    await expect(deleteSlot(tutor, 'missing')).rejects.toBeInstanceOf(NotFoundError)
   })
 
-  it('deactivates and audits ONLY timetable.deactivate (not also timetable.update)', async () => {
+  it('refuses a class this actor may not write', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(false)
+    await expect(deleteSlot(tutor, 'slot-1')).rejects.toBeInstanceOf(PermissionError)
+  })
+
+  // The bug this replaced: DELETE called the deactivate path, so a "deleted" slot stayed in the
+  // list - which lists inactive slots so they can be reactivated - and looked as if the button
+  // had done nothing. Auditing the removal as `timetable.delete` is what tells the two apart
+  // afterwards.
+  it('removes the row and audits timetable.delete', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({ data: { ...slotRow, active: false }, error: null }) as any,
-    )
-    await deactivateSlot(tutor, 'slot-1')
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null }) as any)
+    const removed = await deleteSlot(tutor, 'slot-1')
+    expect(removed.id).toBe('slot-1')
     expect(writeAudit).toHaveBeenCalledTimes(1)
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
-      action: 'timetable.deactivate',
+      action: 'timetable.delete',
       entity_type: 'timetable_slot',
       entity_id: 'slot-1',
     })
@@ -275,10 +284,10 @@ describe('timetable slot API-input helpers', () => {
     vi.mocked(createClient).mockResolvedValueOnce(
       makeClient({ data: { ...slotRow, active: false }, error: null }) as any,
     )
-    await deactivateSlotFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000')
+    await deleteSlotFromApiInput(tutor, '550e8400-e29b-41d4-a716-446655440000')
     expect(writeAudit).toHaveBeenLastCalledWith({
       actor_id: 'tutor-1',
-      action: 'timetable.deactivate',
+      action: 'timetable.delete',
       entity_type: 'timetable_slot',
       entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })

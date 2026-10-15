@@ -1,7 +1,8 @@
 import { updateHandler, deleteHandler } from '@/lib/api/route-handlers'
-import { updateSlotFromApiInput, deactivateSlotFromApiInput } from '@/lib/services/timetable-slots'
+import { updateSlotFromApiInput, deleteSlotFromApiInput } from '@/lib/services/timetable-slots'
 
 export const PATCH = updateHandler('manageCalendar', updateSlotFromApiInput)
 
-// Soft-delete: return the deactivated slot row (not just { id }).
-export const DELETE = deleteHandler('manageCalendar', deactivateSlotFromApiInput, (_id, slot) => slot)
+// A real delete, not a second deactivate. PATCH { active: false } is the pause; this removes
+// the slot. Returns the row it removed (not just { id }) so the client can report what went.
+export const DELETE = deleteHandler('manageCalendar', deleteSlotFromApiInput, (_id, slot) => slot)

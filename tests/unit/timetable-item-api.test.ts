@@ -7,10 +7,10 @@ vi.mock('@/lib/auth/require-role', () => ({
 }))
 
 const updateSlotFromApiInput: any = vi.fn(async () => ({ id: 'slot-1', subject: 'Updated' }))
-const deactivateSlotFromApiInput: any = vi.fn(async () => ({ id: 'slot-1', active: false }))
+const deleteSlotFromApiInput: any = vi.fn(async () => ({ id: 'slot-1', active: true }))
 vi.mock('@/lib/services/timetable-slots', () => ({
   updateSlotFromApiInput: (profile: unknown, id: string, raw: unknown) => updateSlotFromApiInput(profile, id, raw),
-  deactivateSlotFromApiInput: (profile: unknown, id: string) => deactivateSlotFromApiInput(profile, id),
+  deleteSlotFromApiInput: (profile: unknown, id: string) => deleteSlotFromApiInput(profile, id),
 }))
 
 import { ValidationError } from '@/lib/errors'
@@ -58,6 +58,6 @@ describe('timetable item API routes', () => {
     const json = await res.json()
     expect(res.status).toBe(200)
     expect(json.success).toBe(true)
-    expect(deactivateSlotFromApiInput).toHaveBeenCalled()
+    expect(deleteSlotFromApiInput).toHaveBeenCalled()
   })
 })
