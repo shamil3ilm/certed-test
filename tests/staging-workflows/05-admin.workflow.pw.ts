@@ -45,6 +45,11 @@ test.describe.serial('ADMIN', () => {
     await form.locator('select[name=role]').selectOption('student')
     await form.locator('input[name=class_level]').fill('Grade 10')
     await form.locator('input[name=country]').fill('India')
+    // Every student is created WITH a mentor - validateAddUserInput refuses one without, and the
+    // field is required in the form. By index, so this spec does not pin itself to a seeded
+    // mentor's name. (This rule landed after this suite was written, which is why the add was
+    // being refused here with "Choose mentor." while nothing was wrong with the product.)
+    await form.locator('select[name=mentor_id]').selectOption({ index: 1 })
     await page.keyboard.press('Escape')
     await form.getByRole('button', { name: 'Add user' }).click()
 
