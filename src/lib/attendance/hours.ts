@@ -77,6 +77,33 @@ export function studentMetrics(session: SessionTimes, student: StudentTimes): St
   return { learningMinutes, lateJoinMinutes, earlyLeaveMinutes, missedMinutes }
 }
 
+/**
+ * Minutes between two local "HH:mm" clock times, or null when the pair cannot yet name a
+ * window - either half missing, unparseable, or an end that does not follow its start.
+ *
+ * For the session-times form, which holds the two fields as typed strings and shows what they
+ * add up to BEFORE the save. That figure is what teaching hours bills, so a transposed digit is
+ * worth catching while it is still a form value. Null rather than 0 or a negative: "not a window
+ * yet" is a different thing from "a window of no length", and only one of them is worth showing.
+ *
+ * Same-day only, matching the write path - a session's end must follow its start on its own date
+ * (assertTimeOrder), so a window crossing midnight is refused rather than silently wrapped.
+ */
+export function minutesBetweenLocalTimes(start: string, end: string): number | null {
+  const toMinutes = (value: string): number | null => {
+    const match = /^(\d{2}):(\d{2})$/.exec(value.trim())
+    if (!match) return null
+    const hours = Number(match[1])
+    const mins = Number(match[2])
+    if (hours > 23 || mins > 59) return null
+    return hours * 60 + mins
+  }
+  const from = toMinutes(start)
+  const to = toMinutes(end)
+  if (from == null || to == null) return null
+  return to > from ? to - from : null
+}
+
 /** "1h 30m" / "45m" / "2h" / "-" for a minutes value. */
 export function formatMinutes(min: number | null | undefined): string {
   if (min == null) return '-'

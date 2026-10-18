@@ -7,6 +7,7 @@ import { assertActionOk } from '../../../action-client'
 import { useUI } from '../../../Providers'
 import { saveSessionAction } from './actions'
 import { isoToLocalTime, localTimeToIso } from '@/lib/time/format'
+import { formatMinutes, minutesBetweenLocalTimes } from '@/lib/attendance/hours'
 
 type SessionRecord = {
   id: string
@@ -45,6 +46,10 @@ export function SessionTimesForm({
   const [summary, setSummary] = useState('')
   const [staffNote, setStaffNote] = useState('')
   const [busy, setBusy] = useState(false)
+  // What the two fields add up to, as they are typed. This window is what teaching hours
+  // bills, so the figure belongs HERE, beside the inputs that produce it and before the save -
+  // not in a card below the form that reads 0m until something is entered.
+  const recordedMinutes = minutesBetweenLocalTimes(start, end)
 
   useEffect(() => {
     setStart(isoToLocalTime(session?.actual_start ?? null))
@@ -109,6 +114,13 @@ export function SessionTimesForm({
           />
         </label>
       </div>
+
+      {recordedMinutes != null && (
+        <p className="text-xs text-slate-600">
+          <strong className="font-semibold text-slate-800">{formatMinutes(recordedMinutes)}</strong> - this is what
+          Class hours will bill.
+        </p>
+      )}
 
       <label className="block text-xs font-medium text-slate-600">
         Session summary <span className="font-normal text-slate-600">(optional - shared with the student)</span>
