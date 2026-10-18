@@ -108,4 +108,18 @@ describe('finance-docs-reads data layer', () => {
     vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
     await expect(selectDocLines('receipt', 'd1')).rejects.toThrow(/receipt.getLines: e/)
   })
+
+  it.each([
+    ['receipt', 'subject'],
+    ['payslip', 'label'],
+  ] as const)('selectDocLines reads a %s in a fixed order - by its line label, then id', async (kind, labelCol) => {
+    // A rendered document must list its lines the same way every time it is rendered. With no
+    // ORDER BY the database may return them in any order, and the line tables key on a random
+    // uuid with no position column, so there is not even an insertion order to fall back on.
+    const client = makeClient({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValueOnce(client as any)
+    await selectDocLines(kind, 'd1')
+    const builder = client.from.mock.results[0].value
+    expect(builder.order.mock.calls).toEqual([[labelCol], ['id']])
+  })
 })

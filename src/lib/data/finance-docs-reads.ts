@@ -164,7 +164,16 @@ export async function selectDocById(kind: FinanceKind, id: string): Promise<Fina
 export async function selectDocLines(kind: FinanceKind, id: string): Promise<FinanceLine[]> {
   const k = KIND[kind]
   const admin = createAdminClient()
-  const { data, error } = await admin.from(k.lineTable).select(`${k.labelCol}, hours, rate, amount`).eq(k.fkCol, id)
+  // A rendered document lists its lines the same way every time, so the order is explicit.
+  // The line tables carry no position and no timestamp - every line of a document is written
+  // by one insert, so a timestamp would tie anyway - which leaves the label, with `id` breaking
+  // a tie between two lines that share one (the same subject billed at two rates).
+  const { data, error } = await admin
+    .from(k.lineTable)
+    .select(`${k.labelCol}, hours, rate, amount`)
+    .eq(k.fkCol, id)
+    .order(k.labelCol)
+    .order('id')
   if (error) throw new Error(`${kind}.getLines: ${error.message}`)
   return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
     label: row[k.labelCol] as string,
