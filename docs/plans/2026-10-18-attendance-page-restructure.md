@@ -42,8 +42,10 @@ latest end) instead of the session's own.
 4. **Each session becomes a card titled by its window** - `16:00-17:00 · Tarun Tutor` - with the
    times form collapsed behind it unless the times are unset. The roster is the card's body.
 5. **Attendance-details rows carry their session**: its window and tutor. The rows already key on
-   `session_id`, so this is a join, not a schema change, and it lets a row report its own session's
-   learning minutes instead of the day-window approximation.
+   `session_id`, so this is a join, not a schema change. A tutor since removed from the class is
+   still named, since they taught the sessions recorded against them. The staff table already
+   measures time in class per student (join to leave), so its minutes are unchanged; the
+   day-window approximation of learning time lives in the student view, which is out of scope.
 
 ## Out of scope
 

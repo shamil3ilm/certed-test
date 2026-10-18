@@ -37,6 +37,11 @@ export type AttendanceHistoryRow = {
   name: string
   join_at: string | null
   leave_at: string | null
+  /** The session this mark belongs to - its recorded window and who taught it. A day can hold
+   *  several sessions (0094), so a mark carrying only its date cannot say which one it means. */
+  session_start: string | null
+  session_end: string | null
+  tutor_name: string | null
 }
 
 const ATTENDANCE_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent']
@@ -110,6 +115,10 @@ type ManagerAttendancePageData = {
    *  the "Unassigned" bucket of the teaching-hours report that payslip drafts are built from
    *  - credited to no one, and not repaired by assigning a tutor afterwards. */
   classHasTutor: boolean
+  /** Who taught each session on the page, by profile id - so a session is labelled by the
+   *  person as well as the time. Includes a tutor since removed from the class: they still
+   *  taught the sessions recorded against them. */
+  tutorNames: Map<string, string>
 }
 
 type ClassAttendancePageData = StudentAttendancePageData | ManagerAttendancePageData
@@ -214,6 +223,23 @@ export async function loadClassAttendancePageData(
         leave_at: mark?.leave_at ?? null,
       }
     })
+  // The sessions THESE rows belong to, so each row can say which one it was. Keyed off the
+  // page - at most HISTORY_PAGE_SIZE distinct ids - the same shape the student view uses, so
+  // the read is bounded however long the class runs.
+  const historySessions = await listSessionsByIds([...new Set(historyRows.map((row) => row.session_id))])
+  const sessionById = new Map([...sessions, ...historySessions].map((s) => [s.id, s] as const))
+  // Who taught them. The class's current tutors cover the common case without a read; a
+  // session taught by someone since taken off the class still names that person.
+  const currentTutors = new Map(tutors.map((t) => [t.id, t.name] as const))
+  const formerTutorIds = [
+    ...new Set(
+      [...sessionById.values()]
+        .map((s) => s.tutor_id)
+        .filter((id): id is string => Boolean(id) && !currentTutors.has(id as string)),
+    ),
+  ]
+  const formerTutors = formerTutorIds.length > 0 ? await getProfileNamesByIds(formerTutorIds) : new Map()
+  const tutorNames = new Map<string, string>([...currentTutors, ...formerTutors])
   const historyStudentIds = [...new Set(historyRows.map((row) => row.student_id))]
   // Names for the subjects THESE sessions recorded. Deactivated subjects included: one still
   // labels the sessions already pointing at it, and omitting it would blank the column.
@@ -245,13 +271,20 @@ export async function loadClassAttendancePageData(
     historyPage,
     historyTotal: history.total,
     historyTotalPages: totalPages(history.total, HISTORY_PAGE_SIZE),
-    history: historyRows.map((r) => ({
-      session_date: r.session_date,
-      status: r.status,
-      name: nameById.get(r.student_id) ?? 'Student',
-      join_at: r.join_at,
-      leave_at: r.leave_at,
-    })),
+    history: historyRows.map((r) => {
+      const session = sessionById.get(r.session_id)
+      return {
+        session_date: r.session_date,
+        status: r.status,
+        name: nameById.get(r.student_id) ?? 'Student',
+        join_at: r.join_at,
+        leave_at: r.leave_at,
+        session_start: session?.actual_start ?? null,
+        session_end: session?.actual_end ?? null,
+        tutor_name: session?.tutor_id ? (tutorNames.get(session.tutor_id) ?? null) : null,
+      }
+    }),
+    tutorNames,
     // One roster per recorded session, each showing that session's own marks.
     sessionRosters: sessions.map((session) => ({ session, roster: rosterFor(session.id) })),
     // The unmarked roster, used when the date has no session yet - marking it records one.

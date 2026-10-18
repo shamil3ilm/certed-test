@@ -28,6 +28,7 @@ export function SessionTimesForm({
   date,
   session,
   canEditStaffNote,
+  bare = false,
 }: {
   classId: string
   date: string
@@ -38,6 +39,9 @@ export function SessionTimesForm({
    *  note. A mentor editing the times/summary never sees it (the value is also stripped
    *  server-side before it reaches the client). */
   canEditStaffNote: boolean
+  /** Drop the card frame and heading: the form is already inside a session's card, under a
+   *  "Times & notes" disclosure that names it, so its own frame would be a card in a card. */
+  bare?: boolean
 }) {
   const router = useRouter()
   const { toast } = useUI()
@@ -92,8 +96,8 @@ export function SessionTimesForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cx(CARD, 'space-y-3 p-4')}>
-      <h3 className="text-sm font-semibold text-slate-800">Session times</h3>
+    <form onSubmit={onSubmit} className={bare ? 'space-y-3' : cx(CARD, 'space-y-3 p-4')}>
+      {!bare && <h3 className="text-sm font-semibold text-slate-800">Session times</h3>}
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-medium text-slate-600">
           Start time

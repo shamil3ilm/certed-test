@@ -185,6 +185,67 @@ describe('loadClassAttendancePageData', () => {
     expect((data as { classSubjectName: string | null }).classSubjectName).toBeNull()
   })
 
+  /**
+   * A day can hold several sessions (0094), so a history row carrying only its date cannot say
+   * whether it was the morning or the afternoon - and "late" means nothing without what it was
+   * late FOR. Each row now names its session's recorded window and who taught it.
+   */
+  it('gives every history row its own session window and tutor, including a tutor since removed', async () => {
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'tutor', status: 'active' }] as any)
+    vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
+    vi.mocked(isCalendarDate).mockReturnValueOnce(false as any)
+    vi.mocked(todayInZone).mockReturnValueOnce('2026-07-16' as any)
+    vi.mocked(getClassMembers).mockResolvedValueOnce({
+      students: [{ id: 's1', name: 'Sara Student' }],
+      tutors: [{ id: 't1', name: 'Tarun Tutor' }],
+    } as any)
+    vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([] as any)
+    vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValueOnce({
+      items: [
+        {
+          session_id: 'morning',
+          session_date: '2026-07-10',
+          status: 'late',
+          student_id: 's1',
+          join_at: null,
+          leave_at: null,
+        },
+        {
+          session_id: 'evening',
+          session_date: '2026-07-10',
+          status: 'present',
+          student_id: 's1',
+          join_at: null,
+          leave_at: null,
+        },
+      ],
+      total: 2,
+    } as any)
+    vi.mocked(listSessionsByIds).mockResolvedValueOnce([
+      // Taught by someone no longer on the class - they still taught it.
+      { id: 'morning', actual_start: '2026-07-10T04:30:00Z', actual_end: '2026-07-10T05:30:00Z', tutor_id: 't9' },
+      { id: 'evening', actual_start: '2026-07-10T12:30:00Z', actual_end: '2026-07-10T13:30:00Z', tutor_id: 't1' },
+    ] as any)
+    vi.mocked(getProfileNamesByIds).mockImplementation(
+      async (ids: string[]) => new Map(ids.map((id) => [id, id === 't9' ? 'Former Tutor' : 'Sara Student'])) as any,
+    )
+
+    const data = await loadClassAttendancePageData({ id: 'tutor-1', role: 'tutor' } as any, 'class-1', {})
+    if (data.kind !== 'manager') throw new Error('expected the manager view')
+
+    // Same date, two sessions - and the rows can now tell them apart.
+    expect(data.history.map((r) => [r.status, r.session_start, r.tutor_name])).toEqual([
+      ['late', '2026-07-10T04:30:00Z', 'Former Tutor'],
+      ['present', '2026-07-10T12:30:00Z', 'Tarun Tutor'],
+    ])
+    expect(data.history[0].session_end).toBe('2026-07-10T05:30:00Z')
+    // Only the sessions on THIS page are read, so the lookup stays bounded by the page size.
+    expect(listSessionsByIds).toHaveBeenCalledWith(['morning', 'evening'])
+    // The current tutor needs no read; only the one who has left the class does.
+    expect(getProfileNamesByIds).toHaveBeenCalledWith(['t9'])
+    expect(getProfileNamesByIds).not.toHaveBeenCalledWith(expect.arrayContaining(['t1']))
+  })
+
   it('loads the manager attendance view model with normalized date and roster status mapping', async () => {
     vi.mocked(loadActivePersonas).mockResolvedValueOnce([{ persona_name: 'tutor', status: 'active' }] as any)
     vi.mocked(hasPersona).mockImplementation((_, name) => name === 'tutor')
@@ -241,7 +302,21 @@ describe('loadClassAttendancePageData', () => {
       ],
       historyFilters: { status: '', from: '', to: '' },
       hasHistoryFilters: false,
-      history: [{ session_date: '2026-07-16', status: 'late', name: 'Sara Student', join_at: null, leave_at: null }],
+      history: [
+        {
+          session_date: '2026-07-16',
+          status: 'late',
+          name: 'Sara Student',
+          join_at: null,
+          leave_at: null,
+          // This fixture's row names no session, so it has none to describe.
+          session_start: null,
+          session_end: null,
+          tutor_name: null,
+        },
+      ],
+      // The class's current tutors, with no read for them - see the dedicated test below.
+      tutorNames: new Map([['t1', 'Tarun Tutor']]),
       // The details view is paged now: it was a silent newest-200 under a heading that
       // reads as the whole record, with filters that made it look authoritative.
       historyPage: 1,
