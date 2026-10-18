@@ -84,7 +84,12 @@ export function MentorshipsPanel({
                         <span className="sr-only">
                           Change mentor {data.mentorNames.get(l.mentor_id) ?? ''} for {s.full_name ?? s.email}
                         </span>
-                        <Select name="mentor_id" required defaultValue="" className="h-7 py-0 text-xs">
+                        {/* !py-0, not py-0: Select's base field style carries py-2, and cx joins class
+                            names rather than merging them - so whichever utility the stylesheet emits
+                            LATER wins, and py-2 is emitted after py-0. Unforced, the 28px box kept 16px
+                            of padding, leaving 10px for 16px-tall text: only the tips of the letters
+                            showed. A smaller padding can never beat py-2 by class order alone. */}
+                        <Select name="mentor_id" required defaultValue="" className="h-7 !py-0 text-xs">
                           <option value="" disabled>
                             Change to...
                           </option>
