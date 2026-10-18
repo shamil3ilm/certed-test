@@ -15,6 +15,7 @@ import { getProfileById } from '@/lib/services/users'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import {
   assignMentor,
   assertAssignableMentor,
@@ -125,6 +126,40 @@ describe('assignMentor / removeMentor require the manageMentorships capability',
       entity_type: 'mentorship',
       entity_id: 'stud-1',
     })
+  })
+
+  // The student's notification used to read "You were assigned a mentor", with no name, and
+  // linked to /dashboard - a page that does not mention the mentor anywhere. Clicking it looked
+  // like being bounced home. A student has no page that names their mentor, so the name goes in
+  // the notification itself and there is no link to promise somewhere it is not.
+  it('tells the student WHO their mentor is, and sends them nowhere misleading', async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce({ ...mentorProfile, full_name: 'Maya Mentor', email: 'mentor@x.test' } as any)
+      .mockResolvedValueOnce({ ...studentProfile, full_name: 'Sara Student', email: 'sara@x.test' } as any)
+    assignWrite({ data: 'link-1', error: null })
+
+    await assignMentor(admin, { mentorId: 'ment-1', studentId: 'stud-1' })
+
+    const toStudent = vi.mocked(notifyBestEffort).mock.calls.find(([ids]) => ids.includes('stud-1'))
+    expect(toStudent, 'the student must be notified').toBeDefined()
+    const payload = toStudent![1]
+    expect(payload.title).toBe('You were assigned a mentor')
+    expect(payload.body).toBe('Maya Mentor')
+    expect(payload.link).toBeUndefined()
+  })
+
+  it("the mentor's own notification still opens the mentee", async () => {
+    vi.mocked(requireActorCapability).mockResolvedValueOnce(undefined)
+    vi.mocked(getProfileById)
+      .mockResolvedValueOnce({ ...mentorProfile, full_name: 'Maya Mentor' } as any)
+      .mockResolvedValueOnce({ ...studentProfile, full_name: 'Sara Student' } as any)
+    assignWrite({ data: 'link-1', error: null })
+
+    await assignMentor(admin, { mentorId: 'ment-1', studentId: 'stud-1' })
+
+    const toMentor = vi.mocked(notifyBestEffort).mock.calls.find(([ids]) => ids.includes('ment-1'))
+    expect(toMentor![1]).toMatchObject({ body: 'Sara Student', link: '/students/stud-1' })
   })
 
   it('assigns a mentor to a freshly invited (pending) student - that is how a student is created', async () => {

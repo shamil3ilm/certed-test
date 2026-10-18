@@ -37,7 +37,7 @@ import {
  * a later failed assign would orphan, and rejects a stale/revoked mentor picked
  * from a dropdown that went out of date between page-load and submit.
  */
-export async function assertAssignableMentor(mentorId: string): Promise<void> {
+export async function assertAssignableMentor(mentorId: string): Promise<Profile> {
   const mentor = await getProfileById(mentorId)
   if (!mentor || (mentor.role !== 'mentor' && mentor.role !== 'tutor')) {
     throw new ValidationError('mentor_id must be a mentor or tutor')
@@ -45,6 +45,9 @@ export async function assertAssignableMentor(mentorId: string): Promise<void> {
   if (mentor.status !== 'active') {
     throw new ValidationError('That mentor is no longer active - choose another.')
   }
+  // Returned, not discarded: the caller needs the name to tell the student WHO they were given,
+  // and this row is already in hand. Callers that only want the check can ignore it.
+  return mentor
 }
 
 /**
@@ -56,7 +59,7 @@ export async function assertAssignableMentor(mentorId: string): Promise<void> {
  */
 export async function assignMentor(actor: Profile, params: MentorshipParams): Promise<void> {
   await requireActorCapability(actor.id, 'manageMentorships', 'You are not allowed to manage mentors.')
-  await assertAssignableMentor(params.mentorId)
+  const mentor = await assertAssignableMentor(params.mentorId)
   const student = await getProfileById(params.studentId)
   // From the invitation onwards: a student is created WITH their mentor, and an invited account
   // is pending until they register. Never over a revoked student, whose mentor would otherwise
@@ -83,10 +86,13 @@ export async function assignMentor(actor: Profile, params: MentorshipParams): Pr
     body: student.full_name ?? student.email,
     link: `/students/${params.studentId}`,
   })
+  // Named, and with no link. The mentor's own notification can point at the mentee's page;
+  // a student has no page anywhere that names their mentor, so a link to /dashboard sent them
+  // to a screen that does not mention it. The name belongs in the notification itself.
   await notifyBestEffort([params.studentId], {
     kind: 'mentorship',
     title: 'You were assigned a mentor',
-    link: '/dashboard',
+    body: mentor.full_name ?? mentor.email,
   })
 }
 

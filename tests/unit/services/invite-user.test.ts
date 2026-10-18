@@ -38,7 +38,12 @@ describe('inviteUser - the whole per-row create', () => {
   it('pre-flights the mentor BEFORE creating the account', async () => {
     const order: string[] = []
     vi.mocked(requireActorCapability).mockImplementation(async () => void order.push('capability'))
-    vi.mocked(assertAssignableMentor).mockImplementation(async () => void order.push('assignable'))
+    vi.mocked(assertAssignableMentor).mockImplementation(async () => {
+      order.push('assignable')
+      // It returns the mentor row now - assignMentor's notification names them - and inviteUser
+      // ignores the value, so any profile-shaped stand-in keeps the order assertion honest.
+      return { id: 'm1', full_name: 'A Mentor' } as never
+    })
     vi.mocked(addUser).mockImplementation(async () => {
       order.push('create')
       return { profile: { id: 'p1', email: 's@x.test' } as never, code: 'ABCD2345' }
