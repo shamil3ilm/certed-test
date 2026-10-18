@@ -3,7 +3,7 @@ import { countUnreadNotifications, listMyNotifications, NOTIFICATIONS_PAGE_SIZE 
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { AlertBanner, PageHeader, EmptyState, FilterBar, PaginationBar, SelectFilterField, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
-import { markAllNotificationsReadAction } from './actions'
+import { markAllNotificationsReadAction, openNotificationAction } from './actions'
 
 /** Per-kind chip. Plain ASCII text (no emoji/glyphs) so the feed renders
  *  identically everywhere, per the portal's text standard. */
@@ -146,15 +146,18 @@ export default async function NotificationsPage(props: { searchParams: Promise<N
               ? 'border-slate-200 bg-white hover:bg-slate-50'
               : 'border-primary/20 bg-primary/5 hover:bg-primary/10',
           )
+          // A form, not a link: opening a notification has to MARK IT READ, and Next prefetches
+          // links on hover - a GET that marked things read would empty the list as the pointer
+          // crossed it. The button carries the whole card so the hit area is unchanged.
           return (
             <li key={n.id}>
-              {n.link ? (
-                <a href={n.link} className={cardClass}>
+              <form action={openNotificationAction}>
+                <input type="hidden" name="id" value={n.id} />
+                {n.link && <input type="hidden" name="link" value={n.link} />}
+                <button type="submit" className={cx(cardClass, 'w-full text-left')}>
                   {inner}
-                </a>
-              ) : (
-                <div className={cardClass}>{inner}</div>
-              )}
+                </button>
+              </form>
             </li>
           )
         })}

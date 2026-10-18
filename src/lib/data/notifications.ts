@@ -87,6 +87,25 @@ export async function selectUnreadNotificationIds(profileId: string, cap: number
   return ((data ?? []) as { id: string }[]).map((r) => r.id)
 }
 
+/**
+ * Stamp read_at on ONE notification, and only if it belongs to this profile.
+ *
+ * The profile_id predicate is the authority, not a filter: RLS scopes the read side, but this
+ * write goes through the same client and a bare `eq('id', ...)` would let any id be marked read
+ * by anyone who could guess it. Already-read rows are left alone so a second click cannot move
+ * the timestamp.
+ */
+export async function updateNotificationRead(profileId: string, id: string, readAt: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: readAt })
+    .eq('id', id)
+    .eq('profile_id', profileId)
+    .is('read_at', null)
+  if (error) throw new Error(`data.notifications.updateRead: ${error.message}`)
+}
+
 /** Stamp read_at on every unread notification belonging to a profile. */
 export async function updateAllNotificationsRead(profileId: string, readAt: string): Promise<void> {
   const supabase = await createClient()

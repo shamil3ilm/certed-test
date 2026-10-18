@@ -11,6 +11,7 @@ import {
   selectNotificationsPage,
   selectUnreadNotificationIds,
   updateAllNotificationsRead,
+  updateNotificationRead,
   type NotificationRow,
 } from '@/lib/data/notifications'
 
@@ -153,6 +154,12 @@ export async function listMyNotifications(
 export const countUnreadNotifications = cache(async (profileId: string): Promise<number> => {
   return (await selectUnreadNotificationIds(profileId, UNREAD_BADGE_CAP)).length
 })
+
+/** Mark ONE of the caller's notifications read. Scoped to the caller, so an id belonging to
+ *  somebody else simply matches nothing. */
+export async function markNotificationRead(actor: Profile, id: string): Promise<void> {
+  await updateNotificationRead(actor.id, id, new Date().toISOString())
+}
 
 /** Mark all of the caller's unread notifications read (self-scoped by RLS). */
 export async function markAllNotificationsRead(actor: Profile): Promise<void> {

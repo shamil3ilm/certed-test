@@ -26,9 +26,17 @@ test('NOTIFICATIONS -- a student is notified of a new message', async ({ page })
   await expect(start).toBeEnabled()
   await start.click()
   await page.waitForURL(/\/messages\/[0-9a-f-]{36}/)
-  await page.getByRole('textbox', { name: 'Message' }).fill('Please check your homework')
-  await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText('Please check your homework').first()).toBeVisible()
+  // A second message follows, so that opening ONE notification below still leaves something
+  // unread for the mark-all-read assertion at the end - that control only renders while unread
+  // remain. Each send waits for the composer to clear before the next one is typed: filling it
+  // while the previous send is still in flight loses the text and the message never arrives.
+  const composer = page.getByRole('textbox', { name: 'Message' })
+  for (const body of ['Please check your homework', 'And bring your workbook']) {
+    await expect(composer).toHaveValue('')
+    await composer.fill(body)
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(page.getByText(body).first()).toBeVisible()
+  }
 
   // The student logs in and finds the notification in their feed.
   await loginAs(page, 'student@mock.test', { clearCookies: true })
@@ -37,7 +45,27 @@ test('NOTIFICATIONS -- a student is notified of a new message', async ({ page })
   // least one "New message from ..." notification is present rather than exactly one.
   await expect(page.getByText(/New message from/).first()).toBeVisible()
 
-  // Mark-all-read clears the list's unread state.
+  // Opening ONE notification marks THAT one read and follows where it points. Before this,
+  // every row was a plain link: it navigated and left the notification unread, so the badge
+  // only ever cleared via mark-all-read.
+  await page.goto('/notifications?state=unread')
+  const unread = page.locator('ul li form button')
+  const before = await unread.count()
+  expect(before, 'the messages above should have produced unread notifications').toBeGreaterThan(1)
+  await unread.first().click()
+  // It should land on the conversation the notification is about, not back on the list.
+  await expect(page).toHaveURL(/\/messages\//)
+
+  // Asserted by COUNT, not by matching the row's text: both messages above produce a
+  // notification titled "New message from Tarun Tutor", so a text filter would still match the
+  // one that is legitimately still unread.
+  await page.goto('/notifications?state=unread')
+  await expect(
+    page.locator('ul li form button'),
+    'opening a notification must take exactly one row out of the unread list',
+  ).toHaveCount(before - 1)
+
+  // Mark-all-read clears what is left.
   await page.getByRole('button', { name: 'Mark all read' }).click()
   await expect(page.getByRole('button', { name: 'Mark all read' })).toHaveCount(0)
 })
