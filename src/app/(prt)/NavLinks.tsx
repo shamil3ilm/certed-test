@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cx } from '@/lib/ui'
 import { NavIcon } from './NavIcon'
-import type { NavItem } from './nav'
+import { isNavItemActive, type NavItem } from './nav'
 
 /** Desktop nav row with icons + active-route highlighting (client - needs usePathname). */
 export function NavLinks({ links }: { links: NavItem[] }) {
@@ -11,7 +11,7 @@ export function NavLinks({ links }: { links: NavItem[] }) {
   return (
     <nav className="hidden flex-wrap items-center justify-center gap-1 border-t border-slate-100 py-2 md:flex">
       {links.map((l, i) => {
-        const active = pathname === l.href || pathname.startsWith(l.href + '/')
+        const active = isNavItemActive(l, pathname)
         // A hairline divider sets each nav section apart from the previous one.
         const startsGroup = i > 0 && l.group !== links[i - 1].group
         return (

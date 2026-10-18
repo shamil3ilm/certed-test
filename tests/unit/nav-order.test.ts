@@ -24,7 +24,7 @@ describe('nav ordering by persona', () => {
       'Organization',
       'Audit log',
       'Mentoring', // admin holds viewUsers: /students is an oversight view, not "my mentees"
-      'Session times',
+      // No "Session times": for a Class hours holder it is that destination's Sessions tab.
       'Messages',
       'Classes',
       'Grading',
@@ -35,15 +35,14 @@ describe('nav ordering by persona', () => {
 
   it('orders a sub-admin the same way, minus what the tier does not hold', () => {
     // Finance, Organization and the Audit log stay admin-only, so they are absent rather than
-    // reordered. "Session times" IS here: a sub_admin is oversight on the mentoring surfaces,
-    // and /students and /session-timings resolve that through the same predicate.
+    // reordered. A sub_admin is oversight on the mentoring surfaces and CAN open
+    // /session-timings - it reaches it as the Sessions tab of Class hours, as an admin does.
     expect(labelsFor(['sub_admin'])).toEqual([
       'Dashboard',
       'Users',
       'Class hours',
       'Access management',
       'Mentoring',
-      'Session times',
       'Messages',
       'Classes',
       'Grading',

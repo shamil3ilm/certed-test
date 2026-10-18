@@ -10,6 +10,8 @@ import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
 import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTimingsFilterBar'
 import { loadPersonaFlags } from '@/lib/permission/personas'
+import { getActorContext } from '@/lib/session/actor-context'
+import { ClassHoursTabs } from '../ClassHoursTabs'
 
 /** Mentor session-timing list: the three timings (tutor joined, student joined,
  *  class end) across the mentor's mentees' sessions, with an inline edit for the
@@ -34,65 +36,77 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
   // an admin these are "your mentees'" sessions while showing them the whole academy.
   const { hasMentorAuthority } = await loadPersonaFlags(me.id)
   const isOversight = !hasMentorAuthority
-  const tz = await getInstituteTimeZone()
-  const month = todayInZone(tz).slice(0, 7)
-  const [data, hours] = await Promise.all([loadSessionTimingsPageData(me, searchParams), getClassTutorHours(me, month)])
+  // A manageClasses holder reaches this page as the Sessions tab of Class hours, whose Monthly
+  // totals tab already reports this month's hours per tutor - and more. For them the summary
+  // panel below would be the same table twice, so it is a mentor's alone, and so is its read.
+  const { capabilities } = await getActorContext()
+  const hasTotalsTab = capabilities.allowed.has('manageClasses')
+  const month = hasTotalsTab ? null : todayInZone(await getInstituteTimeZone()).slice(0, 7)
+  const [data, hours] = await Promise.all([
+    loadSessionTimingsPageData(me, searchParams),
+    month ? getClassTutorHours(me, month) : Promise.resolve(null),
+  ])
   const { filters, items, groups, groupView, total, totalPages: pages } = data
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
       <PageHeader
-        title="Session times"
+        // One heading across both tabs, so moving between them reads as one destination.
+        title={hasTotalsTab ? 'Class hours' : 'Session times'}
         description={`Start time, student entry and end time for ${
           isOversight ? 'sessions across the academy' : "your mentees' sessions"
         }. You can adjust the session start/end and a student's entry time.`}
       />
 
-      <section className={cx(CARD, 'mt-2 p-4')} aria-label="Teaching hours this month">
-        <h2 className="text-sm font-semibold text-slate-800">Teaching hours - {formatMonthLabel(month)}</h2>
-        <p className="mt-0.5 text-xs text-slate-600">
-          Recorded hours per tutor in {isOversight ? 'every class' : <>your mentees&apos; classes</>}, for this month.
-        </p>
-        {/* Render the panel even with nothing to show. Hiding it when the month has no
+      {hasTotalsTab && <ClassHoursTabs />}
+
+      {hours && month && (
+        <section className={cx(CARD, 'mt-2 p-4')} aria-label="Teaching hours this month">
+          <h2 className="text-sm font-semibold text-slate-800">Teaching hours - {formatMonthLabel(month)}</h2>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Recorded hours per tutor in {isOversight ? 'every class' : <>your mentees&apos; classes</>}, for this month.
+          </p>
+          {/* Render the panel even with nothing to show. Hiding it when the month has no
             recorded hours makes the section vanish for the first days of every month,
             which reads as "the feature is missing" rather than "nothing yet". */}
-        {hours.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">
-            No hours recorded yet this month - they appear once a session&apos;s start and end times are saved.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {hours.map((c) => (
-              <li key={c.classId}>
-                <div className="flex items-baseline justify-between text-sm font-medium text-slate-700">
-                  <span>{c.className}</span>
-                  <span className="tabular-nums">{formatMinutes(c.totalMinutes)}</span>
-                </div>
-                <ul className="mt-1 space-y-0.5">
-                  {c.tutors.map((t) => (
-                    <li
-                      key={t.tutorId ?? 'unassigned'}
-                      className="flex items-baseline justify-between text-xs text-slate-600"
-                    >
-                      <span className="inline-flex items-baseline gap-1.5">
-                        {t.tutorName}
-                        {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
-                          <span className="text-meta font-medium text-slate-500">
-                            {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
-                          </span>
-                        )}
-                      </span>
-                      <span className="tabular-nums">
-                        {formatMinutes(t.minutes)} &middot; {t.sessionCount} session{t.sessionCount === 1 ? '' : 's'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          {hours.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">
+              No hours recorded yet this month - they appear once a session&apos;s start and end times are saved.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-3">
+              {hours.map((c) => (
+                <li key={c.classId}>
+                  <div className="flex items-baseline justify-between text-sm font-medium text-slate-700">
+                    <span>{c.className}</span>
+                    <span className="tabular-nums">{formatMinutes(c.totalMinutes)}</span>
+                  </div>
+                  <ul className="mt-1 space-y-0.5">
+                    {c.tutors.map((t) => (
+                      <li
+                        key={t.tutorId ?? 'unassigned'}
+                        className="flex items-baseline justify-between text-xs text-slate-600"
+                      >
+                        <span className="inline-flex items-baseline gap-1.5">
+                          {t.tutorName}
+                          {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
+                            <span className="text-meta font-medium text-slate-500">
+                              {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
+                            </span>
+                          )}
+                        </span>
+                        <span className="tabular-nums">
+                          {formatMinutes(t.minutes)} &middot; {t.sessionCount} session{t.sessionCount === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <SessionTimingsFilterBar filters={filters} options={data.options} hasActiveFilters={data.hasActiveFilters} />
 

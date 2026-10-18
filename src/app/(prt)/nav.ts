@@ -5,7 +5,16 @@ import { mentoringSectionLabel } from '@/lib/ui/labels'
 // apart with a hairline divider; the mobile menu (13+ items for an admin) gives each
 // a section heading. Items are listed contiguously by group so a group is one run.
 export type NavGroup = 'home' | 'teaching' | 'mentoring' | 'messages' | 'money' | 'admin'
-export type NavItem = { href: string; label: string; group: NavGroup }
+/** `alsoActiveOn`: other routes that belong to this item's destination - a sibling tab that
+ *  lives at its own URL - so the item stays highlighted while the reader is on one. */
+export type NavItem = { href: string; label: string; group: NavGroup; alsoActiveOn?: readonly string[] }
+
+/** Whether `item` is the nav entry for `pathname`: its own route, anything beneath it, or a
+ *  route it names in `alsoActiveOn`. One rule for the desktop row and the mobile menu. */
+export function isNavItemActive(item: NavItem, pathname: string): boolean {
+  const owns = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  return owns(item.href) || (item.alsoActiveOn ?? []).some(owns)
+}
 
 export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
   home: 'Home',
@@ -68,7 +77,17 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   // a tutor/mentor), so the report sits in lockstep with that authority - a mentor's own
   // scoped hours live on /session-timings instead. The href keeps its original
   // /admin/teaching-hours path so existing links and bookmarks still resolve.
-  { href: '/admin/teaching-hours', label: 'Class hours', group: 'admin', capability: 'manageClasses' },
+  //
+  // For a manageClasses holder this is ONE destination with two tabs: the monthly totals here,
+  // and the session record they are computed from at /session-timings. That record has no nav
+  // item of its own for them (navFor drops it), so this item claims its route as well.
+  {
+    href: '/admin/teaching-hours',
+    label: 'Class hours',
+    group: 'admin',
+    capability: 'manageClasses',
+    alsoActiveOn: ['/session-timings'],
+  },
   { href: '/admin/messaging', label: 'Access management', group: 'admin', capability: 'manageUsers' },
   // Admin-tier only: Organization settings expose the bank/IFSC fields the DB
   // restricts to admins (is_active_admin(), 0017), so this must match the page's
@@ -96,16 +115,22 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
 export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
   const hasFinanceHub = capabilities.has('viewFinance')
   const isOversight = capabilities.has('viewUsers')
+  const hasClassHours = capabilities.has('manageClasses')
   const base = NAV_RULES.filter((item) => {
     if (!capabilities.has(item.capability)) return false
     // A viewFinance holder reaches every receipt/payslip through the Finance hub,
     // so the standalone personal ledgers are hidden from the nav for them.
     if (hasFinanceHub && (item.href === '/payslips' || item.href === '/receipts')) return false
+    // A Class hours holder reaches the session record as that destination's Sessions tab,
+    // so it is not offered twice. Keyed on the capability, not the persona: someone with
+    // viewMentees but manageClasses denied keeps Session times as their own item.
+    if (hasClassHours && item.href === '/session-timings') return false
     return true
-  }).map(({ href, label, group }) => ({
+  }).map(({ href, label, group, alsoActiveOn }) => ({
     href,
     group,
     label: href === '/students' ? mentoringSectionLabel(isOversight) : label,
+    ...(alsoActiveOn ? { alsoActiveOn } : {}),
   }))
 
   const classesIndex = base.findIndex((item) => item.href === '/classroom')

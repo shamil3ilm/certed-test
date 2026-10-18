@@ -1,4 +1,5 @@
 import { requireCapability } from '@/lib/auth/require-role'
+import { getActorContext } from '@/lib/session/actor-context'
 import { getAcademyClassHours, type AcademyClassHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
@@ -15,6 +16,7 @@ import {
   roleLabelIfUnexpected,
   cx,
 } from '@/lib/ui'
+import { ClassHoursTabs } from '../../ClassHoursTabs'
 
 const SECTIONS = [
   { href: '#people', label: 'Tutors & mentors' },
@@ -236,6 +238,9 @@ function ClassStudentTable({ classes, month }: { classes: AcademyClassHours['stu
 export default async function ClassHoursReportPage(props: { searchParams: Promise<{ month?: string }> }) {
   const { month: monthParam } = await props.searchParams
   const me = await requireCapability('manageClasses')
+  // The Sessions tab is its own route behind viewMentees; offer it only to a reader it admits.
+  const { capabilities } = await getActorContext()
+  const canOpenSessions = capabilities.allowed.has('viewMentees')
   const tz = await getInstituteTimeZone()
   const month = monthParam && isMonth(monthParam) ? monthParam : todayInZone(tz).slice(0, 7)
   const { personTotals, tutorClasses, studentClasses } = await getAcademyClassHours(me.id, month)
@@ -248,7 +253,9 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
         description="Recorded hours for the selected month - taught, per tutor and mentor, and received, per student. Calculated from session times; read-only."
       />
 
-      <FilterBar className="mt-2" applyLabel="View">
+      {canOpenSessions && <ClassHoursTabs />}
+
+      <FilterBar className="mt-4" applyLabel="View">
         <FilterField label="Month">
           <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
         </FilterField>

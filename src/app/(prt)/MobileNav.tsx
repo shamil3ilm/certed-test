@@ -6,7 +6,7 @@ import { cx } from '@/lib/ui'
 import { useFocusTrap } from '@/lib/ui/use-focus-trap'
 import { LogoutForm } from './LogoutForm'
 import { NavIcon } from './NavIcon'
-import { NAV_GROUP_LABELS, type NavItem } from './nav'
+import { NAV_GROUP_LABELS, isNavItemActive, type NavItem } from './nav'
 
 export function MobileNav({ links }: { links: NavItem[] }) {
   const [open, setOpen] = useState(false)
@@ -64,7 +64,7 @@ export function MobileNav({ links }: { links: NavItem[] }) {
             </div>
             <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
               {links.map((l, i) => {
-                const active = pathname === l.href || pathname.startsWith(l.href + '/')
+                const active = isNavItemActive(l, pathname)
                 // A section heading before each cluster's first item - the mobile menu
                 // holds 13+ items for an admin, so the groups aid scanning.
                 const startsGroup = i === 0 || l.group !== links[i - 1].group
