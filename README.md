@@ -8,7 +8,7 @@ Two applications share this repository and are split by host:
 The portal is a class-centric learning and operations app for:
 
 - super admins
-- sub-admins
+- admins
 - tutors
 - mentors
 - students
