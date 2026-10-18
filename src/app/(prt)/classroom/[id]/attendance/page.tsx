@@ -312,6 +312,12 @@ export default async function AttendancePage(props: {
                         <LocalTime iso={session.actual_start as string} mode="time" />
                         {' - '}
                         <LocalTime iso={session.actual_end as string} mode="time" />
+                        {/* The length stays in view once Times & notes folds away. It is the figure
+                            Class hours bills, and folding must not be what hides it. */}
+                        <span className="font-normal text-slate-600">
+                          {' '}
+                          &middot; {formatMinutes(sessionMetrics(session).sessionMinutes)}
+                        </span>
                       </>
                     ) : (
                       'Times not recorded yet'

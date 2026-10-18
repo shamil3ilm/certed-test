@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs, submitAndReload, ensureRecordedSession, sessionForm, SEED } from './support'
+import { loginAs, submitAndReload, ensureRecordedSession, openTimesAndNotes, sessionForm, SEED } from './support'
 
 /**
  * E2E for the UI added this cycle: the private session note (must NEVER reach the
@@ -29,7 +29,9 @@ test('a tutor records a session summary + private note; the student sees the sum
   await page.getByRole('button', { name: 'Mark all present' }).first().click()
   await submitAndReload(page, () => page.getByRole('button', { name: 'Save attendance' }).first().click())
 
-  // Record a shared summary + a staff-private note on the session.
+  // Record a shared summary + a staff-private note on the session. Both sit behind the
+  // session's folded "Times & notes", and the attendance save above reloaded the page shut.
+  await openTimesAndNotes(page)
   await session.getByPlaceholder(SUMMARY_PLACEHOLDER).fill(SHARED_SUMMARY)
   await session.getByPlaceholder(STAFF_NOTE_PLACEHOLDER).fill(STAFF_NOTE)
   await submitAndReload(page, () => session.getByRole('button', { name: 'Save session' }).click())

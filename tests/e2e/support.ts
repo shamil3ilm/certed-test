@@ -108,6 +108,24 @@ export async function loginAs(page: Page, email: string, opts: { clearCookies?: 
  * more than once the moment a session exists, which is a strict-mode violation rather than
  * a flake. Index 0 is the first RECORDED session; the blank form is always last.
  */
+/**
+ * Open a recorded session's "Times & notes" disclosure.
+ *
+ * Once a session's times are recorded, its card folds the times, summary and private note
+ * behind this disclosure, so a spec that edits them has to open it first - as a person would.
+ * A no-op when that box is already open, or when no session is recorded yet (the blank
+ * "Record the session" form is never folded).
+ */
+export async function openTimesAndNotes(page: Page, index = 0) {
+  const box = page
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: 'Times & notes' }) })
+    .nth(index)
+  if ((await box.count()) === 0) return
+  if ((await box.getAttribute('open')) !== null) return
+  await box.locator('summary').click()
+}
+
 export function sessionForm(page: Page, index = 0) {
   return page.locator('form').filter({ hasText: 'Save session' }).nth(index)
 }

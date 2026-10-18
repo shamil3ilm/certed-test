@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs, submitAndReload, SEED } from './support'
+import { loginAs, openTimesAndNotes, submitAndReload, SEED } from './support'
 
 /**
  * E2E for the academy class-hours report (/admin/teaching-hours): hours TAUGHT, per
@@ -32,6 +32,9 @@ test('records a session and attendance, then reports the hours on both sides', a
 
   // A recorded window is what makes a session countable - a session with no actual_start
   // is excluded from the report entirely, so set both ends before marking anyone present.
+  // With no session yet, the first time fields are the blank record form. With one already
+  // recorded (a retry, or an earlier spec), they are that session's, folded away - open them.
+  await openTimesAndNotes(page)
   const times = page.locator('main input[type="time"]')
   await times.nth(0).fill('10:00')
   await times.nth(1).fill('11:30')
