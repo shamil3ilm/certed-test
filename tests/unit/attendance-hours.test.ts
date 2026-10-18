@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   minutesBetween,
+  minutesBetweenLocalTimes,
   sessionMetrics,
   studentMetrics,
   formatMinutes,
@@ -94,5 +95,42 @@ describe('formatters + sumMinutes', () => {
   it('sums minutes treating null as 0, null only for an empty list', () => {
     expect(sumMinutes([50, null, 10])).toBe(60)
     expect(sumMinutes([])).toBeNull()
+  })
+})
+
+/**
+ * The session-times form shows what its two fields add up to BEFORE the save, because that
+ * window is what teaching hours bills. So the helper must tell "not a window yet" apart from
+ * "a window of no length" - only one of them is worth putting in front of a tutor.
+ */
+describe('minutesBetweenLocalTimes', () => {
+  it('measures a same-day window', () => {
+    expect(minutesBetweenLocalTimes('16:00', '17:30')).toBe(90)
+    expect(minutesBetweenLocalTimes('09:05', '09:50')).toBe(45)
+  })
+
+  it('is null until both halves are entered - not 0, which would read as a recorded nothing', () => {
+    expect(minutesBetweenLocalTimes('', '')).toBeNull()
+    expect(minutesBetweenLocalTimes('16:00', '')).toBeNull()
+    expect(minutesBetweenLocalTimes('', '17:00')).toBeNull()
+  })
+
+  it('is null for an end that does not follow its start, rather than a negative or a wrap past midnight', () => {
+    // The write path refuses these too (assertTimeOrder), so the form must not describe them as
+    // a length that would be billed.
+    expect(minutesBetweenLocalTimes('17:00', '16:00')).toBeNull()
+    expect(minutesBetweenLocalTimes('16:00', '16:00')).toBeNull()
+    expect(minutesBetweenLocalTimes('23:30', '00:30')).toBeNull()
+  })
+
+  it('refuses a malformed or impossible clock time', () => {
+    expect(minutesBetweenLocalTimes('4pm', '17:00')).toBeNull()
+    expect(minutesBetweenLocalTimes('16:00', '24:00')).toBeNull()
+    expect(minutesBetweenLocalTimes('16:60', '17:00')).toBeNull()
+  })
+
+  it('reads in the same vocabulary as the rest of the page', () => {
+    expect(formatMinutes(minutesBetweenLocalTimes('16:00', '17:30'))).toBe('1h 30m')
+    expect(formatMinutes(minutesBetweenLocalTimes('16:00', '17:00'))).toBe('1h')
   })
 })

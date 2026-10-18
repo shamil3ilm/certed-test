@@ -190,7 +190,17 @@ export default async function AttendancePage(props: {
       />
 
       <section id="mark-attendance" className="scroll-mt-20 space-y-4">
-        <SectionLabel>Mark attendance</SectionLabel>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionLabel>Mark attendance</SectionLabel>
+          {/* Only for a day that needs adding up. One session already states its own length in
+              its times box, so repeating it here would say the same thing twice. */}
+          {daySessions.length > 1 && (
+            <p className="text-xs text-slate-600">
+              <strong className="font-semibold text-slate-800">{formatMinutes(dayMinutes)}</strong> across{' '}
+              {daySessions.length} sessions
+            </p>
+          )}
+        </div>
 
         {searchParams?.error === '1' && (
           <AlertBanner>That change couldn&apos;t be applied. Please check the date and try again.</AlertBanner>
@@ -344,13 +354,6 @@ export default async function AttendancePage(props: {
             </p>
           )}
           <SessionTimesForm classId={course.id} date={data.date} session={null} canEditStaffNote={canManageContent} />
-        </div>
-
-        <div className="max-w-xs">
-          <StatCard
-            label={daySessions.length > 1 ? `Total for ${daySessions.length} sessions` : 'Session length'}
-            value={formatMinutes(dayMinutes)}
-          />
         </div>
 
         {data.roster.length === 0 ? (
