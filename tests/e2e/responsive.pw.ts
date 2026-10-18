@@ -20,6 +20,10 @@ const PAGES: Record<string, string[]> = {
     `/admin/users/${SEED.sara}`, // student detail: the multi-tutor Subjects panel
     '/admin/messaging',
     '/admin/finance',
+    // Three data tables whose numeric columns carry a fixed width from `sm` up - the widest
+    // thing an admin-only report puts on a phone. Its tables render only once the month has
+    // a recorded session, which the specs that run before this one leave behind.
+    '/admin/teaching-hours',
     '/settings',
     `/assignments/${SEED.asgMath}`,
   ],

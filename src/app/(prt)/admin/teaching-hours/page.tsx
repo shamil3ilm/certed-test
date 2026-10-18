@@ -36,6 +36,21 @@ function Num({ children }: { children: React.ReactNode }) {
   return <td className="p-2 text-right tabular-nums text-slate-600">{children}</td>
 }
 
+/**
+ * Header for a `Num` column. From `sm` up it is fixed and narrow, so the counts cluster at
+ * the right of the table instead of being spread across it by auto layout: these are one- or
+ * two-character figures, and a column sized for the whole table strands each one far from the
+ * next. Below `sm` the width is left to auto layout - three fixed columns plus a name would
+ * exceed a phone's width and put the hours behind a sideways scroll.
+ */
+function NumHead({ children }: { children: React.ReactNode }) {
+  return (
+    <th scope="col" className="p-2 text-right sm:w-28">
+      {children}
+    </th>
+  )
+}
+
 function PersonTotals({ totals, month }: { totals: AcademyClassHours['personTotals']; month: string }) {
   const minutes = totals.reduce((sum, t) => sum + t.minutes, 0)
   const sessions = totals.reduce((sum, t) => sum + t.sessionCount, 0)
@@ -47,15 +62,9 @@ function PersonTotals({ totals, month }: { totals: AcademyClassHours['personTota
             <th scope="col" className="p-2">
               Tutor / mentor
             </th>
-            <th scope="col" className="p-2 text-right">
-              Classes
-            </th>
-            <th scope="col" className="p-2 text-right">
-              Sessions
-            </th>
-            <th scope="col" className="p-2 text-right">
-              Hours
-            </th>
+            <NumHead>Classes</NumHead>
+            <NumHead>Sessions</NumHead>
+            <NumHead>Hours</NumHead>
           </tr>
         </thead>
         <tbody>
@@ -95,12 +104,8 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
             <th scope="col" className="p-2">
               Tutor
             </th>
-            <th scope="col" className="p-2 text-right">
-              Sessions
-            </th>
-            <th scope="col" className="p-2 text-right">
-              Hours
-            </th>
+            <NumHead>Sessions</NumHead>
+            <NumHead>Hours</NumHead>
           </tr>
         </thead>
         <tbody>
@@ -157,7 +162,6 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
 
 function ClassStudentTable({ classes, month }: { classes: AcademyClassHours['studentClasses']; month: string }) {
   const minutes = classes.reduce((sum, c) => sum + c.totalMinutes, 0)
-  const sessions = classes.reduce((sum, c) => sum + c.students.reduce((s, t) => s + t.sessionCount, 0), 0)
   return (
     <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
       <table className="data-table w-full text-sm">
@@ -169,12 +173,8 @@ function ClassStudentTable({ classes, month }: { classes: AcademyClassHours['stu
             <th scope="col" className="p-2">
               Student
             </th>
-            <th scope="col" className="p-2 text-right">
-              Sessions
-            </th>
-            <th scope="col" className="p-2 text-right">
-              Hours
-            </th>
+            <NumHead>Sessions</NumHead>
+            <NumHead>Hours</NumHead>
           </tr>
         </thead>
         <tbody>
@@ -207,7 +207,12 @@ function ClassStudentTable({ classes, month }: { classes: AcademyClassHours['stu
             <td className="p-2" colSpan={2}>
               Total - {formatMonthLabel(month)}
             </td>
-            <td className="p-2 text-right tabular-nums">{sessions}</td>
+            {/* No session total here, for the reason the person table omits a class total: the
+                column counts sessions ATTENDED, one row per student, so adding it up reports a
+                single session taught to two students as two sessions. The hours DO add up -
+                they are hours received, and the academy delivered the sum of them. The real
+                session count for the month is in the tutor tables above. */}
+            <td className="p-2" />
             <td className="p-2 text-right tabular-nums">{formatMinutes(minutes)}</td>
           </tr>
         </tfoot>
