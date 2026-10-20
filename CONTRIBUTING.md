@@ -4,9 +4,8 @@ Cert-Ed Academia is a Next.js 16 (App Router) + Supabase learning portal. This i
 
 ## Branches and remotes
 
-**The live codebase is `feature/cert-ed-academia-app`.** `main` still holds the superseded
-standalone marketing site (no `src/`, `docs/`, or `supabase/`), so a fresh clone lands on
-the wrong tree — check out the working branch first.
+`main` is the live codebase, and a fresh clone lands on it. `feature/cert-ed-academia-app`
+is where the app was built before it was merged into `main`; it is no longer updated.
 
 | Remote   | Repository               | Role                                                      |
 | -------- | ------------------------ | --------------------------------------------------------- |

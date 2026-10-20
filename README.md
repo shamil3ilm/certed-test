@@ -8,7 +8,7 @@ Two applications share this repository and are split by host:
 The portal is a class-centric learning and operations app for:
 
 - super admins
-- sub-admins
+- admins (stored as `sub_admin`; the UI reads "Admin")
 - tutors
 - mentors
 - students
@@ -29,7 +29,9 @@ The portal is a class-centric learning and operations app for:
   - in-app messaging
   - in-app notifications
   - reminders
-  - receipts and payslips
+  - receipts and payslips, priced from recorded hours at per-person hourly rates
+  - class hours: the session record and its monthly totals
+  - student reports: report card, progress and attendance
   - calendar and timetable
   - mentor-to-student oversight
 
@@ -43,14 +45,9 @@ The portal is a class-centric learning and operations app for:
 
 ## Repository and branches
 
-> **The live codebase is the `feature/cert-ed-academia-app` branch.**
-> `main` still holds the superseded standalone marketing site and has no `src/`,
-> `docs/`, or `supabase/`. A plain `git clone` checks out `main`, so switch first:
->
-> ```bash
-> git clone <repo-url> && cd wed_cert
-> git checkout feature/cert-ed-academia-app
-> ```
+`main` is the live codebase, and a plain `git clone` checks it out. The older
+`feature/cert-ed-academia-app` branch is where the app was built before it was merged into
+`main`; it is no longer updated.
 
 Remotes: `origin` is the primary repository; `test` is a deploy mirror whose `main`
 branch builds the staging site. See [CONTRIBUTING.md](CONTRIBUTING.md).

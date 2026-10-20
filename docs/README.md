@@ -53,6 +53,13 @@ The map of every doc, grouped by purpose. Each topic has one **canonical owner**
 
 - [brand-asset-reference.md](brand-asset-reference.md) — brand asset inventory
 
+## Specs and plans (`specs/`, `plans/`)
+
+Design specs and the implementation plans written from them, one per feature, dated. Kept after the work ships as the record of what was decided and why.
+
+- [specs/](specs/) — e.g. the roles relabel and bulk user add
+- [plans/](plans/) — e.g. add several users, re-issue setup code, the attendance page restructure
+
 ## Point-in-time audits (`qa/`)
 
 Dated audit artifacts — snapshots of the codebase at a moment, not living references. The most recent is authoritative for status; older ones are history.

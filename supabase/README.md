@@ -75,6 +75,11 @@ Authorization:
 - `0086` to `0091`: assigned reminders, a mentee-note length bound, profile erasure, audit metadata, round-5 RLS hardening, and the teaching-hours index
 - `0092` to `0098`: sub-admin class authority, several recorded sessions per day, attendance re-keyed onto the session it belongs to, hourly rates + the billed month behind hours-derived receipts/pay slips, a fail-closed function-EXECUTE sweep (a re-signed function is a NEW object and arrives granted to anon), student session access scoped to the session rather than the date, and real org contact defaults
 - `0099` to `0104`: notification deep links + attendance bound to its session, billing integrity with consent withdrawal, session-integrity triggers and rate-limit retention, hours attestation, an analytics SUM pushdown, and a per-session `subject_id` with the indexes the filtered session list needs
+- `0105` to `0106`: an enrolment-count pushdown, and dropping the unused `finance_totals`
+- `0107` to `0113`: integrity as single transactions — a student takes a subject in one live class; mentorship, account lifecycle, tutor assignment, billing issue, submission/attachment, invite and FX re-pricing writes each become one guarded transaction; a custodial document is visible only once its file is live
+- `0114` to `0117`: database-enforced rules — nothing is added to an archived class, a revoked student is never enrolled, a month a live receipt or pay slip bills is locked, and one capability override per person, capability and scope
+- `0118` to `0119`: function grants restored for `authenticated`, and `service_role` granted every function in `public`, including future ones
+- `0120` to `0122`: a student always has a mentor, reminders are actually delivered, and assignment due dates notify the people they are due from
 
 ## Related
 
