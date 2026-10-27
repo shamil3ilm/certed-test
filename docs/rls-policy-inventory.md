@@ -101,6 +101,9 @@ This is the current functional inventory. It is intentionally grouped by purpose
     so it cannot reach a summary or a staff note
   - the student INSERT path was withdrawn in 0097: since 0094 a mark cannot exist without
     its session, so a student never needs to create one
+  - column grants, not a policy: the RLS client may SELECT `kind` (0123 - a student sees whether
+    a session was regular, demo or exam) but not `monitor_id`, `staff_note` or
+    `hours_recorded_by`, which are read through the service role behind a class-authority check
 
 - `mentorships`
   - read

@@ -80,6 +80,7 @@ Authorization:
 - `0114` to `0117`: database-enforced rules — nothing is added to an archived class, a revoked student is never enrolled, a month a live receipt or pay slip bills is locked, and one capability override per person, capability and scope
 - `0118` to `0119`: function grants restored for `authenticated`, and `service_role` granted every function in `public`, including future ones
 - `0120` to `0122`: a student always has a mentor, reminders are actually delivered, and assignment due dates notify the people they are due from
+- `0123`: a session has a type (`regular`, `demo`, `exam`) and an exam can name its monitor (the tutor double-booking rule exempts an exam someone else monitors)
 
 ## Related
 

@@ -9,6 +9,7 @@ import { AlertBanner, BackLink } from '@/lib/ui'
 import { EvaluationOverview, MenteeHeader } from './detail-parts'
 import { EvaluationPanels, NeedsAttentionPanel, RecentSubmissionsPanel } from './detail-lists'
 import { MenteeNotesPanel } from './MenteeNotesPanel'
+import { HoursPanel } from './HoursPanel'
 
 const NOTES_PAGE_SIZE = 20
 
@@ -36,6 +37,7 @@ export default async function MenteePage(props: {
     sort?: string
     error?: string
     notePage?: string
+    hoursMonth?: string
   }>
 }) {
   const searchParams = await props.searchParams
@@ -81,6 +83,12 @@ export default async function MenteePage(props: {
       />
       <NeedsAttentionPanel overdue={overdue} />
       <EvaluationPanels evaluations={evaluations} />
+      <HoursPanel
+        me={me}
+        studentId={params.id}
+        monthParam={searchParams?.hoursMonth}
+        carry={{ period: searchParams?.period, classId: searchParams?.classId, sort: searchParams?.sort }}
+      />
       <RecentSubmissionsPanel submissions={submissions} />
       <MenteeNotesPanel
         studentId={params.id}

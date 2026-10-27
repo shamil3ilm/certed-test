@@ -22,6 +22,7 @@ import {
 } from '@/lib/data/class-sessions'
 import { selectJoinRowsForSessionsAsService, updateJoinAtAsService } from '@/lib/data/attendance'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
+import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
@@ -58,6 +59,11 @@ export type MenteeSessionTiming = {
    *  tutor. Both are legitimate - a mentor account may teach - but the column says "Tutor"
    *  and a name alone does not say which kind of account earned the hours. */
   tutorRole: string | null
+  /** Regular, demo or exam (0123). */
+  kind: SessionKind
+  /** Who monitored an exam when it was not the tutor (0123); null otherwise. */
+  monitorId: string | null
+  monitorName: string | null
   sessionDate: string
   startAt: string | null
   studentEntryAt: string | null
@@ -168,7 +174,10 @@ async function enrichSessions(sessions: ClassSessionRow[]): Promise<MenteeSessio
   const personIds = new Set<string>()
   for (const r of enrollRefs) personIds.add(r.student_id)
   for (const r of joinRows) personIds.add(r.student_id)
-  for (const s of sessions) if (s.tutor_id) personIds.add(s.tutor_id)
+  for (const s of sessions) {
+    if (s.tutor_id) personIds.add(s.tutor_id)
+    if (s.monitor_id) personIds.add(s.monitor_id)
+  }
   const people = await getProfileLabelsByIds([...personIds])
 
   const items = sessions.map((session): MenteeSessionTiming => {
@@ -185,6 +194,9 @@ async function enrichSessions(sessions: ClassSessionRow[]): Promise<MenteeSessio
       tutorId,
       tutorName: tutorId ? (people.get(tutorId)?.name ?? null) : null,
       tutorRole: tutorId ? (people.get(tutorId)?.role ?? null) : null,
+      kind: kindOf(session),
+      monitorId: session.monitor_id ?? null,
+      monitorName: session.monitor_id ? (people.get(session.monitor_id)?.name ?? null) : null,
       sessionDate: session.session_date,
       startAt: session.actual_start,
       studentEntryAt: join?.join_at ?? null,
@@ -401,7 +413,10 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
     normalizeInstant(input.startAt, 'start'),
     normalizeInstant(input.endAt, 'end'),
   )
-  await assertNoTutorOverlap(existing.tutor_id, start, end, existing.id)
+  // An exam someone else monitored does not put the tutor in the room (0123), so it cannot clash
+  // with their teaching - the same exemption saveSessionTimes and the database constraint make.
+  const tutorAbsent = kindOf(existing) === 'exam' && existing.monitor_id && existing.monitor_id !== existing.tutor_id
+  if (!tutorAbsent) await assertNoTutorOverlap(existing.tutor_id, start, end, existing.id)
 
   const saved = await updateSessionActualTimesAsService(
     existing.id,

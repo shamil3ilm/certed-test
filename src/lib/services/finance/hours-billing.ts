@@ -3,6 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { computeTotals, lineAmount, SUPPORTED_CURRENCIES } from '@/lib/money'
 import { getProfileById } from '@/lib/services/users'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
+import { getAcademyBreakdown } from '@/lib/services/hours-breakdown'
 import { selectBillingRatesFor, selectPartiesWithDocForPeriod } from '@/lib/data/billing-rates'
 import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
@@ -152,6 +153,26 @@ export async function buildBillingDraft(
       `A ${kindRules.noun} for this month has already been issued to this ` +
         `${kindRules.partyNoun} and has not been voided. Void it first - a second live ` +
         `document for the same month is refused.`,
+    )
+  }
+
+  // Demo classes and exams are recorded apart from regular ones, but what they bill or pay is
+  // not decided, so this draft prices every counted session at the one hourly rate. Say so
+  // when the month holds any, so the admin is not issuing a figure that quietly assumes it.
+  const breakdown = await getAcademyBreakdown(actorId, period)
+  const mine =
+    kind === 'receipt'
+      ? breakdown.students.find((s) => s.studentId === partyId)?.total
+      : breakdown.people.find((p) => p.personId === partyId)?.minutes
+  if (mine && (mine.demo > 0 || mine.exam > 0)) {
+    const parts = [
+      mine.demo > 0 ? `${toHours(mine.demo)} h of demo classes` : null,
+      mine.exam > 0 ? `${toHours(mine.exam)} h of exams` : null,
+    ].filter(Boolean)
+    warnings.push(
+      `This month includes ${parts.join(' and ')}. Pricing for demo classes and exams is not set, ` +
+        `so the lines above count every recorded session at the regular hourly rate. ` +
+        `Check them before issuing.`,
     )
   }
 

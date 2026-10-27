@@ -30,7 +30,8 @@ The portal is a class-centric learning and operations app for:
   - in-app notifications
   - reminders
   - receipts and payslips, priced from recorded hours at per-person hourly rates
-  - class hours: the session record and its monthly totals
+  - class hours: the session record and its monthly totals, split into regular, demo and exam,
+    with each person's own breakdown on My hours
   - student reports: report card, progress and attendance
   - calendar and timetable
   - mentor-to-student oversight

@@ -53,20 +53,27 @@ test('records a session and attendance, then reports the hours on both sides', a
   await expect(page.getByRole('heading', { name: 'By class and tutor' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Students' })).toBeVisible()
 
-  const tables = page.locator('main table')
-  await expect(tables).toHaveCount(3)
+  // The three summary tables are found by name: each person or student also opens into detail
+  // tables of its own, so counting every table on the page would count those too.
+  const workedTable = page.getByRole('table', { name: 'Hours worked, by tutor and mentor' })
+  const classTable = page.getByRole('table', { name: 'Hours by class and tutor' })
+  const receivedTable = page.getByRole('table', { name: 'Hours received, by student' })
+  await expect(workedTable).toBeVisible()
+  await expect(classTable).toBeVisible()
+  await expect(receivedTable).toBeVisible()
 
-  // The tutor who ran the session is credited at least the window that was recorded.
-  const tutorRow = tables.nth(0).locator('tbody tr', { hasText: 'Tarun Tutor' })
+  // The tutor who ran the session is credited at least the window that was recorded. The last
+  // column is Working: regular teaching plus any exam monitoring, and never a demo.
+  const tutorRow = workedTable.locator('tbody tr', { hasText: 'Tarun Tutor' })
   await expect(tutorRow).toHaveCount(1)
   expect(parseHours(await tutorRow.locator('td').last().innerText())).toBeGreaterThanOrEqual(90)
 
   // The student side is populated from the SAME sessions - this is the join the unit
-  // tests cannot exercise. A student marked present is credited that day's window.
-  const studentTable = tables.nth(2)
-  await expect(studentTable.locator('tbody tr')).not.toHaveCount(0)
-  const firstStudentHours = await studentTable.locator('tbody tr').first().locator('td').last().innerText()
-  expect(parseHours(firstStudentHours)).toBeGreaterThanOrEqual(90)
+  // tests cannot exercise. A student marked present is credited that day's window, and a
+  // regular class lands in the Regular column (the first figure after the name).
+  await expect(receivedTable.locator('tbody tr')).not.toHaveCount(0)
+  const firstStudentRegular = await receivedTable.locator('tbody tr').first().locator('td').nth(1).innerText()
+  expect(parseHours(firstStudentRegular)).toBeGreaterThanOrEqual(90)
 })
 
 test('a month with no recorded sessions reports empty rather than erroring', async ({ page }) => {

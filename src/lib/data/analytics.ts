@@ -2,6 +2,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllPaged } from '@/lib/data/paginate'
 import type { ClassSessionRow } from '@/lib/data/class-sessions'
+import type { SessionKind } from '@/lib/attendance/session-kind'
 
 /**
  * Aggregation reads for the dashboard KPI rows. These are
@@ -81,18 +82,67 @@ export async function selectSessionsForClasses(
   return rows as unknown as ClassSessionRow[]
 }
 
+/** How many sessions dated in [fromDate, beforeDate) have no recorded start/end - the ones the
+ *  hours reports cannot count. `excludeClassIds` leaves out the archived classes. */
+export async function countSessionsWithoutTimes(
+  fromDate: string,
+  beforeDate: string,
+  excludeClassIds?: string[],
+): Promise<number> {
+  let q = createAdminClient()
+    .from('class_sessions')
+    .select('id', { count: 'exact', head: true })
+    .gte('session_date', fromDate)
+    .lt('session_date', beforeDate)
+    .is('actual_start', null)
+  if (excludeClassIds?.length) q = q.not('class_id', 'in', `(${excludeClassIds.join(',')})`)
+  const { count, error } = await q
+  if (error) throw new Error(`analytics.countSessionsWithoutTimes: ${error.message}`)
+  return count ?? 0
+}
+
+/** What each session's tutor wrote down for the people who attended it: the class summary, and the
+ *  student's own feedback on it. Never the private staff note. Keyed by session id; a session with
+ *  neither is absent. */
+export async function selectSessionNotesByIds(
+  sessionIds: string[],
+): Promise<Map<string, { summary: string | null; student_feedback: string | null }>> {
+  const out = new Map<string, { summary: string | null; student_feedback: string | null }>()
+  if (sessionIds.length === 0) return out
+  const { data, error } = await createAdminClient()
+    .from('class_sessions')
+    .select('id, summary, student_feedback')
+    .in('id', sessionIds)
+  if (error) throw new Error(`analytics.selectSessionNotesByIds: ${error.message}`)
+  for (const row of data ?? []) {
+    if (row.summary || row.student_feedback) {
+      out.set(row.id, { summary: row.summary ?? null, student_feedback: row.student_feedback ?? null })
+    }
+  }
+  return out
+}
+
 export interface SessionHoursRow {
   /** The session's own id - the join key for per-STUDENT hours since 0094 attached each
    *  attendance mark to the session it belongs to. */
   id: string
   class_id: string
+  /** The calendar date the session was recorded against, for a ledger row. */
+  session_date?: string
   tutor_id: string | null
   /** The subject the SESSION recorded (0104) - what was taught, which is not necessarily
    *  what the class is called or points at today. Null for sessions predating 0104. */
   subject_id: string | null
+  /** Regular / demo / exam (0123). Optional because a row may predate the column or come from
+   *  mock mode; readers go through kindOf, which answers 'regular'. */
+  kind?: SessionKind | null
+  /** Who monitored an exam when it was not the tutor (0123). */
+  monitor_id?: string | null
   actual_start: string | null
   actual_end: string | null
 }
+
+const HOURS_COLUMNS = 'id, class_id, session_date, tutor_id, subject_id, kind, monitor_id, actual_start, actual_end'
 
 /**
  * Sessions for a set of classes whose recorded start falls in [startIso, endIso) - the
@@ -116,7 +166,7 @@ export async function selectSessionsForClassesInRange(
   return fetchAllPaged<SessionHoursRow>((from, to) => {
     let q = admin
       .from('class_sessions')
-      .select('id, class_id, tutor_id, subject_id, actual_start, actual_end')
+      .select(HOURS_COLUMNS)
       .gte('actual_start', startIso)
       .lt('actual_start', endIso)
       .order('id', { ascending: true })
@@ -126,6 +176,127 @@ export async function selectSessionsForClassesInRange(
     if (excludeClassIds?.length) q = q.not('class_id', 'in', `(${excludeClassIds.join(',')})`)
     return q.range(from, to)
   }, 'analytics.selectSessionsForClassesInRange')
+}
+
+/**
+ * The sessions whose working time belongs to ONE person in [startIso, endIso): the ones they
+ * taught, and the exams they monitored. Two reads merged by id, because an OR across two
+ * columns is not something the mock query builder expresses and the result sets are small.
+ *
+ * It also returns an exam the person TAUGHT but someone else monitored - that session's hours
+ * are the monitor's, so the caller keeps only the rows the engine credits to this person.
+ */
+export async function selectSessionsWorkedByPersonInRange(
+  personId: string,
+  startIso: string,
+  endIso: string,
+): Promise<SessionHoursRow[]> {
+  const admin = createAdminClient()
+  const read = (column: 'tutor_id' | 'monitor_id') =>
+    fetchAllPaged<SessionHoursRow>(
+      (from, to) =>
+        admin
+          .from('class_sessions')
+          .select(HOURS_COLUMNS)
+          .eq(column, personId)
+          .gte('actual_start', startIso)
+          .lt('actual_start', endIso)
+          .order('id', { ascending: true })
+          .range(from, to),
+      `analytics.selectSessionsWorkedByPersonInRange(${column})`,
+    )
+  const [taught, monitored] = await Promise.all([read('tutor_id'), read('monitor_id')])
+  return [...new Map([...taught, ...monitored].map((s) => [s.id, s] as const)).values()]
+}
+
+/**
+ * The sessions in [startIso, endIso) among `sessionIds`. Chunked, because each id is a uuid in
+ * a GET URL: a student's month is dozens of sessions, but nothing should depend on that staying
+ * true.
+ */
+export async function selectSessionsByIdsInRange(
+  sessionIds: string[],
+  startIso: string,
+  endIso: string,
+): Promise<SessionHoursRow[]> {
+  if (sessionIds.length === 0) return []
+  const admin = createAdminClient()
+  const out: SessionHoursRow[] = []
+  for (let i = 0; i < sessionIds.length; i += 100) {
+    const chunk = sessionIds.slice(i, i + 100)
+    const rows = await fetchAllPaged<SessionHoursRow>(
+      (from, to) =>
+        admin
+          .from('class_sessions')
+          .select(HOURS_COLUMNS)
+          .in('id', chunk)
+          .gte('actual_start', startIso)
+          .lt('actual_start', endIso)
+          .order('id', { ascending: true })
+          .range(from, to),
+      'analytics.selectSessionsByIdsInRange',
+    )
+    out.push(...rows)
+  }
+  return out
+}
+
+export interface StudentMarkRow {
+  session_id: string
+  student_id: string
+  status: 'present' | 'late' | 'absent'
+  join_at: string | null
+  leave_at: string | null
+}
+
+/**
+ * ALL of one student's marks - absent included - whose session date falls in [fromDate, toDate].
+ * The ledger of a student's month has to show the sessions they missed as well as the ones they
+ * attended; the hours figures filter this down to present/late themselves.
+ */
+export async function selectMarksForStudentInDates(
+  studentId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<StudentMarkRow[]> {
+  const admin = createAdminClient()
+  return fetchAllPaged<StudentMarkRow>(
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('session_id, student_id, status, join_at, leave_at')
+        .eq('student_id', studentId)
+        .gte('session_date', fromDate)
+        .lte('session_date', toDate)
+        .order('id', { ascending: true })
+        .range(from, to),
+    'analytics.selectMarksForStudentInDates',
+  )
+}
+/**
+ * One student's PRESENT/LATE marks whose session date falls in [fromDate, toDate] - the base
+ * for "hours this student received". Session ids come back so the caller can read exactly
+ * those sessions. 'absent' contributes no hours, as everywhere else in the hours reports.
+ */
+export async function selectAttendedMarksForStudentInDates(
+  studentId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<AttendedRow[]> {
+  const admin = createAdminClient()
+  return fetchAllPaged<AttendedRow>(
+    (from, to) =>
+      admin
+        .from('attendance')
+        .select('session_id, student_id')
+        .eq('student_id', studentId)
+        .in('status', ['present', 'late'])
+        .gte('session_date', fromDate)
+        .lte('session_date', toDate)
+        .order('id', { ascending: true })
+        .range(from, to),
+    'analytics.selectAttendedMarksForStudentInDates',
+  )
 }
 
 export interface AttendedRow {

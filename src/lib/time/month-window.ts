@@ -76,3 +76,11 @@ export function monthWindow(month: string, tz: string): MonthWindow {
   const end = zonedMidnightUtc(nextMonthFirst(year, month1), zone)
   return { month, startIso: start.toISOString(), endIso: end.toISOString() }
 }
+
+/** The month as calendar dates: its first day, and the first day of the next (exclusive). For
+ *  columns that hold a date rather than an instant. */
+export function monthDateBounds(month: string): [from: string, before: string] {
+  if (!isMonth(month)) throw new Error(`monthDateBounds: invalid month "${month}" (expected YYYY-MM)`)
+  const [year, month1] = month.split('-').map(Number)
+  return [`${month}-01`, nextMonthFirst(year, month1)]
+}

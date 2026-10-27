@@ -104,6 +104,9 @@ const WRITE = /\.(insert|update|upsert|delete)\(|\.rpc\(/
 /** Reads allowed to be unbounded, each with WHY the set cannot grow without limit.
  *  Keyed by "file:functionName". */
 const BOUNDED_BY_DESIGN: Record<string, string> = {
+  'src/lib/data/analytics.ts:selectSessionNotesByIds':
+    'Looks up the sessions named by an id list - the attended sessions of ONE student in ONE ' +
+    'month - so it is bounded by what a single student can attend in a month, never by the table.',
   'src/lib/data/assignments-due-sweep.ts:selectLiveClassIds':
     'The classes of ONE claimed batch of assignments, so it is bounded by CLAIM_BATCH (100) ' +
     'before it is bounded by anything else - the sweep asks only about what it just claimed.',

@@ -153,6 +153,17 @@ Notes:
 - `tutor_id` is likewise the tutor RECORDED on the session, not the class's tutor today;
   `hours_recorded_by` (0102) is who entered the window, which is a different fact from who
   is paid for it
+- `kind` (migration 0123) is `regular` (the default, so every earlier row reads as regular),
+  `demo` or `exam`. Reports split hours by it: a demo is never working time, and an exam is the
+  working time of whoever MONITORED it. Receipts and pay slips do NOT yet read it - what a demo
+  or an exam should bill is undecided - and the billed-month lock does not cover it, so both
+  must be revisited together when billing starts to depend on it
+- `monitor_id` (0123) names who monitored an exam when that was not the session's tutor; NULL
+  means the tutor did. A CHECK allows it only when `kind = 'exam'`. The RLS client may read
+  `kind` but NOT `monitor_id` (it names a colleague's working time, like `hours_recorded_by`)
+- the tutor double-booking exclusion constraint (0101) exempts an exam monitored by someone
+  other than the tutor: the tutor is not in the room. The monitor is deliberately unconstrained,
+  because one person may monitor several candidates at once
 
 ### `mentorships`
 

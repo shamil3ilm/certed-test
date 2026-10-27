@@ -1,6 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import {
   listManagerSessionsForDate,
   listAttendanceForClassDate,
@@ -11,10 +12,11 @@ import {
   type AttendanceStatus,
   type ClassSession,
 } from '@/lib/services/attendance'
+import { listEvents } from '@/lib/services/calendar-events'
 import { getClassMembers } from '@/lib/services/classes'
 import { selectClassById } from '@/lib/data/classes'
 import { selectSubjectsByIds, selectActiveSubjects } from '@/lib/data/subjects'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfileNamesByIds, listActiveTeacherCandidates } from '@/lib/services/users'
 import { isCalendarDate, todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 
@@ -119,6 +121,21 @@ type ManagerAttendancePageData = {
    *  person as well as the time. Includes a tutor since removed from the class: they still
    *  taught the sessions recorded against them. */
   tutorNames: Map<string, string>
+  /** Who an exam can be recorded as monitored by (0123): the academy's active tutors and
+   *  mentors, plus anyone already recorded on this date's sessions - an admin, or someone
+   *  since revoked - so a saved exam never shows a blank monitor. The form offers it only
+   *  when a session's type is Exam. */
+  monitorOptions: { id: string; name: string }[]
+  /** The same people by id, for labelling a session's header. */
+  monitorNames: Map<string, string>
+  /** Whether the viewer may NAME a monitor other than the session's tutor. That is an admin /
+   *  sub-admin act (it moves exam hours onto someone's working time), so the form offers the
+   *  choice to them only - everyone else records an exam as monitored by the tutor. */
+  canChooseMonitor: boolean
+  /** The title of a cancellation on the calendar for this class on `date`, or null. Recording a
+   *  session on a cancelled date is allowed - classes do run after all - but it deserves a
+   *  second look, so the page says so above the form. */
+  cancelledAs: string | null
 }
 
 type ClassAttendancePageData = StudentAttendancePageData | ManagerAttendancePageData
@@ -240,6 +257,20 @@ export async function loadClassAttendancePageData(
   ]
   const formerTutors = formerTutorIds.length > 0 ? await getProfileNamesByIds(formerTutorIds) : new Map()
   const tutorNames = new Map<string, string>([...currentTutors, ...formerTutors])
+  const flags = await loadPersonaFlags(me.id)
+  const candidates = await listActiveTeacherCandidates()
+  const knownMonitors = new Map(candidates.map((m) => [m.id, m.name] as const))
+  const missingMonitorIds = [
+    ...new Set(
+      sessions.map((s) => s.monitor_id).filter((id): id is string => Boolean(id) && !knownMonitors.has(id as string)),
+    ),
+  ]
+  const monitorNames = new Map<string, string>([
+    ...knownMonitors,
+    ...(missingMonitorIds.length > 0 ? await getProfileNamesByIds(missingMonitorIds) : new Map<string, string>()),
+  ])
+  // The list the form offers: everyone who can be chosen now, plus anyone already recorded.
+  const monitorOptions = [...monitorNames.entries()].map(([id, name]) => ({ id, name }))
   const historyStudentIds = [...new Set(historyRows.map((row) => row.student_id))]
   // Names for the subjects THESE sessions recorded. Deactivated subjects included: one still
   // labels the sessions already pointing at it, and omitting it would blank the column.
@@ -256,11 +287,14 @@ export async function loadClassAttendancePageData(
   // Only read when there is something to repair; the common case pays nothing for it.
   const subjectOptions = classSubjectId ? [] : await selectActiveSubjects()
   const historicalNames = await getProfileNamesByIds(historyStudentIds)
+  const cancellations = await listEvents({ from: date, to: date, kind: 'cancellation' })
+  const cancelledAs = cancellations.find((e) => e.class_id === courseId)?.title ?? null
   const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
 
   return {
     kind: 'manager',
     date,
+    cancelledAs,
     sessions,
     subjectNames,
     classSubjectName,
@@ -285,6 +319,9 @@ export async function loadClassAttendancePageData(
       }
     }),
     tutorNames,
+    monitorOptions,
+    monitorNames,
+    canChooseMonitor: flags.isAdmin || flags.isSubAdmin,
     // One roster per recorded session, each showing that session's own marks.
     sessionRosters: sessions.map((session) => ({ session, roster: rosterFor(session.id) })),
     // The unmarked roster, used when the date has no session yet - marking it records one.

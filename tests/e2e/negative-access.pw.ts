@@ -21,6 +21,7 @@ const BLOCKED: Record<string, string[]> = {
     '/admin/history',
     '/admin/messaging',
     '/admin/teaching-hours',
+    '/admin/teaching-hours/person/a0000000-0000-4000-8000-000000000002',
     '/admin/finance/billing-rates',
   ],
   // /grades is a student's OWN grade card - student-only by design; a tutor is
@@ -35,6 +36,7 @@ const BLOCKED: Record<string, string[]> = {
     // The academy-wide class-hours report is manageClasses-gated oversight; a tutor's
     // own hours live on their dashboard, a mentor's scoped view on /session-timings.
     '/admin/teaching-hours',
+    '/admin/teaching-hours/person/a0000000-0000-4000-8000-000000000002',
     // A tutor must not read the hourly rates - not even their own pay rate.
     '/admin/finance/billing-rates',
   ],
@@ -45,6 +47,7 @@ const BLOCKED: Record<string, string[]> = {
     '/admin/history',
     '/admin/messaging',
     '/admin/teaching-hours',
+    '/admin/teaching-hours/person/a0000000-0000-4000-8000-000000000002',
     '/admin/finance/billing-rates',
   ],
   // Sub-admin is now an operational admin (holds viewClasses + viewMentees), so it

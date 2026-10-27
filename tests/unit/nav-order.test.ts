@@ -52,7 +52,15 @@ describe('nav ordering by persona', () => {
   })
 
   it('puts the classroom first for a tutor', () => {
-    expect(labelsFor(['tutor'])).toEqual(['Dashboard', 'Classes', 'Grading', 'Documents', 'Calendar', 'Messages'])
+    expect(labelsFor(['tutor'])).toEqual([
+      'Dashboard',
+      'Classes',
+      'Grading',
+      'Documents',
+      'Calendar',
+      'My hours', // their own hours worked; an admin reads everyone's on Class hours
+      'Messages',
+    ])
   })
 
   it('puts the mentees first for a mentor, with their classes right behind', () => {
@@ -67,6 +75,7 @@ describe('nav ordering by persona', () => {
       'Grading',
       'Documents',
       'Calendar',
+      'My hours',
       'Messages',
     ])
   })
@@ -82,18 +91,32 @@ describe('nav ordering by persona', () => {
       'Grading',
       'Documents',
       'Calendar',
+      'My hours',
       'Messages',
     ])
   })
 
   it('puts a student in their own classes first', () => {
-    expect(labelsFor(['student'])).toEqual(['Dashboard', 'Classes', 'Grades', 'Documents', 'Calendar', 'Messages'])
+    expect(labelsFor(['student'])).toEqual([
+      'Dashboard',
+      'Classes',
+      'Grades',
+      'Documents',
+      'Calendar',
+      'My hours', // the hours they received, by subject and tutor
+      'Messages',
+    ])
   })
 
   it('starts every persona at the Dashboard', () => {
     for (const personas of [['admin'], ['sub_admin'], ['tutor'], ['mentor'], ['tutor', 'mentor'], ['student']]) {
       expect(labelsFor(personas)[0], personas.join('+')).toBe('Dashboard')
     }
+  })
+
+  it('sends an admin to Class hours for everyone`s hours rather than also offering My hours', () => {
+    expect(labelsFor(['admin'])).not.toContain('My hours')
+    expect(labelsFor(['sub_admin'])).not.toContain('My hours')
   })
 
   it('collapses self-service finance items into the finance hub when finance is present', () => {

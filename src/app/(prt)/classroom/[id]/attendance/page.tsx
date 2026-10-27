@@ -34,6 +34,7 @@ import {
   studentMetrics,
   type SessionTimes,
 } from '@/lib/attendance/hours'
+import { SESSION_KIND_LABELS, kindOf } from '@/lib/attendance/session-kind'
 
 const EMPTY_SESSION_TIMES: SessionTimes = {
   scheduled_start: null,
@@ -90,6 +91,9 @@ export default async function AttendancePage(props: {
               const dayStarts = daySessions.map((x) => x.actual_start).filter((v): v is string => v != null)
               const dayEnds = daySessions.map((x) => x.actual_end).filter((v): v is string => v != null)
               const s = daySessions[0] ?? null
+              // THIS mark's session. A day can hold several, each with its own mark, so showing the day's
+              // summaries under every row repeated one session's text under each of them.
+              const own = daySessions.find((x) => x.id === row.session_id) ?? null
               const learning = daySessions.length
                 ? studentMetrics(
                     {
@@ -105,6 +109,13 @@ export default async function AttendancePage(props: {
                   <div className="flex items-center justify-between px-4 py-3">
                     <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
                     <span className="flex items-center gap-2">
+                      {/* This mark's own session, when it was a demo or an exam, says so - so the
+                          hours beside it are read as what they were. Regular is the unmarked case. */}
+                      {own && kindOf(own) !== 'regular' && (
+                        <Badge tone={kindOf(own) === 'exam' ? 'warning' : 'slate'}>
+                          {SESSION_KIND_LABELS[kindOf(own)]}
+                        </Badge>
+                      )}
                       {learning != null && <span className="text-xs text-slate-600">{formatMinutes(learning)}</span>}
                       <Badge tone={attendanceTone(row.status)}>{statusLabel(row.status)}</Badge>
                     </span>
@@ -113,21 +124,12 @@ export default async function AttendancePage(props: {
                     <summary className="cursor-pointer text-xs font-medium text-primary transition hover:underline">
                       Summary &amp; feedback
                     </summary>
-                    {daySessions.some((x) => x.summary) ? (
+                    {own?.summary ? (
                       <div className="mt-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                           Tutor&apos;s summary
                         </p>
-                        {daySessions
-                          .filter((x) => x.summary)
-                          .map((x, i, all) => (
-                            <p key={x.id} className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
-                              {all.length > 1 && (
-                                <span className="mr-1 font-semibold text-slate-600">Session {i + 1}:</span>
-                              )}
-                              {x.summary}
-                            </p>
-                          ))}
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{own.summary}</p>
                       </div>
                     ) : (
                       <p className="mt-2 text-xs text-slate-600">No summary from your tutor for this session yet.</p>
@@ -275,6 +277,13 @@ export default async function AttendancePage(props: {
           <AlertBanner>That change couldn&apos;t be applied. Please check the date and try again.</AlertBanner>
         )}
 
+        {data.cancelledAs && (
+          <AlertBanner tone="warning">
+            The calendar says this class was cancelled on this date (&ldquo;{data.cancelledAs}&rdquo;). If it went ahead
+            after all, record it as usual; otherwise there is nothing to record.
+          </AlertBanner>
+        )}
+
         <form className="flex flex-wrap items-end gap-2">
           <label className="text-xs font-medium text-slate-600">
             Session date
@@ -331,6 +340,17 @@ export default async function AttendancePage(props: {
                     {/* The SESSION's subject, stamped when it was recorded (0104) - so a class
                         re-pointed to a new subject keeps its history labelled correctly. */}
                     {session.subject_id && <Badge>{data.subjectNames.get(session.subject_id) ?? 'Subject'}</Badge>}
+                    {/* A demo or an exam says so up here: it is not working time (demo) or is
+                        credited to its monitor (exam), and the reader should not have to open the
+                        form to find out which kind of hour this is. */}
+                    {kindOf(session) !== 'regular' && (
+                      <Badge tone={kindOf(session) === 'exam' ? 'warning' : 'slate'}>
+                        {SESSION_KIND_LABELS[kindOf(session)]}
+                      </Badge>
+                    )}
+                    {kindOf(session) === 'exam' && session.monitor_id && (
+                      <span>&middot; monitored by {data.monitorNames.get(session.monitor_id) ?? 'another person'}</span>
+                    )}
                   </p>
                 </div>
                 <form action={deleteSessionAction}>
@@ -361,6 +381,8 @@ export default async function AttendancePage(props: {
                     date={data.date}
                     session={session}
                     canEditStaffNote={canManageContent}
+                    monitorOptions={data.monitorOptions}
+                    canChooseMonitor={data.canChooseMonitor}
                     bare
                   />
                 </div>
@@ -417,6 +439,8 @@ export default async function AttendancePage(props: {
                     date={data.date}
                     session={null}
                     canEditStaffNote={canManageContent}
+                    monitorOptions={data.monitorOptions}
+                    canChooseMonitor={data.canChooseMonitor}
                     bare
                   />
                 </div>
@@ -437,6 +461,8 @@ export default async function AttendancePage(props: {
                 date={data.date}
                 session={null}
                 canEditStaffNote={canManageContent}
+                monitorOptions={data.monitorOptions}
+                canChooseMonitor={data.canChooseMonitor}
               />
             </>
           )}

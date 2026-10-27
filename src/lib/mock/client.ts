@@ -294,6 +294,9 @@ async function rpc(uid: string | null, fn: string, args: Args) {
       student_feedback: null,
       staff_note: null,
       hours_recorded_by: null,
+      // The column defaults the database applies and mock mode does not (0123).
+      kind: 'regular',
+      monitor_id: null,
       subject_id: table('classes').find((c) => c.id === args.p_class_id)?.subject_id ?? null,
       created_at: now,
       updated_at: now,

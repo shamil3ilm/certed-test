@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { monthWindow, isMonth } from '@/lib/time/month-window'
+import { monthWindow, isMonth, monthDateBounds } from '@/lib/time/month-window'
 
 describe('isMonth', () => {
   it('accepts a well-formed YYYY-MM', () => {
@@ -52,5 +52,17 @@ describe('monthWindow', () => {
   it('throws only on a malformed month', () => {
     expect(() => monthWindow('2026-13', 'UTC')).toThrow()
     expect(() => monthWindow('August', 'UTC')).toThrow()
+  })
+})
+
+describe('monthDateBounds', () => {
+  it('runs from the 1st to the 1st of the next month', () => {
+    expect(monthDateBounds('2026-08')).toEqual(['2026-08-01', '2026-09-01'])
+  })
+  it('rolls December into the next year', () => {
+    expect(monthDateBounds('2026-12')).toEqual(['2026-12-01', '2027-01-01'])
+  })
+  it('throws on a malformed month', () => {
+    expect(() => monthDateBounds('2026-13')).toThrow()
   })
 })

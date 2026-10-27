@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/teaching-hours', () => ({ getAcademyClassHours: vi.fn() }))
+vi.mock('@/lib/services/hours-breakdown', () => ({ getAcademyBreakdown: vi.fn() }))
 vi.mock('@/lib/data/billing-rates', () => ({
   selectBillingRatesFor: vi.fn(),
   selectPartiesWithDocForPeriod: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('@/lib/data/class-sessions', () => ({ countSelfRecordedSessions: vi.fn(a
 
 import { getProfileById } from '@/lib/services/users'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
+import { getAcademyBreakdown } from '@/lib/services/hours-breakdown'
 import { selectBillingRatesFor, selectPartiesWithDocForPeriod } from '@/lib/data/billing-rates'
 import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
 import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
@@ -67,6 +69,7 @@ beforeEach(() => {
   vi.mocked(getProfileById).mockResolvedValue(profile({}))
   vi.mocked(getAcademyClassHours).mockResolvedValue(hours())
   vi.mocked(selectPartiesWithDocForPeriod).mockResolvedValue(new Set())
+  vi.mocked(getAcademyBreakdown).mockResolvedValue({ month: '2026-08', people: [], students: [] })
   vi.mocked(selectBillingRatesFor).mockResolvedValue(
     new Map([[STUDENT, { profile_id: STUDENT, fee_rate: 400, pay_rate: null, currency: 'INR' }]]),
   )
@@ -244,6 +247,45 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
  * admin-only, so the admin is the second party - but only if they can SEE which hours
  * nobody but the payee attested. 0102 records who entered them; this surfaces it.
  */
+describe('demo and exam hours in a billed month', () => {
+  const kinds = (demo: number, exam: number) => ({ regular: 90, demo, exam })
+
+  it('warns a receipt that the month holds demo and exam hours priced as regular', async () => {
+    vi.mocked(getAcademyBreakdown).mockResolvedValue({
+      month: '2026-08',
+      people: [],
+      students: [{ studentId: STUDENT, total: kinds(30, 60) }],
+    } as never)
+    const draft = await buildBillingDraft('admin-1', 'receipt', STUDENT, '2026-08')
+    expect(draft.blocked).toBeNull()
+    expect(draft.warnings).toEqual([expect.stringContaining('0.5 h of demo classes and 1 h of exams')])
+  })
+
+  it('warns a pay slip from the payee own working minutes', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'tutor' }))
+    vi.mocked(selectBillingRatesFor).mockResolvedValue(
+      new Map([[TUTOR, { profile_id: TUTOR, fee_rate: null, pay_rate: 500, currency: 'INR' }]]),
+    )
+    vi.mocked(getAcademyBreakdown).mockResolvedValue({
+      month: '2026-08',
+      people: [{ personId: TUTOR, minutes: kinds(45, 0) }],
+      students: [],
+    } as never)
+    const draft = await buildBillingDraft('admin-1', 'payslip', TUTOR, '2026-08')
+    expect(draft.warnings).toEqual([expect.stringContaining('0.75 h of demo classes')])
+  })
+
+  it('says nothing when the month is all regular classes', async () => {
+    vi.mocked(getAcademyBreakdown).mockResolvedValue({
+      month: '2026-08',
+      people: [],
+      students: [{ studentId: STUDENT, total: kinds(0, 0) }],
+    } as never)
+    const draft = await buildBillingDraft('admin-1', 'receipt', STUDENT, '2026-08')
+    expect(draft.warnings).toEqual([])
+  })
+})
+
 describe('self-recorded hours warning (C-06)', () => {
   it('warns when the payee entered their own hours, naming how many', async () => {
     vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'tutor', full_name: 'Tara Tutor' }))

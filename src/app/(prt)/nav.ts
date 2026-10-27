@@ -65,6 +65,11 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
   { href: '/classroom', label: 'Classes', group: 'teaching', capability: 'viewClasses' },
   { href: '/documents', label: 'Documents', group: 'teaching', capability: 'viewClasses' },
   { href: '/calendar', label: 'Calendar', group: 'teaching', capability: 'viewCalendar' },
+  // A person's OWN hours: worked, for a tutor or mentor; received, for a student. The same
+  // breakdown the academy-wide Class hours report shows for everyone, scoped to the reader. It
+  // holds viewDashboard (every signed-in persona) because the page decides what to show by who
+  // is looking - and a Class hours holder is sent there instead, see navFor.
+  { href: '/my-hours', label: 'My hours', group: 'teaching', capability: 'viewDashboard' },
   { href: '/students', label: 'Mentees', group: 'mentoring', capability: 'viewMentees' },
   { href: '/session-timings', label: 'Session times', group: 'mentoring', capability: 'viewMentees' },
   { href: '/messages', label: 'Messages', group: 'messages', capability: 'viewMessages' },
@@ -125,6 +130,9 @@ export function navFor(capabilities: ReadonlySet<Capability>): NavItem[] {
     // so it is not offered twice. Keyed on the capability, not the persona: someone with
     // viewMentees but manageClasses denied keeps Session times as their own item.
     if (hasClassHours && item.href === '/session-timings') return false
+    // Likewise "My hours": a Class hours holder sees every person's hours there, their own among
+    // them, so a second entry would only point at a subset of the same figures.
+    if (hasClassHours && item.href === '/my-hours') return false
     return true
   }).map(({ href, label, group, alsoActiveOn }) => ({
     href,

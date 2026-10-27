@@ -5,7 +5,8 @@ import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabelIfUnexpected } from '@/lib/ui'
+import { Badge, CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabelIfUnexpected } from '@/lib/ui'
+import { SESSION_KIND_LABELS } from '@/lib/attendance/session-kind'
 import { EditJoinTime } from './EditJoinTime'
 import { EditSessionTimes } from './EditSessionTimes'
 import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTimingsFilterBar'
@@ -200,6 +201,9 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
             Subject
           </th>
           <th scope="col" className="p-2">
+            Type
+          </th>
+          <th scope="col" className="p-2">
             Tutor
           </th>
           <th scope="col" className="p-2">
@@ -219,6 +223,21 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
             {showStudent ? <td className="p-2 font-medium text-slate-800">{row.studentName}</td> : null}
             <td className="p-2 text-slate-600">{row.className}</td>
             <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-500">-</span>}</td>
+            <td className="p-2 text-slate-600">
+              {/* Regular is the ordinary case and stays unmarked. A demo is not working time, and an
+                  exam is credited to whoever monitored it - so both say so, and an exam names a
+                  monitor who is not the tutor. */}
+              {row.kind === 'regular' ? (
+                <span className="text-slate-500">Regular</span>
+              ) : (
+                <span className="inline-flex flex-col items-start gap-0.5">
+                  <Badge tone={row.kind === 'exam' ? 'warning' : 'slate'}>{SESSION_KIND_LABELS[row.kind]}</Badge>
+                  {row.kind === 'exam' && row.monitorName && (
+                    <span className="text-xs text-slate-500">Monitored by {row.monitorName}</span>
+                  )}
+                </span>
+              )}
+            </td>
             <td className="p-2 text-slate-600">
               {/* The role shows only when it is NOT a plain tutor. Stamping "Tutor" on every
                   row is noise that gets skimmed; a mentor or admin credited with teaching

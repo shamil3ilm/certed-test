@@ -2,6 +2,8 @@
 
 The complete inventory of foreign keys and their `ON DELETE` behaviour, generated from a database built by applying the migration chain to its head — NOT from `supabase/rebuild/0000_full_rebuild.sql`, which is a schema-only dump and can lag the chain. It exists so that the delete-time blast radius of any row is reviewable without reading every migration — see [schema-reference.md](./schema-reference.md#foreign-keys-and-cascade-behaviour) for the summary. Regenerate this table whenever a migration adds or changes a foreign key.
 
+> `class_sessions.monitor_id` (0123, SET NULL) is listed below but is **not** in the counts that follow, which are as of 0105. Clearing it is safe in the normal case; if clearing would make an exam overlap its tutor's own teaching, the delete is refused by the double-booking constraint rather than silently reassigning the exam's hours.
+
 At the current chain head (0105) there are **73 foreign keys** across the public schema — 39 CASCADE, 31 SET NULL, 1 RESTRICT, 2 NO ACTION. One of them, `profiles.id`, points out of the schema at `auth.users`.
 
 This table is generated, not hand-maintained: it drifted ~30 migrations behind once (missing `subjects`, `consents`, `guardians`, `mentee_notes` and `billing_rates` entirely), which is the failure mode this file exists to prevent — a delete blast-radius review that silently omits four PII tables is worse than no review.
@@ -35,6 +37,7 @@ Grouped by parent table. `→` reads "references". Regenerated from the fully-mi
 | `capability_overrides.created_by`      | SET NULL      |
 | `capability_overrides.profile_id`      | CASCADE       |
 | `class_sessions.hours_recorded_by`     | SET NULL      |
+| `class_sessions.monitor_id`            | SET NULL      |
 | `class_sessions.tutor_id`              | SET NULL      |
 | `class_tutors.tutor_id`                | CASCADE       |
 | `comments.author_id`                   | CASCADE       |

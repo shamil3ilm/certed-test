@@ -15,6 +15,7 @@ vi.mock('@/lib/services/attendance', () => ({
   listSessionsByIds: vi.fn(),
 }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
+vi.mock('@/lib/services/calendar-events', () => ({ listEvents: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForStudents: vi.fn(async () => []) }))
 vi.mock('@/lib/data/classes', () => ({
   selectClassesByIds: vi.fn(async () => []),
@@ -24,7 +25,7 @@ vi.mock('@/lib/data/subjects', () => ({
   selectSubjectsByIds: vi.fn(async () => []),
   selectActiveSubjects: vi.fn(async () => []),
 }))
-vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
+vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), listActiveTeacherCandidates: vi.fn() }))
 vi.mock('@/lib/time/format', () => ({ isCalendarDate: vi.fn(), todayInZone: vi.fn() }))
 vi.mock('@/lib/services/finance/org-settings', () => ({ getInstituteTimeZone: vi.fn(async () => 'Asia/Kolkata') }))
 
@@ -44,9 +45,10 @@ import {
   attendanceSessionDate,
 } from '@/lib/services/page-data/class-attendance'
 import { getClassMembers } from '@/lib/services/classes'
+import { listEvents } from '@/lib/services/calendar-events'
 import { selectClassById } from '@/lib/data/classes'
 import { selectSubjectsByIds } from '@/lib/data/subjects'
-import { getProfileNamesByIds } from '@/lib/services/users'
+import { getProfileNamesByIds, listActiveTeacherCandidates } from '@/lib/services/users'
 import { isCalendarDate, todayInZone } from '@/lib/time/format'
 
 beforeEach(() => {
@@ -76,6 +78,8 @@ beforeEach(() => {
   vi.mocked(listSessionsByIds).mockResolvedValue([])
   vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValue({ items: [], total: 0 })
   vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map())
+  vi.mocked(listActiveTeacherCandidates).mockResolvedValue([])
+  vi.mocked(listEvents).mockResolvedValue([])
 })
 
 describe('attendanceRecordPageUrl', () => {
@@ -154,6 +158,19 @@ describe('loadClassAttendancePageData', () => {
     expect((data as any).subjectNames.get('sub-1')).toBe('Physics')
     // Asked for exactly the subject the session references - not every subject in the academy.
     expect(vi.mocked(selectSubjectsByIds).mock.calls[0][0]).toEqual(['sub-1'])
+  })
+
+  it("flags a date the calendar says this class was cancelled, and only this class's", async () => {
+    managerFixture({ id: 'ses1', class_id: 'class-1', session_date: '2026-07-16', subject_id: null })
+    vi.mocked(listEvents).mockResolvedValue([
+      { class_id: 'other-class', title: 'Elsewhere' },
+      { class_id: 'class-1', title: 'Maths' },
+    ] as never)
+
+    const data = await loadClassAttendancePageData({ id: 'tutor-1' } as never, 'class-1', { date: '2026-07-16' })
+
+    expect((data as { cancelledAs: string | null }).cancelledAs).toBe('Maths')
+    expect(listEvents).toHaveBeenCalledWith({ from: '2026-07-16', to: '2026-07-16', kind: 'cancellation' })
   })
 
   it('names the subject a NEW session would be recorded as', async () => {
@@ -275,6 +292,7 @@ describe('loadClassAttendancePageData', () => {
     ).resolves.toEqual({
       kind: 'manager',
       date: '2026-07-16',
+      cancelledAs: null,
       hasMarks: true,
       sessions: [{ id: 'ses1', class_id: 'c1', session_date: '2026-07-16' }],
       // No other class shares this roster, and the session carries no subject, so both
@@ -317,6 +335,11 @@ describe('loadClassAttendancePageData', () => {
       ],
       // The class's current tutors, with no read for them - see the dedicated test below.
       tutorNames: new Map([['t1', 'Tarun Tutor']]),
+      // Nobody is a monitor candidate in this fixture, and no session names one.
+      monitorOptions: [],
+      monitorNames: new Map(),
+      // The viewer in this fixture is neither admin nor sub-admin.
+      canChooseMonitor: false,
       // The details view is paged now: it was a silent newest-200 under a heading that
       // reads as the whole record, with filters that made it look authoritative.
       historyPage: 1,
@@ -368,5 +391,43 @@ describe('loadClassAttendancePageData - a class nobody is assigned to teach', ()
     const data = await loadClassAttendancePageData({ id: 'tutor-1' } as never, 'class-1', { date: '2026-07-16' })
 
     expect((data as { classHasTutor: boolean }).classHasTutor).toBe(false)
+  })
+})
+
+describe('loadClassAttendancePageData - who an exam can be monitored by', () => {
+  function stageManagerPage(sessions: unknown[]) {
+    vi.mocked(isCalendarDate).mockImplementation(((v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')) as never)
+    vi.mocked(getClassMembers).mockResolvedValueOnce({ students: [], tutors: [] } as never)
+    vi.mocked(listManagerSessionsForDate).mockResolvedValueOnce(sessions as never)
+    vi.mocked(listAttendanceForClassDate).mockResolvedValueOnce([] as never)
+    vi.mocked(listAttendanceHistoryPageForClass).mockResolvedValueOnce({ items: [], total: 0 } as never)
+  }
+
+  it('offers the academy`s active tutors and mentors', async () => {
+    vi.mocked(listActiveTeacherCandidates).mockResolvedValue([
+      { id: 't1', name: 'Tarun Tutor' },
+      { id: 'm1', name: 'Maya Mentor' },
+    ])
+    stageManagerPage([])
+    const data = (await loadClassAttendancePageData({ id: 'tutor-1' } as never, 'class-1', {
+      date: '2026-07-16',
+    })) as { monitorOptions: { id: string; name: string }[] }
+    expect(data.monitorOptions).toEqual([
+      { id: 't1', name: 'Tarun Tutor' },
+      { id: 'm1', name: 'Maya Mentor' },
+    ])
+  })
+
+  it('still names a monitor already saved on the day who is no longer a candidate', async () => {
+    // An admin, or someone since revoked: absent from the candidate list, but a saved exam must
+    // never render a blank monitor.
+    vi.mocked(listActiveTeacherCandidates).mockResolvedValue([{ id: 't1', name: 'Tarun Tutor' }])
+    vi.mocked(getProfileNamesByIds).mockResolvedValue(new Map([['gone', 'Gita Gone']]))
+    stageManagerPage([{ id: 's1', class_id: 'class-1', kind: 'exam', monitor_id: 'gone', tutor_id: null }])
+    const data = (await loadClassAttendancePageData({ id: 'tutor-1' } as never, 'class-1', {
+      date: '2026-07-16',
+    })) as { monitorOptions: { id: string; name: string }[]; monitorNames: Map<string, string> }
+    expect(data.monitorNames.get('gone')).toBe('Gita Gone')
+    expect(data.monitorOptions.map((m) => m.id)).toContain('gone')
   })
 })

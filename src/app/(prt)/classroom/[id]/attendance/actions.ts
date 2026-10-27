@@ -46,6 +46,10 @@ export async function saveSessionAction(formData: FormData): Promise<ActionResul
       // Present when editing an existing session; absent records a new one.
       sessionId: formData.get('session_id'),
       tutor_id: formData.get('tutor_id'),
+      // Regular / demo / exam, and who monitored an exam. Both optional: an absent field keeps
+      // an edited session as it was.
+      kind: formData.get('kind'),
+      monitor_id: formData.get('monitor_id'),
       actual_start: formData.get('actual_start'),
       actual_end: formData.get('actual_end'),
       summary: formData.get('summary'),

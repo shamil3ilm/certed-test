@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rethrowIfHoursLocked } from '@/lib/data/hours-lock'
 import type { Page } from '@/lib/pagination'
+import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 
 /**
  * Table access for `class_sessions` - one row per class session holding the
@@ -25,6 +26,14 @@ export type ClassSessionRow = {
    *  back from the class: re-pointing a class at another subject must not rewrite what
    *  past sessions taught, which is the same reason tutor_id lives here. */
   subject_id: string | null
+  /** Regular, demo or exam (0123). Granted to the RLS client: a student sees what kind of
+   *  session they sat. Rows from before the column existed, and mock-mode rows, may omit it -
+   *  read it through `kindOf`, which answers 'regular' for those. */
+  kind: SessionKind
+  /** Who monitored an exam when it was not the session's tutor (0123). Withheld from the RLS
+   *  client like hours_recorded_by - it names a colleague's working time - so it is only ever
+   *  present on the service-role manager read below. */
+  monitor_id?: string | null
   tutor_join_at: string | null
   tutor_leave_at: string | null
   summary: string | null
@@ -50,6 +59,11 @@ export type ClassSessionUpsert = {
    *  no triggers - leaving it to the database would make subject-filtered lists behave
    *  differently in the E2E suite than in production. */
   subject_id?: string | null
+  /** Set EXPLICITLY on insert for the same reason as subject_id: mock mode applies no column
+   *  default, so leaving it to the database would make the E2E suite read an undefined kind. */
+  kind?: SessionKind
+  /** Only valid with kind 'exam' (a CHECK enforces it). null clears the monitor. */
+  monitor_id?: string | null
   scheduled_start?: string | null
   scheduled_end?: string | null
   actual_start?: string | null
@@ -70,10 +84,11 @@ export type ClassSessionUpsert = {
 // staff_note on a student-reachable path. Managers read it via MANAGER_COLUMNS
 // (service role) instead.
 const COLUMNS =
-  'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, subject_id, tutor_join_at, tutor_leave_at, summary, student_feedback, created_at, updated_at'
+  'id, class_id, session_date, scheduled_start, scheduled_end, actual_start, actual_end, tutor_id, subject_id, kind, tutor_join_at, tutor_leave_at, summary, student_feedback, created_at, updated_at'
 
-// Everything above plus the staff-private note, for the service-role manager read.
-const MANAGER_COLUMNS = `${COLUMNS}, staff_note`
+// Everything above plus the staff-private note and the exam monitor, for the service-role
+// manager read.
+const MANAGER_COLUMNS = `${COLUMNS}, staff_note, monitor_id`
 
 /** EVERY session recorded for a class on one date, oldest first. A class may hold
  *  several sessions in a day - there is no one-per-day uniqueness (0093) - so this
@@ -150,7 +165,7 @@ export async function selectSessionByIdAsService(id: string): Promise<ClassSessi
 export async function insertSession(row: ClassSessionUpsert): Promise<ClassSessionRow> {
   const admin = createAdminClient()
   const subjectId = row.subject_id !== undefined ? row.subject_id : await selectClassSubjectId(admin, row.class_id)
-  const stamped = { ...row, subject_id: subjectId, updated_at: new Date().toISOString() }
+  const stamped = { ...row, subject_id: subjectId, kind: row.kind ?? 'regular', updated_at: new Date().toISOString() }
   const { data, error } = await admin.from('class_sessions').insert(stamped).select(COLUMNS).single()
   if (error) {
     rethrowIfHoursLocked(error)
@@ -258,12 +273,23 @@ export async function selectTutorOverlappingSessions(
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('class_sessions')
-    .select('id, class_id, session_date')
+    .select('id, class_id, session_date, kind, monitor_id')
     .eq('tutor_id', tutorId)
     .lt('actual_start', endIso)
     .gt('actual_end', startIso)
   if (error) throw new Error(`classSessions.overlapping: ${error.message}`)
-  return (data ?? []) as Array<{ id: string; class_id: string; session_date: string }>
+  const rows = (data ?? []) as Array<{
+    id: string
+    class_id: string
+    session_date: string
+    kind?: SessionKind | null
+    monitor_id?: string | null
+  }>
+  // An exam someone ELSE monitored does not put the tutor in the room, so it cannot clash with
+  // their teaching - the same exemption the database constraint makes (0123).
+  return rows
+    .filter((r) => !(kindOf(r) === 'exam' && r.monitor_id && r.monitor_id !== tutorId))
+    .map(({ id, class_id, session_date }) => ({ id, class_id, session_date }))
 }
 
 /** Set ONLY a session's student feedback through the caller's OWN RLS session (not
@@ -343,7 +369,7 @@ export async function selectSessionPage(
   const admin = createAdminClient()
   let query = admin
     .from('class_sessions')
-    .select(COLUMNS, { count: 'exact' })
+    .select(`${COLUMNS}, monitor_id`, { count: 'exact' })
     .order('session_date', { ascending: false })
     // A class can hold several sessions a day, so date alone is not a total order and the
     // same row could appear on two pages (or on neither). created_at orders them within the
@@ -364,6 +390,8 @@ export async function selectSessionPage(
   if (filter.to) query = query.lte('session_date', filter.to)
   const { data, error, count } = await query.range(range.from, range.to)
   if (error) throw new Error(`classSessions.page: ${error.message}`)
+  // (The select above carries monitor_id as well: this page reads under the service role for
+  // mentors and admins, who may see who monitored an exam - unlike the RLS client's COLUMNS.)
   return { items: (data ?? []) as ClassSessionRow[], total: count ?? 0 }
 }
 

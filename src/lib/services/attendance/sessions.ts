@@ -23,6 +23,9 @@ import { studentHasAttendance } from '@/lib/data/attendance'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { validateUuidField } from '@/lib/validation/id'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
+import { getProfileById } from '@/lib/services/users'
+import { notifyBestEffort } from '@/lib/services/notifications'
+import { isSessionKind, kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 import { z } from 'zod'
 
 /** A free-text session note: trimmed, bounded, empty -> null (clears it). */
@@ -60,6 +63,12 @@ export type SaveSessionActionInput = {
    *  several sessions on the same date (0093) instead of each save replacing the last. */
   sessionId?: FormDataEntryValue | null
   tutor_id?: FormDataEntryValue | null
+  /** regular | demo | exam (0123). Absent keeps an edited session's kind and records a new one
+   *  as regular, so a caller that never heard of kinds cannot reclassify anything. */
+  kind?: FormDataEntryValue | null
+  /** Who monitored an exam when it was not the tutor. Only meaningful for kind 'exam': '' means
+   *  the tutor monitored it, and absent (null) leaves an edited exam's monitor as it was. */
+  monitor_id?: FormDataEntryValue | null
   actual_start?: FormDataEntryValue | null
   actual_end?: FormDataEntryValue | null
   summary?: FormDataEntryValue | null
@@ -79,6 +88,39 @@ async function defaultSessionTutor(actorId: string, classId: string): Promise<st
   const tutorIds = (await selectActiveTutorRowsForClass(classId)).map((t) => t.tutor_id)
   if (tutorIds.includes(actorId)) return actorId
   return tutorIds[0] ?? null
+}
+
+/** Roles that may monitor an exam: the staff who sit in a room with a candidate. */
+const MONITOR_ROLES: ReadonlyArray<Profile['role']> = ['tutor', 'mentor', 'sub_admin', 'admin']
+
+/**
+ * Resolve who an exam is credited to, as a profile id - or null when the tutor monitored it.
+ *
+ * Naming ANYONE other than the session's own tutor moves exam hours onto that person's working
+ * time, which is the same consequence as attributing a session to another tutor, so it carries
+ * the same gate: an academy-authority act (admin / sub_admin). That includes naming yourself: a
+ * mentor overseeing a mentee class is not its tutor, and recording a session must not let them
+ * credit exam hours to themselves. Leaving it blank, or naming the tutor, needs nothing extra.
+ * Exported for unit tests.
+ */
+export async function resolveExamMonitor(
+  actor: Profile,
+  requested: string,
+  tutorId: string | null,
+): Promise<string | null> {
+  if (!requested || requested === tutorId) return null
+  validateUuidField(requested, 'Invalid monitor id.')
+  const { isAdmin, isSubAdmin } = await loadPersonaFlags(actor.id)
+  if (!isAdmin && !isSubAdmin) {
+    throw new PermissionError(
+      'Only a Super Admin or Admin may record an exam monitored by someone other than the tutor.',
+    )
+  }
+  const monitor = await getProfileById(requested)
+  if (!monitor || monitor.status !== 'active' || !MONITOR_ROLES.includes(monitor.role)) {
+    throw new ValidationError('The monitor must be an active tutor, mentor or admin.')
+  }
+  return requested
 }
 
 export async function saveSessionTimes(actor: Profile, input: SaveSessionActionInput): Promise<ClassSession> {
@@ -148,9 +190,29 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     if (before.class_id !== classId) throw new PermissionError('That session belongs to another class.')
   }
 
+  // What kind of session this is. Absent keeps an edited session as it was and records a new one
+  // as regular - a caller that has never heard of kinds must not be able to reclassify hours.
+  const rawKind = String(input.kind ?? '').trim()
+  if (rawKind && !isSessionKind(rawKind)) throw new ValidationError('Invalid session type.')
+  const kind: SessionKind = rawKind ? (rawKind as SessionKind) : before ? kindOf(before) : 'regular'
+
+  // Who monitored it, which only an exam has. A non-exam always clears the monitor (the database
+  // refuses one on any other kind). On an exam, '' means the tutor monitored it and an ABSENT
+  // field leaves an edited exam's monitor alone.
+  const monitorId =
+    kind !== 'exam'
+      ? null
+      : input.monitor_id == null
+        ? (before?.monitor_id ?? null)
+        : await resolveExamMonitor(actor, String(input.monitor_id).trim(), tutorId)
+
   // A tutor cannot teach two classes at once - reject a window that overlaps another of this
-  // tutor's sessions. An edit excludes ITSELF by id; a new session excludes nothing.
-  await assertNoTutorOverlap(tutorId, window.start, window.end, before?.id ?? null)
+  // tutor's sessions. An edit excludes ITSELF by id; a new session excludes nothing. An exam
+  // someone else monitored does not put the tutor in the room, so it is not checked against
+  // their teaching (the database constraint makes the same exemption, 0123).
+  if (!(kind === 'exam' && monitorId)) {
+    await assertNoTutorOverlap(tutorId, window.start, window.end, before?.id ?? null)
+  }
 
   // Times + summary are editable by any manageAttendance holder (mentors included, via
   // the action). The staff-PRIVATE note is a higher bar - only a manageClassContent
@@ -160,6 +222,8 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   const canEditStaffNote = input.canEditStaffNote ?? false
   const fields = {
     tutor_id: tutorId,
+    kind,
+    monitor_id: monitorId,
     actual_start: window.start,
     actual_end: window.end,
     // WHO entered the hours, which is not the same fact as who is paid for them (tutor_id).
@@ -186,9 +250,27 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   await auditPrivilegedAction(actor, 'attendance.session', 'class', classId, {
     session_id: saved.id,
     session_date: sessionDate,
-    before: before ? { actual_start: before.actual_start, actual_end: before.actual_end } : null,
-    after: { actual_start: window.start, actual_end: window.end },
+    before: before
+      ? {
+          actual_start: before.actual_start,
+          actual_end: before.actual_end,
+          kind: kindOf(before),
+          monitor_id: before.monitor_id ?? null,
+        }
+      : null,
+    after: { actual_start: window.start, actual_end: window.end, kind, monitor_id: monitorId },
   })
+  // The monitor gains working time on a class they may not even be on, so without this the first
+  // they would hear of it is a figure on My hours. Only when the monitor is new or has changed:
+  // re-saving the same exam must not tell them again. Best-effort - the session is already saved.
+  if (kind === 'exam' && monitorId && monitorId !== (before?.monitor_id ?? null)) {
+    await notifyBestEffort([monitorId], {
+      kind: 'class',
+      title: 'You were recorded as monitoring an exam',
+      body: sessionDate,
+      link: '/my-hours',
+    })
+  }
   return saved
 }
 
