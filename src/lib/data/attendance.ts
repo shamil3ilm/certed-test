@@ -311,22 +311,16 @@ export async function updateJoinAtAsService(
   return (data?.length ?? 0) > 0
 }
 
-/** Whether a student has an attendance row anywhere on (class, date).
- *
- *  A COARSE pre-check only. Since 0094 a mark belongs to a session, so "attended that day"
- *  no longer means "attended that session" - the precise scoping is done by RLS (0097),
- *  which admits the feedback write only on sessions the student was actually marked for.
- *  This stays day-keyed on purpose: it matches the feedback UI, which offers one box per
- *  attended DAY, and it cheaply rejects a crafted post for a date the student never
- *  attended at all before any write is attempted. */
-export async function studentHasAttendance(classId: string, studentId: string, date: string): Promise<boolean> {
+/** Whether a student was marked in one session. Since 0094 a mark belongs to a session, so
+ *  this is the precise "attended THAT session" check; RLS (0097) re-enforces it on the write. */
+export async function studentHasAttendance(classId: string, studentId: string, sessionId: string): Promise<boolean> {
   const admin = createAdminClient()
   const { count, error } = await admin
     .from('attendance')
     .select('id', { count: 'exact', head: true })
     .eq('class_id', classId)
     .eq('student_id', studentId)
-    .eq('session_date', date)
+    .eq('session_id', sessionId)
   if (error) throw new Error(`attendance.exists: ${error.message}`)
   return (count ?? 0) > 0
 }

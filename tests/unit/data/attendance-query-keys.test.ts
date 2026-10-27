@@ -82,15 +82,12 @@ describe('attendance query keys are per SESSION, not per date', () => {
   })
 })
 
-describe('the guards that remain day-scoped, deliberately', () => {
-  it('studentHasAttendance is a per-DAY pre-check, matching the one-box-per-day feedback UI', async () => {
+describe('studentHasAttendance', () => {
+  it('is keyed on the SESSION, so a second session that day is not covered by the first mark', async () => {
     const { client, builder } = makeClientCapturing({ data: null, error: null, count: 1 })
     vi.mocked(createAdminClient).mockReturnValue(client as never)
-    await studentHasAttendance('c1', 's1', '2026-09-05')
+    await studentHasAttendance('c1', 's1', 'ses1')
 
-    // Day-keyed ON PURPOSE: it cheaply rejects a date the student never attended at all,
-    // while RLS (0097) does the per-session scoping. Asserted so the choice is visible
-    // rather than looking like the bug that was just fixed elsewhere in this file.
-    expect(eqKeys(builder).sort()).toEqual(['class_id', 'session_date', 'student_id'])
+    expect(eqKeys(builder).sort()).toEqual(['class_id', 'session_id', 'student_id'])
   })
 })

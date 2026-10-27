@@ -293,43 +293,25 @@ export async function selectTutorOverlappingSessions(
     .map(({ id, class_id, session_date }) => ({ id, class_id, session_date }))
 }
 
-/** Set ONLY a session's student feedback through the caller's OWN RLS session (not
+/** Set ONLY one session's student feedback through the caller's OWN RLS session (not
  *  service role), so the class_sessions RLS - enrolled + attended, student_feedback
- *  column only (migration 0068) - is the real control. Updates the existing row's
- *  feedback; inserts a feedback-only row when the tutor hasn't recorded the session
- *  yet. Two steps (+ a conflict retry) because the student is column-granted only
- *  student_feedback: a plain upsert would try to write the conflict-key columns on the
- *  update path and be denied. `updated_at` is left to the DB default on insert; a
- *  feedback-only update doesn't refresh it (that column is not student-writable). */
+ *  column only (migration 0068) - is the real control. Keyed on the session's id: a class
+ *  may hold several sessions a day (0093), and every mark names its session (0094), so the
+ *  row always exists and a date would write the note onto all of them. */
 export async function writeStudentSessionFeedback(
   classId: string,
-  date: string,
+  sessionId: string,
   feedback: string | null,
 ): Promise<void> {
   const supabase = await createClient()
-  const updated = await supabase
+  const { data, error } = await supabase
     .from('class_sessions')
     .update({ student_feedback: feedback })
+    .eq('id', sessionId)
     .eq('class_id', classId)
-    .eq('session_date', date)
     .select('id')
-  if (updated.error) throw new Error(`classSessions.studentFeedback(update): ${updated.error.message}`)
-  if ((updated.data?.length ?? 0) > 0) return
-
-  const inserted = await supabase
-    .from('class_sessions')
-    .insert({ class_id: classId, session_date: date, student_feedback: feedback })
-  // A tutor may have created the row between the update and the insert - retry as update.
-  if (inserted.error?.code === '23505') {
-    const retry = await supabase
-      .from('class_sessions')
-      .update({ student_feedback: feedback })
-      .eq('class_id', classId)
-      .eq('session_date', date)
-    if (retry.error) throw new Error(`classSessions.studentFeedback(retry): ${retry.error.message}`)
-    return
-  }
-  if (inserted.error) throw new Error(`classSessions.studentFeedback(insert): ${inserted.error.message}`)
+  if (error) throw new Error(`classSessions.studentFeedback(update): ${error.message}`)
+  if ((data?.length ?? 0) === 0) throw new Error('classSessions.studentFeedback: no such session for this class')
 }
 
 /** The filters the session list narrows on. Every one is a column ON class_sessions

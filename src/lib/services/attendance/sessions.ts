@@ -342,15 +342,15 @@ export async function deleteSessionTimes(actor: Profile, sessionId: string): Pro
 
 export type SaveFeedbackActionInput = {
   classId?: FormDataEntryValue | null
-  sessionDate?: FormDataEntryValue | null
+  sessionId?: FormDataEntryValue | null
   feedback?: FormDataEntryValue | null
 }
 
 /**
  * A student leaves feedback on one of their own class sessions. Gated on the
  * actor being the class's enrolled student (staff use the summary field instead),
- * then written to that session's row - creating it if the tutor hasn't recorded
- * times yet.
+ * then written to THAT session's row: a day may hold several sessions, each with its own
+ * note.
  *
  * student_feedback is a single column on the session, not keyed per student. That is
  * safe because a class has exactly ONE active student (enforced by
@@ -360,30 +360,32 @@ export type SaveFeedbackActionInput = {
  */
 export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackActionInput): Promise<void> {
   const classId = String(input.classId ?? '')
-  const sessionDate = String(input.sessionDate ?? '')
-  if (!isCalendarDate(sessionDate)) {
-    throw new ValidationError('Invalid session date.')
+  const sessionId = String(input.sessionId ?? '')
+  if (!z.string().uuid().safeParse(sessionId).success) {
+    throw new ValidationError('Invalid session.')
   }
   const enrolledClassIds = await selectActiveClassIdsForStudent(actor.id)
   if (!enrolledClassIds.includes(classId)) {
     throw new PermissionError('Only the enrolled student can leave feedback for this class.')
   }
-  // Feedback is per REAL session: the student must have an attendance record for this
-  // date (that is the only place the feedback field is surfaced). Without this, a
-  // crafted POST could create class_sessions rows for arbitrary dates via the upsert.
-  if (!(await studentHasAttendance(classId, actor.id, sessionDate))) {
+  // Feedback is per REAL session: the student must have been marked in THIS session (that
+  // is the only place the feedback field is surfaced), so a crafted POST cannot write onto a
+  // session they did not attend.
+  if (!(await studentHasAttendance(classId, actor.id, sessionId))) {
     throw new ValidationError('You can leave feedback only for a session you attended.')
   }
-  const fields = { feedback: noteField.parse(String(input.feedback ?? '')) }
-  await writeStudentSessionFeedback(classId, sessionDate, fields.feedback)
+  const feedback = noteField.parse(String(input.feedback ?? ''))
+  await writeStudentSessionFeedback(classId, sessionId, feedback)
   await auditPrivilegedAction(actor, 'attendance.feedback', 'class', classId)
   // The tutor otherwise finds a student's feedback only by opening that day's form and looking.
-  if (fields.feedback) {
+  if (feedback) {
+    // The date comes from the session itself, never from the request. Best-effort like the notice.
+    const sessionDate = (await selectSessionByIdAsService(sessionId).catch(() => null))?.session_date
     await notifyClassRoleBestEffort(classId, 'tutors', {
       kind: 'class',
       title: 'A student left feedback on a session',
-      body: sessionDate,
-      link: `/classroom/${classId}/attendance?date=${sessionDate}`,
+      body: sessionDate ?? null,
+      link: `/classroom/${classId}/attendance${sessionDate ? `?date=${sessionDate}` : ''}`,
     })
   }
 }

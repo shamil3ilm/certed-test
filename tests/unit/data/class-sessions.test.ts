@@ -74,30 +74,26 @@ describe('class-sessions data layer', () => {
     expect(await deleteSessionById('gone')).toBe(false)
   })
 
-  it('writeStudentSessionFeedback updates via the RLS client, no insert when the row exists', async () => {
+  it('writeStudentSessionFeedback updates ONE session by id via the RLS client, never by date', async () => {
     const client = makeClient({ data: [{ id: 'ses1' }], error: null })
     vi.mocked(createClient).mockResolvedValueOnce(client as any)
-    await writeStudentSessionFeedback('c1', '2026-06-20', 'great class')
+    await writeStudentSessionFeedback('c1', 'ses1', 'great class')
     const updateBuilder = client.from.mock.results[0].value
     expect(updateBuilder.update).toHaveBeenCalledWith({ student_feedback: 'great class' })
-    expect(client.from).toHaveBeenCalledTimes(1) // the row existed - no insert
+    expect(updateBuilder.eq).toHaveBeenCalledWith('id', 'ses1')
+    expect(updateBuilder.eq).not.toHaveBeenCalledWith('session_date', expect.anything())
+    expect(client.from).toHaveBeenCalledTimes(1) // no insert: a mark names a session that exists
     expect(createAdminClient).not.toHaveBeenCalled() // NOT service role
   })
 
-  it('writeStudentSessionFeedback inserts a feedback-only row when none exists', async () => {
-    const client = makeClient({ data: [], error: null })
-    vi.mocked(createClient).mockResolvedValueOnce(client as any)
-    await writeStudentSessionFeedback('c1', '2026-06-20', 'ok')
-    expect(client.from).toHaveBeenCalledTimes(2)
-    const insertBuilder = client.from.mock.results[1].value
-    expect(insertBuilder.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ class_id: 'c1', session_date: '2026-06-20', student_feedback: 'ok' }),
-    )
+  it('writeStudentSessionFeedback throws when no such session exists for the class', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [], error: null }) as any)
+    await expect(writeStudentSessionFeedback('c1', 'ses1', 'ok')).rejects.toThrow(/no such session/)
   })
 
   it('writeStudentSessionFeedback throws on update error', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: { message: 'e' } }) as any)
-    await expect(writeStudentSessionFeedback('c1', 'd', null)).rejects.toThrow(
+    await expect(writeStudentSessionFeedback('c1', 'ses1', null)).rejects.toThrow(
       /classSessions.studentFeedback\(update\): e/,
     )
   })

@@ -90,7 +90,6 @@ export default async function AttendancePage(props: {
               // the day's OVERALL window (earliest start -> latest end) across its sessions.
               const dayStarts = daySessions.map((x) => x.actual_start).filter((v): v is string => v != null)
               const dayEnds = daySessions.map((x) => x.actual_end).filter((v): v is string => v != null)
-              const s = daySessions[0] ?? null
               // THIS mark's session. A day can hold several, each with its own mark, so showing the day's
               // summaries under every row repeated one session's text under each of them.
               const own = daySessions.find((x) => x.id === row.session_id) ?? null
@@ -137,8 +136,8 @@ export default async function AttendancePage(props: {
                     <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-600">Your feedback</p>
                     <SessionFeedbackForm
                       classId={course.id}
-                      date={row.session_date}
-                      initial={s?.student_feedback ?? null}
+                      sessionId={row.session_id}
+                      initial={own?.student_feedback ?? null}
                     />
                   </details>
                 </li>

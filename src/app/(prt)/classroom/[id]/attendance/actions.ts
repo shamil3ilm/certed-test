@@ -73,7 +73,7 @@ export async function saveFeedbackAction(formData: FormData): Promise<ActionResu
   try {
     await saveSessionFeedback(me, {
       classId,
-      sessionDate: formData.get('session_date'),
+      sessionId: formData.get('session_id'),
       feedback: formData.get('feedback'),
     })
     revalidatePath(`/classroom/${classId}/attendance`)

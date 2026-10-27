@@ -10,10 +10,11 @@ const MENTOR_ID = 'a0000000-0000-4000-8000-000000000005' // Maya Mentor (dedicat
 
 const SHARED_SUMMARY = 'SHARED-SUMMARY-E2E'
 const STAFF_NOTE = 'SECRET-STAFF-NOTE-E2E'
+const STUDENT_FEEDBACK = 'STUDENT-FEEDBACK-E2E'
 const SUMMARY_PLACEHOLDER = 'What did this session cover? Topics, homework, how it went...'
 const STAFF_NOTE_PLACEHOLDER = 'For staff eyes only - concerns, follow-ups, context the student should not see.'
 
-test('a tutor records a session summary + private note; the student sees the summary but NOT the private note', async ({
+test('a tutor records a session summary + private note; the student sees the summary but NOT the private note, and can leave feedback on it', async ({
   page,
 }) => {
   await loginAs(page, 'tutor@mock.test')
@@ -49,6 +50,15 @@ test('a tutor records a session summary + private note; the student sees the sum
   await expect(page.getByText(SHARED_SUMMARY)).toBeVisible()
   // The staff note must not be anywhere in the student's page (not just hidden).
   await expect(page.getByText(STAFF_NOTE)).toHaveCount(0)
+
+  // The student's own feedback goes to THAT session (by id) and is read back from it.
+  const feedback = page.getByLabel('Session feedback').first()
+  await feedback.fill(STUDENT_FEEDBACK)
+  await page.getByRole('button', { name: 'Save feedback' }).first().click()
+  await expect(page.getByText('Feedback saved')).toBeVisible()
+  await page.reload()
+  await page.getByText('Summary & feedback').first().click()
+  await expect(page.getByLabel('Session feedback').first()).toHaveValue(STUDENT_FEEDBACK)
 })
 
 test('a subject can show and manage multiple tutors for the same student', async ({ page }) => {

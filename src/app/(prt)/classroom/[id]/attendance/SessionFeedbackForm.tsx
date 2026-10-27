@@ -6,15 +6,15 @@ import { assertActionOk } from '../../../action-client'
 import { useUI } from '../../../Providers'
 import { saveFeedbackAction } from './actions'
 
-/** A student's feedback on one of their sessions. Prefilled with any saved note;
+/** A student's feedback on one session. Prefilled with any saved note;
  *  saving is best-effort with a toast, then a refresh to show the stored value. */
 export function SessionFeedbackForm({
   classId,
-  date,
+  sessionId,
   initial,
 }: {
   classId: string
-  date: string
+  sessionId: string
   initial: string | null
 }) {
   const [text, setText] = useState(initial ?? '')
@@ -27,7 +27,7 @@ export function SessionFeedbackForm({
     setBusy(true)
     const formData = new FormData()
     formData.set('class_id', classId)
-    formData.set('session_date', date)
+    formData.set('session_id', sessionId)
     formData.set('feedback', text.trim())
     try {
       assertActionOk(await saveFeedbackAction(formData), 'Could not save feedback')
