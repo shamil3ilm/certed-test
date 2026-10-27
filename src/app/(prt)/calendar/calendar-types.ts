@@ -8,7 +8,7 @@ export type ComposerTab = 'class' | 'event' | 'reminder' | 'meet' | 'announcemen
 
 export type CalendarItem = {
   id: string
-  source: 'slot' | 'event' | 'assignment' | 'meet'
+  source: 'slot' | 'event' | 'assignment' | 'meet' | 'session'
   title: string
   start: string
   end: string | null
@@ -18,6 +18,8 @@ export type CalendarItem = {
   location?: string | null
   /** For an assignment-source item, the classwork type. */
   type?: 'assignment' | 'exam' | 'quiz' | 'test' | 'project'
+  /** A recorded session was held for this item. */
+  held?: boolean
 }
 
 export type CalendarPayload = { items: CalendarItem[] }

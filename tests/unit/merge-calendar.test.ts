@@ -31,6 +31,98 @@ const input: MergeInput = {
   anchorTz: 'Asia/Kolkata',
 }
 
+describe('mergeCalendar - what was held', () => {
+  const held = (id: string, start: string, end: string | null, over: Record<string, unknown> = {}) => ({
+    id,
+    class_id: 'c-1',
+    actual_start: start,
+    actual_end: end,
+    kind: 'regular' as const,
+    subjectName: 'Maths',
+    ...over,
+  })
+
+  it('marks a slot occurrence held when a session was recorded in it, without adding a second item', () => {
+    const items = mergeCalendar({
+      ...input,
+      sessions: [held('ses-1', '2026-07-06T03:35:00.000Z', '2026-07-06T04:30:00.000Z')],
+    })
+    const slot = items.find((i) => i.source === 'slot')!
+    expect(slot.held).toBe(true)
+    expect(slot.title).toBe('Maths - Room 1 · held')
+    expect(items.filter((i) => i.source === 'session')).toHaveLength(0)
+  })
+
+  it('leaves a slot nobody held plain', () => {
+    const slot = mergeCalendar({ ...input, sessions: [] }).find((i) => i.source === 'slot')!
+    expect(slot.held).toBeUndefined()
+    expect(slot.title).toBe('Maths - Room 1')
+  })
+
+  it('shows an extra class, a make-up or a demo as its own item, named for what it was', () => {
+    const items = mergeCalendar({
+      ...input,
+      sessions: [
+        held('extra', '2026-07-09T10:00:00.000Z', '2026-07-09T11:00:00.000Z'),
+        held('demo', '2026-07-10T10:00:00.000Z', '2026-07-10T10:30:00.000Z', { kind: 'demo' }),
+      ],
+    })
+    const extras = items.filter((i) => i.source === 'session')
+    expect(extras.map((i) => i.title)).toEqual(['Held: Maths', 'Held: Maths (demo)'])
+    expect(extras[0]).toMatchObject({
+      id: 'session-extra',
+      kind: 'session',
+      held: true,
+      allDay: false,
+      end: '2026-07-09T11:00:00.000Z',
+    })
+  })
+
+  it('shows a session held on a day the class was cancelled, instead of hiding it with the slot', () => {
+    const items = mergeCalendar({
+      ...input,
+      events: [
+        {
+          id: 'cx',
+          title: 'Cancelled',
+          event_date: '2026-07-06',
+          start_time: null,
+          end_time: null,
+          class_id: 'c-1',
+          kind: 'cancellation',
+          slot_id: 's-1',
+        },
+      ],
+      sessions: [held('ran-anyway', '2026-07-06T03:30:00.000Z', '2026-07-06T04:30:00.000Z')],
+    })
+    expect(items.some((i) => i.source === 'slot')).toBe(false)
+    expect(items.find((i) => i.source === 'session')!.title).toBe('Held: Maths')
+  })
+
+  it('marks an exam deadline held when an exam session was recorded that day', () => {
+    const items = mergeCalendar({
+      ...input,
+      assignments: [
+        { id: 'x-1', title: 'Midterm', due_date: '2026-07-10T04:00:00.000Z', class_id: 'c-1', type: 'exam' },
+      ],
+      sessions: [held('exam-ses', '2026-07-10T03:00:00.000Z', '2026-07-10T04:00:00.000Z', { kind: 'exam' })],
+    })
+    const exam = items.find((i) => i.id === 'assignment-x-1')!
+    expect(exam.held).toBe(true)
+    expect(exam.title).toBe('Exam: Midterm · held')
+    // The session is the exam, so it does not appear a second time.
+    expect(items.filter((i) => i.source === 'session')).toHaveLength(0)
+  })
+
+  it('a plain assignment is never "held" by a session, even on its due day', () => {
+    const items = mergeCalendar({
+      ...input,
+      sessions: [held('s', '2026-07-12T18:00:00.000Z', '2026-07-12T19:00:00.000Z', { kind: 'exam' })],
+    })
+    expect(items.find((i) => i.id === 'assignment-a-1')!.held).toBeUndefined()
+  })
+})
+
 describe('mergeCalendar', () => {
   it('represents every source as a calendar item', () => {
     const items = mergeCalendar(input)

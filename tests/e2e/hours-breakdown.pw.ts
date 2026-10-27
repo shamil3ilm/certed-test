@@ -262,3 +262,27 @@ test('an admin opens one person month session by session, and a mentor reads the
     await expect(page.getByText(summary)).toBeVisible()
   })
 })
+
+test('the calendar shows the sessions that were held, for staff and for the student who attended', async ({ page }) => {
+  // The three sessions the first test recorded on 10 March: a regular class, a demo and an exam.
+  // Each is either the timetable slot it filled (a "... held" item) or an item of its own - never lost.
+  const held = async () => {
+    const res = await page.evaluate(async (month) => {
+      const r = await fetch(`/api/calendar?from=${month}-01&to=${month}-31`)
+      return (await r.json()).data.items as Array<{ title: string; held?: boolean; source: string; start: string }>
+    }, MONTH)
+    return res.filter((i) => i.held && i.start.startsWith(DAY))
+  }
+
+  await loginAs(page, 'admin@mock.test')
+  const admin = await held()
+  expect(admin.length, 'regular, demo and exam are all on the calendar').toBeGreaterThanOrEqual(3)
+  expect(admin.some((i) => /\(exam\)|held$/.test(i.title))).toBe(true)
+
+  await loginAs(page, 'student@mock.test')
+  const student = await held()
+  expect(student.length, 'Sara attended all three').toBeGreaterThanOrEqual(3)
+
+  await page.goto(`/calendar`, { waitUntil: 'networkidle' })
+  await expect(page.getByRole('button', { name: /Held session/ })).toBeVisible()
+})

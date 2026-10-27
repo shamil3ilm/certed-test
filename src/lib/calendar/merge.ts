@@ -1,6 +1,7 @@
 import type { SlotOccurrence } from '@/lib/time/expand-slots'
 import type { CalendarEventKind } from '@/lib/services/calendar-events'
 import type { AssignmentType } from '@/lib/data/assignments'
+import { matchExams, matchOccurrences, type HeldSession } from './held'
 
 // A sat assessment reads as itself ("Exam: ...", "Quiz: ...", "Test: ..."); everything
 // else - submitted work (assignment/project) and any legacy/undefined type - reads as a
@@ -37,7 +38,7 @@ function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): stri
   return new Date(guess).toISOString()
 }
 
-type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet'
+type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet' | 'session'
 
 export type CalendarItem = {
   id: string // source-prefixed, stable
@@ -47,10 +48,12 @@ export type CalendarItem = {
   end: string | null
   allDay: boolean
   classId: string | null
-  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet'
+  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet' | 'session'
   location?: string | null
   /** For an assignment-source item, the classwork type (assignment/exam/quiz/...). */
   type?: AssignmentType
+  /** A recorded session was held for this: a class that took place, or an exam that was sat. */
+  held?: boolean
 }
 
 export type MergeInput = {
@@ -69,6 +72,8 @@ export type MergeInput = {
   assignments: Array<{ id: string; title: string; due_date: string; class_id: string; type: AssignmentType }>
   /** Scheduled meet links (scheduled_at already an absolute UTC instant). */
   meets?: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
+  /** Sessions recorded in the window - what actually happened, as against the timetable's plan. */
+  sessions?: HeldSession[]
   /** Optional classId -> human label (e.g. the enrolled student's name). When
    *  present, exam events and assignment deadlines get " · {label}" appended so a
    *  viewer who sees many classes (tutor/mentor/admin) can tell them apart. Omitted
@@ -105,15 +110,39 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     }
   }
 
-  for (const occ of input.slotOccurrences) {
-    if (suppressed.has(`${occ.slotId}|${wallClockDate(occ.startIso, input.anchorTz)}`)) continue
+  const sessions = input.sessions ?? []
+  const liveOccurrences = input.slotOccurrences.filter(
+    (occ) => !suppressed.has(`${occ.slotId}|${wallClockDate(occ.startIso, input.anchorTz)}`),
+  )
+  const occurrenceKey = (occ: { slotId: string; startIso: string }) => `${occ.slotId}|${occ.startIso}`
+  const heldOccurrences = matchOccurrences(
+    liveOccurrences.map((occ) => ({
+      key: occurrenceKey(occ),
+      classId: input.slotMeta[occ.slotId]?.classId ?? null,
+      startIso: occ.startIso,
+      endIso: occ.endIso,
+    })),
+    sessions,
+  )
+  const heldExams = matchExams(
+    input.assignments.filter((a) => a.type === 'exam'),
+    sessions,
+    (iso) => wallClockDate(iso, input.anchorTz),
+  )
+  // A session explains a planned item or stands alone as an extra one: never both, never neither.
+  const explained = new Set<string>([...heldOccurrences.values(), ...heldExams.values()])
+
+  for (const occ of liveOccurrences) {
     const meta = input.slotMeta[occ.slotId]
     const base = meta ? `${meta.subject}${meta.location ? ` - ${meta.location}` : ''}` : 'Class'
     const label = meta ? input.classLabels?.[meta.classId] : undefined
+    const held = heldOccurrences.has(occurrenceKey(occ))
+    const named = label ? `${base} · ${label}` : base
     items.push({
       id: `slot-${occ.slotId}-${occ.startIso}`,
       source: 'slot',
-      title: label ? `${base} · ${label}` : base,
+      title: held ? `${named} · held` : named,
+      held: held || undefined,
       start: occ.startIso,
       end: occ.endIso,
       allDay: false,
@@ -143,10 +172,13 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
   for (const a of input.assignments) {
     const label = input.classLabels?.[a.class_id]
     const base = assignmentTitle(a.type, a.title)
+    const held = heldExams.has(a.id)
+    const named = label ? `${base} · ${label}` : base
     items.push({
       id: `assignment-${a.id}`,
       source: 'assignment',
-      title: label ? `${base} · ${label}` : base,
+      title: held ? `${named} · held` : named,
+      held: held || undefined,
       start: a.due_date, // already an absolute UTC instant
       end: null,
       allDay: false,
@@ -168,6 +200,26 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       allDay: false,
       classId: m.class_id,
       kind: 'meet',
+    })
+  }
+
+  // Whatever happened that the plan does not show: an extra class, a make-up, a session held on a
+  // day the timetable said it was cancelled.
+  for (const session of sessions) {
+    if (explained.has(session.id)) continue
+    const label = input.classLabels?.[session.class_id]
+    const what = session.kind === 'regular' ? '' : ` (${session.kind})`
+    const base = `Held: ${session.subjectName ?? 'Class'}${what}`
+    items.push({
+      id: `session-${session.id}`,
+      source: 'session',
+      title: label ? `${base} · ${label}` : base,
+      start: session.actual_start,
+      end: session.actual_end,
+      allDay: false,
+      classId: session.class_id,
+      kind: 'session',
+      held: true,
     })
   }
 

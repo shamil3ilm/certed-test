@@ -67,6 +67,12 @@ vi.mock('@/lib/data/class-membership', () => ({
 const getProfileNamesByIds = vi.fn(async (_ids: string[]) => new Map([['stud-1', 'Rahul']]))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: (ids: string[]) => getProfileNamesByIds(ids) }))
 
+// Sessions held in the window, scoped by RLS like every other read here.
+const listHeldSessionsInRange = vi.fn(async (..._a: any[]) => [] as any[])
+vi.mock('@/lib/services/held-sessions', () => ({
+  listHeldSessionsInRange: (...a: unknown[]) => listHeldSessionsInRange(...a),
+}))
+
 import { GET } from '@/app/api/calendar/route'
 
 const req = (qs: string) => new Request(`http://t/api/calendar${qs}`)
@@ -112,6 +118,41 @@ describe('GET /api/calendar', () => {
     const json = await res.json()
     const slot = json.data.items.find((i: any) => i.source === 'slot')
     expect(slot.start).toBe('2026-07-06T03:30:00.000Z')
+  })
+
+  it('shows a class that was held against its slot, and a session with no slot as its own item', async () => {
+    listHeldSessionsInRange.mockResolvedValueOnce([
+      // Overlaps the Monday 09:00-10:00 IST slot (03:30-04:30 UTC).
+      {
+        id: 'ses-1',
+        class_id: 'c-1',
+        actual_start: '2026-07-06T03:35:00.000Z',
+        actual_end: '2026-07-06T04:30:00.000Z',
+        kind: 'regular',
+        subjectName: 'Maths',
+      },
+      // A Thursday make-up: no slot is anywhere near it.
+      {
+        id: 'ses-2',
+        class_id: 'c-1',
+        actual_start: '2026-07-09T10:00:00.000Z',
+        actual_end: '2026-07-09T11:00:00.000Z',
+        kind: 'regular',
+        subjectName: 'Maths',
+      },
+    ])
+    const res = await GET(req('?from=2026-07-06&to=2026-07-21'))
+    const items = (await res.json()).data.items as any[]
+    const slot = items.find((i) => i.source === 'slot' && i.start === '2026-07-06T03:30:00.000Z')
+    expect(slot.held).toBe(true)
+    expect(slot.title).toMatch(/held$/)
+    const extra = items.filter((i) => i.source === 'session')
+    // The first session IS the slot, so only the make-up stands alone.
+    expect(extra.map((i) => i.id)).toEqual(['session-ses-2'])
+    // The window is passed through as the same org-local day bounds the other feeds use.
+    const [start, end] = listHeldSessionsInRange.mock.calls.at(-1)!
+    expect(start).toBe('2026-07-05T18:30:00.000Z')
+    expect(end).toBe('2026-07-21T18:30:00.000Z')
   })
 
   it('passes the range to the assignment + event reads (scoping respected via RLS)', async () => {

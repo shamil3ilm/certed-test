@@ -7,7 +7,14 @@ import { COLORS } from './calendar-config'
 import type { EventDetail } from './calendar-types'
 
 export function EventDetailModal({ info, onClose }: { info: EventDetail; onClose: () => void }) {
-  const typeLabel = info.source === 'slot' ? 'Class' : info.source === 'assignment' ? 'Deadline' : info.kind || 'Event'
+  const typeLabel =
+    info.source === 'slot'
+      ? 'Class'
+      : info.source === 'assignment'
+        ? 'Deadline'
+        : info.source === 'session'
+          ? 'Held session'
+          : info.kind || 'Event'
   // Times go through LocalTime - the one timezone-aware source used everywhere -
   // rather than raw toLocale*, so an event reads the same way as every other
   // instant in the app (institute zone on the server, device zone after mount).

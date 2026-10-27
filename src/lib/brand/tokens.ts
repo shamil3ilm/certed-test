@@ -14,6 +14,7 @@ export const CALENDAR_COLORS = {
   event: '#16a34a',
   assignment: '#dc2626',
   meet: '#7c3aed',
+  session: '#0d9488',
   fallback: '#94a3b8',
   inactive: '#cbd5e1',
 } as const

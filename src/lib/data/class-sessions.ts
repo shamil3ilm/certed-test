@@ -2,6 +2,7 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rethrowIfHoursLocked } from '@/lib/data/hours-lock'
+import { fetchAllPaged } from '@/lib/data/paginate'
 import type { Page } from '@/lib/pagination'
 import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 
@@ -435,4 +436,34 @@ export async function countSelfRecordedSessions(tutorId: string, startIso: strin
     .lt('actual_start', endIso)
   if (error) throw new Error(`classSessions.countSelfRecorded: ${error.message}`)
   return count ?? 0
+}
+
+export type HeldSessionRow = {
+  id: string
+  class_id: string
+  actual_start: string
+  actual_end: string | null
+  kind: SessionKind | null
+  subject_id: string | null
+}
+
+/**
+ * Sessions that started in [startIso, endIso), for the calendar. The REQUEST client, so each reader
+ * gets what the class_sessions policy lets them read: staff the sessions of their classes, a student
+ * only those they attended. Complete rather than capped - a calendar year of sessions is more than
+ * one PostgREST page, and a quietly truncated list would show a class as never held.
+ */
+export async function selectHeldSessionsInRange(startIso: string, endIso: string): Promise<HeldSessionRow[]> {
+  const supabase = await createClient()
+  return fetchAllPaged<HeldSessionRow>(
+    (from, to) =>
+      supabase
+        .from('class_sessions')
+        .select('id, class_id, actual_start, actual_end, kind, subject_id')
+        .gte('actual_start', startIso)
+        .lt('actual_start', endIso)
+        .order('id', { ascending: true })
+        .range(from, to),
+    'classSessions.selectHeldInRange',
+  )
 }

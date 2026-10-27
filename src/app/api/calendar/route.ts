@@ -6,6 +6,7 @@ import { listSlots } from '@/lib/services/timetable-slots'
 import { listEvents } from '@/lib/services/calendar-events'
 import { listAssignments } from '@/lib/services/assignments'
 import { listMeetLinks } from '@/lib/services/meet-links'
+import { listHeldSessionsInRange } from '@/lib/services/held-sessions'
 import { getClassStudentLabels } from '@/lib/services/enrollments'
 import { expandSlots, zonedDayStartMs, nextCalendarDate, type ExpandableSlot } from '@/lib/time/expand-slots'
 import { mergeCalendar } from '@/lib/calendar/merge'
@@ -50,11 +51,12 @@ export async function GET(request: Request) {
     const windowStartIso = new Date(windowStartMs).toISOString()
     const windowEndIso = new Date(windowEndMs).toISOString()
 
-    const [slots, events, assignments, meetLinks] = await Promise.all([
+    const [slots, events, assignments, meetLinks, sessions] = await Promise.all([
       listSlots({ activeOnly: true }),
       listEvents({ from, to }),
       listAssignments({ dueFrom: windowStartIso, dueTo: windowEndIso, activeOnly: true }),
       listMeetLinks(),
+      listHeldSessionsInRange(windowStartIso, windowEndIso),
     ])
 
     const expandable: ExpandableSlot[] = slots.map((s) => ({
@@ -102,6 +104,7 @@ export async function GET(request: Request) {
             ...events.map((e) => e.class_id),
             ...dueInRange.map((a) => a.class_id),
             ...meetsInRange.map((m) => m.class_id),
+            ...sessions.map((s) => s.class_id),
           ].filter((id): id is string => id != null),
         ),
       ]
@@ -126,6 +129,7 @@ export async function GET(request: Request) {
       })),
       assignments: dueInRange,
       meets: meetsInRange,
+      sessions,
       anchorTz,
     })
 
