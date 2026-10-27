@@ -23,6 +23,9 @@ export type MenteeSubmission = {
   status: string
   submittedAt: string
   driveLink: string | null
+  /** The mark and the tutor's written feedback, once graded. */
+  score: number | null
+  feedback: string | null
 }
 
 export type MenteeOverdue = {

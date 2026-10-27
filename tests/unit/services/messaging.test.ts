@@ -10,6 +10,7 @@ vi.mock('@/lib/messaging/recipient-policy', () => ({
   assertGroupRecipientsRelated: vi.fn(),
 }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
@@ -153,6 +154,8 @@ describe('createConversation', () => {
   })
 })
 
+import { notifyBestEffort } from '@/lib/services/notifications'
+
 describe('renameConversation', () => {
   it('rejects renaming a direct conversation', async () => {
     vi.mocked(createAdminClient).mockReturnValue(
@@ -174,6 +177,36 @@ describe('renameConversation', () => {
     )
     const { renameConversation } = await import('@/lib/services/messaging')
     await expect(renameConversation(actor, 'conv-2', 'Study Circle')).resolves.toBeUndefined()
+  })
+
+  it('tells the other participants - not the one who renamed it - the new name', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [
+          { id: 'p-1', profile_id: 'actor-1' },
+          { id: 'p-2', profile_id: 'other-1' },
+        ],
+        conversations: [{ id: 'conv-2', kind: 'group' }],
+      }) as any,
+    )
+    const { renameConversation } = await import('@/lib/services/messaging')
+    await renameConversation(actor, 'conv-2', 'Study Circle')
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['other-1'],
+      expect.objectContaining({ body: 'Study Circle', link: '/messages/conv-2' }),
+    )
+  })
+
+  it('tells nobody when the rename is refused', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      multiTableClient({
+        conversation_participants: [{ id: 'p-1', profile_id: 'actor-1' }],
+        conversations: [{ id: 'conv-1', kind: 'direct' }],
+      }) as any,
+    )
+    const { renameConversation } = await import('@/lib/services/messaging')
+    await expect(renameConversation(actor, 'conv-1', 'New title')).rejects.toBeInstanceOf(ValidationError)
+    expect(notifyBestEffort).not.toHaveBeenCalled()
   })
 })
 

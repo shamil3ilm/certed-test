@@ -5,11 +5,13 @@ vi.mock('@/lib/services/authorization', () => ({ requireActorCapability: vi.fn()
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
+import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import {
   addTutor,
   addTutorFromActionInput,
@@ -76,6 +78,37 @@ describe('addTutor / removeTutor are admin-only', () => {
       entity_type: 'class_tutor',
       entity_id: 'class-1',
     })
+  })
+
+  it('addTutor tells the tutor, and the class student and mentors that someone new teaches them', async () => {
+    vi.mocked(getProfileById).mockResolvedValueOnce({ ...activeTutor, full_name: 'Tara Tutor' })
+    assignClients({ data: null, error: null })
+    await addTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['tutor-2'],
+      expect.objectContaining({ title: 'You were assigned to a class' }),
+    )
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'mentors'],
+      expect.objectContaining({ title: 'A tutor was added to your class', body: 'Tara Tutor' }),
+      'admin-1',
+    )
+  })
+
+  it('removeTutor tells the tutor, and the class student and mentors', async () => {
+    unassignClient({ data: true, error: null })
+    await removeTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['tutor-2'],
+      expect.objectContaining({ title: 'You were removed from teaching a class' }),
+    )
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'mentors'],
+      expect.objectContaining({ title: 'A tutor was removed from your class' }),
+      'admin-1',
+    )
   })
 
   it('addTutor for a dedicated mentor is the same single write - the tutor persona lands with the membership', async () => {

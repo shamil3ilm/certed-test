@@ -36,15 +36,16 @@ describe('notifyClassOfSlotChange', () => {
   it('tells students AND tutors - the tutor may not be the one who moved it', async () => {
     await notifyClassOfSlotChange(slot, 'changed')
 
-    const roles = vi.mocked(notifyClassRoleBestEffort).mock.calls.map((c) => c[1])
-    expect(roles).toEqual(['students', 'tutors'])
-    expect(vi.mocked(notifyClassRoleBestEffort).mock.calls.every((c) => c[0] === 'class-1')).toBe(true)
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledTimes(1)
+    const [classId, audience] = vi.mocked(notifyClassRoleBestEffort).mock.calls[0]
+    expect(classId).toBe('class-1')
+    expect(audience).toEqual(['students', 'tutors', 'mentors'])
   })
 
   it('names the subject and the weekly time', async () => {
     await notifyClassOfSlotChange(slot, 'changed')
 
-    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'students', {
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', ['students', 'tutors', 'mentors'], {
       kind: 'schedule',
       title: 'A class time changed',
       body: 'Physics - Mon 16:00-17:00',

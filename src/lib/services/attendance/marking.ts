@@ -5,7 +5,11 @@ import { canWriteClass } from '@/lib/permission/class-write'
 import { getClassMembers } from '@/lib/services/classes'
 import { attendanceMarkSchema } from '@/lib/validation/attendance'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import {
+  notifyBestEffort,
+  notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
+} from '@/lib/services/notifications'
 import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 import { deleteSessionMarks, upsertMarks, type AttendanceMark } from '@/lib/data/attendance'
 import { callEnsureDaySession, selectSessionById, selectSessionsForDateAsService } from '@/lib/data/class-sessions'
@@ -140,6 +144,15 @@ export async function markAttendance(
       link: `/classroom/${params.classId}/attendance`,
     },
   )
+  // And their mentors: an absence is the thing a mentor most needs to hear about.
+  for (const row of rows) {
+    await notifyMentorsOfStudentBestEffort(row.student_id, (name) => ({
+      kind: 'attendance',
+      title: `Attendance recorded for ${name}: ${row.status}`,
+      body: params.sessionDate,
+      link: `/students/${row.student_id}`,
+    }))
+  }
   return { saved: rows.length }
 }
 
@@ -172,5 +185,18 @@ export async function clearAttendanceSession(
   // Audit the SESSION, not the class: two sessions a day are otherwise indistinguishable
   // in the log, which is the whole point of clearing one and not the other.
   await auditPrivilegedAction(actor, 'attendance.clear', 'class_session', sessionId)
+  // The marks were the student's record of having been there (or not), and their mentor follows it.
+  if (cleared > 0) {
+    await notifyClassRoleBestEffort(
+      classId,
+      ['students', 'mentors'],
+      {
+        kind: 'attendance',
+        title: `Attendance for ${session.session_date} was cleared`,
+        link: `/classroom/${classId}/attendance`,
+      },
+      actor.id,
+    )
+  }
   return { cleared }
 }

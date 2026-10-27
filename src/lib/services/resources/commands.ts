@@ -45,7 +45,7 @@ export async function createDocument(actor: Profile, input: CreateDocumentInput)
     status: 'active',
   })
   await auditPrivilegedAction(actor, 'resource.create', 'resource', created.id)
-  await notifyClassOfDocument(created, 'New document')
+  await notifyClassOfDocument(created, 'New document', actor.id)
   return created
 }
 
@@ -89,7 +89,7 @@ export async function createCustodialDocumentFromActionInput(
 /** Tell the class about a custodial document its first file has just published. */
 export async function announceDocument(resourceId: string): Promise<void> {
   const doc = await getResource(resourceId)
-  if (doc) await notifyClassOfDocument(doc, 'New document')
+  if (doc) await notifyClassOfDocument(doc, 'New document', doc.uploaded_by)
 }
 
 /** Edit a document's metadata. canDocument('edit', doc) - a tutor may edit only
@@ -113,7 +113,7 @@ export async function editDocument(actor: Profile, input: EditDocumentInput): Pr
   }
   await updateResource(input.id, patch)
   await auditPrivilegedAction(actor, 'resource.edit', 'resource', input.id)
-  await notifyClassOfDocument({ ...doc, ...patch }, 'Updated document')
+  await notifyClassOfDocument({ ...doc, ...patch }, 'Updated document', actor.id)
 }
 
 export async function editDocumentFromActionInput(actor: Profile, input: DocumentActionInput): Promise<void> {
@@ -128,6 +128,7 @@ export async function archiveDocument(actor: Profile, id: string): Promise<void>
   await assertCanDocument(actor, 'delete', doc)
   await updateResourceStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'resource.delete', 'resource', id)
+  if (doc.status === 'active') await notifyClassOfDocument(doc, 'Document removed', actor.id)
 }
 
 export async function archiveDocumentFromActionInput(
@@ -146,6 +147,7 @@ export async function restoreDocument(actor: Profile, id: string): Promise<void>
   await assertClassActive(doc.class_id)
   await updateResourceStatus(id, 'active')
   await auditPrivilegedAction(actor, 'resource.restore', 'resource', id)
+  await notifyClassOfDocument(doc, 'Document restored', actor.id)
 }
 
 export async function restoreDocumentFromActionInput(

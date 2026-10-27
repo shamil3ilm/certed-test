@@ -34,6 +34,10 @@ vi.mock('@/lib/data/attendance', () => ({
   updateJoinAtAsService: vi.fn(),
 }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyBestEffort: vi.fn(),
+  notifyMentorsOfStudentBestEffort: vi.fn(),
+}))
 
 import { canManageClass, mentoringScopeClassIds, isMentoringOversight } from '@/lib/permission/class'
 import { loadPersonaFlags } from '@/lib/permission/personas'
@@ -50,6 +54,7 @@ import {
 import { selectJoinRowsForSessionsAsService, updateJoinAtAsService } from '@/lib/data/attendance'
 import { selectSessionById, selectSessionsForDate } from '@/lib/data/class-sessions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
 import {
   listMenteeSessionTimings,
   updateSessionTimes,
@@ -117,6 +122,22 @@ describe('updateStudentJoinTime - the entry must belong to the session window', 
       ValidationError,
     )
     expect(updateJoinAtAsService).not.toHaveBeenCalled()
+  })
+
+  it('tells the student, and their mentors but not the editor, that the joined time changed', async () => {
+    await updateStudentJoinTime(actor, { ...base, joinAt: '2026-08-05T10:15:00.000Z' })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['s1'],
+      expect.objectContaining({ title: 'Your joined time for 2026-08-05 was changed' }),
+    )
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledWith('s1', expect.any(Function), 'm1')
+    const build = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0][1]
+    expect(build('Sara').title).toBe("Sara's joined time for 2026-08-05 was changed")
+  })
+
+  it('tells nobody when the entry is refused', async () => {
+    await expect(updateStudentJoinTime(actor, { ...base, joinAt: '2026-08-05T12:00:00.000Z' })).rejects.toThrow()
+    expect(notifyBestEffort).not.toHaveBeenCalled()
   })
 
   it('clearing the entry (null) skips the window checks', async () => {

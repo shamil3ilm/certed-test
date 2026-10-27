@@ -106,7 +106,14 @@ export function RecentSubmissionsPanel({ submissions }: { submissions: Overview[
                   <p className="truncate font-medium text-slate-800">{submission.assignmentTitle}</p>
                   <p className="truncate text-xs text-slate-600">
                     {submission.classLabel} - <LocalTime iso={submission.submittedAt} />
+                    {submission.score != null && ` - Score ${submission.score}`}
                   </p>
+                  {submission.feedback && (
+                    <p className="mt-1 text-xs text-slate-600">
+                      <span className="font-medium text-slate-700">Tutor feedback: </span>
+                      {submission.feedback}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge tone={submissionTone(submission.status)}>{submissionLabel(submission.status)}</Badge>

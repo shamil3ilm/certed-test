@@ -57,6 +57,9 @@ export async function finalizeResourceFileReplacement(actor: Profile, resourceId
   await recordResourceAttachmentReplacement(actor, resourceId).catch((error) =>
     logError('resources.replacement.snapshot', error, { resourceId }),
   )
+  // The file people open just changed under them, so the class hears of it as of any other edit.
+  const doc = await getResource(resourceId).catch(() => null)
+  if (doc) await notifyClassOfDocument(doc, 'Updated document', actor.id)
 }
 
 /**
@@ -84,7 +87,7 @@ export async function restoreDocumentVersion(actor: Profile, resourceId: string,
   }
   await updateResource(resourceId, patch)
   await auditPrivilegedAction(actor, 'resource.restore_version', 'resource', resourceId)
-  await notifyClassOfDocument({ ...doc, ...patch }, 'Updated document')
+  await notifyClassOfDocument({ ...doc, ...patch }, 'Updated document', actor.id)
 }
 
 export async function restoreDocumentVersionFromActionInput(

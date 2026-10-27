@@ -70,6 +70,57 @@ async function assertSlotInClass(slotId: string, classId: string | null): Promis
   }
 }
 
+const EVENT_NOTICE: Record<CalendarEvent['kind'], { added: string; changed: string; removed: string }> = {
+  cancellation: { added: 'Class cancelled', changed: 'Cancellation changed', removed: 'Cancellation lifted' },
+  reschedule: { added: 'Class rescheduled', changed: 'Reschedule changed', removed: 'Reschedule lifted' },
+  holiday: { added: 'New holiday', changed: 'Holiday changed', removed: 'Holiday removed' },
+  event: { added: 'New event', changed: 'Event changed', removed: 'Event removed' },
+  exam: { added: 'New exam', changed: 'Exam changed', removed: 'Exam removed' },
+}
+
+/**
+ * Tell a class - its students, its tutors and the mentors of its students - that its calendar
+ * changed, everyone but whoever changed it. A class's calendar is what people plan their week
+ * around, so a date that moves or a session that is called off without a word is someone turning
+ * up to nothing. Academy-wide events (no class) are deliberately NOT fanned out - they would
+ * notify every account. Best-effort: the event is already written.
+ */
+async function notifyClassOfEvent(
+  event: CalendarEvent,
+  change: 'added' | 'changed' | 'removed',
+  actorId: string,
+): Promise<void> {
+  if (!event.class_id) return
+  await notifyClassRoleBestEffort(
+    event.class_id,
+    ['students', 'tutors', 'mentors'],
+    {
+      kind: 'schedule',
+      title: `${EVENT_NOTICE[event.kind][change]}: ${event.title}`,
+      body: event.event_date,
+      link: '/calendar',
+    },
+    actorId,
+  )
+}
+
+/** The patch without its undefined keys, so spreading it over a row never blanks a field. */
+function definedOnly<T extends object>(patch: T): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>
+}
+
+/** Whether an edit changed anything a person plans around: when, what it is called, or what it is. */
+function changesThePlan(before: CalendarEvent, after: CalendarEvent): boolean {
+  return (
+    before.title !== after.title ||
+    before.event_date !== after.event_date ||
+    before.start_time !== after.start_time ||
+    before.end_time !== after.end_time ||
+    before.kind !== after.kind ||
+    before.class_id !== after.class_id
+  )
+}
+
 /**
  * Global events (class_id null) are admin-only; a tutor may create events for a class
  * they teach, and a mentor for a class their mentee is enrolled in - canWriteCalendar
@@ -93,16 +144,7 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
     created_by: actor.id,
   })
   await auditPrivilegedAction(actor, 'event.create', 'calendar_event', created.id)
-  // A cancellation/reschedule changes when a class meets - tell its students
-  // (best-effort). Plain events + holidays don't fan out.
-  if (created.class_id && (created.kind === 'cancellation' || created.kind === 'reschedule')) {
-    await notifyClassRoleBestEffort(created.class_id, 'students', {
-      kind: 'schedule',
-      title: `Class ${created.kind === 'cancellation' ? 'cancelled' : 'rescheduled'}: ${created.title}`,
-      body: created.event_date,
-      link: '/calendar',
-    })
-  }
+  await notifyClassOfEvent(created, 'added', actor.id)
   return created
 }
 
@@ -150,8 +192,16 @@ export async function updateEvent(actor: Profile, id: string, patch: UpdateEvent
     patch.start_time !== undefined ? patch.start_time : existing.start_time,
     patch.end_time !== undefined ? patch.end_time : existing.end_time,
   )
+  // Decided from the patch BEFORE the write, so it does not depend on `existing` and the row
+  // the write returns being separate objects.
+  const planChanged = changesThePlan(existing, { ...existing, ...definedOnly(patch) })
   const updated = await updateEventRow(id, patch)
   await auditPrivilegedAction(actor, moved ? 'event.move' : 'event.update', 'calendar_event', id)
+  if (planChanged) {
+    await notifyClassOfEvent(updated, 'changed', actor.id)
+    // An event moved out of a class is gone from that class's calendar.
+    if (moved && existing.class_id) await notifyClassOfEvent(existing, 'removed', actor.id)
+  }
   return updated
 }
 
@@ -171,6 +221,7 @@ export async function deleteEvent(actor: Profile, id: string): Promise<void> {
   }
   await deleteEventRow(id)
   await auditPrivilegedAction(actor, 'event.delete', 'calendar_event', id)
+  await notifyClassOfEvent(existing, 'removed', actor.id)
 }
 
 export async function deleteEventFromApiInput(actor: Profile, id: unknown): Promise<void> {

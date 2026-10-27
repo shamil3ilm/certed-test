@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
+import { makeClient, makeClientCapturing, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 // The tutor-only write scope, mirroring the teaches_class_write RLS behind these
@@ -7,10 +7,12 @@ vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyClassRoleBestEffort: vi.fn() }))
 
 import { canWriteClass } from '@/lib/permission/class-write'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import {
   createAnnouncement,
   createAnnouncementFromActionInput,
@@ -60,6 +62,32 @@ describe('createAnnouncement', () => {
       entity_type: 'announcement',
       entity_id: 'ann-1',
     })
+  })
+
+  it('stamps a post written live, so the go-live sweep never announces it a second time', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    const { builder, client } = makeClientCapturing({ data: announcementRow, error: null })
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await createAnnouncement(actor, { class_id: 'class-1', title: 'Hi', message: 'msg', ...extras })
+    expect(builder.insert).toHaveBeenCalledWith(expect.objectContaining({ live_notified_at: expect.any(String) }))
+  })
+
+  it('leaves a post scheduled for later unstamped - the sweep announces it when its time comes', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    const { builder, client } = makeClientCapturing({
+      data: { ...announcementRow, publish_at: '2999-01-01T00:00:00.000Z' },
+      error: null,
+    })
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    await createAnnouncement(actor, {
+      class_id: 'class-1',
+      title: 'Hi',
+      message: 'msg',
+      ...extras,
+      publish_at: '2999-01-01T00:00:00.000Z',
+    })
+    expect(builder.insert).toHaveBeenCalledWith(expect.objectContaining({ live_notified_at: null }))
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
   it('a global (null class_id) post is admin-only — a tutor is rejected', async () => {
@@ -213,6 +241,22 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
       entity_type: 'announcement',
       entity_id: 'ann-1',
     })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Announcement withdrawn: Hi' }),
+      'tutor-1',
+    )
+  })
+
+  it('archiving a post that was not live tells no one', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...announcementRow, status: 'archived' }, error: null }) as any,
+    )
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'ann-1' }], error: null }) as any)
+    await archiveAnnouncement(actor, 'ann-1')
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
   it('restore writes announcement.restore', async () => {
@@ -226,6 +270,12 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
       entity_type: 'announcement',
       entity_id: 'ann-1',
     })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Announcement restored: Hi' }),
+      'tutor-1',
+    )
   })
 
   it('edit writes announcement.edit', async () => {
@@ -239,6 +289,25 @@ describe('archiveAnnouncement / restoreAnnouncement / editAnnouncement', () => {
       entity_type: 'announcement',
       entity_id: 'ann-1',
     })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Announcement updated: New' }),
+      'tutor-1',
+    )
+  })
+
+  it('an edit that leaves the words alone (a new expiry, say) tells no one', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: announcementRow, error: null }) as any)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'ann-1' }], error: null }) as any)
+    await editAnnouncement(actor, 'ann-1', {
+      title: 'Hi',
+      message: 'msg',
+      ...extras,
+      expires_at: '2030-01-01T00:00:00.000Z',
+    })
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
   it('editAnnouncementFromActionInput validates and delegates to the edit flow', async () => {

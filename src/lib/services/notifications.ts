@@ -5,6 +5,7 @@ import { getClassMembers } from '@/lib/services/classes'
 import { logError } from '@/lib/observability/log'
 import { emailEnabled, escapeHtml } from '@/lib/email/resend'
 import { enqueuePendingEmails } from '@/lib/data/pending-emails'
+import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 import { getProfilesByIds } from '@/lib/services/users'
 import {
   insertNotifications,
@@ -111,27 +112,63 @@ export async function notifyBestEffort(profileIds: string[], input: NotifyInput)
   }
 }
 
+/** The people around a class a notification can address. Mentors are those of its enrolled students. */
+type ClassAudience = 'students' | 'tutors' | 'mentors'
+
 /**
- * Best-effort notification to ONE role of a class (its tutors or its students):
- * resolves the membership and notifies that role, swallowing any failure. The
- * callers are core workflows (posting an announcement/assignment, turning in
- * work) that must never fail because of a notification, so this owns both the
- * membership fetch and the never-throw contract in one place.
+ * Best-effort notification to one or more audiences of a class (its students, its tutors, the
+ * mentors of its students): resolves the membership and notifies it, swallowing any failure. The
+ * callers are core workflows (posting an announcement/assignment, turning in work) that must never
+ * fail because of a notification, so this owns both the membership fetch and the never-throw
+ * contract in one place.
+ *
+ * `exceptId` leaves out whoever made the change - they were there. A person in two audiences is
+ * told once.
  */
 export async function notifyClassRoleBestEffort(
   classId: string,
-  role: 'students' | 'tutors',
+  audience: ClassAudience | ClassAudience[],
   input: NotifyInput,
+  exceptId?: string | null,
 ): Promise<void> {
   try {
+    const audiences = Array.isArray(audience) ? audience : [audience]
     const members = await getClassMembers(classId)
-    await notifyBestEffort(
-      members[role].map((m) => m.id),
-      input,
-    )
+    const ids = new Set<string>()
+    for (const role of audiences) {
+      if (role === 'mentors') {
+        const pairs = await selectActiveMentorshipsForStudents(members.students.map((m) => m.id))
+        for (const pair of pairs) ids.add(pair.mentor_id)
+      } else {
+        for (const member of members[role]) ids.add(member.id)
+      }
+    }
+    if (exceptId) ids.delete(exceptId)
+    await notifyBestEffort([...ids], input)
   } catch (error) {
     // best-effort - never fail the caller's core action, but log the failure.
-    logError('notifyClassRoleBestEffort', error, { classId, role, kind: input.kind }, { toSentry: false })
+    logError('notifyClassRoleBestEffort', error, { classId, audience, kind: input.kind }, { toSentry: false })
+  }
+}
+
+/**
+ * Best-effort notice to the mentors of ONE student, phrased about that student: the mentor of a
+ * student is a party to what happens to them, but a notice written to the student ("Your work was
+ * graded") would read wrongly to them, so the copy is built from the student's name here. `exceptId`
+ * leaves out whoever made the change.
+ */
+export async function notifyMentorsOfStudentBestEffort(
+  studentId: string,
+  build: (studentName: string) => NotifyInput,
+  exceptId?: string | null,
+): Promise<void> {
+  try {
+    const mentorIds = (await selectActiveMentorIdsForStudent(studentId)).filter((id) => id !== exceptId)
+    if (mentorIds.length === 0) return
+    const student = (await getProfilesByIds([studentId])).get(studentId)
+    await notifyBestEffort(mentorIds, build(student?.full_name ?? student?.email ?? 'Your mentee'))
+  } catch (error) {
+    logError('notifyMentorsOfStudentBestEffort', error, { studentId }, { toSentry: false })
   }
 }
 

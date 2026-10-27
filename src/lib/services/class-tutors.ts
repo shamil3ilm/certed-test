@@ -9,7 +9,7 @@ import { selectActiveProfileIdsByPersona } from '@/lib/data/personas'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
 
@@ -84,6 +84,18 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
     title: 'You were assigned to a class',
     link: `/classroom/${params.classId}`,
   })
+  // The student, and their mentors, are taught by someone new.
+  await notifyClassRoleBestEffort(
+    params.classId,
+    ['students', 'mentors'],
+    {
+      kind: 'class',
+      title: 'A tutor was added to your class',
+      body: tutor.full_name ?? tutor.email,
+      link: `/classroom/${params.classId}`,
+    },
+    actor.id,
+  )
 }
 
 export async function addTutorFromActionInput(actor: Profile, input: ClassTutorActionInput): Promise<void> {
@@ -101,6 +113,22 @@ export async function removeTutor(actor: Profile, params: ClassTutorParams): Pro
     throw new NotFoundError('That tutor is not assigned to this class.')
   }
   await auditPrivilegedAction(actor, 'class.unassign_tutor', 'class_tutor', params.classId)
+  // The tutor loses the class, and the class loses a tutor.
+  await notifyBestEffort([params.tutorId], {
+    kind: 'class',
+    title: 'You were removed from teaching a class',
+    link: '/classroom',
+  })
+  await notifyClassRoleBestEffort(
+    params.classId,
+    ['students', 'mentors'],
+    {
+      kind: 'class',
+      title: 'A tutor was removed from your class',
+      link: `/classroom/${params.classId}`,
+    },
+    actor.id,
+  )
 }
 
 export async function removeTutorFromActionInput(actor: Profile, input: ClassTutorActionInput): Promise<void> {

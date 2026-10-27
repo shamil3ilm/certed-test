@@ -6,6 +6,7 @@ vi.mock('@/lib/permission', () => ({ assertClassActive: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/services/resources/notify', () => ({ notifyClassOfDocument: vi.fn() }))
 // Pass-through: the labelling rule has its own tests; here the stored name stands in for it.
 vi.mock('@/lib/services/classes/class-labels', () => ({
   resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
@@ -22,6 +23,7 @@ import { assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
+import { notifyClassOfDocument } from '@/lib/services/resources/notify'
 import { insertVersion, selectVersionByIdAsService } from '@/lib/data/resource-versions'
 import {
   createDocument,
@@ -34,6 +36,7 @@ import {
   validateEditDocumentInput,
   validateResourceIdInput,
   listResourcesPage,
+  finalizeResourceFileReplacement,
 } from '@/lib/services/resources'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
@@ -176,12 +179,30 @@ describe('restoreDocumentVersion', () => {
   })
 })
 
+describe('finalizeResourceFileReplacement', () => {
+  it('snapshots the outgoing file and tells the class the document was updated', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // snapshot read
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any) // notice read
+    await finalizeResourceFileReplacement(actor, 'res-1')
+    expect(insertVersion).toHaveBeenCalled()
+    expect(notifyClassOfDocument).toHaveBeenCalledWith(docRow, 'Updated document', 'tutor-1')
+  })
+
+  it('still tells the class when the version snapshot could not be written', async () => {
+    vi.mocked(createClient).mockRejectedValueOnce(new Error('db down')) // snapshot read
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
+    await expect(finalizeResourceFileReplacement(actor, 'res-1')).resolves.toBeUndefined()
+    expect(notifyClassOfDocument).toHaveBeenCalledWith(docRow, 'Updated document', 'tutor-1')
+  })
+})
+
 describe('archiveDocument / restoreDocument', () => {
   it('archive enforces canDocument("delete") and audits resource.delete', async () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: docRow, error: null }) as any)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any)
     await archiveDocument(actor, 'res-1')
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'delete', docRow)
+    expect(notifyClassOfDocument).toHaveBeenCalledWith(docRow, 'Document removed', 'tutor-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'resource.delete',
@@ -195,6 +216,7 @@ describe('archiveDocument / restoreDocument', () => {
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'res-1' }], error: null }) as any)
     await restoreDocument(actor, 'res-1')
     expect(assertCanDocument).toHaveBeenCalledWith(actor, 'edit', docRow)
+    expect(notifyClassOfDocument).toHaveBeenCalledWith(docRow, 'Document restored', 'tutor-1')
     expect(assertClassActive).toHaveBeenCalledWith('class-1')
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',

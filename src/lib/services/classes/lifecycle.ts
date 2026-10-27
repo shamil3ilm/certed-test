@@ -84,8 +84,7 @@ async function notifyMembersOfArchive(id: string): Promise<void> {
       // where the classes someone still has are.
       link: '/dashboard',
     }
-    await notifyClassRoleBestEffort(id, 'students', input)
-    await notifyClassRoleBestEffort(id, 'tutors', input)
+    await notifyClassRoleBestEffort(id, ['students', 'tutors', 'mentors'], input)
   } catch (error) {
     logError('classes.archiveNotice', error, { classId: id }, { toSentry: false })
   }

@@ -5,11 +5,13 @@ vi.mock('@/lib/permission', () => ({ canWriteCalendar: vi.fn(), canWriteClass: v
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyClassRoleBestEffort: vi.fn() }))
 
 import { canWriteCalendar, canWriteClass, assertClassActive } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
 import { writeAudit } from '@/lib/data/audit'
 import { rateLimit } from '@/lib/security/rate-limit'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import {
   createEvent,
   createEventFromApiInput,
@@ -112,6 +114,90 @@ describe('createEvent', () => {
       slot_id: 'slot-1',
     } as any)
     expect(created.id).toBe('evt-1')
+  })
+})
+
+describe('who hears about a calendar change', () => {
+  const AUDIENCE = ['students', 'tutors', 'mentors']
+
+  it('tells the class - students, tutors and mentors, not the author - about a cancellation', async () => {
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, kind: 'cancellation', title: 'Maths' }, error: null }) as any,
+    )
+    await createEvent(tutor, {
+      title: 'Maths',
+      event_date: '2026-07-20',
+      class_id: 'class-1',
+      kind: 'cancellation',
+    } as any)
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      AUDIENCE,
+      { kind: 'schedule', title: 'Class cancelled: Maths', body: '2026-07-20', link: '/calendar' },
+      'tutor-1',
+    )
+  })
+
+  it('tells the class about a plain event or a holiday too', async () => {
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, kind: 'holiday', title: 'Onam' }, error: null }) as any,
+    )
+    await createEvent(tutor, { title: 'Onam', event_date: '2026-07-20', class_id: 'class-1', kind: 'holiday' } as any)
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      AUDIENCE,
+      expect.objectContaining({ title: 'New holiday: Onam' }),
+      'tutor-1',
+    )
+  })
+
+  it('does not fan an academy-wide event out to every account', async () => {
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, class_id: null }, error: null }) as any,
+    )
+    await createEvent(tutor, { title: 'Class', event_date: '2026-07-20', kind: 'event' } as any)
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('tells the class when an edit moves the date', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, event_date: '2026-07-22' }, error: null }) as any,
+    )
+    await updateEvent(tutor, 'evt-1', { event_date: '2026-07-22' } as any)
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      AUDIENCE,
+      { kind: 'schedule', title: 'Event changed: Class', body: '2026-07-22', link: '/calendar' },
+      'tutor-1',
+    )
+  })
+
+  it('stays quiet when an edit changes nothing anyone plans around', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...eventRow, description: 'Bring a calculator' }, error: null }) as any,
+    )
+    await updateEvent(tutor, 'evt-1', { description: 'Bring a calculator' } as any)
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('tells the class an event it had was removed', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'evt-1' }], error: null }) as any)
+    await deleteEvent(tutor, 'evt-1')
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      AUDIENCE,
+      expect.objectContaining({ title: 'Event removed: Class' }),
+      'tutor-1',
+    )
   })
 })
 

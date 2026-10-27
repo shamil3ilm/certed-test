@@ -23,6 +23,10 @@ export type SubmissionBrief = {
   drive_link: string | null
 }
 
+/** A submission with the mark and the tutor's written feedback, once graded - what the student
+ *  reads on their own work. */
+export type GradedSubmissionBrief = SubmissionBrief & { score: number | null; feedback: string | null }
+
 export type EvaluatedSubmissionBrief = {
   assignment_id: string
   status: SubmissionStatus

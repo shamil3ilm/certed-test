@@ -41,8 +41,7 @@ describe('archiveClass', () => {
       body: 'Chemistry 12',
       link: '/dashboard',
     }
-    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'students', expected)
-    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'tutors', expected)
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', ['students', 'tutors', 'mentors'], expected)
   })
 
   it('archives first and notifies second', async () => {
@@ -53,7 +52,7 @@ describe('archiveClass', () => {
 
     await archiveClass(admin, 'class-1')
 
-    expect(order).toEqual(['archive', 'audit', 'notify', 'notify'])
+    expect(order).toEqual(['archive', 'audit', 'notify'])
   })
 
   it('stays archived when the notice fails', async () => {

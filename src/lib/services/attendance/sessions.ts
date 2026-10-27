@@ -24,7 +24,7 @@ import { loadPersonaFlags } from '@/lib/permission/personas'
 import { validateUuidField } from '@/lib/validation/id'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { getProfileById } from '@/lib/services/users'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { isSessionKind, kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 import { z } from 'zod'
 
@@ -271,6 +271,35 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
       link: '/my-hours',
     })
   }
+  // The hours a session records are the tutor's pay, so when someone ELSE records or changes it
+  // the tutor has to hear: otherwise the first they know is a figure that is not what they taught.
+  // Only for a new session or a changed window or type - re-saving a note changes no hours.
+  const changedHours =
+    !before || before.actual_start !== window.start || before.actual_end !== window.end || kindOf(before) !== kind
+  if (tutorId && tutorId !== actor.id && changedHours) {
+    await notifyBestEffort([tutorId], {
+      kind: 'class',
+      title: before ? 'A session of yours was changed' : 'A session was recorded for you',
+      body: sessionDate,
+      link: '/my-hours',
+    })
+  }
+  // A summary written up for the class is for the student to read, and the page they would read
+  // it on is not one they have a reason to open unprompted. Only when it is new or has changed:
+  // saving the times again must not tell them again. Best-effort - the session is already saved.
+  if (fields.summary && fields.summary !== (before?.summary ?? null)) {
+    await notifyClassRoleBestEffort(
+      classId,
+      'students',
+      {
+        kind: 'class',
+        title: 'A class summary was posted',
+        body: sessionDate,
+        link: `/classroom/${classId}/attendance?date=${sessionDate}`,
+      },
+      actor.id,
+    )
+  }
   return saved
 }
 
@@ -297,6 +326,18 @@ export async function deleteSessionTimes(actor: Profile, sessionId: string): Pro
     session_date: session.session_date,
     removed: { actual_start: session.actual_start, actual_end: session.actual_end },
   })
+  // The tutor it counted for, and anyone who monitored it, lose those hours: say so.
+  const affected = [session.tutor_id, session.monitor_id ?? null].filter(
+    (id): id is string => Boolean(id) && id !== actor.id,
+  )
+  if (affected.length > 0) {
+    await notifyBestEffort(affected, {
+      kind: 'class',
+      title: 'A session you worked was removed',
+      body: session.session_date,
+      link: '/my-hours',
+    })
+  }
 }
 
 export type SaveFeedbackActionInput = {
@@ -333,8 +374,18 @@ export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackAct
   if (!(await studentHasAttendance(classId, actor.id, sessionDate))) {
     throw new ValidationError('You can leave feedback only for a session you attended.')
   }
-  await writeStudentSessionFeedback(classId, sessionDate, noteField.parse(String(input.feedback ?? '')))
+  const fields = { feedback: noteField.parse(String(input.feedback ?? '')) }
+  await writeStudentSessionFeedback(classId, sessionDate, fields.feedback)
   await auditPrivilegedAction(actor, 'attendance.feedback', 'class', classId)
+  // The tutor otherwise finds a student's feedback only by opening that day's form and looking.
+  if (fields.feedback) {
+    await notifyClassRoleBestEffort(classId, 'tutors', {
+      kind: 'class',
+      title: 'A student left feedback on a session',
+      body: sessionDate,
+      link: `/classroom/${classId}/attendance?date=${sessionDate}`,
+    })
+  }
 }
 
 /** Every session recorded for a class on one date (a class may hold several). */

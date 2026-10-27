@@ -4,7 +4,7 @@ import { canWriteClass } from '@/lib/permission/class-write'
 import { getAssignment } from '@/lib/services/assignments'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
 import { updateGrade, selectActiveSubmissionIdForStudent, insertResultGrade } from '@/lib/data/submissions'
 import { selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
 import { gradeSchema } from '@/lib/validation/assignment'
@@ -105,6 +105,27 @@ export async function gradeSubmission(actor: Profile, input: GradeSubmissionInpu
       body: assignment.title,
       link: `/classroom/${assignment.class_id}/classwork`,
     })
+    await notifyMentorsOfStudentBestEffort(submission.student_id, (name) => ({
+      kind: 'grade',
+      title: `${name}'s work was graded`,
+      body: assignment.title,
+      link: `/classroom/${assignment.class_id}/classwork`,
+    }))
+  } else if (submission.graded_at) {
+    // Clearing a mark that had been given reopens the work for resubmission: the student's
+    // result disappeared and the page now asks them to act, so they need to hear it.
+    await notifyBestEffort([submission.student_id], {
+      kind: 'assignment',
+      title: 'Your work was reopened for resubmission',
+      body: assignment.title,
+      link: `/classroom/${assignment.class_id}/classwork`,
+    })
+    await notifyMentorsOfStudentBestEffort(submission.student_id, (name) => ({
+      kind: 'assignment',
+      title: `${name}'s work was reopened for resubmission`,
+      body: assignment.title,
+      link: `/classroom/${assignment.class_id}/classwork`,
+    }))
   }
   return { assignmentId: submission.assignment_id }
 }
@@ -215,6 +236,12 @@ export async function gradeStudentResult(
       body: assignment.title,
       link: `/classroom/${assignment.class_id}/classwork`,
     })
+    await notifyMentorsOfStudentBestEffort(input.studentId, (name) => ({
+      kind: 'grade',
+      title: `${name}'s work was graded`,
+      body: assignment.title,
+      link: `/classroom/${assignment.class_id}/classwork`,
+    }))
   }
   return { assignmentId: input.assignmentId }
 }

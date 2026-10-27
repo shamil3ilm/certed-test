@@ -82,13 +82,14 @@ describe('createAssignment', () => {
     await createAssignment(actor, { class_id: 'class-1', title: 'HW', description: 'Read ch.4', due_date: 't' })
     expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
       'class-1',
-      'students',
+      ['students', 'tutors', 'mentors'],
       expect.objectContaining({
         kind: 'assignment',
         title: 'New assignment: HW',
         body: 'Read ch.4',
         link: '/classroom/class-1/classwork#assignment-a-1',
       }),
+      'tutor-1',
     )
   })
 
@@ -215,6 +216,12 @@ describe('archiveAssignment / editAssignment', () => {
       entity_type: 'assignment',
       entity_id: 'a-1',
     })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Assignment withdrawn: HW' }),
+      'tutor-1',
+    )
 
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
@@ -264,6 +271,42 @@ describe('archiveAssignment / editAssignment', () => {
       entity_type: 'assignment',
       entity_id: 'a-1',
     })
+  })
+
+  it('tells the class when the deadline moves - not the editor', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createAdminClient).mockReturnValueOnce(
+      makeClient({ data: null, error: null }, { data: null, error: null }) as any,
+    )
+    await editAssignment(actor, 'a-1', { due_date: '2026-08-01T00:00:00.000Z' })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Due date changed: HW', body: 'now due 2026-08-01' }),
+      'tutor-1',
+    )
+  })
+
+  it('tells the class when the total marks change', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
+    await editAssignment(actor, 'a-1', { max_marks: 50 })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Marks changed: HW', body: 'now out of 50' }),
+      'tutor-1',
+    )
+  })
+
+  it('stays quiet for an edit nobody plans around', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: assignmentRow, error: null }) as any)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'a-1' }], error: null }) as any)
+    await editAssignment(actor, 'a-1', { title: 'New' })
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
   it('surfaces an atomic edit+reclassify failure and does not audit (the DB rolled both back)', async () => {

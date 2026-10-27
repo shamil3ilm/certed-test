@@ -139,6 +139,8 @@ export async function getMenteeOverview(
         status: submission.status,
         submittedAt: submission.submitted_at,
         driveLink: submission.drive_link,
+        score: submission.score,
+        feedback: submission.feedback,
       }
     })
     .sort((left, right) => (left.submittedAt < right.submittedAt ? 1 : -1))

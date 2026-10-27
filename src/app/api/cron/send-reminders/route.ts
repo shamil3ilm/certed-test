@@ -2,22 +2,24 @@ import { ok, serverError } from '@/lib/api/response'
 import { cronAuthFailure } from '@/lib/api/cron-auth'
 import { deliverDueReminders } from '@/lib/services/reminders-sweep'
 import { announceAssignmentsDueSoon } from '@/lib/services/assignments-due-sweep'
+import { announceScheduledAnnouncements } from '@/lib/services/announcements/sweep'
 import { logError } from '@/lib/observability/log'
 
 export const runtime = 'nodejs'
 
 /**
- * The job for everything whose time has come: reminders that are due, and work that falls due
- * tomorrow.
+ * The job for everything whose time has come: reminders that are due, work that falls due
+ * tomorrow, and announcements whose publish time has arrived.
  *
- * This is the only reader of `reminders.remind_at`, and the only one that reads
- * `assignments.due_date` as a deadline rather than a sort key. Without it both are times that
- * reach only someone already looking at the page they were trying to send them to.
+ * This is the only reader of `reminders.remind_at` and of `announcements.publish_at` as a moment
+ * to act on, and the only one that reads `assignments.due_date` as a deadline rather than a sort
+ * key. Without it all three are times that reach only someone already looking at the page they
+ * were trying to send them to.
  *
- * Both sweeps ride ONE schedule deliberately: they want the same cadence, and every additional
+ * The sweeps ride ONE schedule deliberately: they want the same cadence, and every additional
  * cron is another thing that has to be wired per environment and can silently not be. They run
  * INDEPENDENTLY though - one failing (an unapplied migration, a bad batch) must not stop the
- * other from delivering.
+ * others from delivering.
  *
  * Fail-closed: an unset CRON_SECRET keeps the endpoint 401 rather than public.
  *
@@ -44,15 +46,23 @@ export async function GET(req: Request) {
   const denied = cronAuthFailure(req)
   if (denied) return denied
 
-  const [reminders, dueSoon] = await Promise.allSettled([deliverDueReminders(), announceAssignmentsDueSoon()])
+  const [reminders, dueSoon, goLive] = await Promise.allSettled([
+    deliverDueReminders(),
+    announceAssignmentsDueSoon(),
+    announceScheduledAnnouncements(),
+  ])
   if (reminders.status === 'rejected') logError('cron.sendReminders.reminders', reminders.reason)
   if (dueSoon.status === 'rejected') logError('cron.sendReminders.assignmentsDueSoon', dueSoon.reason)
-  // Only a pass where NOTHING ran is a failed pass. A half that failed comes back null rather
+  if (goLive.status === 'rejected') logError('cron.sendReminders.announcementsGoLive', goLive.reason)
+  // Only a pass where NOTHING ran is a failed pass. A part that failed comes back null rather
   // than missing, so the response says which sweep ran instead of hiding it behind a 200.
-  if (reminders.status === 'rejected' && dueSoon.status === 'rejected') return serverError()
+  if (reminders.status === 'rejected' && dueSoon.status === 'rejected' && goLive.status === 'rejected') {
+    return serverError()
+  }
 
   return ok({
     reminders: reminders.status === 'fulfilled' ? reminders.value : null,
     assignmentsDueSoon: dueSoon.status === 'fulfilled' ? dueSoon.value : null,
+    announcementsGoLive: goLive.status === 'fulfilled' ? goLive.value : null,
   })
 }

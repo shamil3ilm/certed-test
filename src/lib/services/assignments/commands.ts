@@ -57,26 +57,31 @@ export async function createAssignment(actor: Profile, input: CreateAssignmentIn
     created_by: actor.id,
   })
   await auditPrivilegedAction(actor, 'assignment.create', 'assignment', created.id)
-  await notifyClassOfAssignment(created)
+  await notifyClassOfAssignment(created, actor.id)
   return created
 }
 
 /**
- * Tell a class's students that new work was posted, so they see it without
+ * Tell a class - its students, tutors and the mentors of its students - that new work was posted, so they see it without
  * having to visit Classwork. Best-effort by design (mirrors the announcement
  * post): the assignment is already committed, so a notification failure must
  * never fail creation.
  */
-async function notifyClassOfAssignment(assignment: Assignment): Promise<void> {
+async function notifyClassOfAssignment(assignment: Assignment, actorId: string): Promise<void> {
   // "New exam: ..." / "New quiz: ..." reads better than a blanket "assignment" for
   // the typed kinds; the notification's routing `kind` stays 'assignment'.
   const label = assignment.type === 'assignment' ? 'assignment' : assignment.type
-  await notifyClassRoleBestEffort(assignment.class_id, 'students', {
-    kind: 'assignment',
-    title: `New ${label}: ${assignment.title}`,
-    body: assignment.description ? assignment.description.slice(0, 140) : null,
-    link: `/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`,
-  })
+  await notifyClassRoleBestEffort(
+    assignment.class_id,
+    ['students', 'tutors', 'mentors'],
+    {
+      kind: 'assignment',
+      title: `New ${label}: ${assignment.title}`,
+      body: assignment.description ? assignment.description.slice(0, 140) : null,
+      link: `/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`,
+    },
+    actorId,
+  )
 }
 
 export async function createAssignmentFromApiInput(
@@ -101,6 +106,37 @@ async function requireManageable(actor: Profile, id: string): Promise<Assignment
   return assignment
 }
 
+/**
+ * Tell a class its work changed in a way someone plans around: a deadline that moved, or a total
+ * that changed. The students are the ones who act on it; their mentors follow it; the tutors made
+ * the change or teach beside whoever did. Best-effort: the edit is already committed.
+ */
+async function notifyClassOfAssignmentChange(
+  existing: Assignment,
+  patch: AssignmentPatch,
+  actorId: string,
+): Promise<void> {
+  const dueMoved =
+    patch.due_date !== undefined && new Date(patch.due_date).getTime() !== new Date(existing.due_date).getTime()
+  const marksChanged = patch.max_marks !== undefined && Number(patch.max_marks) !== Number(existing.max_marks)
+  if (!dueMoved && !marksChanged) return
+  const changes = [
+    dueMoved ? `now due ${new Date(patch.due_date as string).toISOString().slice(0, 10)}` : null,
+    marksChanged ? `now out of ${patch.max_marks}` : null,
+  ].filter(Boolean)
+  await notifyClassRoleBestEffort(
+    existing.class_id,
+    ['students', 'tutors', 'mentors'],
+    {
+      kind: 'assignment',
+      title: `${dueMoved ? 'Due date changed' : 'Marks changed'}: ${patch.title ?? existing.title}`,
+      body: changes.join(', '),
+      link: `/classroom/${existing.class_id}/classwork#assignment-${existing.id}`,
+    },
+    actorId,
+  )
+}
+
 /** Soft archive / restore (reversible). */
 export async function archiveAssignment(actor: Profile, id: string, status: 'active' | 'archived'): Promise<void> {
   throttleWrite('assignment', actor.id, 'assignment')
@@ -111,6 +147,19 @@ export async function archiveAssignment(actor: Profile, id: string, status: 'act
   if (status === 'active') await assertClassActive(assignment.class_id)
   await updateAssignmentStatus(id, status)
   await auditPrivilegedAction(actor, `assignment.${status === 'active' ? 'restore' : 'archive'}`, 'assignment', id)
+  // Work that vanishes from the class, or comes back, is something the class has to be told.
+  if (assignment.status !== status) {
+    await notifyClassRoleBestEffort(
+      assignment.class_id,
+      ['students', 'tutors', 'mentors'],
+      {
+        kind: 'assignment',
+        title: `${status === 'active' ? 'Assignment restored' : 'Assignment withdrawn'}: ${assignment.title}`,
+        link: `/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`,
+      },
+      actor.id,
+    )
+  }
 }
 
 export async function archiveAssignmentFromActionInput(
@@ -157,6 +206,7 @@ export async function editAssignment(actor: Profile, id: string, patch: Assignme
   }
 
   await auditPrivilegedAction(actor, 'assignment.edit', 'assignment', id)
+  await notifyClassOfAssignmentChange(existing, patch, actor.id)
 }
 
 export async function editAssignmentFromActionInput(actor: Profile, input: EditAssignmentActionInput): Promise<void> {

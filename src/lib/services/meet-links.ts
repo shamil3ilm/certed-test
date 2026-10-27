@@ -80,20 +80,31 @@ export function validateCreateMeetLinkInput(input: CreateMeetLinkActionInput): C
 }
 
 /**
- * Tells a class's students a meeting was posted - a meet link is a time-sensitive
- * class post (a live session to join), so it earns the same student notification an
- * announcement does. Best-effort by design: the meet is already saved. Academy-wide
- * meets (null class) are deliberately NOT fanned out - they'd notify every account.
+ * Tells a class - its students, its tutors and the mentors of its students - that a meeting was
+ * posted, changed or called off: a meet link is a time-sensitive class post (a live session to
+ * join), so it earns the notification an announcement does, and a link that moves or disappears
+ * without a word is someone waiting in an empty room. Whoever made the change is left out.
+ * Best-effort by design: the meet is already saved. Academy-wide meets (null class) are
+ * deliberately NOT fanned out - they'd notify every account.
  * Uses the 'announcement' kind (a class post) since notifications have no 'meet' kind.
  */
-async function notifyClassOfMeet(meet: MeetLink): Promise<void> {
+async function notifyClassOfMeet(
+  meet: MeetLink,
+  change: 'New meeting' | 'Meeting changed' | 'Meeting cancelled' | 'Meeting restored',
+  actorId: string,
+): Promise<void> {
   if (!meet.class_id) return
-  await notifyClassRoleBestEffort(meet.class_id, 'students', {
-    kind: 'announcement',
-    title: `New meeting: ${meet.title}`,
-    body: meet.url,
-    link: `/classroom/${meet.class_id}`,
-  })
+  await notifyClassRoleBestEffort(
+    meet.class_id,
+    ['students', 'tutors', 'mentors'],
+    {
+      kind: 'announcement',
+      title: `${change}: ${meet.title}`,
+      body: change === 'Meeting cancelled' ? null : meet.url,
+      link: `/classroom/${meet.class_id}`,
+    },
+    actorId,
+  )
 }
 
 /**
@@ -122,7 +133,7 @@ export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput)
     active: true,
   })
   await auditPrivilegedAction(actor, 'meet.create', 'meet_link', created.id)
-  await notifyClassOfMeet(created)
+  await notifyClassOfMeet(created, 'New meeting', actor.id)
   return created
 }
 
@@ -168,6 +179,18 @@ export async function editMeetLinkFromActionInput(actor: Profile, input: EditMee
     scheduled_at: parsed.data.scheduled_at,
   })
   await auditPrivilegedAction(actor, 'meet.edit', 'meet_link', parsed.data.id)
+  // A description edit changes nothing anyone has to act on; the title, the link and the time do.
+  if (
+    link.title !== parsed.data.title ||
+    link.url !== parsed.data.url ||
+    link.scheduled_at !== parsed.data.scheduled_at
+  ) {
+    await notifyClassOfMeet(
+      { ...link, title: parsed.data.title, url: parsed.data.url, scheduled_at: parsed.data.scheduled_at },
+      'Meeting changed',
+      actor.id,
+    )
+  }
 }
 
 export async function createMeetLinkFromActionInput(
@@ -191,6 +214,7 @@ export async function deleteMeetLink(actor: Profile, id: string): Promise<void> 
   }
   await setMeetLinkActive(id, false)
   await auditPrivilegedAction(actor, 'meet.delete', 'meet_link', id)
+  await notifyClassOfMeet(link, 'Meeting cancelled', actor.id)
 }
 
 /** Undoes deleteMeetLink, honouring the "kept on record" promise shown in the
@@ -207,4 +231,5 @@ export async function restoreMeetLink(actor: Profile, id: string): Promise<void>
   if (link.class_id) await assertClassActive(link.class_id)
   await setMeetLinkActive(id, true)
   await auditPrivilegedAction(actor, 'meet.restore', 'meet_link', id)
+  await notifyClassOfMeet(link, 'Meeting restored', actor.id)
 }

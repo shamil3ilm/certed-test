@@ -9,13 +9,21 @@ vi.mock('@/lib/data/class-membership', () => ({
 }))
 vi.mock('@/lib/data/classes', () => ({ selectClassNamesByIdsAsService: vi.fn(), selectClassStatus: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyBestEffort: vi.fn(),
+  notifyClassRoleBestEffort: vi.fn(),
+  notifyMentorsOfStudentBestEffort: vi.fn(),
+}))
 vi.mock('@/lib/observability/log', () => ({ logError: vi.fn() }))
 
 import { canWriteClass } from '@/lib/permission/class-write'
 import { deactivateEnrollment } from '@/lib/data/class-membership'
 import { selectClassNamesByIdsAsService } from '@/lib/data/classes'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import {
+  notifyBestEffort,
+  notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
+} from '@/lib/services/notifications'
 import { logError } from '@/lib/observability/log'
 import { removeStudent } from '@/lib/services/enrollments'
 
@@ -45,6 +53,20 @@ describe('removeStudent', () => {
       // NOT /classroom/class-1: the enrolment is deactivated, so RLS closes that page to them.
       link: '/dashboard',
     })
+  })
+
+  it("also tells the class's tutors (not the one who acted) and the student's mentors", async () => {
+    await removeStudent(staff, params)
+
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      'tutors',
+      expect.objectContaining({ title: 'A student was removed from a class you teach', body: 'Physics 11' }),
+      'admin-1',
+    )
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledWith('stud-1', expect.any(Function))
+    const build = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0][1]
+    expect(build('Sara').title).toBe('Sara was removed from a class')
   })
 
   it('notifies AFTER the removal is written, never instead of it', async () => {

@@ -209,6 +209,10 @@ Notes:
 ### `announcements`
 
 - class-scoped or academy-wide stream posts
+- `publish_at` schedules a post for later; `live_notified_at` (migration 0124) is when its class was
+  told it is live. The write that posts a live post sets it; for a scheduled post the
+  `/api/cron/send-reminders` sweep sets it when the time arrives. NULL means not yet told. An
+  academy-wide post is never fanned out and so stays NULL.
 
 ### `resources`
 

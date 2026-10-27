@@ -6,6 +6,7 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 import { createAdminClient } from '@/lib/supabase/admin'
 import { claimDueReminders, selectDueReminderBacklog } from '@/lib/data/reminders-sweep'
 import { claimAssignmentsDueSoon } from '@/lib/data/assignments-due-sweep'
+import { claimAnnouncementsGoingLive } from '@/lib/data/announcements-sweep'
 
 const NOW = '2026-09-28T12:00:00.000Z'
 
@@ -84,6 +85,45 @@ describe('claimAssignmentsDueSoon', () => {
     expect(builder.gte).toHaveBeenCalledWith('due_date', NOW)
     expect(builder.lte).toHaveBeenCalledWith('due_date', '2026-09-29T12:00:00.000Z')
     expect(builder.eq).toHaveBeenCalledWith('status', 'active')
+  })
+})
+
+describe('claimAnnouncementsGoingLive', () => {
+  it('re-checks live_notified_at IS NULL when it stamps', async () => {
+    const { builder, client } = makeClientCapturing({ data: [{ id: 'n1' }], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    await claimAnnouncementsGoingLive(NOW)
+
+    expect(client.from).toHaveBeenCalledTimes(2)
+    expect(builder.update).toHaveBeenCalledWith({ live_notified_at: NOW })
+    expect(builder.is.mock.calls.filter((c) => c[0] === 'live_notified_at' && c[1] === null)).toHaveLength(2)
+  })
+
+  it('asks for active CLASS posts whose publish time has passed - not academy-wide ones', async () => {
+    const { builder, client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    await claimAnnouncementsGoingLive(NOW)
+
+    expect(builder.lte).toHaveBeenCalledWith('publish_at', NOW)
+    expect(builder.eq).toHaveBeenCalledWith('status', 'active')
+    expect(builder.not).toHaveBeenCalledWith('class_id', 'is', null)
+  })
+
+  it('does not issue the update when nothing is due', async () => {
+    const { client } = makeClientCapturing({ data: [], error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    await expect(claimAnnouncementsGoingLive(NOW)).resolves.toEqual([])
+    expect(client.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails loudly', async () => {
+    const { client } = makeClientCapturing({ data: null, error: { message: 'boom' } })
+    vi.mocked(createAdminClient).mockReturnValue(client as never)
+
+    await expect(claimAnnouncementsGoingLive(NOW)).rejects.toThrow(/announcements.selectGoingLive: boom/)
   })
 })
 

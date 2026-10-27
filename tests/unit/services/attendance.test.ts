@@ -13,11 +13,19 @@ vi.mock('@/lib/data/class-sessions', () => ({
   callEnsureDaySession: vi.fn(),
   selectSessionById: vi.fn(),
 }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyBestEffort: vi.fn(),
+  notifyClassRoleBestEffort: vi.fn(),
+  notifyMentorsOfStudentBestEffort: vi.fn(),
+}))
 
 import { canManageClass } from '@/lib/permission'
 import { canWriteClass } from '@/lib/permission/class-write'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import {
+  notifyBestEffort,
+  notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
+} from '@/lib/services/notifications'
 import { getClassMembers } from '@/lib/services/classes'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -153,6 +161,11 @@ describe('markAttendance', () => {
     })
     // The marked student is notified (best-effort); the dropped foreign id is not.
     expect(notifyBestEffort).toHaveBeenCalledWith([enrolledStudentId], expect.objectContaining({ kind: 'attendance' }))
+    // And their mentors, in words about the student - the dropped foreign id is not asked about.
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledTimes(1)
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledWith(enrolledStudentId, expect.any(Function))
+    const build = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0][1]
+    expect(build('Sara')).toMatchObject({ title: 'Attendance recorded for Sara: present', body: '2026-07-15' })
   })
 })
 
@@ -268,11 +281,22 @@ describe('clearAttendanceSession', () => {
 
   it('clears ONE session\u2019s marks and audits that session, not the class', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
-    vi.mocked(selectSessionById).mockResolvedValueOnce({ id: SESSION_ID, class_id: classId } as never)
+    vi.mocked(selectSessionById).mockResolvedValueOnce({
+      id: SESSION_ID,
+      class_id: classId,
+      session_date: '2026-07-15',
+    } as never)
     vi.mocked(createAdminClient).mockReturnValueOnce(
       makeClient({ data: [{ id: 'm1' }, { id: 'm2' }], error: null }) as any,
     )
     await expect(clearAttendanceSession(actor, classId, SESSION_ID)).resolves.toEqual({ cleared: 2 })
+    // The student and their mentors are told their record was cleared - not the one who cleared it.
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      classId,
+      ['students', 'mentors'],
+      expect.objectContaining({ title: 'Attendance for 2026-07-15 was cleared' }),
+      'tutor-1',
+    )
     // entity_id is the SESSION: a class-level entry cannot say WHICH of a day's sessions
     // was cleared, which is the only thing worth knowing about this action.
     expect(writeAudit).toHaveBeenCalledWith({

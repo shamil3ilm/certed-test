@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/services/reminders-sweep', () => ({ deliverDueReminders: vi.fn() }))
 vi.mock('@/lib/services/assignments-due-sweep', () => ({ announceAssignmentsDueSoon: vi.fn() }))
+vi.mock('@/lib/services/announcements/sweep', () => ({ announceScheduledAnnouncements: vi.fn() }))
 vi.mock('@/lib/observability/log', () => ({ logError: vi.fn() }))
 
 import { deliverDueReminders } from '@/lib/services/reminders-sweep'
 import { announceAssignmentsDueSoon } from '@/lib/services/assignments-due-sweep'
+import { announceScheduledAnnouncements } from '@/lib/services/announcements/sweep'
 import { logError } from '@/lib/observability/log'
 import { GET } from '@/app/api/cron/send-reminders/route'
 
@@ -18,6 +20,7 @@ beforeEach(() => {
   process.env.CRON_SECRET = SECRET
   vi.mocked(deliverDueReminders).mockResolvedValue({ delivered: 2 })
   vi.mocked(announceAssignmentsDueSoon).mockResolvedValue({ announced: 1, notified: 5 })
+  vi.mocked(announceScheduledAnnouncements).mockResolvedValue({ claimed: 2, announced: 1 })
 })
 afterEach(() => {
   delete process.env.CRON_SECRET
@@ -51,8 +54,24 @@ describe('GET /api/cron/send-reminders - two sweeps, independently', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
-      data: { reminders: { delivered: 2 }, assignmentsDueSoon: { announced: 1, notified: 5 } },
+      data: {
+        reminders: { delivered: 2 },
+        assignmentsDueSoon: { announced: 1, notified: 5 },
+        announcementsGoLive: { claimed: 2, announced: 1 },
+      },
     })
+  })
+
+  it('still runs the other sweeps when the go-live sweep throws - an unapplied 0124 must not stop them', async () => {
+    vi.mocked(announceScheduledAnnouncements).mockRejectedValue(new Error('column live_notified_at does not exist'))
+
+    const res = await call(`Bearer ${SECRET}`)
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({
+      data: { reminders: { delivered: 2 }, announcementsGoLive: null },
+    })
+    expect(logError).toHaveBeenCalledWith('cron.sendReminders.announcementsGoLive', expect.any(Error))
   })
 
   it('still delivers reminders when the assignment sweep throws - an unapplied 0122 must not stop them', async () => {
@@ -81,6 +100,7 @@ describe('GET /api/cron/send-reminders - two sweeps, independently', () => {
   it('reports a pass where NOTHING ran as a failure, not as a 200 with two nulls', async () => {
     vi.mocked(deliverDueReminders).mockRejectedValue(new Error('boom'))
     vi.mocked(announceAssignmentsDueSoon).mockRejectedValue(new Error('boom'))
+    vi.mocked(announceScheduledAnnouncements).mockRejectedValue(new Error('boom'))
 
     expect((await call(`Bearer ${SECRET}`)).status).toBe(500)
   })

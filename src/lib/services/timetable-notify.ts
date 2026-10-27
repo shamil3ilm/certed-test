@@ -14,7 +14,7 @@ const TITLES: Record<SlotChange, string> = {
 }
 
 /**
- * Tell a class its weekly time changed - students and tutors both.
+ * Tell a class its weekly time changed - students, tutors and the mentors of its students.
  *
  * A one-off cancellation or reschedule notifies (calendar-events.ts) but the recurring timetable
  * is what says when class actually is, every week. A slot moved or dropped silently is someone
@@ -40,8 +40,7 @@ export async function notifyClassOfSlotChange(slot: TimetableSlotRow, change: Sl
       body: `${slot.subject} - ${when}`,
       link: '/calendar',
     }
-    await notifyClassRoleBestEffort(slot.class_id, 'students', input)
-    await notifyClassRoleBestEffort(slot.class_id, 'tutors', input)
+    await notifyClassRoleBestEffort(slot.class_id, ['students', 'tutors', 'mentors'], input)
   } catch (error) {
     logError('timetable.notify', error, { slotId: slot.id, change }, { toSentry: false })
   }

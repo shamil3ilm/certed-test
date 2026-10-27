@@ -4,7 +4,10 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/permission/class-write', () => ({ canWriteClass: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyBestEffort: vi.fn(),
+  notifyMentorsOfStudentBestEffort: vi.fn(),
+}))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveStudentIdsByClassIds: vi.fn() }))
 vi.mock('@/lib/data/submissions', () => ({
   selectActiveSubmissionIdForStudent: vi.fn(),
@@ -14,7 +17,7 @@ vi.mock('@/lib/data/submissions', () => ({
 
 import { canWriteClass } from '@/lib/permission/class-write'
 import { getAssignment } from '@/lib/services/assignments'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
 import { selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
 import { selectActiveSubmissionIdForStudent, insertResultGrade, updateGrade } from '@/lib/data/submissions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
@@ -51,6 +54,9 @@ describe('gradeStudentResult', () => {
     )
     expect(updateGrade).not.toHaveBeenCalled()
     expect(notifyBestEffort).toHaveBeenCalledWith(['stud-1'], expect.objectContaining({ kind: 'grade' }))
+    // The student's mentors hear of it too, in words about the student.
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledWith('stud-1', expect.any(Function))
+    expect(vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0][1]('Sara').title).toBe("Sara's work was graded")
   })
 
   it("updates the student's existing active submission instead of inserting", async () => {

@@ -79,6 +79,9 @@ export function MentorDashboardContent({
               <Suspense fallback={<WidgetSkeleton />}>
                 <ClassUpcomingClasses me={me} now={now} />
               </Suspense>
+              <Suspense fallback={<WidgetSkeleton />}>
+                <RecentUploadsWidget me={me} />
+              </Suspense>
             </DashboardWidgetGrid>
           )}
           <DashboardSection>

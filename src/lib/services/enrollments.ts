@@ -10,7 +10,11 @@ import { subjectRefusalOf } from '@/lib/data/class-subjects'
 import { canWriteClass } from '@/lib/permission/class-write'
 import { getProfileById, getProfileNamesByIds } from '@/lib/services/users'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import {
+  notifyBestEffort,
+  notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
+} from '@/lib/services/notifications'
 import { logError } from '@/lib/observability/log'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
@@ -92,6 +96,24 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
     title: 'You were added to a class',
     link: `/classroom/${params.classId}`,
   })
+  // The class's tutors and the student's mentors are parties to it as well.
+  await notifyClassRoleBestEffort(
+    params.classId,
+    'tutors',
+    {
+      kind: 'class',
+      title: 'A student was added to a class you teach',
+      body: await classNameBestEffort(params.classId),
+      link: `/classroom/${params.classId}`,
+    },
+    actor.id,
+  )
+  await notifyMentorsOfStudentBestEffort(params.studentId, (name) => ({
+    kind: 'class',
+    title: `${name} was added to a class`,
+    body: null,
+    link: `/students/${params.studentId}`,
+  }))
 }
 
 export async function enrolStudentFromActionInput(actor: Profile, input: EnrollmentActionInput): Promise<void> {
@@ -130,6 +152,23 @@ export async function removeStudent(actor: Profile, params: EnrollmentParams): P
     body: await classNameBestEffort(params.classId),
     link: '/dashboard',
   })
+  await notifyClassRoleBestEffort(
+    params.classId,
+    'tutors',
+    {
+      kind: 'class',
+      title: 'A student was removed from a class you teach',
+      body: await classNameBestEffort(params.classId),
+      link: '/classroom',
+    },
+    actor.id,
+  )
+  await notifyMentorsOfStudentBestEffort(params.studentId, (name) => ({
+    kind: 'class',
+    title: `${name} was removed from a class`,
+    body: null,
+    link: `/students/${params.studentId}`,
+  }))
 }
 
 export async function removeStudentFromActionInput(actor: Profile, input: EnrollmentActionInput): Promise<void> {

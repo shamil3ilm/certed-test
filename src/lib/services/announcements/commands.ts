@@ -39,24 +39,43 @@ async function requireManageable(actor: Profile, id: string): Promise<Announceme
 }
 
 /**
- * Tells a class's students that something was posted. Best-effort by design:
+ * Tells a class - its students, its tutors and the mentors of its students - that something was
+ * posted, everyone but the author. Best-effort by design:
  * a notification failure must never fail the post itself, which is already
  * committed by the time this runs.
  *
  * Academy-wide announcements are deliberately NOT fanned out - they'd notify
  * every account in the academy.
  */
-async function notifyClassOfPost(announcement: Announcement): Promise<void> {
+export async function notifyClassOfPost(
+  announcement: Pick<Announcement, 'class_id' | 'publish_at' | 'title' | 'message'>,
+  authorId: string,
+  change:
+    | 'New announcement'
+    | 'Announcement updated'
+    | 'Announcement withdrawn'
+    | 'Announcement restored' = 'New announcement',
+): Promise<void> {
   if (!announcement.class_id) return
   // A post scheduled for the future isn't live yet, so don't notify about it now.
   // (A publish-time scheduler would send it when it goes live; not built here.)
   if (announcement.publish_at && Date.parse(announcement.publish_at) > Date.now()) return
-  await notifyClassRoleBestEffort(announcement.class_id, 'students', {
-    kind: 'announcement',
-    title: `New announcement: ${announcement.title}`,
-    body: announcement.message.slice(0, 140),
-    link: `/classroom/${announcement.class_id}`,
-  })
+  await notifyClassRoleBestEffort(
+    announcement.class_id,
+    ['students', 'tutors', 'mentors'],
+    {
+      kind: 'announcement',
+      title: `${change}: ${announcement.title}`,
+      body: announcement.message.slice(0, 140),
+      link: `/classroom/${announcement.class_id}`,
+    },
+    authorId,
+  )
+}
+
+/** A class post is live when it has no publish time or the time has passed. */
+function isLiveNow(publishAt: string | null): boolean {
+  return !publishAt || Date.parse(publishAt) <= Date.now()
 }
 
 export async function createAnnouncement(actor: Profile, input: CreateAnnouncementInput): Promise<Announcement> {
@@ -76,9 +95,12 @@ export async function createAnnouncement(actor: Profile, input: CreateAnnounceme
     expires_at: input.expires_at,
     author_id: actor.id,
     status: 'active',
+    // A post written live is announced by this write; stamping it keeps the go-live sweep from
+    // announcing it again. A scheduled one stays unstamped until the sweep tells its class.
+    live_notified_at: input.class_id && isLiveNow(input.publish_at) ? new Date().toISOString() : null,
   })
   await auditPrivilegedAction(actor, 'announcement.create', 'announcement', created.id)
-  await notifyClassOfPost(created)
+  await notifyClassOfPost(created, actor.id)
   return created
 }
 
@@ -91,9 +113,11 @@ export async function createAnnouncementFromActionInput(
 
 export async function archiveAnnouncement(actor: Profile, id: string): Promise<void> {
   throttleWrite('announcement', actor.id, 'announcement')
-  await requireManageable(actor, id)
+  const announcement = await requireManageable(actor, id)
   await updateAnnouncement(id, { status: 'archived' })
   await auditPrivilegedAction(actor, 'announcement.archive', 'announcement', id)
+  // A post that was live and now is not: people who read it should not be left acting on it.
+  if (announcement.status === 'active') await notifyClassOfPost(announcement, actor.id, 'Announcement withdrawn')
 }
 
 export async function restoreAnnouncement(actor: Profile, id: string): Promise<void> {
@@ -104,15 +128,30 @@ export async function restoreAnnouncement(actor: Profile, id: string): Promise<v
   // (editAnnouncement is deliberately not gated - editing an already-active post
   // in place doesn't re-surface anything, matching the calendar in-place edits.)
   if (announcement.class_id) await assertClassActive(announcement.class_id)
-  await updateAnnouncement(id, { status: 'active' })
+  // A post restored after it went live is announced here as restored; stamping it stops the sweep
+  // announcing it again as new.
+  const stamp =
+    announcement.class_id && !announcement.live_notified_at && isLiveNow(announcement.publish_at)
+      ? { live_notified_at: new Date().toISOString() }
+      : {}
+  await updateAnnouncement(id, { status: 'active', ...stamp })
   await auditPrivilegedAction(actor, 'announcement.restore', 'announcement', id)
+  await notifyClassOfPost(announcement, actor.id, 'Announcement restored')
 }
 
 export async function editAnnouncement(actor: Profile, id: string, patch: AnnouncementEditPatch): Promise<void> {
   throttleWrite('announcement', actor.id, 'announcement')
-  await requireManageable(actor, id)
+  const existing = await requireManageable(actor, id)
   await updateAnnouncement(id, patch)
   await auditPrivilegedAction(actor, 'announcement.edit', 'announcement', id)
+  // Only a live post whose words changed: a new expiry or a re-attached file tells no one anything.
+  if (existing.status === 'active' && (existing.title !== patch.title || existing.message !== patch.message)) {
+    await notifyClassOfPost(
+      { ...existing, title: patch.title, message: patch.message },
+      actor.id,
+      'Announcement updated',
+    )
+  }
 }
 
 export async function editAnnouncementFromActionInput(

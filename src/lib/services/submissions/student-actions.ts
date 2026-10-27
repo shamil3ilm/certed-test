@@ -93,9 +93,9 @@ export async function recordSubmission(actor: Profile, input: RecordSubmissionIn
   return data as Submission
 }
 
-/** Best-effort: notify a class's tutors that a student turned work in. */
+/** Best-effort: notify a class's tutors, and the student's mentors, that a student turned work in. */
 async function notifyClassTutorsOfSubmission(assignment: Assignment, student: Profile): Promise<void> {
-  await notifyClassRoleBestEffort(assignment.class_id, 'tutors', {
+  await notifyClassRoleBestEffort(assignment.class_id, ['tutors', 'mentors'], {
     kind: 'submission',
     title: `New submission: ${assignment.title}`,
     body: `${student.full_name ?? student.email} turned in their work.`,
@@ -159,7 +159,7 @@ export async function withdrawSubmission(actor: Profile, submissionId: string): 
   // grading queue still shows work that is no longer there to grade.
   const assignment = await getAssignment(submission.assignment_id)
   if (assignment) {
-    await notifyClassRoleBestEffort(assignment.class_id, 'tutors', {
+    await notifyClassRoleBestEffort(assignment.class_id, ['tutors', 'mentors'], {
       kind: 'submission',
       title: `${actor.full_name ?? actor.email} withdrew their submission`,
       body: assignment.title,

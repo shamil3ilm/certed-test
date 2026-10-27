@@ -10,6 +10,7 @@ import { EvaluationOverview, MenteeHeader } from './detail-parts'
 import { EvaluationPanels, NeedsAttentionPanel, RecentSubmissionsPanel } from './detail-lists'
 import { MenteeNotesPanel } from './MenteeNotesPanel'
 import { HoursPanel } from './HoursPanel'
+import { MenteeDocumentsPanel } from './MenteeDocumentsPanel'
 
 const NOTES_PAGE_SIZE = 20
 
@@ -90,6 +91,7 @@ export default async function MenteePage(props: {
         carry={{ period: searchParams?.period, classId: searchParams?.classId, sort: searchParams?.sort }}
       />
       <RecentSubmissionsPanel submissions={submissions} />
+      <MenteeDocumentsPanel classes={classes} openableClassIds={data.openableClassIds} />
       <MenteeNotesPanel
         studentId={params.id}
         notes={notes.items}

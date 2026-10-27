@@ -33,18 +33,18 @@ Every route under `src/app/api`. "Guard" is the primary access check at the entr
 
 ## Public and infrastructure
 
-| Route                             | Method(s) | Guard                                                                        |
-| --------------------------------- | --------- | ---------------------------------------------------------------------------- |
-| `/api/contact`                    | POST      | none (public form) - shared IP rate limit + honeypot                         |
-| `/api/health`                     | GET       | none - trivial DB read for an uptime pinger                                  |
-| `/api/cron/keepalive`             | GET       | `CRON_SECRET` (fails closed)                                                 |
-| `/api/cron/drain-emails`          | GET       | `CRON_SECRET` (fails closed) - sends queued `pending_emails`                 |
-| `/api/cron/reconcile-attachments` | GET       | `CRON_SECRET` (fails closed) - sweeps orphaned uploads                       |
-| `/api/cron/queue-health`          | GET       | `CRON_SECRET` (fails closed) - alarms on a stalled queue                     |
-| `/api/cron/reconcile-consents`    | GET       | `CRON_SECRET` (fails closed) - retries a failed consent write                |
-| `/api/cron/send-reminders`        | GET       | `CRON_SECRET` (fails closed) - reminders that are due, and work due tomorrow |
-| `/api/dev/login`                  | GET, POST | dev/mock only - no-op unless mock mode                                       |
-| `/api/dev/logout`                 | GET       | dev/mock only                                                                |
+| Route                             | Method(s) | Guard                                                                                                                      |
+| --------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `/api/contact`                    | POST      | none (public form) - shared IP rate limit + honeypot                                                                       |
+| `/api/health`                     | GET       | none - trivial DB read for an uptime pinger                                                                                |
+| `/api/cron/keepalive`             | GET       | `CRON_SECRET` (fails closed)                                                                                               |
+| `/api/cron/drain-emails`          | GET       | `CRON_SECRET` (fails closed) - sends queued `pending_emails`                                                               |
+| `/api/cron/reconcile-attachments` | GET       | `CRON_SECRET` (fails closed) - sweeps orphaned uploads                                                                     |
+| `/api/cron/queue-health`          | GET       | `CRON_SECRET` (fails closed) - alarms on a stalled queue                                                                   |
+| `/api/cron/reconcile-consents`    | GET       | `CRON_SECRET` (fails closed) - retries a failed consent write                                                              |
+| `/api/cron/send-reminders`        | GET       | `CRON_SECRET` (fails closed) - reminders that are due, work due tomorrow, and announcements whose publish time has arrived |
+| `/api/dev/login`                  | GET, POST | dev/mock only - no-op unless mock mode                                                                                     |
+| `/api/dev/logout`                 | GET       | dev/mock only                                                                                                              |
 
 The public routes above are the allowlist in [`src/lib/routing/public-paths.ts`](../src/lib/routing/public-paths.ts); everything else on the app host requires a session (middleware) and a capability (the route/page guard).
 

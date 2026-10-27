@@ -67,13 +67,18 @@ describe('createMeetLink', () => {
       entity_type: 'meet_link',
       entity_id: 'link-1',
     })
-    // A class meet notifies that class's students, like an announcement.
-    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'students', {
-      kind: 'announcement',
-      title: 'New meeting: Class call',
-      body: 'https://meet.example/x',
-      link: '/classroom/class-1',
-    })
+    // A class meet notifies the class's students, tutors and the students' mentors - not the poster.
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      {
+        kind: 'announcement',
+        title: 'New meeting: Class call',
+        body: 'https://meet.example/x',
+        link: '/classroom/class-1',
+      },
+      'tutor-1',
+    )
   })
 })
 
@@ -159,6 +164,12 @@ describe('deleteMeetLink', () => {
       entity_type: 'meet_link',
       entity_id: 'link-1',
     })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Meeting cancelled: Class call' }),
+      'tutor-1',
+    )
   })
 })
 
@@ -182,6 +193,12 @@ describe('restoreMeetLink', () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
     vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any)
     await restoreMeetLink(actor, 'link-1')
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Meeting restored: Class call' }),
+      'tutor-1',
+    )
     expect(writeAudit).toHaveBeenCalledWith({
       actor_id: 'tutor-1',
       action: 'meet.restore',
@@ -219,6 +236,29 @@ describe('editMeetLinkFromActionInput', () => {
       entity_type: 'meet_link',
       entity_id: VALID_ID,
     })
+    // A moved time or link is told to the class - everyone but the editor.
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      expect.objectContaining({ title: 'Meeting changed: New title', body: 'https://meet.example/y' }),
+      'tutor-1',
+    )
+  })
+
+  it('stays quiet when only the description changed', async () => {
+    vi.mocked(createClient).mockResolvedValueOnce(
+      makeClient({ data: { ...linkRow, id: VALID_ID }, error: null }) as any,
+    )
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: [{ id: 'meet-1' }], error: null }) as any)
+    await editMeetLinkFromActionInput(actor, {
+      id: VALID_ID,
+      title: linkRow.title,
+      url: linkRow.url,
+      description: 'Bring the worksheet',
+      scheduled_at: '',
+    })
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
   it('rejects a non-manager without updating or auditing', async () => {

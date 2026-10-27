@@ -1,4 +1,5 @@
 import 'server-only'
+import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
 import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { mentoringScopeClassIds, canManageClass, isMentoringOversight } from '@/lib/permission/class'
@@ -365,6 +366,21 @@ export async function updateStudentJoinTime(actor: Profile, input: UpdateStudent
   // The SESSION whose mark changed. A (class, date) key cannot distinguish two edits on
   // a two-session day, which is exactly what the log is asked afterwards.
   await auditPrivilegedAction(actor, 'attendance.student_join', 'class_session', markSessionId)
+  // The joined time is part of the student's attendance record, and decides how late they were.
+  await notifyBestEffort([student], {
+    kind: 'attendance',
+    title: `Your joined time for ${input.sessionDate} was changed`,
+    link: `/classroom/${input.classId}/attendance`,
+  })
+  await notifyMentorsOfStudentBestEffort(
+    student,
+    (name) => ({
+      kind: 'attendance',
+      title: `${name}'s joined time for ${input.sessionDate} was changed`,
+      link: `/students/${student}`,
+    }),
+    actor.id,
+  )
 }
 
 export type UpdateSessionTimesInput = {

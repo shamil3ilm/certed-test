@@ -113,6 +113,15 @@ export async function renameConversation(actor: Profile, conversationId: string,
   if (nextTitle.length > 80) throw new ValidationError('Group name is too long.')
   await updateConversationTitle(conversationId, nextTitle)
   await auditPrivilegedAction(actor, 'conversation.rename', 'conversation', conversationId)
+  await notifyBestEffort(
+    (await selectParticipantIds(conversationId)).filter((id) => id !== actor.id),
+    {
+      kind: 'message',
+      title: `${actor.full_name ?? actor.email} renamed the group`,
+      body: nextTitle,
+      link: `/messages/${conversationId}`,
+    },
+  )
 }
 
 /** The caller leaves a conversation - removes their own participant row, so it drops

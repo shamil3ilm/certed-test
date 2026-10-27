@@ -85,6 +85,10 @@ const CAPPED_BY_DESIGN: Record<string, string> = {
     'COMPLETE across passes - the same work-queue claim as claimDueReminders, and nothing ' +
     'renders it either. The cap bounds how many assignments ONE pass announces; the next run 15 ' +
     'minutes later takes the rest, and the window it scans is a day wide.',
+  'src/lib/data/announcements-sweep.ts:claimAnnouncementsGoingLive':
+    'COMPLETE across passes - the same work-queue claim as claimAssignmentsDueSoon, and nothing ' +
+    'renders it. The cap bounds how many scheduled announcements ONE pass announces; the next run ' +
+    '15 minutes later takes the rest, because the stamp is only set on the ones it took.',
   'src/lib/data/reminders-sweep.ts:claimDueReminders':
     'COMPLETE across passes - a work-queue claim, not a view. Nothing renders this result, so ' +
     'the cap cannot misreport a total to anybody; it bounds how much ONE pass claims, and the ' +

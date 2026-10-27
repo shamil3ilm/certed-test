@@ -8,12 +8,18 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/assignments', () => ({ getAssignment: vi.fn() }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
+// Only the direct notification is replaced: the class fan-out is exercised for real above.
+vi.mock('@/lib/services/notifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/notifications')>()),
+  notifyBestEffort: vi.fn(),
+}))
 
 import { canWriteClass } from '@/lib/permission/class-write'
 import { getClassMembers } from '@/lib/services/classes'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAudit } from '@/lib/data/audit'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { getAssignment } from '@/lib/services/assignments'
 import {
   recordSubmission,
@@ -256,6 +262,29 @@ describe('gradeSubmission', () => {
     expect(builder.update).toHaveBeenCalledWith(
       expect.objectContaining({ score: null, feedback: null, graded_at: null, graded_by: null }),
     )
+  })
+})
+
+describe('reopening graded work for resubmission', () => {
+  const clearMark = async (row: typeof submissionRow) => {
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: row, error: null }) as any)
+    vi.mocked(getAssignment).mockResolvedValueOnce(activeAssignment as any)
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createAdminClient).mockReturnValueOnce(makeClient({ data: [{ id: 'sub-1' }], error: null }) as any)
+    await gradeSubmission(tutor, { submissionId: 'sub-1', score: null, feedback: '' })
+  }
+
+  it('tells the student when a mark that had been given is cleared', async () => {
+    await clearMark({ ...submissionRow, score: 80 as never, graded_at: '2026-01-01T00:00:00.000Z' as never })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['stud-1'],
+      expect.objectContaining({ title: 'Your work was reopened for resubmission' }),
+    )
+  })
+
+  it('stays quiet when clearing a mark that was never given', async () => {
+    await clearMark(submissionRow)
+    expect(notifyBestEffort).not.toHaveBeenCalled()
   })
 })
 

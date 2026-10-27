@@ -4,7 +4,7 @@ vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/class-tutor-validation', () => ({ assertClassTutor: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 vi.mock('@/lib/services/attendance/session-overlap', () => ({ assertNoTutorOverlap: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({
   selectActiveTutorRowsForClass: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn(
 import { canManageClass } from '@/lib/permission'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getProfileById } from '@/lib/services/users'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
 import { insertSession, selectSessionByIdAsService, updateSessionById } from '@/lib/data/class-sessions'
@@ -248,6 +248,105 @@ describe('saveSessionTimes - telling the monitor', () => {
     const next = 'a0000000-0000-4000-8000-00000000000a'
     await saveSessionTimes(actor, { ...base, ...window, sessionId: SESSION, monitor_id: next })
     expect(notifyBestEffort).toHaveBeenCalledWith([next], expect.anything())
+  })
+})
+
+describe('saveSessionTimes - telling the student about a summary', () => {
+  it('tells the class student when a summary is first written, not the writer', async () => {
+    await saveSessionTimes(actor, { ...base, ...window, summary: 'Covered fractions' })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      'students',
+      expect.objectContaining({
+        title: 'A class summary was posted',
+        link: '/classroom/class-1/attendance?date=2026-08-05',
+      }),
+      TUTOR,
+    )
+  })
+
+  it('stays quiet when there is no summary', async () => {
+    await saveSessionTimes(actor, { ...base, ...window, summary: '' })
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('does not tell them again when the times are re-saved with the same summary', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: SESSION,
+      class_id: 'class-1',
+      kind: 'regular',
+      summary: 'Covered fractions',
+      actual_start: null,
+      actual_end: null,
+      updated_at: 'u1',
+    } as never)
+    await saveSessionTimes(actor, { ...base, ...window, sessionId: SESSION, summary: 'Covered fractions' })
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('tells them again when the summary changes', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: SESSION,
+      class_id: 'class-1',
+      kind: 'regular',
+      summary: 'Covered fractions',
+      actual_start: null,
+      actual_end: null,
+      updated_at: 'u1',
+    } as never)
+    await saveSessionTimes(actor, { ...base, ...window, sessionId: SESSION, summary: 'Covered fractions and ratios' })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('saveSessionTimes - telling the tutor whose hours these are', () => {
+  const ADMIN_ACTOR = { id: 'admin-9' } as never
+
+  it('tells the tutor when someone else records a session for them', async () => {
+    asRole(true)
+    await saveSessionTimes(ADMIN_ACTOR, { ...base, ...window, tutor_id: TUTOR })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      [TUTOR],
+      expect.objectContaining({ title: 'A session was recorded for you', link: '/my-hours' }),
+    )
+  })
+
+  it('does not tell a tutor about a session they recorded themselves', async () => {
+    await saveSessionTimes(actor, { ...base, ...window })
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('tells them when the window changes, not when only the note does', async () => {
+    asRole(true)
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: SESSION,
+      class_id: 'class-1',
+      kind: 'regular',
+      tutor_id: TUTOR,
+      actual_start: '2026-08-05T10:00:00Z',
+      actual_end: '2026-08-05T11:00:00Z',
+      updated_at: 'u1',
+    } as never)
+    await saveSessionTimes(ADMIN_ACTOR, {
+      ...base,
+      ...window,
+      sessionId: SESSION,
+      tutor_id: TUTOR,
+      summary: 'note only',
+    })
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+
+    await saveSessionTimes(ADMIN_ACTOR, {
+      ...base,
+      actual_start: '2026-08-05T10:00:00Z',
+      actual_end: '2026-08-05T12:00:00Z',
+      sessionId: SESSION,
+      tutor_id: TUTOR,
+    })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      [TUTOR],
+      expect.objectContaining({ title: 'A session of yours was changed' }),
+    )
   })
 })
 

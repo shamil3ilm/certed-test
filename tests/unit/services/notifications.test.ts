@@ -13,6 +13,10 @@ vi.mock('@/lib/email/resend', () => ({
 }))
 vi.mock('@/lib/services/users', () => ({ getProfilesByIds: vi.fn() }))
 vi.mock('@/lib/data/pending-emails', () => ({ enqueuePendingEmails: vi.fn() }))
+vi.mock('@/lib/data/mentorships', () => ({
+  selectActiveMentorshipsForStudents: vi.fn(),
+  selectActiveMentorIdsForStudent: vi.fn(),
+}))
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -20,10 +24,12 @@ import { getClassMembers } from '@/lib/services/classes'
 import { emailEnabled, sendEmail } from '@/lib/email/resend'
 import { getProfilesByIds } from '@/lib/services/users'
 import { enqueuePendingEmails } from '@/lib/data/pending-emails'
+import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
 import {
   notify,
   notifyBestEffort,
   notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
   countUnreadNotifications,
   markAllNotificationsRead,
 } from '@/lib/services/notifications'
@@ -89,12 +95,67 @@ describe('notifyClassRoleBestEffort', () => {
     ])
   })
 
+  it('reaches students, tutors and the mentors of the students once each, leaving out whoever acted', async () => {
+    vi.mocked(getClassMembers).mockResolvedValue({
+      tutors: [{ id: 't-1' }, { id: 'm-1' }],
+      students: [{ id: 's-1' }],
+    } as any)
+    // m-1 is both a tutor of the class and the student's mentor: told once.
+    vi.mocked(selectActiveMentorshipsForStudents).mockResolvedValue([
+      { student_id: 's-1', mentor_id: 'm-1' },
+      { student_id: 's-1', mentor_id: 'm-2' },
+    ] as any)
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notifyClassRoleBestEffort(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      { kind: 'schedule', title: 'x' },
+      't-1',
+    )
+    expect(selectActiveMentorshipsForStudents).toHaveBeenCalledWith(['s-1'])
+    const builder = client.from.mock.results[0].value
+    expect(builder.insert).toHaveBeenCalledWith([
+      expect.objectContaining({ profile_id: 's-1' }),
+      expect.objectContaining({ profile_id: 'm-1' }),
+      expect.objectContaining({ profile_id: 'm-2' }),
+    ])
+  })
+
   it('swallows a membership-lookup failure (best-effort - never fails the caller)', async () => {
     vi.mocked(getClassMembers).mockRejectedValue(new Error('boom'))
     await expect(
       notifyClassRoleBestEffort('class-1', 'students', { kind: 'announcement', title: 'x' }),
     ).resolves.toBeUndefined()
     expect(createAdminClient).not.toHaveBeenCalled()
+  })
+})
+
+describe('notifyMentorsOfStudentBestEffort', () => {
+  it("tells each of the student's mentors, in words that name the student", async () => {
+    vi.mocked(selectActiveMentorIdsForStudent).mockResolvedValue(['m-1', 'm-2'])
+    vi.mocked(getProfilesByIds).mockResolvedValue(new Map([['s-1', { id: 's-1', full_name: 'Sara' }]]) as any)
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notifyMentorsOfStudentBestEffort('s-1', (name) => ({ kind: 'grade', title: `${name}'s work was graded` }))
+    const builder = client.from.mock.results[0].value
+    expect(builder.insert).toHaveBeenCalledWith([
+      expect.objectContaining({ profile_id: 'm-1', title: "Sara's work was graded" }),
+      expect.objectContaining({ profile_id: 'm-2', title: "Sara's work was graded" }),
+    ])
+  })
+
+  it('does nothing for a student with no mentor', async () => {
+    vi.mocked(selectActiveMentorIdsForStudent).mockResolvedValue([])
+    await notifyMentorsOfStudentBestEffort('s-1', () => ({ kind: 'grade', title: 'x' }))
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('swallows a lookup failure - the grade or attendance is already saved', async () => {
+    vi.mocked(selectActiveMentorIdsForStudent).mockRejectedValue(new Error('boom'))
+    await expect(
+      notifyMentorsOfStudentBestEffort('s-1', () => ({ kind: 'grade', title: 'x' })),
+    ).resolves.toBeUndefined()
   })
 })
 

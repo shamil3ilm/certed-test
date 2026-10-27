@@ -1,7 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllPaged } from '@/lib/data/paginate'
-import type { EvaluatedSubmissionBrief, SubmissionBrief } from './submissions-shared'
+import type { EvaluatedSubmissionBrief, GradedSubmissionBrief, SubmissionBrief } from './submissions-shared'
 
 /**
  * A student's active submissions, SERVICE-ROLE and therefore NOT scoped to the
@@ -9,18 +9,18 @@ import type { EvaluatedSubmissionBrief, SubmissionBrief } from './submissions-sh
  * pastoral mentee view is read by a mentor who may not teach the class. The
  * caller MUST have proved the mentorship (or admin) first.
  */
-export async function selectActiveSubmissionsForStudentAsService(studentId: string): Promise<SubmissionBrief[]> {
+export async function selectActiveSubmissionsForStudentAsService(studentId: string): Promise<GradedSubmissionBrief[]> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('submissions')
-    .select('assignment_id, status, submitted_at, drive_link')
+    .select('assignment_id, status, submitted_at, drive_link, score, feedback')
     .eq('student_id', studentId)
     .eq('is_active', true)
   // Fail loud, like selectScoresForStudentAsService below: a transient DB error
   // must not become a silently blank mentee overview ("no submissions") for a
   // student who actually has them.
   if (error) throw new Error(`menteeOverview.subs: ${error.message}`)
-  return (data ?? []) as SubmissionBrief[]
+  return (data ?? []) as GradedSubmissionBrief[]
 }
 
 /** Who owns a submission and which assignment it belongs to, SERVICE-ROLE, for

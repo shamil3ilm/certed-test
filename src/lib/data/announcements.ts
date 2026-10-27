@@ -28,6 +28,8 @@ export type AnnouncementRow = {
   author_id: string | null
   status: 'active' | 'archived'
   created_at: string
+  /** When the class was told this post is live (0124). Absent on rows read before the column. */
+  live_notified_at?: string | null
 }
 
 type AnnouncementInsert = {
@@ -39,10 +41,14 @@ type AnnouncementInsert = {
   expires_at: string | null
   author_id: string | null
   status: AnnouncementRow['status']
+  live_notified_at?: string | null
 }
 
 type AnnouncementPatch = Partial<
-  Pick<AnnouncementRow, 'title' | 'message' | 'status' | 'attachments' | 'publish_at' | 'expires_at'>
+  Pick<
+    AnnouncementRow,
+    'title' | 'message' | 'status' | 'attachments' | 'publish_at' | 'expires_at' | 'live_notified_at'
+  >
 >
 
 /** Newest row from each source (the given classes, and academy-wide), one each. */

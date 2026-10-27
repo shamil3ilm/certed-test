@@ -10,11 +10,13 @@ vi.mock('@/lib/data/class-sessions', () => ({
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForStudent: vi.fn() }))
 vi.mock('@/lib/data/attendance', () => ({ studentHasAttendance: vi.fn() }))
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 
 import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { studentHasAttendance } from '@/lib/data/attendance'
 import { writeStudentSessionFeedback } from '@/lib/data/class-sessions'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { saveSessionFeedback } from '@/lib/services/attendance/sessions'
 import { PermissionError, ValidationError } from '@/lib/errors'
 
@@ -57,10 +59,23 @@ describe('saveSessionFeedback', () => {
     expect(auditPrivilegedAction).toHaveBeenCalledWith(student, 'attendance.feedback', 'class', 'class-1')
   })
 
-  it('stores empty feedback as null (clears it)', async () => {
+  it('stores empty feedback as null (clears it), and tells nobody', async () => {
     vi.mocked(selectActiveClassIdsForStudent).mockResolvedValueOnce(['class-1'])
     vi.mocked(studentHasAttendance).mockResolvedValueOnce(true)
     await saveSessionFeedback(student, { classId: 'class-1', sessionDate: '2026-08-05', feedback: '   ' })
     expect(writeStudentSessionFeedback).toHaveBeenCalledWith('class-1', '2026-08-05', null)
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('tells the class tutors that the student left feedback', async () => {
+    vi.mocked(selectActiveClassIdsForStudent).mockResolvedValueOnce(['class-1'])
+    vi.mocked(studentHasAttendance).mockResolvedValueOnce(true)
+    await saveSessionFeedback(student, { classId: 'class-1', sessionDate: '2026-08-05', feedback: 'Too fast' })
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'tutors', {
+      kind: 'class',
+      title: 'A student left feedback on a session',
+      body: '2026-08-05',
+      link: '/classroom/class-1/attendance?date=2026-08-05',
+    })
   })
 })
