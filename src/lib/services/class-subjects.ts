@@ -4,6 +4,7 @@ import type { ClassRow } from '@/lib/data/classes'
 import { callCreateStudentSubjectClass, callSetClassSubjectWhenUnset } from '@/lib/data/class-subjects'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyMentorsOfEnrolment } from '@/lib/services/enrollments'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { selectSubjectById } from '@/lib/data/subjects'
@@ -76,6 +77,8 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
     title: 'You were added to a class',
     link: `/classroom/${created.id}`,
   })
+  // The tutor, if one was picked, heard from addTutor above; the student's mentors hear here.
+  await notifyMentorsOfEnrolment(student.id)
   return created
 }
 

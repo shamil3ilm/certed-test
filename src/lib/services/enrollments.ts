@@ -108,11 +108,17 @@ export async function enrolStudent(actor: Profile, params: EnrollmentParams): Pr
     },
     actor.id,
   )
-  await notifyMentorsOfStudentBestEffort(params.studentId, (name) => ({
+  await notifyMentorsOfEnrolment(params.studentId)
+}
+
+/** Tell a student's mentors the student joined a class. Shared by every way a student joins one, so
+ *  the mentors hear of a subject added from the user's page just as they do of a plain enrolment. */
+export async function notifyMentorsOfEnrolment(studentId: string): Promise<void> {
+  await notifyMentorsOfStudentBestEffort(studentId, (name) => ({
     kind: 'class',
     title: `${name} was added to a class`,
     body: null,
-    link: `/students/${params.studentId}`,
+    link: `/students/${studentId}`,
   }))
 }
 

@@ -26,7 +26,6 @@ import { resolveSessionWindow } from '@/lib/attendance/session-window'
 import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 /**
@@ -448,21 +447,32 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
     before: { actual_start: existing.actual_start, actual_end: existing.actual_end },
     after: { actual_start: start, actual_end: end },
   })
-  // The hours a session records are the tutor's pay, so when someone ELSE changes the window the
-  // tutor has to hear: otherwise the first they know is a figure that is not what they taught.
+  // The hours a session records are the tutor's pay - and an exam monitor's, when someone other
+  // than the tutor monitored it (0123) - so when someone ELSE changes the window the people paid
+  // for it have to hear: otherwise the first they know is a figure that is not what they worked.
   // Only a changed window - saving the same one changes no hours. Best-effort: the session is saved.
   const sameInstant = (a: string | null, b: string | null) =>
     a === b || (a != null && b != null && new Date(a).getTime() === new Date(b).getTime())
-  if (
-    existing.tutor_id &&
-    existing.tutor_id !== actor.id &&
-    !(sameInstant(existing.actual_start, start) && sameInstant(existing.actual_end, end))
-  ) {
-    await notifyBestEffort([existing.tutor_id], {
-      kind: 'class',
-      title: 'A session of yours was changed',
-      body: existing.session_date,
-      link: '/session-timings',
-    })
+  if (!(sameInstant(existing.actual_start, start) && sameInstant(existing.actual_end, end))) {
+    const monitorId =
+      kindOf(existing) === 'exam' && existing.monitor_id && existing.monitor_id !== existing.tutor_id
+        ? existing.monitor_id
+        : null
+    if (existing.tutor_id && existing.tutor_id !== actor.id) {
+      await notifyBestEffort([existing.tutor_id], {
+        kind: 'class',
+        title: 'A session of yours was changed',
+        body: existing.session_date,
+        link: '/my-hours',
+      })
+    }
+    if (monitorId && monitorId !== actor.id) {
+      await notifyBestEffort([monitorId], {
+        kind: 'class',
+        title: 'An exam you monitored was changed',
+        body: existing.session_date,
+        link: '/my-hours',
+      })
+    }
   }
 }

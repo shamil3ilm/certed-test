@@ -392,7 +392,7 @@ describe('updateSessionTimes tells the tutor whose pay the hours are', () => {
       expect.objectContaining({
         title: 'A session of yours was changed',
         body: '2026-08-05',
-        link: '/session-timings',
+        link: '/my-hours',
       }),
     )
   })
@@ -419,6 +419,31 @@ describe('updateSessionTimes tells the tutor whose pay the hours are', () => {
       ValidationError,
     )
     expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('also tells an exam monitor who is not the tutor, since the hours are theirs', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({ ...existing, kind: 'exam', monitor_id: 'mon1' } as never)
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['mon1'],
+      expect.objectContaining({ title: 'An exam you monitored was changed', link: '/my-hours' }),
+    )
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['t1'],
+      expect.objectContaining({ title: 'A session of yours was changed' }),
+    )
+  })
+
+  it('does not tell a monitor who made the change themselves', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({ ...existing, kind: 'exam', monitor_id: 'm1' } as never)
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).not.toHaveBeenCalledWith(['m1'], expect.anything())
+  })
+
+  it('does not treat the tutor as a separate monitor of their own exam', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({ ...existing, kind: 'exam', monitor_id: 't1' } as never)
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).toHaveBeenCalledTimes(1)
   })
 
   it('has nobody to tell when the session has no tutor', async () => {

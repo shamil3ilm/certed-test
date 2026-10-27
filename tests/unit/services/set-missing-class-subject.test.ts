@@ -12,6 +12,7 @@ vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/classes/lifecycle', () => ({ archiveClass: vi.fn() }))
 vi.mock('@/lib/services/class-tutors', () => ({ addTutor: vi.fn() }))
 vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/enrollments', () => ({ notifyMentorsOfEnrolment: vi.fn() }))
 
 import { requireActorCapability } from '@/lib/services/authorization'
 import { canManageClass } from '@/lib/permission'
@@ -22,6 +23,7 @@ import { getProfileById } from '@/lib/services/users'
 import { archiveClass } from '@/lib/services/classes/lifecycle'
 import { addTutor } from '@/lib/services/class-tutors'
 import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyMentorsOfEnrolment } from '@/lib/services/enrollments'
 import { setMissingClassSubject, addSubjectToStudent } from '@/lib/services/class-subjects'
 import { ValidationError, PermissionError } from '@/lib/errors'
 
@@ -128,6 +130,11 @@ describe('addSubjectToStudent', () => {
     )
   })
 
+  it("tells the student's mentors, once the class exists and is staffed", async () => {
+    await addSubjectToStudent(actor, { ...addInput, tutorId: 't-1' })
+    expect(notifyMentorsOfEnrolment).toHaveBeenCalledWith('stu-1')
+  })
+
   it('tells the student only after the tutor is assigned', async () => {
     const order: string[] = []
     vi.mocked(addTutor).mockImplementation(async () => void order.push('tutor'))
@@ -140,6 +147,7 @@ describe('addSubjectToStudent', () => {
     vi.mocked(addTutor).mockRejectedValue(new Error('tutor inactive'))
     await expect(addSubjectToStudent(actor, { ...addInput, tutorId: 't-1' })).rejects.toThrow()
     expect(notifyBestEffort).not.toHaveBeenCalled()
+    expect(notifyMentorsOfEnrolment).not.toHaveBeenCalled()
   })
 
   it('does not notify when the subject is refused', async () => {
