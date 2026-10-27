@@ -26,6 +26,7 @@ import { resolveSessionWindow } from '@/lib/attendance/session-window'
 import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
 /**
@@ -447,4 +448,21 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
     before: { actual_start: existing.actual_start, actual_end: existing.actual_end },
     after: { actual_start: start, actual_end: end },
   })
+  // The hours a session records are the tutor's pay, so when someone ELSE changes the window the
+  // tutor has to hear: otherwise the first they know is a figure that is not what they taught.
+  // Only a changed window - saving the same one changes no hours. Best-effort: the session is saved.
+  const sameInstant = (a: string | null, b: string | null) =>
+    a === b || (a != null && b != null && new Date(a).getTime() === new Date(b).getTime())
+  if (
+    existing.tutor_id &&
+    existing.tutor_id !== actor.id &&
+    !(sameInstant(existing.actual_start, start) && sameInstant(existing.actual_end, end))
+  ) {
+    await notifyBestEffort([existing.tutor_id], {
+      kind: 'class',
+      title: 'A session of yours was changed',
+      body: existing.session_date,
+      link: '/session-timings',
+    })
+  }
 }

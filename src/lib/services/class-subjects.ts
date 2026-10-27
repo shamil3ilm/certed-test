@@ -3,6 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import type { ClassRow } from '@/lib/data/classes'
 import { callCreateStudentSubjectClass, callSetClassSubjectWhenUnset } from '@/lib/data/class-subjects'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
 import { selectSubjectById } from '@/lib/data/subjects'
@@ -67,6 +68,14 @@ export async function addSubjectToStudent(actor: Profile, input: AddSubjectInput
       throw error
     }
   }
+  // enrolStudent tells a student they were added; this path enrols them too, so it must, or the
+  // first they hear is an announcement about a class they do not know they are in. After the
+  // tutor step, so a class archived for want of a tutor is never announced.
+  await notifyBestEffort([student.id], {
+    kind: 'class',
+    title: 'You were added to a class',
+    link: `/classroom/${created.id}`,
+  })
   return created
 }
 

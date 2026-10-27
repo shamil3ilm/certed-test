@@ -11,6 +11,7 @@ vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn(
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/classes/lifecycle', () => ({ archiveClass: vi.fn() }))
 vi.mock('@/lib/services/class-tutors', () => ({ addTutor: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
 
 import { requireActorCapability } from '@/lib/services/authorization'
 import { canManageClass } from '@/lib/permission'
@@ -20,6 +21,7 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { getProfileById } from '@/lib/services/users'
 import { archiveClass } from '@/lib/services/classes/lifecycle'
 import { addTutor } from '@/lib/services/class-tutors'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { setMissingClassSubject, addSubjectToStudent } from '@/lib/services/class-subjects'
 import { ValidationError, PermissionError } from '@/lib/errors'
 
@@ -116,6 +118,34 @@ describe('addSubjectToStudent', () => {
     expect(created.id).toBe('new-class')
     const actions = vi.mocked(auditPrivilegedAction).mock.calls.map((c) => c[1])
     expect(actions).toEqual(['class.create', 'class.enroll'])
+  })
+
+  it('tells the student they were added, as enrolStudent does', async () => {
+    await addSubjectToStudent(actor, addInput)
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['stu-1'],
+      expect.objectContaining({ title: 'You were added to a class', link: '/classroom/new-class' }),
+    )
+  })
+
+  it('tells the student only after the tutor is assigned', async () => {
+    const order: string[] = []
+    vi.mocked(addTutor).mockImplementation(async () => void order.push('tutor'))
+    vi.mocked(notifyBestEffort).mockImplementation(async () => void order.push('notify'))
+    await addSubjectToStudent(actor, { ...addInput, tutorId: 't-1' })
+    expect(order).toEqual(['tutor', 'notify'])
+  })
+
+  it('does not announce a class that was archived for want of a tutor', async () => {
+    vi.mocked(addTutor).mockRejectedValue(new Error('tutor inactive'))
+    await expect(addSubjectToStudent(actor, { ...addInput, tutorId: 't-1' })).rejects.toThrow()
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('does not notify when the subject is refused', async () => {
+    vi.mocked(callCreateStudentSubjectClass).mockResolvedValue({ ok: false, reason: 'subject_already_taken' })
+    await expect(addSubjectToStudent(actor, addInput)).rejects.toThrow()
+    expect(notifyBestEffort).not.toHaveBeenCalled()
   })
 
   it('refuses a subject the student already takes, and records nothing', async () => {

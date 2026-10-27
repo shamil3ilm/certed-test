@@ -381,3 +381,49 @@ describe('listMenteeSessionTimings', () => {
     await expect(listMenteeSessionTimings(actor, PAGE)).resolves.toEqual({ items: [], total: 0 })
   })
 })
+
+describe('updateSessionTimes tells the tutor whose pay the hours are', () => {
+  const NEW_END = '2026-08-05T12:00:00.000Z'
+
+  it('notifies the tutor when someone else changes the window', async () => {
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['t1'],
+      expect.objectContaining({
+        title: 'A session of yours was changed',
+        body: '2026-08-05',
+        link: '/session-timings',
+      }),
+    )
+  })
+
+  it('stays quiet when the tutor edits their own session', async () => {
+    await updateSessionTimes({ id: 't1' } as never, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet when the saved window is the one already recorded', async () => {
+    // The stored form differs in notation only: it is the same two instants.
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      ...existing,
+      actual_start: '2026-08-05T10:00:00+00:00',
+      actual_end: '2026-08-05T11:30:00+00:00',
+    } as never)
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: END })
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('does not notify when the write loses the race and nothing was saved', async () => {
+    vi.mocked(updateSessionActualTimesAsService).mockResolvedValue(false)
+    await expect(updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })).rejects.toBeInstanceOf(
+      ValidationError,
+    )
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('has nobody to tell when the session has no tutor', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({ ...existing, tutor_id: null } as never)
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+})
