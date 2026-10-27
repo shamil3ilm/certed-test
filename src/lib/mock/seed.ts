@@ -707,6 +707,7 @@ export function buildSeed(): MockDb {
       },
     ],
     reminders: [],
+    notification_mutes: [],
     // Tables the app reads/writes but that start empty in mock mode - populated at
     // runtime by the flows that exercise them (attendance, messaging, attachments,
     // tags) or genuinely empty (finance rates, queues, counters). Declared explicitly

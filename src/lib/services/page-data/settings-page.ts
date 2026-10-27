@@ -1,6 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getConsentStatus, type ConsentStatus } from '@/lib/services/consents'
+import { getMyMutedKeys } from '@/lib/services/notification-preferences'
 
 export type SettingsSearchParams = {
   saved?: string
@@ -19,6 +20,8 @@ type SettingsPageData = {
   passwordHelpText: string
   roleLabel: string
   consent: ConsentStatus
+  /** The kinds of notice this person has muted. */
+  mutedKeys: readonly string[]
 }
 
 /** Highest-privilege label from persona flags - persona-native, not profiles.role.
@@ -45,6 +48,10 @@ export async function loadSettingsPageData(
   isMockMode: boolean,
 ): Promise<SettingsPageData> {
   const alerts: SettingsAlert[] = []
+
+  if (searchParams.saved === 'notifications') {
+    alerts.push({ tone: 'success', message: 'Notification settings saved.' })
+  }
 
   if (searchParams.saved === 'profile') {
     alerts.push({ tone: 'success', message: 'Profile updated.' })
@@ -95,7 +102,11 @@ export async function loadSettingsPageData(
     alerts.push({ tone: 'success', message: 'Thanks - your acceptance of the current policies is recorded.' })
   }
 
-  const [flags, consent] = await Promise.all([loadPersonaFlags(actor.id), getConsentStatus(actor.id)])
+  const [flags, consent, mutedKeys] = await Promise.all([
+    loadPersonaFlags(actor.id),
+    getConsentStatus(actor.id),
+    getMyMutedKeys(),
+  ])
   const showStudentClass =
     flags.isStudent && !flags.isAdmin && !flags.isSubAdmin && !flags.isTutor && !flags.hasMentorAuthority
 
@@ -108,5 +119,6 @@ export async function loadSettingsPageData(
       : 'This becomes your sign-in password.',
     roleLabel: labelFromFlags(flags),
     consent,
+    mutedKeys,
   }
 }

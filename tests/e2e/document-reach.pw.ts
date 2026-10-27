@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { loginAs, SEED } from './support'
+import { loginAs, submitAndReload, SEED } from './support'
 
 /**
  * E2E for who hears about, and can find, a document.
@@ -166,4 +166,67 @@ test('an event moved and then removed is told to the co-tutor, the mentor and th
     // The description-only edit added nothing: exactly one "changed" notice for this title.
     expect(text.split(`Event changed: ${title}`).length - 1, `${email}: one change notice`).toBe(1)
   }
+})
+
+test('a mentor who mutes the routine "present" notice still hears about an absence', async ({ page }) => {
+  // Dates of their own, so earlier runs' attendance on the shared mock database cannot answer for these.
+  const stamp = Date.now()
+  const day = (offset: number) =>
+    new Date(Date.UTC(2032, 0, 1) + ((stamp % 3000) + offset) * 86_400_000).toISOString().slice(0, 10)
+  const before = day(0)
+  const after = day(3001)
+  const MUTED = 'Attendance: mentee marked present'
+
+  const mark = async (date: string, status: 'Present' | 'Absent') => {
+    await loginAs(page, 'tutor@mock.test')
+    await page.goto(`/classroom/${SEED.math}/attendance?date=${date}`, { waitUntil: 'networkidle' })
+    await page.getByRole('group', { name: 'Attendance for Sara Student' }).getByRole('button', { name: status }).click()
+    await submitAndReload(page, () =>
+      page
+        .getByRole('button', { name: /Save attendance/ })
+        .first()
+        .click(),
+    )
+  }
+
+  await test.step('start from the default: the mentor wants the routine notice', async () => {
+    // The mock database outlives a run, so a retry (or an earlier attempt) may have left it muted.
+    await loginAs(page, 'mentor@mock.test')
+    await page.goto('/settings', { waitUntil: 'networkidle' })
+    const form = page.getByRole('form', { name: 'Notification settings' })
+    if (!(await form.getByLabel(MUTED).isChecked())) {
+      await form.getByLabel(MUTED).check()
+      await form.getByRole('button', { name: 'Save notification settings' }).click()
+      await expect(page.getByText('Notification settings saved.')).toBeVisible()
+    }
+    await expect(form.getByLabel(MUTED)).toBeChecked()
+  })
+
+  await test.step('control: before muting, a present mark reaches the mentor', async () => {
+    await mark(before, 'Present')
+    const text = await notificationsText(page, 'mentor@mock.test')
+    expect(text).toContain('Attendance recorded for Sara Student: present')
+    expect(text).toContain(before)
+  })
+
+  await test.step('the mentor turns the routine notice off in their settings', async () => {
+    const form = page.getByRole('form', { name: 'Notification settings' })
+    await page.goto('/settings', { waitUntil: 'networkidle' })
+    const box = form.getByLabel(MUTED)
+    await expect(box, 'on by default').toBeChecked()
+    await box.uncheck()
+    await form.getByRole('button', { name: 'Save notification settings' }).click()
+    await expect(page.getByText('Notification settings saved.')).toBeVisible()
+    await expect(form.getByLabel(MUTED), 'the choice is remembered').not.toBeChecked()
+    // Account, sign-in and fee notices are not on offer: they are never optional.
+    await expect(form.getByLabel(/security|account|finance/i)).toHaveCount(0)
+  })
+
+  await test.step('now present is silent, and an absence is not', async () => {
+    await mark(after, 'Present')
+    await mark(after, 'Absent')
+    const text = await notificationsText(page, 'mentor@mock.test')
+    expect(text, 'the absence still arrives').toContain('Attendance recorded for Sara Student: absent')
+    expect(text.split(after).length - 1, 'one notice for this date: the present one was muted').toBe(1)
+  })
 })

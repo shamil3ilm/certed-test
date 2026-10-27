@@ -206,6 +206,15 @@ Notes:
 
 ## Content and learning records
 
+### `notification_mutes`
+
+- one row per (person, kind of notice) the person has muted, from Profile & settings (migration 0125)
+- `key` is one of ten classroom kinds (a CHECK; `notification_mutes_key_check`) - `attendance_present`
+  is a mute key only, for the routine "marked present" notice, not a stored notification kind. Account,
+  security, finance and mentorship notices cannot be muted
+- read by `notify()` with the service role, so the in-app row and its email both go quiet; a person
+  reads and writes only their own rows (`is_self_active`)
+
 ### `announcements`
 
 - class-scoped or academy-wide stream posts

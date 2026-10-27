@@ -155,6 +155,10 @@ insert into reminders(user_id,created_by,class_id,title,remind_at,is_sent,comple
 insert into notifications(profile_id,kind,title) values
  ('a0000000-0000-4000-8000-000000000030','grade','n1'),
  ('a0000000-0000-4000-8000-000000000031','grade','n2');
+-- notification mutes (0125): S1 and S2 each muted one kind.
+insert into notification_mutes(profile_id,key) values
+ ('a0000000-0000-4000-8000-000000000030','attendance_present'),
+ ('a0000000-0000-4000-8000-000000000031','message');
 -- direct conversation t1<->s1 with a message
 insert into conversations(id,kind,created_by) values
  ('b0000000-0000-4000-8000-000000000001','direct','a0000000-0000-4000-8000-000000000010');
@@ -284,6 +288,16 @@ echo "== running RLS assertions =="
 # reminders: self only
 check "reminders: S1 sees own personal"        $S1 "select count(*) from reminders where title='r1'" 1
 check "reminders: S1 cannot see S2's"          $S1 "select count(*) from reminders where title='r2'" 0
+# notification_mutes (0125): a person's own switches, readable and writable by them alone - the
+# notification writer reads everyone's through the service role, never the browser.
+check "mutes: S1 sees own"                     $S1 "select count(*) from notification_mutes where key='attendance_present'" 1
+check "mutes: S1 cannot see S2's"              $S1 "select count(*) from notification_mutes where key='message'" 0
+check "mutes: S2 sees own (fixture is live)"   $S2 "select count(*) from notification_mutes where key='message'" 1
+check "mutes: admin cannot read anyone's"      $A  "select count(*) from notification_mutes" 0
+check "mutes: tutor cannot read anyone's"      $T1 "select count(*) from notification_mutes" 0
+check_write "mutes: S1 can mute for self"      $S1 "insert into notification_mutes(profile_id,key) values('$S1','grade')" allow
+check_write "mutes: S1 cannot mute for S2"     $S1 "insert into notification_mutes(profile_id,key) values('$S2','grade')" block
+check_guard "mutes: a security notice cannot be muted" $S1 "insert into notification_mutes(profile_id,key) values('$S1','security')" block 'notification_mutes_key_check'
 # assigned reminders (0086): T1 assigns ON S1 in class C1
 # visibility: assignee + creator + the class mentor see it; an unrelated student/tutor does not
 check "assigned: S1 (assignee) sees open"      $S1 "select count(*) from reminders where title='assigned-open'" 1

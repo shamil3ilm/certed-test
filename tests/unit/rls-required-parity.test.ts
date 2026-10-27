@@ -27,6 +27,7 @@ const RLS_MONITOR_EXEMPT = new Set<string>([
   'entity_tags', // tag<->entity join rows; no personal data
   'exchange_rates', // FX reference data; not personal
   'meet_links', // class-scoped meeting URLs; no PII of record
+  'notification_mutes', // a person's own switches for which notices they want; no personal data of record
   'pending_emails', // outbound queue, SERVICE-ROLE only (no authenticated read grant)
   'rate_limit_counters', // ephemeral rate-limit state; no personal data
   'reminders', // owner/assignee-scoped reminder text; not a PII-of-record store

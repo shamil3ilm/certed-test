@@ -13,6 +13,8 @@ vi.mock('@/lib/email/resend', () => ({
 }))
 vi.mock('@/lib/services/users', () => ({ getProfilesByIds: vi.fn() }))
 vi.mock('@/lib/data/pending-emails', () => ({ enqueuePendingEmails: vi.fn() }))
+vi.mock('@/lib/data/notification-mutes', () => ({ selectMutedProfileIds: vi.fn(async () => new Set<string>()) }))
+vi.mock('@/lib/observability/log', () => ({ logError: vi.fn() }))
 vi.mock('@/lib/data/mentorships', () => ({
   selectActiveMentorshipsForStudents: vi.fn(),
   selectActiveMentorIdsForStudent: vi.fn(),
@@ -25,6 +27,8 @@ import { emailEnabled, sendEmail } from '@/lib/email/resend'
 import { getProfilesByIds } from '@/lib/services/users'
 import { enqueuePendingEmails } from '@/lib/data/pending-emails'
 import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
+import { selectMutedProfileIds } from '@/lib/data/notification-mutes'
+import { logError } from '@/lib/observability/log'
 import {
   notify,
   notifyBestEffort,
@@ -34,7 +38,10 @@ import {
   markAllNotificationsRead,
 } from '@/lib/services/notifications'
 
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(selectMutedProfileIds).mockResolvedValue(new Set())
+})
 
 describe('notify', () => {
   it('inserts one row per unique recipient', async () => {
@@ -75,6 +82,64 @@ describe('notify', () => {
   it('notifyBestEffort swallows an insert error rather than throwing into the caller', async () => {
     vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: { message: 'boom' } }) as any)
     await expect(notifyBestEffort(['a'], { kind: 'message', title: 'x' })).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * Muting is read once, in the one function that writes notifications, so the in-app row and the
+ * email it mirrors go quiet together. What can never be muted must never even be asked about.
+ */
+describe('notify - people who muted the kind', () => {
+  const insertedIds = (client: ReturnType<typeof makeClient>) =>
+    (client.from.mock.results[0].value.insert.mock.calls[0][0] as { profile_id: string }[]).map((r) => r.profile_id)
+
+  it('skips the people who muted this kind and still notifies the rest', async () => {
+    vi.mocked(selectMutedProfileIds).mockResolvedValue(new Set(['b']))
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notify(['a', 'b', 'c'], { kind: 'grade', title: 'x' })
+    expect(selectMutedProfileIds).toHaveBeenCalledWith('grade', ['a', 'b', 'c'])
+    expect(insertedIds(client)).toEqual(['a', 'c'])
+  })
+
+  it('writes nothing when everyone has muted it', async () => {
+    vi.mocked(selectMutedProfileIds).mockResolvedValue(new Set(['a']))
+    await notify(['a'], { kind: 'grade', title: 'x' })
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('asks under the mute key when it is not the kind - a mentor can silence only the routine present notice', async () => {
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notify(['a'], { kind: 'attendance', muteKey: 'attendance_present', title: 'x' })
+    expect(selectMutedProfileIds).toHaveBeenCalledWith('attendance_present', ['a'])
+  })
+
+  it.each(['account', 'security', 'finance', 'mentorship'] as const)(
+    'never even asks about a %s notice - it cannot be muted',
+    async (kind) => {
+      vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: null }) as any)
+      await notify(['a'], { kind, title: 'x' })
+      expect(selectMutedProfileIds).not.toHaveBeenCalled()
+    },
+  )
+
+  it('keeps the email quiet for a muted recipient too', async () => {
+    vi.mocked(selectMutedProfileIds).mockResolvedValue(new Set(['b']))
+    vi.mocked(createAdminClient).mockReturnValue(makeClient({ data: null, error: null }) as any)
+    vi.mocked(emailEnabled).mockReturnValue(true)
+    vi.mocked(getProfilesByIds).mockResolvedValue(new Map([['a', { id: 'a', email: 'a@test.dev' }]]) as any)
+    await notify(['a', 'b'], { kind: 'message', title: 'Hi' })
+    expect(getProfilesByIds).toHaveBeenCalledWith(['a'])
+  })
+
+  it('delivers when the preference cannot be read - a notice nobody muted must not be lost', async () => {
+    vi.mocked(selectMutedProfileIds).mockRejectedValue(new Error('boom'))
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notify(['a'], { kind: 'grade', title: 'x' })
+    expect(insertedIds(client)).toEqual(['a'])
+    expect(logError).toHaveBeenCalledWith('notify.mutes', expect.any(Error), expect.anything(), expect.anything())
   })
 })
 

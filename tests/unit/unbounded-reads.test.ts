@@ -353,6 +353,8 @@ describe('reads over ever-growing tables are bounded', () => {
 const ROSTER_OR_CATALOGUE_BOUNDED: Record<string, string> = {
   billing_rates: 'One row per profile - profile_id IS the primary key. Bounded by the roster.',
   capability_overrides: 'One row per (profile, capability). Bounded by the roster.',
+  notification_mutes:
+    'One row per (profile, mutable kind of notice) - at most ten a person. Bounded by the roster, not the calendar.',
   document_counters: 'One row per (doc_type, year) - two a year, and allocated by RPC, never scanned.',
   org_settings: 'A singleton; the id column is CHECKed to a single true value.',
   subjects: 'The subject catalogue, name-unique. Bounded by what the academy teaches.',

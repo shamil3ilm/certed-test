@@ -105,6 +105,11 @@ This is the current functional inventory. It is intentionally grouped by purpose
     a session was regular, demo or exam) but not `monitor_id`, `staff_note` or
     `hours_recorded_by`, which are read through the service role behind a class-authority check
 
+- `notification_mutes` (0125)
+  - one policy, `notification_mutes_own` (ALL): `is_self_active(profile_id)` for read, insert and delete -
+    a person sees and changes only their own switches. The notification writer reads everyone's
+    through the service role, never the browser
+
 - `mentorships`
   - read
   - admin write

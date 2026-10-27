@@ -5,6 +5,7 @@ vi.mock('@/lib/permission/personas', () => ({
   loadPersonaFlags: vi.fn(),
 }))
 vi.mock('@/lib/services/consents', () => ({ getConsentStatus: vi.fn() }))
+vi.mock('@/lib/services/notification-preferences', () => ({ getMyMutedKeys: vi.fn(async () => []) }))
 
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getConsentStatus } from '@/lib/services/consents'
@@ -70,6 +71,7 @@ describe('loadSettingsPageData', () => {
       passwordHelpText: 'This becomes your sign-in password.',
       roleLabel: 'Tutor',
       consent: CONSENT,
+      mutedKeys: [],
     })
   })
 
@@ -91,6 +93,7 @@ describe('loadSettingsPageData', () => {
       passwordHelpText: 'This becomes your sign-in password. (Demo mode stores it locally.)',
       roleLabel: 'Student',
       consent: CONSENT,
+      mutedKeys: [],
     })
   })
 

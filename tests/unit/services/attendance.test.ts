@@ -121,6 +121,9 @@ describe('markAttendance', () => {
     expect(builder.upsert).toHaveBeenCalledWith([expect.objectContaining({ session_id: OTHER, status: 'absent' })], {
       onConflict: 'session_id,student_id',
     })
+    // An absence reaches a mentor under the kind they cannot lose by muting the routine notice.
+    const build = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0][1]
+    expect(build('Sara')).toMatchObject({ muteKey: 'attendance', title: 'Attendance recorded for Sara: absent' })
   })
 
   it('refuses a session id that belongs to another class or date', async () => {
@@ -166,6 +169,8 @@ describe('markAttendance', () => {
     expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledWith(enrolledStudentId, expect.any(Function))
     const build = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0][1]
     expect(build('Sara')).toMatchObject({ title: 'Attendance recorded for Sara: present', body: '2026-07-15' })
+    // Routine, so a mentor can silence it on its own without losing absences.
+    expect(build('Sara')).toMatchObject({ kind: 'attendance', muteKey: 'attendance_present' })
   })
 })
 

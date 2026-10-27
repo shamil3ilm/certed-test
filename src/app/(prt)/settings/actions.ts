@@ -5,6 +5,8 @@ import { requireActiveProfile } from '@/lib/auth/require-role'
 import { RateLimitError, ValidationError } from '@/lib/errors'
 import { updateOwnProfile, updateOwnProfileDetails, changeOwnPassword, changeOwnEmail } from '@/lib/services/users'
 import { reaffirmCurrentConsent, withdrawConsent } from '@/lib/services/consents'
+import { setMyMutedKeys } from '@/lib/services/notification-preferences'
+import { MUTABLE_NOTIFICATION_KEYS } from '@/lib/notifications/keys'
 import {
   updateProfileSchema,
   selfProfileDetailsSchema,
@@ -37,6 +39,19 @@ export async function updateProfileDetailsAction(formData: FormData) {
   await updateOwnProfileDetails(me, parsed.data)
   revalidatePath('/settings')
   redirect('/settings?saved=details')
+}
+
+/**
+ * Save which kinds of notice the person wants. The form lists what they WANT (a ticked box is a
+ * notice that arrives), so the muted set is every mutable kind that was left unticked.
+ */
+export async function saveNotificationPreferencesAction(formData: FormData) {
+  const me = await requireActiveProfile()
+  const wanted = new Set(formData.getAll('want').map(String))
+  const muted = MUTABLE_NOTIFICATION_KEYS.map((k) => k.key).filter((key) => !wanted.has(key))
+  await setMyMutedKeys(me, muted)
+  revalidatePath('/settings')
+  redirect('/settings?saved=notifications')
 }
 
 export async function changePasswordAction(formData: FormData) {

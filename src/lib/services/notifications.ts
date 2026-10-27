@@ -6,6 +6,8 @@ import { logError } from '@/lib/observability/log'
 import { emailEnabled, escapeHtml } from '@/lib/email/resend'
 import { enqueuePendingEmails } from '@/lib/data/pending-emails'
 import { selectActiveMentorIdsForStudent, selectActiveMentorshipsForStudents } from '@/lib/data/mentorships'
+import { selectMutedProfileIds } from '@/lib/data/notification-mutes'
+import { isMutableNotificationKey } from '@/lib/notifications/keys'
 import { getProfilesByIds } from '@/lib/services/users'
 import {
   insertNotifications,
@@ -42,7 +44,15 @@ type NotificationKind =
 /** A notification as the app consumes it (the stored row, kind narrowed). */
 export type Notification = Omit<NotificationRow, 'kind'> & { kind: NotificationKind }
 
-type NotifyInput = { kind: NotificationKind; title: string; body?: string | null; link?: string | null }
+type NotifyInput = {
+  kind: NotificationKind
+  title: string
+  body?: string | null
+  link?: string | null
+  /** The key a person mutes this notice under, when it is not simply its kind (see
+   *  notifications/keys.ts). */
+  muteKey?: string
+}
 
 /** How many unread the badge will count before it just shows "9+". */
 const UNREAD_BADGE_CAP = 50
@@ -53,7 +63,7 @@ const UNREAD_BADGE_CAP = 50
  * from a core workflow that must not fail because of a notification.
  */
 export async function notify(profileIds: string[], input: NotifyInput): Promise<void> {
-  const ids = [...new Set(profileIds)].filter(Boolean)
+  const ids = await withoutMuted([...new Set(profileIds)].filter(Boolean), input)
   if (ids.length === 0) return
   await insertNotifications(
     ids.map((profile_id) => ({
@@ -67,6 +77,24 @@ export async function notify(profileIds: string[], input: NotifyInput): Promise<
   // In-app is the source of truth and just succeeded; fan the same event out to
   // email best-effort (never fails the in-app write).
   await dispatchEmail(ids, input)
+}
+
+/**
+ * Drop the people who have muted this kind of notice. Done once, here, so the in-app row and the
+ * email it mirrors go quiet together. A kind that cannot be muted (an account, credentials or money
+ * notice) is never filtered, and a failed lookup delivers: a notice someone did not mute must not
+ * be lost because the preference could not be read.
+ */
+async function withoutMuted(ids: string[], input: NotifyInput): Promise<string[]> {
+  const key = input.muteKey ?? input.kind
+  if (ids.length === 0 || !isMutableNotificationKey(key)) return ids
+  try {
+    const muted = await selectMutedProfileIds(key, ids)
+    return muted.size === 0 ? ids : ids.filter((id) => !muted.has(id))
+  } catch (error) {
+    logError('notify.mutes', error, { key, recipients: ids.length }, { toSentry: false })
+    return ids
+  }
 }
 
 /**

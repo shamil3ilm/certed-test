@@ -16,7 +16,7 @@ Each item says what is wrong or missing, what "done" looks like, and where the d
 
 ### 1. Production database is behind the migration chain
 
-The chain head is `0124_announcements_go_live.sql`. Production was last taken to `0118` plus the out-of-band server-function grants. Migrations **0119, 0120, 0121 and 0122** have not been applied there, and neither have **0123** (a session's type and an exam's monitor) or **0124** (a scheduled announcement tells its class when it goes live) - those two are not known to be applied to staging either. The code that reads `class_sessions.kind` and `announcements.live_notified_at` must not deploy before them.
+The chain head is `0125_notification_mutes.sql`. Production was last taken to `0118` plus the out-of-band server-function grants. Migrations **0119, 0120, 0121 and 0122** have not been applied there, and neither have **0123** (a session's type and an exam's monitor), **0124** (a scheduled announcement tells its class when it goes live) or **0125** (a person can mute kinds of notice) - those three are not known to be applied to staging either. The code that reads `class_sessions.kind`, `announcements.live_notified_at` and `notification_mutes` must not deploy before them.
 
 **Staging is at the chain head as of 2026-10-12** — `MIGRATIONS_0119_to_0122.sql` was run there, which also re-ran 0119/0120 so the two mentorship function bodies match the chain byte for byte. Production is the remaining half.
 

@@ -148,6 +148,8 @@ export async function markAttendance(
   for (const row of rows) {
     await notifyMentorsOfStudentBestEffort(row.student_id, (name) => ({
       kind: 'attendance',
+      // Present is routine and can be silenced on its own; absent and late stay with 'attendance'.
+      muteKey: row.status === 'present' ? 'attendance_present' : 'attendance',
       title: `Attendance recorded for ${name}: ${row.status}`,
       body: params.sessionDate,
       link: `/students/${row.student_id}`,

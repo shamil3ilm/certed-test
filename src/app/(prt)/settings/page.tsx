@@ -1,4 +1,5 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
+import { MUTABLE_NOTIFICATION_KEYS } from '@/lib/notifications/keys'
 import { isMock } from '@/lib/mock/env'
 import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
 import { getProfileDetails } from '@/lib/services/users/directory'
@@ -11,6 +12,7 @@ import {
   changeEmailAction,
   changePasswordAction,
   reaffirmConsentAction,
+  saveNotificationPreferencesAction,
   withdrawConsentAction,
   updateProfileAction,
   updateProfileDetailsAction,
@@ -124,6 +126,35 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
             <div className="sm:col-span-2">
               <button type="submit" className="btn btn-primary">
                 Save details
+              </button>
+            </div>
+          </form>
+        </Panel>
+
+        <Panel title="Notifications">
+          <p className="mb-3 text-sm text-slate-600">
+            Choose which updates reach you, in the app and by email. Notices about your account, sign-in and fees always
+            come through.
+          </p>
+          <form action={saveNotificationPreferencesAction} className="space-y-2" aria-label="Notification settings">
+            {MUTABLE_NOTIFICATION_KEYS.map((k) => (
+              <label key={k.key} className="flex items-start gap-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  name="want"
+                  value={k.key}
+                  defaultChecked={!data.mutedKeys.includes(k.key)}
+                  className="mt-1 h-4 w-4 shrink-0"
+                />
+                <span>
+                  <span className="font-medium text-slate-800">{k.label}</span>
+                  <span className="block text-xs text-slate-600">{k.hint}</span>
+                </span>
+              </label>
+            ))}
+            <div className="pt-2">
+              <button type="submit" className="btn btn-primary">
+                Save notification settings
               </button>
             </div>
           </form>
