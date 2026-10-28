@@ -84,6 +84,9 @@ export async function gradeSubmission(actor: Profile, input: GradeSubmissionInpu
   // "graded_at set but no score". Otherwise a crafted request could send an empty
   // score with feedback text and leave feedback attached to an ungraded row.
   const cleared = input.score == null
+  // Read BEFORE the write: the row can be a live object that the write updates in place, and clearing
+  // a mark that was never given reopens nothing.
+  const wasGraded = submission.graded_at != null
   const graded = await updateGrade(input.submissionId, {
     score: input.score,
     feedback: cleared ? null : input.feedback,
@@ -111,7 +114,7 @@ export async function gradeSubmission(actor: Profile, input: GradeSubmissionInpu
       body: assignment.title,
       link: `/classroom/${assignment.class_id}/classwork`,
     }))
-  } else if (submission.graded_at) {
+  } else if (wasGraded) {
     // Clearing a mark that had been given reopens the work for resubmission: the student's
     // result disappeared and the page now asks them to act, so they need to hear it.
     await notifyBestEffort([submission.student_id], {

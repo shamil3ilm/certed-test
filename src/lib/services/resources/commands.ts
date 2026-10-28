@@ -126,9 +126,11 @@ export async function archiveDocument(actor: Profile, id: string): Promise<void>
   const doc = await getResource(id)
   if (!doc) throw new NotFoundError('Document not found')
   await assertCanDocument(actor, 'delete', doc)
+  // Read BEFORE the write: the row can be a live object that the write updates in place.
+  const wasActive = doc.status === 'active'
   await updateResourceStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'resource.delete', 'resource', id)
-  if (doc.status === 'active') await notifyClassOfDocument(doc, 'Document removed', actor.id)
+  if (wasActive) await notifyClassOfDocument(doc, 'Document removed', actor.id)
 }
 
 export async function archiveDocumentFromActionInput(

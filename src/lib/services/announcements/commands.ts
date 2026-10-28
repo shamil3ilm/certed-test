@@ -35,7 +35,10 @@ async function requireManageable(actor: Profile, id: string): Promise<Announceme
   if (!(await canWriteClass(actor, announcement.class_id))) {
     throw new PermissionError('Not authorized for this announcement')
   }
-  return announcement
+  // Returned as a COPY: callers compare this row against the patch AFTER the write to decide whether
+  // anyone is told, and a store that updates the row it handed back in place (the mock one does) would
+  // otherwise show them nothing changed.
+  return { ...announcement }
 }
 
 /**
