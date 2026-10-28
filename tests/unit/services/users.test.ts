@@ -5,6 +5,7 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/mock/env', () => ({ isMock: vi.fn() }))
 vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
 vi.mock('@/lib/data/auth-accounts', async (importActual) => ({
   ...(await importActual()),
   setAuthUserBanned: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/lib/auth/setup-code', () => ({
 }))
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyBestEffort } from '@/lib/services/notifications'
 import { createClient } from '@/lib/supabase/server'
 import { ERROR_CODES } from '@/lib/api/error-codes'
 import { setupCodeValid } from '@/lib/auth/setup-code'
@@ -431,6 +433,37 @@ describe('restoreUser', () => {
 
     await expect(restoreUser(superAdmin, targetTutor.id)).rejects.toBeInstanceOf(NotFoundError)
     expect(writeAudit).not.toHaveBeenCalled()
+  })
+})
+
+describe('editUser tells a renamed person', () => {
+  const edit = async (patch: Record<string, unknown>, actor = superAdmin) => {
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: targetTutor, error: null }) as any)
+      .mockReturnValueOnce(makeClient({ data: [{ id: 'p1' }], error: null }) as any)
+    await editUser(actor, targetTutor.id, patch as any)
+  }
+
+  it('when an admin changes their name', async () => {
+    await edit({ full_name: 'Brand New Name' })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      [targetTutor.id],
+      expect.objectContaining({ kind: 'account', title: 'Your name was updated', link: '/settings' }),
+    )
+  })
+
+  it('not when only other details change, or the name is the same', async () => {
+    await edit({ phone: '123' })
+    await edit({ full_name: targetTutor.full_name })
+    expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('not when they edit themselves', async () => {
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { ...superAdmin, full_name: null }, error: null }) as any)
+      .mockReturnValueOnce(makeClient({ data: [{ id: superAdmin.id }], error: null }) as any)
+    await editUser(superAdmin, superAdmin.id, { full_name: 'Brand New Name' } as any)
+    expect(notifyBestEffort).not.toHaveBeenCalled()
   })
 })
 

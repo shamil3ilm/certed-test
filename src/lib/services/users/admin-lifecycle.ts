@@ -284,9 +284,23 @@ export async function eraseUserFromActionInput(actor: Profile, input: UserIdActi
  * or finance to worry about. Add/revoke/restore remain the status operations.
  */
 export async function editUser(actor: Profile, id: string, patch: EditUserInput): Promise<void> {
-  await requireManageableTarget(actor, id)
+  const target = await requireManageableTarget(actor, id)
+  // Read BEFORE the write: the row can be a live object that the write updates in place.
+  const nameBefore = (target.full_name ?? '').trim()
   await updateProfile(id, patch)
   await auditPrivilegedAction(actor, 'user.edit', 'profile', id)
+  // How a person is shown everywhere - to their tutors, their mentors, on every list - changed under
+  // them, so they are told. Only the name (the other details are admin bookkeeping), and not when
+  // someone edits themselves.
+  const nameAfter = (patch.full_name ?? '').trim()
+  if (patch.full_name !== undefined && nameAfter !== nameBefore && id !== actor.id) {
+    await notifyBestEffort([id], {
+      kind: 'account',
+      title: 'Your name was updated',
+      body: nameAfter ? `It now reads "${nameAfter}".` : null,
+      link: '/settings',
+    })
+  }
 }
 
 export async function editUserFromActionInput(actor: Profile, input: EditUserActionInput): Promise<void> {

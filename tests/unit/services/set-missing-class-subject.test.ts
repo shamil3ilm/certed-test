@@ -11,7 +11,7 @@ vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn(
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/classes/lifecycle', () => ({ archiveClass: vi.fn() }))
 vi.mock('@/lib/services/class-tutors', () => ({ addTutor: vi.fn() }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
 vi.mock('@/lib/services/enrollments', () => ({ notifyMentorsOfEnrolment: vi.fn() }))
 
 import { requireActorCapability } from '@/lib/services/authorization'
@@ -22,7 +22,7 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { getProfileById } from '@/lib/services/users'
 import { archiveClass } from '@/lib/services/classes/lifecycle'
 import { addTutor } from '@/lib/services/class-tutors'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { notifyMentorsOfEnrolment } from '@/lib/services/enrollments'
 import { setMissingClassSubject, addSubjectToStudent } from '@/lib/services/class-subjects'
 import { ValidationError, PermissionError } from '@/lib/errors'
@@ -97,6 +97,22 @@ describe('setMissingClassSubject', () => {
   it('scopes that check to the class being repaired', async () => {
     await setMissingClassSubject(actor, input)
     expect(vi.mocked(canManageClass).mock.calls[0][1]).toBe('class-1')
+  })
+
+  it("tells the class's student, tutors and mentors what it now teaches, other than the person who set it", async () => {
+    await setMissingClassSubject(actor, input)
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
+      'class-1',
+      ['students', 'tutors', 'mentors'],
+      { kind: 'class', title: 'A class now has a subject', body: 'Physics', link: '/classroom/class-1' },
+      'admin-1',
+    )
+  })
+
+  it('tells nobody when the subject is refused', async () => {
+    vi.mocked(callSetClassSubjectWhenUnset).mockResolvedValue({ ok: false, reason: 'subject_already_set' })
+    await expect(setMissingClassSubject(actor, input)).rejects.toThrow(ValidationError)
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
   it('records how much history it relabelled, so the change can be reviewed', async () => {

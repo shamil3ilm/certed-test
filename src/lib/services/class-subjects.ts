@@ -3,7 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import type { ClassRow } from '@/lib/data/classes'
 import { callCreateStudentSubjectClass, callSetClassSubjectWhenUnset } from '@/lib/data/class-subjects'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { notifyMentorsOfEnrolment } from '@/lib/services/enrollments'
 import { requireActorCapability } from '@/lib/services/authorization'
 import { getProfileById } from '@/lib/services/users'
@@ -131,5 +131,18 @@ export async function setMissingClassSubject(
     subject_id: subject.id,
     sessions_labelled: result.sessionsLabelled,
   })
+  // What the class teaches is something its student, tutors and mentors plan around, and it also
+  // relabels the sessions already recorded - so they hear it, other than whoever set it.
+  await notifyClassRoleBestEffort(
+    input.classId,
+    ['students', 'tutors', 'mentors'],
+    {
+      kind: 'class',
+      title: 'A class now has a subject',
+      body: subject.name,
+      link: `/classroom/${input.classId}`,
+    },
+    actor.id,
+  )
   return { sessionsLabelled: result.sessionsLabelled }
 }
