@@ -341,6 +341,11 @@ describe('ledgerForPerson - what a person taught or monitored, session by sessio
     { session_id: 'exam-other', student_id: SARA },
   ]
 
+  it('names the class of every session, so a pay slip can keep one line per class', () => {
+    const out = ledgerForPerson(T1, rows, attended)
+    expect(out.every((r) => typeof r.classId === 'string' && r.classId.length > 0)).toBe(true)
+  })
+
   it('lists what the tutor taught, oldest first, and leaves out an exam someone else monitored', () => {
     const out = ledgerForPerson(T1, rows, attended)
     expect(out.map((r) => r.sessionId)).toEqual(['taught', 'demo', 'exam-own'])

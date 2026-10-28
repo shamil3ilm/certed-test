@@ -200,6 +200,9 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'One class on ONE date. A class holds a handful of sessions a day, not a history.',
   'src/lib/data/class-sessions.ts:selectSessionsForDateAsService':
     'The same single-date bound, read service-side for an oversight caller.',
+  'src/lib/data/class-sessions.ts:countSelfRecordedSessions':
+    'ONE person, ONE month, and only sessions whose hours they entered themselves: a few dozen rows at ' +
+    'most. Two reads (taught, monitored) so each is an indexed equality, merged and counted in memory.',
   'src/lib/data/class-sessions.ts:selectTutorOverlappingSessions':
     'Sessions overlapping ONE window for one tutor - the double-booking check. A tutor ' +
     'cannot hold more concurrent sessions than the window has hours, and the 0101 exclusion ' +

@@ -5,6 +5,7 @@ import { rethrowIfHoursLocked } from '@/lib/data/hours-lock'
 import { fetchAllPaged } from '@/lib/data/paginate'
 import type { Page } from '@/lib/pagination'
 import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
+import { sessionWorker } from '@/lib/attendance/hours-breakdown'
 
 /**
  * Table access for `class_sessions` - one row per class session holding the
@@ -407,17 +408,33 @@ export async function selectSessionsByIds(ids: string[]): Promise<ClassSessionRo
  * session predates 0102 and nothing is known, which must not be reported as self-recorded.
  * Service-role: this backs an admin-facing warning on the issue screen.
  */
-export async function countSelfRecordedSessions(tutorId: string, startIso: string, endIso: string): Promise<number> {
+export async function countSelfRecordedSessions(workerId: string, startIso: string, endIso: string): Promise<number> {
   const admin = createAdminClient()
-  const { count, error } = await admin
-    .from('class_sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('tutor_id', tutorId)
-    .eq('hours_recorded_by', tutorId)
-    .gte('actual_start', startIso)
-    .lt('actual_start', endIso)
-  if (error) throw new Error(`classSessions.countSelfRecorded: ${error.message}`)
-  return count ?? 0
+  // The sessions the payee WORKED: ones they taught (tutor_id) and exams they monitored (monitor_id),
+  // read apart so each is an indexed equality, then kept only where the pay rule makes them the worker
+  // - an exam someone else monitored is not theirs, and a demo is nobody's pay.
+  const read = async (column: 'tutor_id' | 'monitor_id') => {
+    const { data, error } = await admin
+      .from('class_sessions')
+      .select('id, kind, tutor_id, monitor_id')
+      .eq(column, workerId)
+      .eq('hours_recorded_by', workerId)
+      .gte('actual_start', startIso)
+      .lt('actual_start', endIso)
+    if (error) throw new Error(`classSessions.countSelfRecorded: ${error.message}`)
+    return (data ?? []) as Array<{
+      id: string
+      kind: SessionKind | null
+      tutor_id: string | null
+      monitor_id: string | null
+    }>
+  }
+  const [taught, monitored] = await Promise.all([read('tutor_id'), read('monitor_id')])
+  const worked = new Set<string>()
+  for (const row of [...taught, ...monitored]) {
+    if (kindOf(row) !== 'demo' && sessionWorker(row) === workerId) worked.add(row.id)
+  }
+  return worked.size
 }
 
 export type HeldSessionRow = {

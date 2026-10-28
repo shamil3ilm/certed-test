@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/teaching-hours', () => ({ getAcademyClassHours: vi.fn() }))
-vi.mock('@/lib/services/hours-breakdown', () => ({ getAcademyBreakdown: vi.fn() }))
+vi.mock('@/lib/services/hours-breakdown', () => ({
+  getAcademyBreakdown: vi.fn(),
+  getPersonWork: vi.fn(),
+  NO_SUBJECT: 'No subject set',
+}))
 vi.mock('@/lib/data/billing-rates', () => ({
   selectBillingRatesFor: vi.fn(),
   selectPartiesWithDocForPeriod: vi.fn(),
@@ -17,7 +21,7 @@ vi.mock('@/lib/data/class-sessions', () => ({ countSelfRecordedSessions: vi.fn(a
 
 import { getProfileById } from '@/lib/services/users'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
-import { getAcademyBreakdown } from '@/lib/services/hours-breakdown'
+import { getAcademyBreakdown, getPersonWork } from '@/lib/services/hours-breakdown'
 import { selectBillingRatesFor, selectPartiesWithDocForPeriod } from '@/lib/data/billing-rates'
 import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
 import { buildBillingDraft } from '@/lib/services/finance/hours-billing'
@@ -64,8 +68,24 @@ function hours(over: Record<string, unknown> = {}) {
   } as never
 }
 
+/** One session of a payee's own ledger - the sessions they WORKED, as My hours lists them. */
+const worked = (classId: string, subjectName: string, minutes: number, kind = 'regular', role = 'taught') => ({
+  sessionId: `s-${classId}-${subjectName}-${minutes}-${kind}`,
+  classId,
+  sessionDate: '2026-09-01',
+  startAt: null,
+  endAt: null,
+  minutes,
+  subjectName,
+  kind,
+  role,
+  studentNames: [],
+})
+const ledgerOf = (...rows: ReturnType<typeof worked>[]) => ({ hours: {}, ledger: rows }) as never
+
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(getPersonWork).mockResolvedValue(ledgerOf(worked('C1', 'Maths', 90), worked('C2', 'Science', 60)))
   vi.mocked(getProfileById).mockResolvedValue(profile({}))
   vi.mocked(getAcademyClassHours).mockResolvedValue(hours())
   vi.mocked(selectPartiesWithDocForPeriod).mockResolvedValue(new Set())
@@ -201,7 +221,7 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
     )
   })
 
-  it('pays the hours the tutor taught at their pay rate', async () => {
+  it('pays the sessions the payee worked at their pay rate', async () => {
     const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(draft.blocked).toBeNull()
@@ -227,12 +247,67 @@ describe('buildBillingDraft - pay slip (tutor/mentor)', () => {
     await expect(buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')).rejects.toThrow(/no active payee/i)
   })
 
-  it('blocks when the tutor taught nothing that month', async () => {
-    vi.mocked(getAcademyClassHours).mockResolvedValue(hours({ tutorClasses: [] }))
+  it('blocks when the payee worked nothing that month', async () => {
+    vi.mocked(getPersonWork).mockResolvedValue(null)
 
     const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
 
     expect(draft.blocked).toMatch(/taught no recorded sessions/i)
+  })
+
+  it("reads the payee's own ledger, which is the one they see as My hours", async () => {
+    await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
+
+    expect(getPersonWork).toHaveBeenCalledWith(ACTOR, TUTOR, '2026-09')
+  })
+
+  it('pays an exam they monitored, as working time', async () => {
+    vi.mocked(getPersonWork).mockResolvedValue(
+      ledgerOf(worked('C1', 'Maths', 60), worked('C1', 'Maths', 30, 'exam', 'monitored')),
+    )
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
+
+    expect(draft.lines).toEqual([{ subject: 'Maths', hours: 1.5, rate: 500, amount: 750 }])
+  })
+
+  it('never pays a demo class: it is not working time', async () => {
+    vi.mocked(getPersonWork).mockResolvedValue(ledgerOf(worked('C1', 'Maths', 60), worked('C1', 'Maths', 45, 'demo')))
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
+
+    expect(draft.lines).toEqual([{ subject: 'Maths', hours: 1, rate: 500, amount: 500 }])
+  })
+
+  it('is blocked, not zero-priced, when the only sessions were demos', async () => {
+    vi.mocked(getPersonWork).mockResolvedValue(ledgerOf(worked('C1', 'Maths', 45, 'demo')))
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
+
+    expect(draft.lines).toEqual([])
+    expect(draft.blocked).toMatch(/no recorded sessions/i)
+  })
+
+  it('keeps a line per subject in a class, and names a class with no subject by the class', async () => {
+    vi.mocked(getPersonWork).mockResolvedValue(
+      ledgerOf(worked('C1', 'Maths', 60), worked('C1', 'Algebra', 30), worked('C2', 'No subject set', 60)),
+    )
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
+
+    expect(draft.lines.map((l) => [l.subject, l.hours]).sort()).toEqual([
+      ['Algebra', 0.5],
+      ['Maths', 1],
+      ['Science', 1],
+    ])
+  })
+
+  it('drops a session with no recorded window rather than billing a zero-hour line', async () => {
+    vi.mocked(getPersonWork).mockResolvedValue(ledgerOf(worked('C1', 'Maths', 60), worked('C2', 'Science', 0)))
+
+    const draft = await buildBillingDraft(ACTOR, 'payslip', TUTOR, '2026-09')
+
+    expect(draft.lines.map((l) => l.subject)).toEqual(['Maths'])
   })
 
   it('checks the pay-slip ledger, not the receipt ledger, for a duplicate', async () => {
@@ -261,6 +336,20 @@ describe('demo and exam hours in a billed month', () => {
     expect(draft.warnings).toEqual([expect.stringContaining('0.5 h of demo classes and 1 h of exams')])
   })
 
+  it('tells the admin an exam is paid at the regular rate, since only who is paid is settled', async () => {
+    vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'tutor' }))
+    vi.mocked(selectBillingRatesFor).mockResolvedValue(
+      new Map([[TUTOR, { profile_id: TUTOR, fee_rate: null, pay_rate: 500, currency: 'INR' }]]),
+    )
+    vi.mocked(getAcademyBreakdown).mockResolvedValue({
+      month: '2026-08',
+      people: [{ personId: TUTOR, minutes: kinds(0, 60) }],
+      students: [],
+    } as never)
+    const draft = await buildBillingDraft('admin-1', 'payslip', TUTOR, '2026-08')
+    expect(draft.warnings).toEqual([expect.stringContaining('1 h of exam monitoring, paid at the regular hourly rate')])
+  })
+
   it('warns a pay slip from the payee own working minutes', async () => {
     vi.mocked(getProfileById).mockResolvedValue(profile({ id: TUTOR, role: 'tutor' }))
     vi.mocked(selectBillingRatesFor).mockResolvedValue(
@@ -272,7 +361,7 @@ describe('demo and exam hours in a billed month', () => {
       students: [],
     } as never)
     const draft = await buildBillingDraft('admin-1', 'payslip', TUTOR, '2026-08')
-    expect(draft.warnings).toEqual([expect.stringContaining('0.75 h of demo classes')])
+    expect(draft.warnings).toEqual([expect.stringContaining('0.75 h of demo classes this month are not paid')])
   })
 
   it('says nothing when the month is all regular classes', async () => {

@@ -28,9 +28,16 @@ function mockBillingFingerprint(kind: string, partyId: unknown, from: string, to
       String(s.actual_start) < to &&
       !archived.has(s.class_id),
   )
+  // Mirrors 0126's session_pay_worker: the tutor for a class, the monitor (else the tutor) for an exam,
+  // nobody for a demo. Rows made before kinds existed carry none and read as regular.
+  const payWorker = (s: Record<string, unknown>) => {
+    const sessionKind = (s.kind as string | undefined) ?? 'regular'
+    if (sessionKind === 'demo') return null
+    return sessionKind === 'exam' ? (s.monitor_id ?? s.tutor_id ?? null) : (s.tutor_id ?? null)
+  }
   const counted =
     kind === 'payslip'
-      ? inWindow.filter((s) => s.tutor_id === partyId)
+      ? inWindow.filter((s) => payWorker(s) === partyId)
       : inWindow.filter((s) =>
           table('attendance').some(
             (a) => a.session_id === s.id && a.student_id === partyId && (a.status === 'present' || a.status === 'late'),
@@ -38,7 +45,11 @@ function mockBillingFingerprint(kind: string, partyId: unknown, from: string, to
         )
   return JSON.stringify(
     counted
-      .map((s) => [s.id, s.class_id, s.subject_id ?? null, s.actual_start, s.actual_end])
+      .map((s) =>
+        kind === 'payslip'
+          ? [s.id, s.class_id, s.subject_id ?? null, s.actual_start, s.actual_end, s.kind ?? 'regular']
+          : [s.id, s.class_id, s.subject_id ?? null, s.actual_start, s.actual_end],
+      )
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   )
 }

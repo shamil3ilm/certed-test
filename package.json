@@ -22,6 +22,7 @@
     "db:rebuild-snapshot:local": "bash scripts/rebuild-snapshot-local.sh",
     "check:snapshot": "bash scripts/check-snapshot-freshness.sh",
     "test:privilege-parity": "bash scripts/test-privilege-parity.sh",
+    "test:pay-worker": "bash scripts/test-pay-worker.sh",
     "check:doc-links": "bash scripts/check-doc-links.sh",
     "check:hooks": "bash scripts/check-hooks-executable.sh",
     "prepare": "git config core.hooksPath .githooks || true"

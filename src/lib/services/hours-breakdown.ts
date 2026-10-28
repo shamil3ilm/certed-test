@@ -90,7 +90,7 @@ export interface HoursBreakdown {
 }
 
 const UNASSIGNED = 'Unassigned'
-const NO_SUBJECT = 'No subject set'
+export const NO_SUBJECT = 'No subject set'
 const NO_ATTENDANCE = 'No attendance recorded'
 
 /** Every id a set of raw rows names, so names are read in one batch. */
@@ -229,6 +229,7 @@ export interface StudentLedgerRow {
 
 export interface WorkLedgerRow {
   sessionId: string
+  classId: string
   sessionDate: string | null
   startAt: string | null
   endAt: string | null
@@ -309,6 +310,7 @@ async function workOf(personId: string, month: string): Promise<MyWork | null> {
     hours,
     ledger: raw.map((r) => ({
       sessionId: r.sessionId,
+      classId: r.classId,
       sessionDate: r.sessionDate,
       startAt: r.startAt,
       endAt: r.endAt,

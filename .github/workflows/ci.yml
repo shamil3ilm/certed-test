@@ -164,3 +164,8 @@ jobs:
       # table REVOKE ordered after its column GRANTs so it cascade-revokes them.
       - name: Privilege parity (migrations vs snapshot)
         run: bash scripts/test-privilege-parity.sh
+      # Who a session's hours are paid to (a class to its tutor, an exam to its monitor, a demo to
+      # nobody) and who the billed-month lock protects. Mock mode has no database, so this is the
+      # only place the SQL side of that rule - and 0116's receipt lock beside it - is exercised.
+      - name: Pay follows the worker (real Postgres)
+        run: bash scripts/test-pay-worker.sh

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeClient } from '../../stubs/supabase-query-builder'
+import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
@@ -12,6 +12,7 @@ import {
   updateSessionById,
   deleteSessionById,
   writeStudentSessionFeedback,
+  countSelfRecordedSessions,
 } from '@/lib/data/class-sessions'
 
 const session = { id: 'ses1', class_id: 'c1', session_date: '2026-06-20' }
@@ -126,5 +127,44 @@ describe('insertSession stamps WHAT was taught', () => {
     await insertSession({ class_id: 'c1', session_date: '2026-06-20', subject_id: null } as never)
 
     expect(client.from).not.toHaveBeenCalledWith('classes')
+  })
+})
+
+describe('countSelfRecordedSessions counts the sessions the payee WORKED', () => {
+  const W = 'worker-1'
+  const row = (id: string, kind: string, tutor_id: string | null, monitor_id: string | null) => ({
+    id,
+    kind,
+    tutor_id,
+    monitor_id,
+  })
+
+  it('counts what they taught and the exams they monitored, once each, and leaves out the rest', async () => {
+    const taught = [
+      row('class', 'regular', W, null),
+      row('their-exam', 'exam', W, null), // they monitored it themselves
+      row('handed-over-exam', 'exam', W, 'someone-else'), // someone else's working time
+      row('demo', 'demo', W, null), // not working time
+    ]
+    const monitored = [
+      row('monitored-exam', 'exam', 'another-tutor', W),
+      row('their-exam', 'exam', W, W), // read by both queries
+    ]
+    // Two queries on one client, each with its own answer.
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(queryBuilder({ data: taught, error: null }))
+      .mockReturnValueOnce(queryBuilder({ data: monitored, error: null }))
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never)
+    expect(await countSelfRecordedSessions(W, '2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z')).toBe(3)
+  })
+
+  it('throws on a read error rather than reporting no self-recorded hours', async () => {
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(queryBuilder({ data: null, error: { message: 'down' } }))
+      .mockReturnValueOnce(queryBuilder({ data: [], error: null }))
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never)
+    await expect(countSelfRecordedSessions(W, 'a', 'b')).rejects.toThrow(/countSelfRecorded: down/)
   })
 })

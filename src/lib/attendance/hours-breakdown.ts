@@ -317,6 +317,7 @@ export function ledgerForStudent(
 
 export interface PersonLedgerRaw {
   sessionId: string
+  classId: string
   sessionDate: string | null
   startAt: string | null
   endAt: string | null
@@ -345,6 +346,7 @@ export function ledgerForPerson(
     .filter((s) => sessionWorker(s) === personId)
     .map((s): PersonLedgerRaw => ({
       sessionId: s.id,
+      classId: s.class_id,
       sessionDate: s.session_date ?? null,
       startAt: s.actual_start,
       endAt: s.actual_end,

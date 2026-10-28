@@ -3,7 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { computeTotals, lineAmount, SUPPORTED_CURRENCIES } from '@/lib/money'
 import { getProfileById } from '@/lib/services/users'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
-import { getAcademyBreakdown } from '@/lib/services/hours-breakdown'
+import { getAcademyBreakdown, getPersonWork, NO_SUBJECT } from '@/lib/services/hours-breakdown'
 import { selectBillingRatesFor, selectPartiesWithDocForPeriod } from '@/lib/data/billing-rates'
 import { countSelfRecordedSessions } from '@/lib/data/class-sessions'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
@@ -76,6 +76,37 @@ function empty(kind: FinanceKind, party: Profile, period: string, currency: stri
 }
 
 /**
+ * What a pay slip pays for: the sessions the payee WORKED, which is the ledger they see as My hours.
+ * That is the classes they taught and the exams they monitored - an exam someone else monitored is
+ * that monitor's working time - and never a demo class, which is not working time at all. The pay
+ * SQL (0126) applies the same rule to the fingerprint and the billed-hours lock, so the figure here
+ * and the guard behind it cannot disagree about whose hours these are.
+ *
+ * One line per class and subject. A session with no recorded window has no minutes and is dropped
+ * by the caller; a class with no subject set reads as the class name.
+ */
+async function workedByClass(
+  actorId: string,
+  partyId: string,
+  period: string,
+  classNames: ReadonlyMap<string, string>,
+): Promise<Array<{ subject: string; minutes: number }>> {
+  const work = await getPersonWork(actorId, partyId, period)
+  const lines = new Map<string, { subject: string; minutes: number }>()
+  for (const row of work?.ledger ?? []) {
+    if (row.kind === 'demo') continue
+    const key = `${row.classId}|${row.subjectName}`
+    const line = lines.get(key) ?? {
+      subject: row.subjectName !== NO_SUBJECT ? row.subjectName : (classNames.get(row.classId) ?? row.subjectName),
+      minutes: 0,
+    }
+    line.minutes += row.minutes
+    lines.set(key, line)
+  }
+  return [...lines.values()]
+}
+
+/**
  * Build the draft for one party and month.
  *
  * `actor` is not consulted here - the caller is already admin-gated (issuing is
@@ -118,11 +149,7 @@ export async function buildBillingDraft(
             .filter((s) => s.studentId === partyId)
             .map((s) => ({ subject: c.subjectName ?? c.className, minutes: s.minutes })),
         )
-      : tutorClasses.flatMap((c) =>
-          c.tutors
-            .filter((t) => t.tutorId === partyId)
-            .map((t) => ({ subject: c.subjectName ?? c.className, minutes: t.minutes })),
-        )
+      : await workedByClass(actorId, partyId, period, new Map(tutorClasses.map((c) => [c.classId, c.className])))
 
   // A class with recorded sessions but no recorded WINDOW contributes 0 minutes. Billing a
   // zero-hour line is meaningless and the issue schema rejects it (hours must be positive),
@@ -156,15 +183,25 @@ export async function buildBillingDraft(
     )
   }
 
-  // Demo classes and exams are recorded apart from regular ones, but what they bill or pay is
-  // not decided, so this draft prices every counted session at the one hourly rate. Say so
-  // when the month holds any, so the admin is not issuing a figure that quietly assumes it.
+  // Demo classes and exams are recorded apart from regular ones. WHO a pay slip pays is settled (the
+  // worker, never for a demo - see workedByClass); what an exam or a demo is WORTH is not, so the
+  // draft prices every counted session at the one hourly rate and says so when the month holds any.
   const breakdown = await getAcademyBreakdown(actorId, period)
   const mine =
     kind === 'receipt'
       ? breakdown.students.find((s) => s.studentId === partyId)?.total
       : breakdown.people.find((p) => p.personId === partyId)?.minutes
-  if (mine && (mine.demo > 0 || mine.exam > 0)) {
+  if (mine && kind === 'payslip') {
+    if (mine.demo > 0) {
+      warnings.push(`${toHours(mine.demo)} h of demo classes this month are not paid: a demo is not working time.`)
+    }
+    if (mine.exam > 0) {
+      warnings.push(
+        `This month includes ${toHours(mine.exam)} h of exam monitoring, paid at the regular hourly rate. ` +
+          `Check that is right before issuing.`,
+      )
+    }
+  } else if (mine && (mine.demo > 0 || mine.exam > 0)) {
     const parts = [
       mine.demo > 0 ? `${toHours(mine.demo)} h of demo classes` : null,
       mine.exam > 0 ? `${toHours(mine.exam)} h of exams` : null,
