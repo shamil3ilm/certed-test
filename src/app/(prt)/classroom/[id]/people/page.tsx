@@ -18,6 +18,7 @@ import {
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import { MessageUserButton } from '../../../messages/MessageUserButton'
+import { AssignReminderForm } from '../../../AssignReminderForm'
 import { TagEditor } from '../../../tags/TagEditor'
 import {
   renameClassAction,
@@ -36,6 +37,7 @@ function MemberRow({
   removeAction,
   removeName,
   showEmail,
+  extra,
 }: {
   m: ClassMember
   subtitle?: string
@@ -43,6 +45,8 @@ function MemberRow({
   removeAction?: (fd: FormData) => void
   removeName?: string
   showEmail?: boolean
+  /** Anything that belongs under the row rather than in it, such as a form. */
+  extra?: React.ReactNode
 }) {
   const meta = [showEmail ? m.email : null, subtitle].filter(Boolean).join(' - ')
   return (
@@ -70,6 +74,7 @@ function MemberRow({
           ) : undefined
         }
       />
+      {extra && <div className="px-4 pb-3">{extra}</div>}
     </li>
   )
 }
@@ -291,6 +296,15 @@ export default async function ClassPeoplePage(props: {
               showEmail={data.isAdmin}
               removeAction={data.canManage ? removeStudentAction : undefined}
               removeName="student_id"
+              extra={
+                data.canManage ? (
+                  <AssignReminderForm
+                    studentId={s.id}
+                    studentName={s.name}
+                    classes={[{ id: course.id, name: course.name }]}
+                  />
+                ) : undefined
+              }
             />
           ))}
           {data.students.length === 0 && <EmptyState as="li">No students enrolled yet.</EmptyState>}

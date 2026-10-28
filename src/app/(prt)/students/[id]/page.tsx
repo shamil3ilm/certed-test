@@ -11,6 +11,7 @@ import { EvaluationPanels, NeedsAttentionPanel, RecentSubmissionsPanel } from '.
 import { MenteeNotesPanel } from './MenteeNotesPanel'
 import { HoursPanel } from './HoursPanel'
 import { MenteeDocumentsPanel } from './MenteeDocumentsPanel'
+import { MenteeRemindersPanel } from './MenteeRemindersPanel'
 
 const NOTES_PAGE_SIZE = 20
 
@@ -92,6 +93,12 @@ export default async function MenteePage(props: {
       />
       <RecentSubmissionsPanel submissions={submissions} />
       <MenteeDocumentsPanel classes={classes} openableClassIds={data.openableClassIds} />
+      <MenteeRemindersPanel
+        studentId={params.id}
+        studentName={data.name}
+        classes={classes}
+        openableClassIds={data.openableClassIds}
+      />
       <MenteeNotesPanel
         studentId={params.id}
         notes={notes.items}
