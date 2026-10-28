@@ -51,7 +51,7 @@ export interface BreakdownMark {
 }
 
 /** The person whose WORKING time a session is. null is the "Unassigned" bucket. */
-export function sessionWorker(session: BreakdownSession): string | null {
+export function sessionWorker(session: Pick<BreakdownSession, 'tutor_id' | 'monitor_id' | 'kind'>): string | null {
   if (kindOf(session) === 'exam') return session.monitor_id ?? session.tutor_id ?? null
   return session.tutor_id ?? null
 }

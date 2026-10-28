@@ -26,6 +26,8 @@ import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { getProfileById } from '@/lib/services/users'
 import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { isSessionKind, kindOf, type SessionKind } from '@/lib/attendance/session-kind'
+import { hoursNotices } from '@/lib/attendance/hours-notice'
+import { sessionWorker } from '@/lib/attendance/hours-breakdown'
 import { z } from 'zod'
 
 /** A free-text session note: trimmed, bounded, empty -> null (clears it). */
@@ -274,15 +276,21 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
       link: '/my-hours',
     })
   }
-  // The hours a session records are the tutor's pay, so when someone ELSE records or changes it
-  // the tutor has to hear: otherwise the first they know is a figure that is not what they taught.
-  // Only for a new session or a changed window or type - re-saving a note changes no hours.
-  const changedHours =
-    !before || before.actual_start !== window.start || before.actual_end !== window.end || kindOf(before) !== kind
-  if (tutorId && tutorId !== actor.id && changedHours) {
-    await notifyBestEffort([tutorId], {
+  // The hours a session records are somebody's pay - the tutor's, or the monitor's of an exam the
+  // tutor was not in the room for - so when someone ELSE records or changes it that person has to
+  // hear: otherwise the first they know is a figure that is not what they worked. The same rule
+  // as the mentor's narrower edit, so the two cannot disagree about who is told.
+  const hoursAfter = {
+    tutor_id: tutorId,
+    kind,
+    monitor_id: monitorId,
+    actual_start: window.start,
+    actual_end: window.end,
+  }
+  for (const notice of hoursNotices(before, hoursAfter, actor.id)) {
+    await notifyBestEffort([notice.personId], {
       kind: 'class',
-      title: before ? 'A session of yours was changed' : 'A session was recorded for you',
+      title: notice.title,
       body: sessionDate,
       link: '/my-hours',
     })
@@ -329,12 +337,15 @@ export async function deleteSessionTimes(actor: Profile, sessionId: string): Pro
     session_date: session.session_date,
     removed: { actual_start: session.actual_start, actual_end: session.actual_end },
   })
-  // The tutor it counted for, and anyone who monitored it, lose those hours: say so.
-  const affected = [session.tutor_id, session.monitor_id ?? null].filter(
-    (id): id is string => Boolean(id) && id !== actor.id,
-  )
-  if (affected.length > 0) {
-    await notifyBestEffort(affected, {
+  // Whoever the hours were - the tutor, or the monitor of an exam the tutor was not in the room for -
+  // loses them: say so. Not the class tutor of an exam someone else monitored; it never counted for them.
+  const worker = sessionWorker({
+    tutor_id: session.tutor_id,
+    kind: kindOf(session),
+    monitor_id: session.monitor_id ?? null,
+  })
+  if (worker && worker !== actor.id) {
+    await notifyBestEffort([worker], {
       kind: 'class',
       title: 'A session you worked was removed',
       body: session.session_date,

@@ -1,5 +1,6 @@
 import 'server-only'
 import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
+import { hoursNotices } from '@/lib/attendance/hours-notice'
 import { resolveClassLabels } from '@/lib/services/classes/class-labels'
 import type { Profile } from '@/lib/auth/profile'
 import { mentoringScopeClassIds, canManageClass, isMentoringOversight } from '@/lib/permission/class'
@@ -438,9 +439,12 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
   // reference and updates it in place), so afterwards `existing` already holds the new window and a
   // comparison against it would report nothing changed.
   const before = { actual_start: existing.actual_start, actual_end: existing.actual_end }
-  const sameInstant = (a: string | null, b: string | null) =>
-    a === b || (a != null && b != null && new Date(a).getTime() === new Date(b).getTime())
-  const windowChanged = !(sameInstant(before.actual_start, start) && sameInstant(before.actual_end, end))
+  const hoursBefore = {
+    tutor_id: existing.tutor_id,
+    kind: kindOf(existing),
+    monitor_id: existing.monitor_id ?? null,
+    ...before,
+  }
 
   const saved = await updateSessionActualTimesAsService(
     existing.id,
@@ -455,30 +459,15 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
     before,
     after: { actual_start: start, actual_end: end },
   })
-  // The hours a session records are the tutor's pay - and an exam monitor's, when someone other
-  // than the tutor monitored it (0123) - so when someone ELSE changes the window the people paid
-  // for it have to hear: otherwise the first they know is a figure that is not what they worked.
-  // Only a changed window - saving the same one changes no hours. Best-effort: the session is saved.
-  if (windowChanged) {
-    const monitorId =
-      kindOf(existing) === 'exam' && existing.monitor_id && existing.monitor_id !== existing.tutor_id
-        ? existing.monitor_id
-        : null
-    if (existing.tutor_id && existing.tutor_id !== actor.id) {
-      await notifyBestEffort([existing.tutor_id], {
-        kind: 'class',
-        title: 'A session of yours was changed',
-        body: existing.session_date,
-        link: '/my-hours',
-      })
-    }
-    if (monitorId && monitorId !== actor.id) {
-      await notifyBestEffort([monitorId], {
-        kind: 'class',
-        title: 'An exam you monitored was changed',
-        body: existing.session_date,
-        link: '/my-hours',
-      })
-    }
+  // Whoever the hours belong to hears that they moved (the tutor, or the monitor of an exam the
+  // tutor was not in the room for) - otherwise the first they know is a figure that is not what
+  // they worked. Best-effort: the session is saved.
+  for (const notice of hoursNotices(hoursBefore, { ...hoursBefore, actual_start: start, actual_end: end }, actor.id)) {
+    await notifyBestEffort([notice.personId], {
+      kind: 'class',
+      title: notice.title,
+      body: existing.session_date,
+      link: '/my-hours',
+    })
   }
 }

@@ -428,10 +428,8 @@ describe('updateSessionTimes tells the tutor whose pay the hours are', () => {
       ['mon1'],
       expect.objectContaining({ title: 'An exam you monitored was changed', link: '/my-hours' }),
     )
-    expect(notifyBestEffort).toHaveBeenCalledWith(
-      ['t1'],
-      expect.objectContaining({ title: 'A session of yours was changed' }),
-    )
+    // The tutor was not in the room for an exam someone else monitored: it is not their hours.
+    expect(notifyBestEffort).not.toHaveBeenCalledWith(['t1'], expect.anything())
   })
 
   it('does not tell a monitor who made the change themselves', async () => {

@@ -230,7 +230,57 @@ describe('saveSessionTimes - telling the monitor', () => {
       updated_at: 'u1',
     } as never)
     await saveSessionTimes(actor, { ...base, ...window, sessionId: SESSION, monitor_id: MONITOR })
+    // The session had no times yet, so their hours now exist and they are told THAT - but not,
+    // a second time, that they were named as the monitor.
+    expect(notifyBestEffort).not.toHaveBeenCalledWith(
+      [MONITOR],
+      expect.objectContaining({ title: 'You were recorded as monitoring an exam' }),
+    )
+  })
+
+  it('tells nobody when an exam is re-saved with the same window and monitor', async () => {
+    asRole(true)
+    monitorProfile()
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: SESSION,
+      class_id: 'class-1',
+      kind: 'exam',
+      tutor_id: TUTOR,
+      monitor_id: MONITOR,
+      actual_start: window.actual_start,
+      actual_end: window.actual_end,
+      updated_at: 'u1',
+    } as never)
+    await saveSessionTimes(actor, { ...base, ...window, sessionId: SESSION, monitor_id: MONITOR })
     expect(notifyBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('tells the monitor, not the class tutor, when someone else changes the exam window', async () => {
+    asRole(true)
+    monitorProfile()
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: SESSION,
+      class_id: 'class-1',
+      kind: 'exam',
+      tutor_id: TUTOR,
+      monitor_id: MONITOR,
+      actual_start: window.actual_start,
+      actual_end: window.actual_end,
+      updated_at: 'u1',
+    } as never)
+    await saveSessionTimes({ id: 'admin-9' } as never, {
+      ...base,
+      actual_start: window.actual_start,
+      actual_end: '2026-08-05T12:00:00Z',
+      sessionId: SESSION,
+      tutor_id: TUTOR,
+      monitor_id: MONITOR,
+    })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      [MONITOR],
+      expect.objectContaining({ title: 'An exam you monitored was changed' }),
+    )
+    expect(notifyBestEffort).not.toHaveBeenCalledWith([TUTOR], expect.anything())
   })
 
   it('tells a NEW monitor when an exam is handed to someone else', async () => {
