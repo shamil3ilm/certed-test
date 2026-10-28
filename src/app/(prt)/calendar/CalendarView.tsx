@@ -179,7 +179,9 @@ export function CalendarView({
             ref={calRef}
             plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
             initialView={resolvedView}
-            timeZone={deviceTz}
+            // 'local' is the device zone, which is what deviceTz names. A NAMED zone needs a FullCalendar
+            // timezone plugin; without one it silently draws every instant in UTC.
+            timeZone="local"
             headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
             datesSet={(arg) => setCurrentView(arg.view.type)}
             buttonText={{ today: 'Today' }}
