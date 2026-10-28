@@ -59,4 +59,16 @@ test('ADMIN -- add a subject from the Classes page, in a dialog, and see the cla
   // A RegExp, not the bare string: the card's accessible name carries its status and tutor
   // line too, and `name` as a string matches the WHOLE name.
   await expect(group.getByRole('link', { name: new RegExp(subject) })).toBeVisible()
+
+  // Enrolling is something its people have to hear: the student that they were added, their mentor that
+  // their mentee was, and the tutor that they now teach it. It used to say nothing at all.
+  for (const [email, notice] of [
+    ['student@mock.test', 'You were added to a class'],
+    ['mentor@mock.test', 'Sara Student was added to a class'],
+    ['tutor@mock.test', 'You were assigned to a class'],
+  ] as const) {
+    await loginAs(page, email, { clearCookies: true })
+    await page.goto('/notifications', { waitUntil: 'networkidle' })
+    await expect(page.getByText(notice).first(), `${email} should hear: ${notice}`).toBeVisible()
+  }
 })
