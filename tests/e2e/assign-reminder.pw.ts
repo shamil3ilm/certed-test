@@ -28,6 +28,12 @@ test('a tutor assigns a student a reminder, and the student is told and sees it'
   const row = page.locator('li', { hasText: title })
   await expect(row.first()).toBeVisible()
   await expect(row.first().getByText('Assigned')).toBeVisible()
+
+  // Sara's mentor is a party to something set for their mentee, and hears of it in words about Sara.
+  await loginAs(page, 'mentor@mock.test', { clearCookies: true })
+  await page.goto('/notifications')
+  const told = page.locator('li', { hasText: 'A reminder was assigned to Sara Student' }).filter({ hasText: title })
+  await expect(told.first()).toBeVisible()
 })
 
 test('a mentor assigns their mentee a reminder from the mentee page', async ({ page }, testInfo) => {
@@ -46,4 +52,9 @@ test('a mentor assigns their mentee a reminder from the mentee page', async ({ p
   await loginAs(page, 'student@mock.test', { clearCookies: true })
   await page.goto('/notifications')
   await expect(page.getByText(`Reminder assigned: ${title}`).first()).toBeVisible()
+
+  // The mentor who assigned it is not told about their own act.
+  await loginAs(page, 'mentor@mock.test', { clearCookies: true })
+  await page.goto('/notifications')
+  await expect(page.getByText(title)).toHaveCount(0)
 })

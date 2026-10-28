@@ -15,7 +15,7 @@ import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { assignReminderSchema, createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
 import { throttleWrite } from '@/lib/security/throttle'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
 
 export type Reminder = ReminderRow
 
@@ -173,13 +173,25 @@ export async function assignReminderFromActionInput(actor: Profile, input: Assig
     description: parsed.data.description ?? null,
     remind_at: parsed.data.remind_at,
   })
-  // The student otherwise first hears of it when it falls due. Only the assignee: a reminder is a
-  // personal nudge, not a class event. Best-effort - the reminder is already written.
+  // The student otherwise first hears of it when it falls due. Their mentors are a party to
+  // something set for their mentee, so they are told too - phrased about the student, and never the
+  // person who assigned it. The class's other students are not: a reminder is a nudge to one person,
+  // not a class event. Best-effort - the reminder is already written.
   await notifyBestEffort([parsed.data.assigneeId], {
     kind: 'schedule',
     title: `Reminder assigned: ${parsed.data.title}`,
     link: '/dashboard',
   })
+  await notifyMentorsOfStudentBestEffort(
+    parsed.data.assigneeId,
+    (name) => ({
+      kind: 'schedule',
+      title: `A reminder was assigned to ${name}`,
+      body: parsed.data.title,
+      link: `/students/${parsed.data.assigneeId}`,
+    }),
+    actor.id,
+  )
 }
 
 /** Reminders the actor has assigned to students (their management list). */

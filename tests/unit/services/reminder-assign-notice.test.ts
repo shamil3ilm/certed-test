@@ -13,12 +13,15 @@ vi.mock('@/lib/data/reminders', () => ({
   updateReminderRow: vi.fn(),
 }))
 vi.mock('@/lib/security/throttle', () => ({ throttleWrite: vi.fn() }))
-vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyBestEffort: vi.fn(),
+  notifyMentorsOfStudentBestEffort: vi.fn(),
+}))
 
 import { canManageClass } from '@/lib/permission'
 import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { insertAssignedReminder } from '@/lib/data/reminders'
-import { notifyBestEffort } from '@/lib/services/notifications'
+import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
 import { assignReminderFromActionInput } from '@/lib/services/reminders'
 import { PermissionError, ValidationError } from '@/lib/errors'
 
@@ -64,11 +67,46 @@ describe('assignReminderFromActionInput tells the student', () => {
     await expect(assignReminderFromActionInput(tutor, input)).rejects.toBeInstanceOf(PermissionError)
     expect(insertAssignedReminder).not.toHaveBeenCalled()
     expect(notifyBestEffort).not.toHaveBeenCalled()
+    expect(notifyMentorsOfStudentBestEffort).not.toHaveBeenCalled()
   })
 
   it('tells nobody when the student is not enrolled in that class', async () => {
     vi.mocked(selectActiveClassIdsForStudent).mockResolvedValue([])
     await expect(assignReminderFromActionInput(tutor, input)).rejects.toBeInstanceOf(ValidationError)
     expect(notifyBestEffort).not.toHaveBeenCalled()
+    expect(notifyMentorsOfStudentBestEffort).not.toHaveBeenCalled()
+  })
+})
+
+describe('assignReminderFromActionInput tells the student’s mentors', () => {
+  it('notifies the mentors of that one student, phrased about the student, leaving out the assigner', async () => {
+    await assignReminderFromActionInput(tutor, input)
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledTimes(1)
+    const [studentId, build, exceptId] = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0]
+    expect(studentId).toBe(STUDENT)
+    expect(exceptId).toBe('tutor-1')
+    expect(build('Sara Student')).toEqual({
+      kind: 'schedule',
+      title: 'A reminder was assigned to Sara Student',
+      body: 'Read chapter 4',
+      link: `/students/${STUDENT}`,
+    })
+  })
+
+  it('does not widen the student’s own notice to the mentors', async () => {
+    await assignReminderFromActionInput(tutor, input)
+    expect(notifyBestEffort).toHaveBeenCalledTimes(1)
+    expect(notifyBestEffort).toHaveBeenCalledWith([STUDENT], expect.anything())
+  })
+
+  it('writes first and tells the mentors after', async () => {
+    const order: string[] = []
+    vi.mocked(insertAssignedReminder).mockImplementation(async () => {
+      order.push('write')
+      return {} as never
+    })
+    vi.mocked(notifyMentorsOfStudentBestEffort).mockImplementation(async () => void order.push('mentors'))
+    await assignReminderFromActionInput(tutor, input)
+    expect(order).toEqual(['write', 'mentors'])
   })
 })
