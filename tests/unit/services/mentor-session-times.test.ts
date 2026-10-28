@@ -446,6 +446,31 @@ describe('updateSessionTimes tells the tutor whose pay the hours are', () => {
     expect(notifyBestEffort).toHaveBeenCalledTimes(1)
   })
 
+  it('still tells the tutor when the store updates the row it handed back in place', async () => {
+    // The mock store returns a live row and mutates it on write, so a comparison made AFTER the
+    // write sees the new window on both sides. Postgres would not, but the decision must not rely on it.
+    const live = { ...existing }
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue(live as never)
+    vi.mocked(updateSessionActualTimesAsService).mockImplementation(async (_id, start, end) => {
+      live.actual_start = start as string
+      live.actual_end = end as string
+      return true
+    })
+    await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      ['t1'],
+      expect.objectContaining({ title: 'A session of yours was changed' }),
+    )
+    // And the audit records the window it HAD, not the one it was given.
+    expect(auditPrivilegedAction).toHaveBeenCalledWith(
+      actor,
+      'attendance.session_times',
+      'class_session',
+      'ses1',
+      expect.objectContaining({ before: { actual_start: START, actual_end: END } }),
+    )
+  })
+
   it('has nobody to tell when the session has no tutor', async () => {
     vi.mocked(selectSessionByIdAsService).mockResolvedValue({ ...existing, tutor_id: null } as never)
     await updateSessionTimes(actor, { ...timesBase, startAt: START, endAt: NEW_END })

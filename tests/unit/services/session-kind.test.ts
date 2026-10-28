@@ -348,6 +348,38 @@ describe('saveSessionTimes - telling the tutor whose hours these are', () => {
       expect.objectContaining({ title: 'A session of yours was changed' }),
     )
   })
+
+  it('still tells them when the store updates the row it handed back in place', async () => {
+    // The mock store returns a live row and mutates it on write; comparing against that row after
+    // the write would say nothing changed. Postgres would not, but the answer must not depend on it.
+    asRole(true)
+    const live = {
+      id: SESSION,
+      class_id: 'class-1',
+      kind: 'regular',
+      tutor_id: TUTOR,
+      actual_start: '2026-08-05T10:00:00Z',
+      actual_end: '2026-08-05T11:00:00Z',
+      summary: null,
+      updated_at: 'u1',
+    }
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue(live as never)
+    vi.mocked(updateSessionById).mockImplementation(async (_id, fields) => {
+      Object.assign(live, fields)
+      return live as never
+    })
+    await saveSessionTimes(ADMIN_ACTOR, {
+      ...base,
+      actual_start: '2026-08-05T10:00:00Z',
+      actual_end: '2026-08-05T12:00:00Z',
+      sessionId: SESSION,
+      tutor_id: TUTOR,
+    })
+    expect(notifyBestEffort).toHaveBeenCalledWith(
+      [TUTOR],
+      expect.objectContaining({ title: 'A session of yours was changed' }),
+    )
+  })
 })
 
 describe('saveSessionTimes - the tutor double-booking check', () => {

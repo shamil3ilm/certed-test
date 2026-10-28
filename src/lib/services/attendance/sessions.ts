@@ -185,9 +185,12 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   let before: ClassSession | null = null
   if (rawSessionId) {
     validateUuidField(rawSessionId, 'Invalid session id.')
-    before = await selectSessionByIdAsService(rawSessionId)
-    if (!before) throw new NotFoundError('That session no longer exists.')
-    if (before.class_id !== classId) throw new PermissionError('That session belongs to another class.')
+    const loaded = await selectSessionByIdAsService(rawSessionId)
+    if (!loaded) throw new NotFoundError('That session no longer exists.')
+    if (loaded.class_id !== classId) throw new PermissionError('That session belongs to another class.')
+    // A copy: everything below compares against this AFTER the write, and a store that updates the
+    // row it handed back in place (the mock one does) would otherwise show no change at all.
+    before = { ...loaded }
   }
 
   // What kind of session this is. Absent keeps an edited session as it was and records a new one

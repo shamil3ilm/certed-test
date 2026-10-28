@@ -434,6 +434,14 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
   const tutorAbsent = kindOf(existing) === 'exam' && existing.monitor_id && existing.monitor_id !== existing.tutor_id
   if (!tutorAbsent) await assertNoTutorOverlap(existing.tutor_id, start, end, existing.id)
 
+  // Taken BEFORE the write: the row can be a live object (the mock store hands it back by
+  // reference and updates it in place), so afterwards `existing` already holds the new window and a
+  // comparison against it would report nothing changed.
+  const before = { actual_start: existing.actual_start, actual_end: existing.actual_end }
+  const sameInstant = (a: string | null, b: string | null) =>
+    a === b || (a != null && b != null && new Date(a).getTime() === new Date(b).getTime())
+  const windowChanged = !(sameInstant(before.actual_start, start) && sameInstant(before.actual_end, end))
+
   const saved = await updateSessionActualTimesAsService(
     existing.id,
     start,
@@ -444,16 +452,14 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
     throw new ValidationError('This session was changed by someone else - reload the page and try again.')
   }
   await auditPrivilegedAction(actor, 'attendance.session_times', 'class_session', existing.id, {
-    before: { actual_start: existing.actual_start, actual_end: existing.actual_end },
+    before,
     after: { actual_start: start, actual_end: end },
   })
   // The hours a session records are the tutor's pay - and an exam monitor's, when someone other
   // than the tutor monitored it (0123) - so when someone ELSE changes the window the people paid
   // for it have to hear: otherwise the first they know is a figure that is not what they worked.
   // Only a changed window - saving the same one changes no hours. Best-effort: the session is saved.
-  const sameInstant = (a: string | null, b: string | null) =>
-    a === b || (a != null && b != null && new Date(a).getTime() === new Date(b).getTime())
-  if (!(sameInstant(existing.actual_start, start) && sameInstant(existing.actual_end, end))) {
+  if (windowChanged) {
     const monitorId =
       kindOf(existing) === 'exam' && existing.monitor_id && existing.monitor_id !== existing.tutor_id
         ? existing.monitor_id
