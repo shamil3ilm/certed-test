@@ -290,7 +290,7 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   if (fields.summary && fields.summary !== (before?.summary ?? null)) {
     await notifyClassRoleBestEffort(
       classId,
-      'students',
+      ['students', 'tutors', 'mentors'],
       {
         kind: 'class',
         title: 'A class summary was posted',
@@ -381,7 +381,7 @@ export async function saveSessionFeedback(actor: Profile, input: SaveFeedbackAct
   if (feedback) {
     // The date comes from the session itself, never from the request. Best-effort like the notice.
     const sessionDate = (await selectSessionByIdAsService(sessionId).catch(() => null))?.session_date
-    await notifyClassRoleBestEffort(classId, 'tutors', {
+    await notifyClassRoleBestEffort(classId, ['tutors', 'mentors'], {
       kind: 'class',
       title: 'A student left feedback on a session',
       body: sessionDate ?? null,

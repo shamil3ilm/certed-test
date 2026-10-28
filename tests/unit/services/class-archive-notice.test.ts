@@ -16,7 +16,7 @@ import { selectClassNamesByIdsAsService, updateClassStatus } from '@/lib/data/cl
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { logError } from '@/lib/observability/log'
-import { archiveClass } from '@/lib/services/classes/lifecycle'
+import { archiveClass, restoreClass } from '@/lib/services/classes/lifecycle'
 
 const admin = { id: 'admin-1', role: 'admin', status: 'active' } as never
 
@@ -62,5 +62,51 @@ describe('archiveClass', () => {
 
     expect(updateClassStatus).toHaveBeenCalledWith('class-1', 'archived')
     expect(logError).toHaveBeenCalled()
+  })
+})
+
+/** Restoring is the reverse event - the class comes back for everyone in it at once. */
+describe('restoreClass', () => {
+  it('tells the students, tutors and mentors, linking straight to the class', async () => {
+    await restoreClass(admin, 'class-1')
+
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', ['students', 'tutors', 'mentors'], {
+      kind: 'class',
+      title: 'A class was restored',
+      body: 'Chemistry 12',
+      link: '/classroom/class-1',
+    })
+  })
+
+  it('restores first and notifies second', async () => {
+    const order: string[] = []
+    vi.mocked(updateClassStatus).mockImplementation(async () => void order.push('restore'))
+    vi.mocked(auditPrivilegedAction).mockImplementation(async () => void order.push('audit'))
+    vi.mocked(notifyClassRoleBestEffort).mockImplementation(async () => void order.push('notify'))
+
+    await restoreClass(admin, 'class-1')
+
+    expect(order).toEqual(['restore', 'audit', 'notify'])
+  })
+
+  it('tells no one when the restore is refused', async () => {
+    vi.mocked(updateClassStatus).mockRejectedValue(new Error('refused'))
+
+    await expect(restoreClass(admin, 'class-1')).rejects.toThrow('refused')
+    expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('stays restored when the notice fails', async () => {
+    vi.mocked(selectClassNamesByIdsAsService).mockRejectedValue(new Error('db down'))
+
+    await expect(restoreClass(admin, 'class-1')).resolves.toBeUndefined()
+    expect(logError).toHaveBeenCalledWith(
+      'classes.restoreNotice',
+      expect.any(Error),
+      { classId: 'class-1' },
+      {
+        toSentry: false,
+      },
+    )
   })
 })

@@ -252,11 +252,11 @@ describe('saveSessionTimes - telling the monitor', () => {
 })
 
 describe('saveSessionTimes - telling the student about a summary', () => {
-  it('tells the class student when a summary is first written, not the writer', async () => {
+  it('tells the whole class - student, tutors and mentors - when a summary is first written, not the writer', async () => {
     await saveSessionTimes(actor, { ...base, ...window, summary: 'Covered fractions' })
     expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
       'class-1',
-      'students',
+      ['students', 'tutors', 'mentors'],
       expect.objectContaining({
         title: 'A class summary was posted',
         link: '/classroom/class-1/attendance?date=2026-08-05',

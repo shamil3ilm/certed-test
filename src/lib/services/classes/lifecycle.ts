@@ -61,32 +61,38 @@ export async function archiveClass(actor: Profile, id: string): Promise<void> {
   await requireActorCapability(actor.id, 'manageClasses', 'You are not allowed to manage classes.')
   await updateClassStatus(id, 'archived')
   await auditPrivilegedAction(actor, 'class.archive', 'class', id)
-  await notifyMembersOfArchive(id)
+  await notifyMembersOfClassStatus(id, 'archived')
 }
 
 /**
- * Tell a class's members it was archived.
+ * Tell a class's members it was archived or restored.
  *
  * Archiving stops the class accepting anything (0114) and drops it out of the live lists, so to
- * everyone in it the class simply stops being there. Enrolment and removal both notify now, and
- * this is the same event arriving by another route - the whole class loses it at once.
+ * everyone in it the class simply stops being there; restoring puts it back just as silently.
+ * Enrolment and removal both notify, and this is the same event arriving by another route - the
+ * whole class gains or loses it at once.
  *
- * Best-effort in full, the name lookup included: the class is already archived and audited.
+ * Best-effort in full, the name lookup included: the class is already written and audited.
  */
-async function notifyMembersOfArchive(id: string): Promise<void> {
+async function notifyMembersOfClassStatus(id: string, change: 'archived' | 'restored'): Promise<void> {
   try {
     const [cls] = await selectClassNamesByIdsAsService([id])
     const input = {
       kind: 'class' as const,
-      title: 'A class was archived',
+      title: change === 'archived' ? 'A class was archived' : 'A class was restored',
       body: cls?.name ?? null,
-      // Not the classroom page: an archived class is out of the live lists, and the dashboard is
-      // where the classes someone still has are.
-      link: '/dashboard',
+      // An archived class is out of the live lists, so the dashboard is where the classes someone
+      // still has are; a restored one is live again and opens directly.
+      link: change === 'archived' ? '/dashboard' : `/classroom/${id}`,
     }
     await notifyClassRoleBestEffort(id, ['students', 'tutors', 'mentors'], input)
   } catch (error) {
-    logError('classes.archiveNotice', error, { classId: id }, { toSentry: false })
+    logError(
+      change === 'archived' ? 'classes.archiveNotice' : 'classes.restoreNotice',
+      error,
+      { classId: id },
+      { toSentry: false },
+    )
   }
 }
 
@@ -107,6 +113,7 @@ export async function restoreClass(actor: Profile, id: string): Promise<void> {
     throw error
   }
   await auditPrivilegedAction(actor, 'class.restore', 'class', id)
+  await notifyMembersOfClassStatus(id, 'restored')
 }
 
 export async function restoreClassFromActionInput(actor: Profile, input: ClassIdActionInput): Promise<void> {

@@ -15,6 +15,7 @@ import { selectActiveClassIdsForStudent } from '@/lib/data/class-membership'
 import { PermissionError, ValidationError } from '@/lib/errors'
 import { assignReminderSchema, createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
 import { throttleWrite } from '@/lib/security/throttle'
+import { notifyBestEffort } from '@/lib/services/notifications'
 
 export type Reminder = ReminderRow
 
@@ -171,6 +172,13 @@ export async function assignReminderFromActionInput(actor: Profile, input: Assig
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     remind_at: parsed.data.remind_at,
+  })
+  // The student otherwise first hears of it when it falls due. Only the assignee: a reminder is a
+  // personal nudge, not a class event. Best-effort - the reminder is already written.
+  await notifyBestEffort([parsed.data.assigneeId], {
+    kind: 'schedule',
+    title: `Reminder assigned: ${parsed.data.title}`,
+    link: '/dashboard',
   })
 }
 

@@ -72,12 +72,12 @@ describe('saveSessionFeedback', () => {
     expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
 
-  it('tells the class tutors that the student left feedback, naming the session’s own date', async () => {
+  it('tells the class tutors and mentors that the student left feedback, naming the session’s own date', async () => {
     vi.mocked(selectActiveClassIdsForStudent).mockResolvedValueOnce(['class-1'])
     vi.mocked(studentHasAttendance).mockResolvedValueOnce(true)
     vi.mocked(selectSessionByIdAsService).mockResolvedValueOnce({ id: SES, session_date: '2026-08-05' } as any)
     await saveSessionFeedback(student, { classId: 'class-1', sessionId: SES, feedback: 'Too fast' })
-    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', 'tutors', {
+    expect(notifyClassRoleBestEffort).toHaveBeenCalledWith('class-1', ['tutors', 'mentors'], {
       kind: 'class',
       title: 'A student left feedback on a session',
       body: '2026-08-05',
@@ -92,7 +92,7 @@ describe('saveSessionFeedback', () => {
     await saveSessionFeedback(student, { classId: 'class-1', sessionId: SES, feedback: 'Too fast' })
     expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
       'class-1',
-      'tutors',
+      ['tutors', 'mentors'],
       expect.objectContaining({ body: null, link: '/classroom/class-1/attendance' }),
     )
   })
