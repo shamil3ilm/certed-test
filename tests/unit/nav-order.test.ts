@@ -60,6 +60,7 @@ describe('nav ordering by persona', () => {
       'Calendar',
       'My hours', // their own hours worked; an admin reads everyone's on Class hours
       'Messages',
+      'Pay slips', // their own: a tutor is paid and told when one is issued
     ])
   })
 
@@ -77,6 +78,7 @@ describe('nav ordering by persona', () => {
       'Calendar',
       'My hours',
       'Messages',
+      'Pay slips',
     ])
   })
 
@@ -93,6 +95,7 @@ describe('nav ordering by persona', () => {
       'Calendar',
       'My hours',
       'Messages',
+      'Pay slips',
     ])
   })
 
@@ -105,6 +108,7 @@ describe('nav ordering by persona', () => {
       'Calendar',
       'My hours', // the hours they received, by subject and tutor
       'Messages',
+      'Receipts', // their own: billed for the hours received, and told when one is issued
     ])
   })
 

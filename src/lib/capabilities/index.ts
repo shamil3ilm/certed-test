@@ -77,8 +77,9 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     // riding on general manageUsers. It stays override-grantable, so an admin can
     // delegate it to a sub_admin explicitly and with an audited reason.
     'manageMentorships',
-    // Self-service finance docs default to admin only. Other personas receive
-    // them through explicit capability overrides when needed.
+    // Self-service finance documents. An admin holds both so the Finance hub can open any
+    // person's, but the people the documents are FOR hold their own kind too (below): issuing a
+    // pay slip or a receipt tells its recipient, and the notice links to a page they must be able to open.
     'viewPayslips',
     'viewReceipts',
     'manageAdminTier',
@@ -111,6 +112,8 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewGrading',
     'manageClassContent',
     'manageAttendance',
+    // Their own pay slips: a tutor is paid, and is told when one is issued.
+    'viewPayslips',
     // NOT viewMentees: a plain tutor has no mentee access. It comes only from the
     // (student-scoped) mentor persona, auto-assigned when they're given a
     // mentorship - so a tutor sees /students only when they're also a mentor.
@@ -131,8 +134,11 @@ const PERSONA_CAPABILITIES: Record<string, ReadonlySet<Capability>> = {
     'viewGrading',
     'viewMentees',
     'manageAttendance',
+    // A mentor can be a pay-slip party too (FINANCE_KINDS.payslip.partyRoles).
+    'viewPayslips',
   ]),
-  student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar']),
+  // A student's own receipts: they are billed for the hours they received, and told when one is issued.
+  student: new Set<Capability>(['viewDashboard', 'viewMessages', 'viewClasses', 'viewCalendar', 'viewReceipts']),
   // Reserved personas are intentionally omitted here until the app can assign
   // and route them end to end. An unrecognized persona aggregates to no
   // capabilities (fail-closed).

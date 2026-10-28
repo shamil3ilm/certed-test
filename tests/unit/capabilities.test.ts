@@ -14,9 +14,23 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('sub_admin'), 'manageUsers')).toBe(true)
     expect(hasCapability(profile('sub_admin'), 'viewCalendar')).toBe(true)
     expect(hasCapability(profile('sub_admin'), 'viewFinance')).toBe(false)
-    expect(hasCapability(profile('tutor'), 'viewPayslips')).toBe(false)
-    expect(hasCapability(profile('student'), 'viewReceipts')).toBe(false)
     expect(hasCapability(profile('student'), 'viewGrading')).toBe(false)
+  })
+
+  it('lets each person open their own finance documents, and only their own kind', () => {
+    // Issuing a pay slip or receipt notifies its recipient and links to the page, so the recipient has
+    // to be able to open it without an admin granting an override per person.
+    expect(hasCapability(profile('tutor'), 'viewPayslips')).toBe(true)
+    expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(true)
+    expect(hasCapability(profile('student'), 'viewReceipts')).toBe(true)
+    // A tutor is not billed, a student is not paid.
+    expect(hasCapability(profile('tutor'), 'viewReceipts')).toBe(false)
+    expect(hasCapability(profile('mentor'), 'viewReceipts')).toBe(false)
+    expect(hasCapability(profile('student'), 'viewPayslips')).toBe(false)
+    // The ledger and the audit trail stay with the admin tier.
+    for (const role of ['tutor', 'mentor', 'student'] as const) {
+      expect(hasCapability(profile(role), 'viewFinance')).toBe(false)
+    }
   })
 
   it('manageClassContent (announcements/resources/meet-links) is admin + tutor + sub_admin', () => {
@@ -72,7 +86,8 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('tutor'), 'viewMentees')).toBe(false)
     const caps = getCapabilities([persona('tutor'), persona('mentor')])
     expect(caps.has('viewMentees')).toBe(true) // only from the mentor persona
-    expect(caps.has('viewPayslips')).toBe(false)
+    expect(caps.has('viewPayslips')).toBe(true) // their own pay slips, as a tutor
+    expect(caps.has('viewFinance')).toBe(false)
     expect(caps.has('viewDashboard')).toBe(true)
   })
 
@@ -110,7 +125,6 @@ describe('capabilities model', () => {
     expect(hasCapability(profile('mentor'), 'manageAttendance')).toBe(true)
     expect(hasCapability(profile('mentor'), 'manageCalendar')).toBe(true)
     expect(hasCapability(profile('mentor'), 'manageClassContent')).toBe(false)
-    expect(hasCapability(profile('mentor'), 'viewPayslips')).toBe(false)
     expect(hasCapability(profile('mentor'), 'manageAdminTier')).toBe(false)
   })
 
