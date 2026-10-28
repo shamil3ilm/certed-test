@@ -19,6 +19,17 @@ async function pickRecipient(page: Page, name: string) {
 // A tutor messages one of their students (a valid recipient edge); admins are out
 // of scope for DMs by default, so the sender here is the tutor.
 test('NOTIFICATIONS -- a student is notified of a new message', async ({ page }) => {
+  // Start from an empty unread list. Other specs in the suite notify this student too, and the list
+  // is paged (30 a page): once more than a page is unread, opening one row just pulls the next one
+  // into view and the count never moves, whatever the app did.
+  await loginAs(page, 'student@mock.test')
+  await page.goto('/notifications')
+  const clearAll = page.getByRole('button', { name: 'Mark all read' })
+  if (await clearAll.count()) {
+    await clearAll.click()
+    await expect(clearAll).toHaveCount(0)
+  }
+
   await loginAs(page, 'tutor@mock.test')
   await page.goto('/messages')
   await pickRecipient(page, 'Sara Student')
