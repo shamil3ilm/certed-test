@@ -92,18 +92,19 @@ export async function selectHistoryPageForClass(
   return { items: (data ?? []) as AttendanceRow[], total: count ?? 0 }
 }
 
-/** Which of `classIds` already have ANY mark on `date` - one query instead of
- *  one-per-class (the tutor dashboard's pending-attendance widget). */
-export async function selectMarkedClassIds(classIds: string[], date: string): Promise<string[]> {
+/** The sessions of `classIds` that have at least one mark on `date` - one query instead of
+ *  one-per-class (the tutor dashboard's pending-attendance widget). Session ids, not class ids:
+ *  a class may hold several sessions a day (0093), so "the class has a mark" cannot say which. */
+export async function selectMarkedSessionIdsOn(classIds: string[], date: string): Promise<string[]> {
   if (classIds.length === 0) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('attendance')
-    .select('class_id')
+    .select('session_id')
     .in('class_id', classIds)
     .eq('session_date', date)
-  if (error) throw new Error(`attendance.classIdsMarkedOn: ${error.message}`)
-  return ((data ?? []) as { class_id: string }[]).map((r) => r.class_id)
+  if (error) throw new Error(`attendance.markedSessionIdsOn: ${error.message}`)
+  return [...new Set(((data ?? []) as { session_id: string }[]).map((r) => r.session_id))]
 }
 
 /** One bounded page of a student's history, newest first, with an exact total -

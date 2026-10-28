@@ -6,12 +6,14 @@ import {
   RECENT_CLASS_MARKS_CAP,
   selectForClassDate,
   selectHistoryPageForClass,
-  selectMarkedClassIds,
+  selectMarkedSessionIdsOn,
   selectRecentForClass,
   selectStudentPage,
   type AttendanceRow,
 } from '@/lib/data/attendance'
 import type { AttendanceStatus } from '@/lib/attendance/summary'
+import type { MarkedSession } from '@/lib/attendance/pending-slots'
+import { selectSessionsByIds } from '@/lib/data/class-sessions'
 
 export type AttendanceHistoryFilters = { status?: AttendanceStatus; from?: string; to?: string }
 
@@ -37,10 +39,16 @@ export async function listAttendanceForClassDate(classId: string, date: string):
   return selectForClassDate(classId, date)
 }
 
-/** Which of `classIds` already have ANY attendance recorded on `date` - the
- *  tutor dashboard's pending-attendance widget. */
-export async function classIdsMarkedOn(classIds: string[], date: string): Promise<Set<string>> {
-  return new Set(await selectMarkedClassIds(classIds, date))
+/** The sessions of `classIds` that have any attendance recorded on `date`, with the times they
+ *  ran - the tutor dashboard's pending-attendance widget matches them to the day's slots. */
+export async function markedSessionsOn(classIds: string[], date: string): Promise<MarkedSession[]> {
+  const sessions = await selectSessionsByIds(await selectMarkedSessionIdsOn(classIds, date))
+  return sessions.map((s) => ({
+    id: s.id,
+    class_id: s.class_id,
+    actual_start: s.actual_start,
+    actual_end: s.actual_end,
+  }))
 }
 
 /** Paginated read of a student's own attendance history, so the record page

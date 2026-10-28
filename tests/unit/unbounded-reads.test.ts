@@ -190,8 +190,9 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'the true total beside it so the cap is stated rather than silent.',
   'src/lib/data/attendance.ts:selectForClassDate':
     'One class on ONE date - at most one mark per enrolled student. Bounded by the roster.',
-  'src/lib/data/attendance.ts:selectMarkedClassIds':
-    'Which of a NAMED set of classes have marks on ONE date. Bounded by the class list the ' + 'caller already holds.',
+  'src/lib/data/attendance.ts:selectMarkedSessionIdsOn':
+    'Which sessions of a NAMED set of classes have marks on ONE date. Bounded by the class list the ' +
+    'caller already holds.',
   'src/lib/data/attendance.ts:selectJoinRowsForSessionsAsService':
     'Bounded by construction: at most one PAGE of session ids goes in, each carrying one ' +
     'mark per enrolled student. It replaced a by-class read that did truncate.',

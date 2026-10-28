@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   selectForClassDate,
   selectHistoryPageForClass,
-  selectMarkedClassIds,
+  selectMarkedSessionIdsOn,
   selectStudentPage,
   countStatusesForStudent,
   selectRecentForClass,
@@ -39,12 +39,13 @@ describe('attendance data layer', () => {
     await expect(selectForClassDate('c1', 'd')).rejects.toThrow(/attendance.listForClassDate: e/)
   })
 
-  it('selectMarkedClassIds short-circuits on [] and otherwise maps to class ids', async () => {
-    expect(await selectMarkedClassIds([], 'd')).toEqual([])
+  it('selectMarkedSessionIdsOn short-circuits on [] and otherwise returns each marked session once', async () => {
+    expect(await selectMarkedSessionIdsOn([], 'd')).toEqual([])
+    // Two students marked in one session, one in another: sessions, not marks.
     vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({ data: [{ class_id: 'c1' }, { class_id: 'c2' }], error: null }) as any,
+      makeClient({ data: [{ session_id: 's1' }, { session_id: 's1' }, { session_id: 's2' }], error: null }) as any,
     )
-    expect(await selectMarkedClassIds(['c1', 'c2'], 'd')).toEqual(['c1', 'c2'])
+    expect(await selectMarkedSessionIdsOn(['c1', 'c2'], 'd')).toEqual(['s1', 's2'])
   })
 
   it('selectStudentPage returns items + an exact total, and throws on error', async () => {

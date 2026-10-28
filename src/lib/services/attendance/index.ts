@@ -12,7 +12,7 @@ export type { AttendanceStatus, AttendanceSummary } from '@/lib/attendance/summa
 
 export {
   listAttendanceForClassDate,
-  classIdsMarkedOn,
+  markedSessionsOn,
   listAttendanceForStudentPage,
   summarizeAttendanceForStudent,
   listSessionSummariesForClass,

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
-import { classIdsMarkedOn } from '@/lib/services/attendance'
+import { markedSessionsOn } from '@/lib/services/attendance'
+import { pendingSlots } from '@/lib/attendance/pending-slots'
 import { listAssignments } from '@/lib/services/assignments'
 import { listMyPastReminders, listMyReminders } from '@/lib/services/reminders'
 import { listRecentResourcesForClasses } from '@/lib/services/resources'
@@ -72,8 +73,7 @@ export async function PendingAttendanceWidget({ me, data }: { me: Profile; data?
     : []
   const today = todayInZone(timeZone)
   const todayClassIds = [...new Set(todaySlots.map((slot) => slot.class_id))]
-  const markedIds = await classIdsMarkedOn(todayClassIds, today)
-  const pending = todaySlots.filter((slot) => !markedIds.has(slot.class_id))
+  const pending = pendingSlots(todaySlots, await markedSessionsOn(todayClassIds, today), today, timeZone)
 
   return (
     <Panel title="Pending attendance">
