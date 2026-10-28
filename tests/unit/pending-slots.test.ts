@@ -87,6 +87,18 @@ describe('pendingSlots', () => {
     expect(ids(pendingSlots([offDay], [], TODAY, TZ))).toEqual(['off'])
   })
 
+  it('says when each pending slot starts today, as an instant the viewer can read in their own zone', () => {
+    const [first] = pendingSlots([EVENING], [], TODAY, TZ)
+    expect(first.startIso).toBe('2026-08-05T16:00:00.000Z')
+  })
+
+  it('gives a slot with no window today no instant, only its own wall-clock time', () => {
+    const offDay = slot('off', 'c1', '09:00:00', '10:00:00', 5)
+    const [row] = pendingSlots([offDay], [], TODAY, TZ)
+    expect(row.startIso).toBeNull()
+    expect(row.start_time).toBe('09:00:00')
+  })
+
   it('returns nothing for no slots', () => {
     expect(pendingSlots([], [timed('s1', 'c1', '09:00', '10:00')], TODAY, TZ)).toEqual([])
   })

@@ -11,6 +11,7 @@ import { getProfileNamesByIds } from '@/lib/services/users'
 import { todayDayOfWeekInZone, todayInZone } from '@/lib/time/format'
 import { Panel, cx } from '@/lib/ui'
 import { LocalTime } from '../LocalTime'
+import { hhmm } from '../calendar/timetable/types'
 import { ReminderPanel } from './ReminderPanel'
 import {
   type ClassScopedWidgetData,
@@ -87,7 +88,9 @@ export async function PendingAttendanceWidget({ me, data }: { me: Profile; data?
             <li key={slot.id}>
               <Link href={`/classroom/${slot.class_id}/attendance`} className={WIDGET_ROW_LINK}>
                 <span className="min-w-0 truncate font-medium">{slot.subject}</span>
-                <span className={WIDGET_ROW_META}>{slot.start_time}</span>
+                <span className={WIDGET_ROW_META}>
+                  {slot.startIso ? <LocalTime iso={slot.startIso} mode="time" /> : hhmm(slot.start_time)}
+                </span>
               </Link>
             </li>
           ))}

@@ -12,6 +12,10 @@ export type MarkedSession = {
 
 export type PendingSlotInput = ExpandableSlot & { class_id: string }
 
+/** A pending slot with when it starts today, as an absolute instant; null for a slot with no window
+ *  today (anchored to another zone), which has only its own wall-clock time to show. */
+export type PendingSlot<S> = S & { startIso: string | null }
+
 /**
  * Today's timetable slots that nobody has taken attendance for yet.
  *
@@ -32,7 +36,7 @@ export function pendingSlots<S extends PendingSlotInput>(
   marked: readonly MarkedSession[],
   today: string,
   timeZone: string,
-): S[] {
+): Array<PendingSlot<S>> {
   if (slots.length === 0) return []
 
   const startIso = new Date(zonedDayStartMs(today, timeZone)).toISOString()
@@ -71,5 +75,8 @@ export function pendingSlots<S extends PendingSlotInput>(
 
   const hasWindow = new Set(occurrences.map((o) => o.slotId))
   const markedClasses = new Set(marked.map((m) => m.class_id))
-  return slots.filter((slot) => !filled.has(slot.id) && !(!hasWindow.has(slot.id) && markedClasses.has(slot.class_id)))
+  const startOf = new Map(occurrences.map((o) => [o.slotId, o.startIso]))
+  return slots
+    .filter((slot) => !filled.has(slot.id) && !(!hasWindow.has(slot.id) && markedClasses.has(slot.class_id)))
+    .map((slot) => ({ ...slot, startIso: startOf.get(slot.id) ?? null }))
 }
