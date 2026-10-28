@@ -112,7 +112,7 @@ export async function AssignmentCard({
                 className="btn btn-sm btn-warning"
                 variant="danger"
                 title="Archive this classwork?"
-                message={`"${assignment.title}" stops appearing in every student's classwork list. You can restore it later.`}
+                message={`"${assignment.title}" stays on the class page for students, marked archived and read-only; their submissions and marks are kept. You can restore it later.`}
                 confirmLabel="Archive"
                 pendingLabel="Archiving..."
               >

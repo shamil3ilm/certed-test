@@ -92,7 +92,8 @@ describe('addTutor / removeTutor are admin-only', () => {
       'class-1',
       ['students', 'mentors'],
       expect.objectContaining({ title: 'A tutor was added to your class', body: 'Tara Tutor' }),
-      'admin-1',
+      // Neither the admin who did it nor the tutor, who was told in person above.
+      ['admin-1', 'tutor-2'],
     )
   })
 
@@ -107,7 +108,7 @@ describe('addTutor / removeTutor are admin-only', () => {
       'class-1',
       ['students', 'mentors'],
       expect.objectContaining({ title: 'A tutor was removed from your class' }),
-      'admin-1',
+      ['admin-1', 'tutor-2'],
     )
   })
 

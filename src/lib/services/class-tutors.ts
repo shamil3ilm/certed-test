@@ -94,7 +94,8 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
       body: tutor.full_name ?? tutor.email,
       link: `/classroom/${params.classId}`,
     },
-    actor.id,
+    // Not the tutor either: they were told directly above, and may be a mentor of the class's student.
+    [actor.id, params.tutorId],
   )
 }
 
@@ -127,7 +128,7 @@ export async function removeTutor(actor: Profile, params: ClassTutorParams): Pro
       title: 'A tutor was removed from your class',
       link: `/classroom/${params.classId}`,
     },
-    actor.id,
+    [actor.id, params.tutorId],
   )
 }
 

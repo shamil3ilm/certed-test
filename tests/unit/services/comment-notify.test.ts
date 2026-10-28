@@ -9,6 +9,7 @@ vi.mock('@/lib/data/assignments', () => ({ selectAssignmentClassIdAsService: vi.
 vi.mock('@/lib/services/notifications', () => ({
   notifyBestEffort: vi.fn(),
   notifyClassRoleBestEffort: vi.fn(),
+  notifyMentorsOfStudentBestEffort: vi.fn(),
 }))
 vi.mock('@/lib/services/classes', () => ({ getClassMembers: vi.fn() }))
 vi.mock('@/lib/observability/log', () => ({ logError: vi.fn() }))
@@ -18,7 +19,11 @@ import { selectResourceClassIdAsService } from '@/lib/data/resources'
 import { selectSubmissionOwnerAsService } from '@/lib/data/submissions'
 import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
 import { getClassMembers } from '@/lib/services/classes'
-import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
+import {
+  notifyBestEffort,
+  notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
+} from '@/lib/services/notifications'
 import { logError } from '@/lib/observability/log'
 import { notifyCommentThread } from '@/lib/services/comment-notify'
 
@@ -60,6 +65,28 @@ describe('notifyCommentThread - a submission has two sides', () => {
       link: '/classroom/class-1/classwork',
     })
     expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
+  })
+
+  it("also tells the student's mentors when the student comments, naming the student", async () => {
+    await notifyCommentThread('submission', 'sub-1', 'stud-1', 'Is the second part needed?')
+    expect(notifyMentorsOfStudentBestEffort).toHaveBeenCalledTimes(1)
+    const [studentId, build, except] = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0]
+    expect(studentId).toBe('stud-1')
+    expect(build('Sara Student')).toEqual({
+      kind: 'submission',
+      title: 'Sara Student commented on their submission',
+      body: 'Is the second part needed?',
+      link: '/classroom/class-1/classwork',
+    })
+    expect(except).toBeUndefined()
+  })
+
+  it("also tells the student's mentors when a tutor answers, but not the author if they mentor too", async () => {
+    await notifyCommentThread('submission', 'sub-1', 'tutor-9', 'Yes - show your working.')
+    const [studentId, build, except] = vi.mocked(notifyMentorsOfStudentBestEffort).mock.calls[0]
+    expect(studentId).toBe('stud-1')
+    expect(build('Sara Student').title).toBe("New comment on Sara Student's work")
+    expect(except).toBe('tutor-9')
   })
 
   it('says nothing about a submission that no longer exists', async () => {

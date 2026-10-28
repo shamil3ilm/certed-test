@@ -187,6 +187,30 @@ describe('notifyClassRoleBestEffort', () => {
     ])
   })
 
+  it('can leave out several people, such as the actor and someone told in person', async () => {
+    vi.mocked(getClassMembers).mockResolvedValue({
+      tutors: [{ id: 't-1' }, { id: 'm-1' }],
+      students: [{ id: 's-1' }],
+    } as any)
+    // m-1 is a tutor of the class AND the student's mentor, and has just been told directly.
+    vi.mocked(selectActiveMentorshipsForStudents).mockResolvedValue([
+      { student_id: 's-1', mentor_id: 'm-1' },
+      { student_id: 's-1', mentor_id: 'm-2' },
+    ] as any)
+    const client = makeClient({ data: null, error: null })
+    vi.mocked(createAdminClient).mockReturnValue(client as any)
+    await notifyClassRoleBestEffort('class-1', ['students', 'tutors', 'mentors'], { kind: 'class', title: 'x' }, [
+      't-1',
+      'm-1',
+      null,
+    ])
+    const builder = client.from.mock.results[0].value
+    expect(builder.insert).toHaveBeenCalledWith([
+      expect.objectContaining({ profile_id: 's-1' }),
+      expect.objectContaining({ profile_id: 'm-2' }),
+    ])
+  })
+
   it('swallows a membership-lookup failure (best-effort - never fails the caller)', async () => {
     vi.mocked(getClassMembers).mockRejectedValue(new Error('boom'))
     await expect(

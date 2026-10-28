@@ -5,7 +5,11 @@ import { selectMeetLinkClassIdAsService } from '@/lib/data/meet-links'
 import { selectAnnouncementClassIdAsService } from '@/lib/data/announcements'
 import { selectSubmissionOwnerAsService } from '@/lib/data/submissions'
 import { selectAssignmentClassIdAsService } from '@/lib/data/assignments'
-import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
+import {
+  notifyBestEffort,
+  notifyClassRoleBestEffort,
+  notifyMentorsOfStudentBestEffort,
+} from '@/lib/services/notifications'
 import { getClassMembers } from '@/lib/services/classes'
 import { logError } from '@/lib/observability/log'
 
@@ -22,8 +26,9 @@ const BODY_CHARS = 140
  * Who is told depends on what the thread hangs from, and each rule is the notification side of
  * that entity's read rule (see comment-auth.ts - the same lookups, for the same reason):
  *
- *   SUBMISSION - two parties, so it is the OTHER one. The owner writes, the class's tutors hear;
- *     a tutor writes, the owner hears. Never a classmate: they cannot read the submission.
+ *   SUBMISSION - two parties, so it is the OTHER one, and the owner's mentors with them. The owner
+ *     writes, the class's tutors hear; a tutor writes, the owner hears. Never a classmate: they
+ *     cannot read the submission.
  *   RESOURCE / MEET / ANNOUNCEMENT - a class-wide item, where notifying the whole class on every
  *     comment would make the thread a reason to mute notifications. So: the people ALREADY IN
  *     the thread, which is what a reply is answering. The first comment on an item therefore
@@ -65,6 +70,12 @@ async function notifySubmissionThread(submissionId: string, authorId: string, bo
       body,
       link,
     })
+    await notifyMentorsOfStudentBestEffort(submission.student_id, (name) => ({
+      kind: 'submission',
+      title: `${name} commented on their submission`,
+      body,
+      link,
+    }))
     return
   }
   await notifyBestEffort([submission.student_id], {
@@ -73,6 +84,12 @@ async function notifySubmissionThread(submissionId: string, authorId: string, bo
     body,
     link,
   })
+  // The mentor follows their mentee's work: the author is left out if they are one themselves.
+  await notifyMentorsOfStudentBestEffort(
+    submission.student_id,
+    (name) => ({ kind: 'submission', title: `New comment on ${name}'s work`, body, link }),
+    authorId,
+  )
 }
 
 const ENTITY_KIND = {

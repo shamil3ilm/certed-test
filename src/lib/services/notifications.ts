@@ -150,14 +150,15 @@ type ClassAudience = 'students' | 'tutors' | 'mentors'
  * fail because of a notification, so this owns both the membership fetch and the never-throw
  * contract in one place.
  *
- * `exceptId` leaves out whoever made the change - they were there. A person in two audiences is
- * told once.
+ * `exceptId` leaves out whoever made the change - they were there - and anyone else who has been told
+ * in person (a tutor just added to a class hears so directly, not again as one of its mentors). A person
+ * in two audiences is told once.
  */
 export async function notifyClassRoleBestEffort(
   classId: string,
   audience: ClassAudience | ClassAudience[],
   input: NotifyInput,
-  exceptId?: string | null,
+  exceptId?: string | null | ReadonlyArray<string | null | undefined>,
 ): Promise<void> {
   try {
     const audiences = Array.isArray(audience) ? audience : [audience]
@@ -171,7 +172,7 @@ export async function notifyClassRoleBestEffort(
         for (const member of members[role]) ids.add(member.id)
       }
     }
-    if (exceptId) ids.delete(exceptId)
+    for (const id of Array.isArray(exceptId) ? exceptId : [exceptId]) if (id) ids.delete(id)
     await notifyBestEffort([...ids], input)
   } catch (error) {
     // best-effort - never fail the caller's core action, but log the failure.
