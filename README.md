@@ -1,6 +1,6 @@
 # Cert-Ed Academia LMS
 
-Last Updated By: Shamil
+Last Updated By: Cert-Ed Dev Team
 
 Two applications share this repository and are split by host:
 
