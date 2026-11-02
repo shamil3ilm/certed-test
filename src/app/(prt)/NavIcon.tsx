@@ -50,6 +50,15 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M9.5 3.5h5M12 3.5v3" />
     </>
   ),
+  // My hours: personal working hours (user silhouette with clock).
+  '/my-hours': (
+    <>
+      <circle cx="9" cy="7" r="3" />
+      <path d="M2.5 19a5.5 5.5 0 0 1 10.2-2.8" />
+      <circle cx="16.5" cy="16.5" r="5" />
+      <path d="M16.5 14v2.5l1.5 1" />
+    </>
+  ),
   '/calendar': (
     <>
       <rect x="3.5" y="5" width="17" height="15" rx="2" />

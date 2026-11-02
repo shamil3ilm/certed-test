@@ -49,4 +49,11 @@ describe('nav dead-route guardrail', () => {
     // out without one.
     expect(renderToStaticMarkup(createElement(NavIcon, { href })), `${href} has no NavIcon entry`).not.toBe('')
   })
+
+  it('renders an icon for personal nav items like /my-hours that are omitted for oversight actors', () => {
+    expect(
+      renderToStaticMarkup(createElement(NavIcon, { href: '/my-hours' })),
+      '/my-hours has no NavIcon entry',
+    ).not.toBe('')
+  })
 })

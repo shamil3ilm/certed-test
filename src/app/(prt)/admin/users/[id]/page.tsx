@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Profile } from '@/lib/auth/profile'
 import { requireCapability } from '@/lib/auth/require-role'
@@ -97,10 +98,17 @@ async function TutorRoster({ tutorId }: { tutorId: string }) {
   const roster = await loadTutorRoster(tutorId)
   return (
     <Card className="p-4">
-      <h2 className="text-base font-semibold text-slate-900">Students &amp; subjects</h2>
-      <p className="mt-0.5 text-xs text-slate-600">
-        Assigned from each student&apos;s page. To change these, open the student and edit their subjects.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Students &amp; subjects</h2>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Assigned from each student&apos;s page. To change these, open the student and edit their subjects.
+          </p>
+        </div>
+        <Link href={`/admin/teaching-hours/person/${tutorId}`} className="btn btn-sm btn-soft">
+          View hours worked
+        </Link>
+      </div>
       {roster.length === 0 ? (
         <EmptyState className="mt-3">Not assigned to any student yet.</EmptyState>
       ) : (
