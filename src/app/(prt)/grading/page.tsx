@@ -1,43 +1,10 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireCapability } from '@/lib/auth/require-role'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { loadClassroomPageData } from '@/lib/services/page-data/classroom'
 import { StudentGroup } from '../classroom/StudentGroup'
-import {
-  CLASS_BANNER,
-  CARD,
-  EmptyState,
-  FilterBar,
-  PageHeader,
-  PaginationBar,
-  RowChevron,
-  SearchFilterField,
-  cx,
-} from '@/lib/ui'
-
-function GradingClassCard({ id, name, status }: { id: string; name: string; status: string }) {
-  return (
-    <Link
-      href={`/classroom/${id}/grading`}
-      className={cx(CARD, 'group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md')}
-    >
-      <div className={`relative bg-gradient-to-br ${CLASS_BANNER} p-4 sm:p-5`}>
-        <h3 className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{name}</h3>
-        <p className="mt-0.5 text-xs font-medium text-white/80">
-          {status === 'archived' ? 'Archived' : 'Active class'}
-        </p>
-        <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
-          {name.slice(0, 1).toUpperCase()}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-600 sm:px-5">
-        <span className="font-medium text-slate-700">Open grading</span>
-        <RowChevron className="ml-auto shrink-0" />
-      </div>
-    </Link>
-  )
-}
+import { ClassCard } from '../classroom/ClassCard'
+import { EmptyState, FilterBar, PageHeader, PaginationBar, SearchFilterField } from '@/lib/ui'
 
 /** A /grading URL carrying the search, so paging never drops it. */
 function gradingUrl(q: string, page: number): string {
@@ -102,13 +69,13 @@ export default async function GradingPage(props: { searchParams?: Promise<{ page
               open
             >
               {g.classes.map((course) => (
-                <GradingClassCard
+                <ClassCard
                   key={course.id}
-                  id={course.id}
-                  // The SUBJECT: the group heading already names the student, and the stored class name
-                  // would print them again - under whatever name they had when the class was created.
-                  name={subjectByClass.get(course.id) ?? course.name}
-                  status={course.status}
+                  c={course}
+                  grouped
+                  subjectName={subjectByClass.get(course.id) ?? course.name}
+                  href={`/classroom/${course.id}/grading`}
+                  actionLabel="Open grading"
                 />
               ))}
             </StudentGroup>

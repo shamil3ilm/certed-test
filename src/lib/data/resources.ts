@@ -97,6 +97,7 @@ export async function selectDocumentSearchPage(opts: {
   search?: string
   category?: DocumentCategory
   subject?: string
+  visibility?: DocumentVisibility
   dateFrom?: string
   dateTo?: string
   sort?: 'latest' | 'oldest'
@@ -108,6 +109,7 @@ export async function selectDocumentSearchPage(opts: {
     .eq('status', 'active')
     .order('created_at', { ascending: opts.sort === 'oldest' })
   if (opts.category) query = query.eq('category', opts.category)
+  if (opts.visibility) query = query.eq('visibility', opts.visibility)
   if (opts.dateFrom) query = query.gte('created_at', opts.dateFrom)
   if (opts.dateTo) query = query.lte('created_at', opts.dateTo)
   const subject = opts.subject?.trim()

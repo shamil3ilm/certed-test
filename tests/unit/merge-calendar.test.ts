@@ -291,4 +291,26 @@ describe('mergeCalendar', () => {
     }
     expect(mergeCalendar(other).find((i) => i.source === 'slot')).toBeDefined() // not suppressed
   })
+
+  it('includes reminders scheduled in the window as items with source reminder', () => {
+    const withReminder: MergeInput = {
+      ...input,
+      reminders: [
+        {
+          id: 'rem-1',
+          title: 'Review homework with student',
+          remind_at: '2026-07-06T09:00:00.000Z',
+          class_id: 'c-1',
+        },
+      ],
+      classLabels: { 'c-1': 'Aarav' },
+    }
+    const items = mergeCalendar(withReminder)
+    const reminderItem = items.find((i) => i.id === 'reminder-rem-1')
+    expect(reminderItem).toBeDefined()
+    expect(reminderItem?.source).toBe('reminder')
+    expect(reminderItem?.title).toBe('Reminder: Review homework with student · Aarav')
+    expect(reminderItem?.start).toBe('2026-07-06T09:00:00.000Z')
+    expect(reminderItem?.kind).toBe('reminder')
+  })
 })

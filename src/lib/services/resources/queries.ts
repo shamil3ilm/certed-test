@@ -9,7 +9,7 @@ import {
   type ResourceRow,
 } from '@/lib/data/resources'
 import { selectVersionsForResources, type ResourceVersionRow } from '@/lib/data/resource-versions'
-import type { DocumentCategory } from '@/lib/documents/categories'
+import type { DocumentCategory, DocumentVisibility } from '@/lib/documents/categories'
 import { listClassesByIds } from '@/lib/services/classes'
 
 /** Reading the document library. RLS scopes every read to the documents the caller may see -
@@ -71,6 +71,7 @@ export async function searchDocuments(opts: {
   search?: string
   category?: DocumentCategory
   subject?: string
+  visibility?: DocumentVisibility
   dateFrom?: string
   dateTo?: string
   sort?: 'latest' | 'oldest'
@@ -80,6 +81,7 @@ export async function searchDocuments(opts: {
     search: opts.search,
     category: opts.category,
     subject: opts.subject,
+    visibility: opts.visibility,
     dateFrom: opts.dateFrom,
     dateTo: opts.dateTo,
     sort: opts.sort ?? 'latest',

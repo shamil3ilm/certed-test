@@ -91,6 +91,7 @@ export type SessionTimingFilters = {
   classId?: string
   subjectId?: string
   tutorId?: string
+  kind?: string
   /** Inclusive 'YYYY-MM-DD' bounds on session_date. */
   from?: string
   to?: string

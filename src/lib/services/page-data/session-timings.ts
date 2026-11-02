@@ -3,6 +3,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { isUuid } from '@/lib/validation/id'
 import { isCalendarDate } from '@/lib/time/format'
+import { isSessionKind } from '@/lib/attendance/session-kind'
 import {
   listMenteeSessionTimings,
   listSessionTimingsByStudents,
@@ -49,6 +50,7 @@ export type SessionTimingSearchParams = {
   student?: string
   subject?: string
   tutor?: string
+  kind?: string
   classId?: string
   from?: string
   to?: string
@@ -59,6 +61,7 @@ export type SessionTimingFilterState = {
   student: string
   subject: string
   tutor: string
+  kind: string
   classId: string
   from: string
   to: string
@@ -98,6 +101,7 @@ export function sessionTimingsUrl(
   if (next.student) sp.set('student', next.student)
   if (next.subject) sp.set('subject', next.subject)
   if (next.tutor) sp.set('tutor', next.tutor)
+  if (next.kind) sp.set('kind', next.kind)
   if (next.classId) sp.set('classId', next.classId)
   if (next.from) sp.set('from', next.from)
   if (next.to) sp.set('to', next.to)
@@ -132,17 +136,25 @@ export async function loadSessionTimingsPageData(
   searchParams?: SessionTimingSearchParams,
 ): Promise<SessionTimingsPageData> {
   const student = uuidParam(searchParams?.student)
+  const kind = isSessionKind(searchParams?.kind) ? searchParams.kind : ''
   const filters: SessionTimingFilterState = {
     page: parsePageParam(searchParams?.page),
     student,
     subject: uuidParam(searchParams?.subject),
     tutor: uuidParam(searchParams?.tutor),
+    kind,
     classId: uuidParam(searchParams?.classId),
     from: dateParam(searchParams?.from),
     to: dateParam(searchParams?.to),
   }
   const hasActiveFilters = Boolean(
-    filters.student || filters.subject || filters.tutor || filters.classId || filters.from || filters.to,
+    filters.student ||
+    filters.subject ||
+    filters.tutor ||
+    filters.kind ||
+    filters.classId ||
+    filters.from ||
+    filters.to,
   )
 
   // A student narrows to THEIR classes. One student has a handful, so this stays a short
@@ -152,6 +164,7 @@ export async function loadSessionTimingsPageData(
     classId: filters.classId || undefined,
     subjectId: filters.subject || undefined,
     tutorId: filters.tutor || undefined,
+    kind: filters.kind || undefined,
     from: filters.from || undefined,
     to: filters.to || undefined,
   }

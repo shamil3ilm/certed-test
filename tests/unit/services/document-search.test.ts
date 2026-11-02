@@ -76,18 +76,38 @@ describe('loadDocumentSearchPageData', () => {
   it('ignores an unknown category and reports no active filters on a clean search', async () => {
     vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
     vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
-    const data = await loadDocumentSearchPageData({ cat: 'made_up' })
+    const data = await loadDocumentSearchPageData({ cat: 'made_up', vis: 'invalid' })
     expect(data.filters.category).toBe('')
+    expect(data.filters.visibility).toBe('')
     expect(data.hasActiveFilters).toBe(false)
+  })
+
+  it('forwards visibility filter into the query', async () => {
+    vi.mocked(selectDocumentSearchPage).mockResolvedValueOnce({ items: [], total: 0 } as any)
+    vi.mocked(listClassesByIds).mockResolvedValueOnce([] as any)
+    const data = await loadDocumentSearchPageData({ vis: 'staff' })
+    expect(data.filters.visibility).toBe('staff')
+    expect(data.hasActiveFilters).toBe(true)
+    expect(selectDocumentSearchPage).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'staff' }))
   })
 })
 
 describe('documentSearchUrl', () => {
   it('omits defaults and carries only active filters + a non-first page', () => {
-    const base = { page: 1, q: '', category: '' as const, subject: '', from: '', to: '', sort: 'latest' as const }
+    const base = {
+      page: 1,
+      q: '',
+      category: '' as const,
+      subject: '',
+      visibility: '' as const,
+      from: '',
+      to: '',
+      sort: 'latest' as const,
+    }
     expect(documentSearchUrl(base)).toBe('/documents')
     expect(documentSearchUrl(base, { q: 'algebra', page: 2 })).toBe('/documents?page=2&q=algebra')
     expect(documentSearchUrl(base, { sort: 'oldest' })).toBe('/documents?sort=oldest')
+    expect(documentSearchUrl(base, { visibility: 'staff' })).toBe('/documents?vis=staff')
   })
 })
 

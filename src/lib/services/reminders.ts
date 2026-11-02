@@ -5,6 +5,7 @@ import {
   markSent,
   selectReminderParties,
   selectPendingForUser,
+  selectRemindersInRangeForUser,
   selectSentForUser,
   updateReminderRow,
   type ReminderRow,
@@ -50,6 +51,11 @@ export async function listMyReminders(userId: string): Promise<Reminder[]> {
 /** Reminders the user has marked done, most recently done first. */
 export async function listMyPastReminders(userId: string, limit = 20): Promise<Reminder[]> {
   return selectSentForUser(userId, limit)
+}
+
+/** Reminders scheduled for this user within an absolute UTC window [startIso, endIso). */
+export async function listMyRemindersInRange(userId: string, startIso: string, endIso: string): Promise<Reminder[]> {
+  return selectRemindersInRangeForUser(userId, startIso, endIso)
 }
 
 /**

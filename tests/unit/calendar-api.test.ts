@@ -73,6 +73,11 @@ vi.mock('@/lib/services/held-sessions', () => ({
   listHeldSessionsInRange: (...a: unknown[]) => listHeldSessionsInRange(...a),
 }))
 
+const listMyRemindersInRange = vi.fn(async (..._a: any[]) => [] as any[])
+vi.mock('@/lib/services/reminders', () => ({
+  listMyRemindersInRange: (...a: unknown[]) => listMyRemindersInRange(...a),
+}))
+
 import { GET } from '@/app/api/calendar/route'
 
 const req = (qs: string) => new Request(`http://t/api/calendar${qs}`)

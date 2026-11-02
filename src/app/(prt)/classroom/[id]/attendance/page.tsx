@@ -335,9 +335,7 @@ export default async function AttendancePage(props: {
                       Session {index + 1} of {sessionsForForm.length}
                     </span>
                     {tutorName && <span>&middot; {tutorName}</span>}
-                    {/* The SESSION's subject, stamped when it was recorded (0104) - so a class
-                        re-pointed to a new subject keeps its history labelled correctly. */}
-                    {/* The SESSION's subject and explicit session type badge (Regular, Demo, Exam) */}
+                    {/* The session's stamped subject (0104) and explicit type badge (Regular, Demo, Exam) */}
                     {session.subject_id && <Badge>{data.subjectNames.get(session.subject_id) ?? 'Subject'}</Badge>}
                     <Badge tone={kindOf(session) === 'exam' ? 'warning' : 'slate'}>
                       {SESSION_KIND_LABELS[kindOf(session)]}

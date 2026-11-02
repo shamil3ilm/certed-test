@@ -38,7 +38,7 @@ function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): stri
   return new Date(guess).toISOString()
 }
 
-type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet' | 'session'
+type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet' | 'session' | 'reminder'
 
 export type CalendarItem = {
   id: string // source-prefixed, stable
@@ -48,7 +48,7 @@ export type CalendarItem = {
   end: string | null
   allDay: boolean
   classId: string | null
-  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet' | 'session'
+  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet' | 'session' | 'reminder'
   location?: string | null
   /** For an assignment-source item, the classwork type (assignment/exam/quiz/...). */
   type?: AssignmentType
@@ -74,6 +74,8 @@ export type MergeInput = {
   meets?: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
   /** Sessions recorded in the window - what actually happened, as against the timetable's plan. */
   sessions?: HeldSession[]
+  /** Reminders scheduled within the window for this user. */
+  reminders?: Array<{ id: string; title: string; remind_at: string; class_id: string | null }>
   /** Optional classId -> human label (e.g. the enrolled student's name). When
    *  present, exam events and assignment deadlines get " · {label}" appended so a
    *  viewer who sees many classes (tutor/mentor/admin) can tell them apart. Omitted
@@ -220,6 +222,21 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       classId: session.class_id,
       kind: 'session',
       held: true,
+    })
+  }
+
+  for (const r of input.reminders ?? []) {
+    const label = r.class_id ? input.classLabels?.[r.class_id] : undefined
+    const base = `Reminder: ${r.title}`
+    items.push({
+      id: `reminder-${r.id}`,
+      source: 'reminder',
+      title: label ? `${base} · ${label}` : base,
+      start: r.remind_at,
+      end: null,
+      allDay: false,
+      classId: r.class_id,
+      kind: 'reminder',
     })
   }
 

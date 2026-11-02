@@ -16,6 +16,7 @@ const KIND_META: Record<string, { label: string; className: string }> = {
   resource: { label: 'Document', className: 'bg-slate-100 text-slate-700' },
   attendance: { label: 'Attendance', className: 'bg-success-surface text-success-ink' },
   schedule: { label: 'Schedule', className: 'bg-danger-surface text-danger-ink' },
+  reminder: { label: 'Reminder', className: 'bg-warning-surface text-warning-ink' },
   // Non-classroom kinds: what happened to an account, its credentials, its money, its
   // mentorships and its class membership. Every kind needs an entry here - the feed falls back
   // to the raw kind string for an unknown one, and the Type filter is built from these keys.

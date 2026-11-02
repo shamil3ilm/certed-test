@@ -68,6 +68,7 @@ describe('session-timings filters: a malformed URL narrows nothing, it does not 
     ['subject', 'not-a-uuid'],
     ['tutor', "'; drop table class_sessions;--"],
     ['student', '12345'],
+    ['kind', 'invalid-kind'],
     ['classId', 'null'],
   ])('drops a malformed %s rather than passing it to the query', async (key, value) => {
     const data = await loadSessionTimingsPageData(ACTOR, { [key]: value })
@@ -92,6 +93,7 @@ describe('session-timings filters: a malformed URL narrows nothing, it does not 
     const data = await loadSessionTimingsPageData(ACTOR, {
       subject: UUID_A,
       tutor: UUID_B,
+      kind: 'exam',
       from: '2026-08-01',
       to: '2026-08-31',
     })
@@ -99,6 +101,7 @@ describe('session-timings filters: a malformed URL narrows nothing, it does not 
     expect(groupedFilters()).toMatchObject({
       subjectId: UUID_A,
       tutorId: UUID_B,
+      kind: 'exam',
       from: '2026-08-01',
       to: '2026-08-31',
     })
@@ -209,7 +212,7 @@ describe('session-timings: the student filter drills into the FLAT history', () 
 })
 
 describe('sessionTimingsUrl', () => {
-  const base = { page: 1, student: '', subject: '', tutor: '', classId: '', from: '', to: '' }
+  const base = { page: 1, student: '', subject: '', tutor: '', kind: '', classId: '', from: '', to: '' }
 
   it('an unfiltered first page is the bare path', () => {
     expect(sessionTimingsUrl(base)).toBe('/session-timings')
@@ -217,9 +220,13 @@ describe('sessionTimingsUrl', () => {
 
   it('carries every active filter through a page change', () => {
     // Paging must not silently drop a filter - the reader would think the list changed.
-    const url = sessionTimingsUrl({ ...base, subject: UUID_A, tutor: UUID_B, from: '2026-08-01' }, { page: 3 })
+    const url = sessionTimingsUrl(
+      { ...base, subject: UUID_A, tutor: UUID_B, kind: 'exam', from: '2026-08-01' },
+      { page: 3 },
+    )
     expect(url).toContain('subject=' + UUID_A)
     expect(url).toContain('tutor=' + UUID_B)
+    expect(url).toContain('kind=exam')
     expect(url).toContain('from=2026-08-01')
     expect(url).toContain('page=3')
   })

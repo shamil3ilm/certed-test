@@ -8,7 +8,7 @@ export type ComposerTab = 'class' | 'event' | 'reminder' | 'meet' | 'announcemen
 
 export type CalendarItem = {
   id: string
-  source: 'slot' | 'event' | 'assignment' | 'meet' | 'session'
+  source: 'slot' | 'event' | 'assignment' | 'meet' | 'session' | 'reminder'
   title: string
   start: string
   end: string | null

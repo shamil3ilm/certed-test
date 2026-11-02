@@ -42,6 +42,12 @@ export function SessionTimingsFilterBar({
           </option>
         ))}
       </SelectFilterField>
+      <SelectFilterField label="Type" name="kind" defaultValue={filters.kind}>
+        <option value="">All types</option>
+        <option value="regular">Regular</option>
+        <option value="demo">Demo</option>
+        <option value="exam">Exam</option>
+      </SelectFilterField>
       <DateFilterField label="From" name="from" defaultValue={filters.from} />
       <DateFilterField label="To" name="to" defaultValue={filters.to} />
     </FilterBar>

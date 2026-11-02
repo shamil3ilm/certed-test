@@ -9,6 +9,7 @@ export const COLORS: Record<CalendarItem['source'], string> = {
   assignment: CALENDAR_COLORS.assignment,
   meet: CALENDAR_COLORS.meet,
   session: CALENDAR_COLORS.session,
+  reminder: CALENDAR_COLORS.reminder,
 }
 
 export const SOURCES: { source: CalendarItem['source']; label: string }[] = [
@@ -17,6 +18,7 @@ export const SOURCES: { source: CalendarItem['source']; label: string }[] = [
   { source: 'assignment', label: 'Deadline' },
   { source: 'meet', label: 'Meet' },
   { source: 'session', label: 'Held session' },
+  { source: 'reminder', label: 'Reminder' },
 ]
 
 export const VIEW_MODES: Array<{ id: CalendarMode; label: string }> = [

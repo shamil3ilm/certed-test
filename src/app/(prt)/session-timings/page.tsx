@@ -7,8 +7,8 @@ import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
 import { Badge, CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabelIfUnexpected } from '@/lib/ui'
 import { SESSION_KIND_LABELS } from '@/lib/attendance/session-kind'
-import { EditJoinTime } from './EditJoinTime'
-import { EditSessionTimes } from './EditSessionTimes'
+import { LocalTime } from '../LocalTime'
+import { SessionRowActions } from './SessionRowActions'
 import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTimingsFilterBar'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getActorContext } from '@/lib/session/actor-context'
@@ -220,6 +220,9 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
           <th scope="col" className="p-2">
             Student entry
           </th>
+          <th scope="col" className="p-2 text-right">
+            <span className="sr-only">Actions</span>
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -229,19 +232,12 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
             <td className="p-2 text-slate-600">{row.className}</td>
             <td className="p-2 text-slate-600">{row.subject ?? <span className="text-slate-500">-</span>}</td>
             <td className="p-2 text-slate-600">
-              {/* Regular is the ordinary case and stays unmarked. A demo is not working time, and an
-                  exam is credited to whoever monitored it - so both say so, and an exam names a
-                  monitor who is not the tutor. */}
-              {row.kind === 'regular' ? (
-                <span className="text-slate-500">Regular</span>
-              ) : (
-                <span className="inline-flex flex-col items-start gap-0.5">
-                  <Badge tone={row.kind === 'exam' ? 'warning' : 'slate'}>{SESSION_KIND_LABELS[row.kind]}</Badge>
-                  {row.kind === 'exam' && row.monitorName && (
-                    <span className="text-xs text-slate-500">Monitored by {row.monitorName}</span>
-                  )}
-                </span>
-              )}
+              <span className="inline-flex flex-col items-start gap-0.5">
+                <Badge tone={row.kind === 'exam' ? 'warning' : 'slate'}>{SESSION_KIND_LABELS[row.kind]}</Badge>
+                {row.kind === 'exam' && row.monitorName && (
+                  <span className="text-xs text-slate-500">Monitored by {row.monitorName}</span>
+                )}
+              </span>
             </td>
             <td className="p-2 text-slate-600">
               {/* The role shows only when it is NOT a plain tutor. Stamping "Tutor" on every
@@ -261,23 +257,30 @@ function SessionRows({ rows, showStudent = false }: { rows: readonly SessionTimi
               )}
             </td>
             <td className="p-2 text-slate-600">{row.sessionDate}</td>
-            <td className="p-2">
-              <EditSessionTimes
-                sessionId={row.sessionId}
-                classId={row.classId}
-                sessionDate={row.sessionDate}
-                startAt={row.startAt}
-                endAt={row.endAt}
-                updatedAt={row.updatedAt}
-              />
+            <td className="p-2 tabular-nums text-slate-700">
+              {row.startAt ? (
+                <span className="inline-flex items-center gap-1">
+                  <LocalTime iso={row.startAt} mode="time" />
+                  {row.endAt && (
+                    <>
+                      <span>&ndash;</span>
+                      <LocalTime iso={row.endAt} mode="time" />
+                    </>
+                  )}
+                </span>
+              ) : (
+                <span className="text-slate-500">-</span>
+              )}
             </td>
-            <td className="p-2">
-              <EditJoinTime
-                sessionId={row.sessionId}
-                classId={row.classId}
-                sessionDate={row.sessionDate}
-                studentJoinAt={row.studentEntryAt}
-              />
+            <td className="p-2 tabular-nums text-slate-700">
+              {row.studentEntryAt ? (
+                <LocalTime iso={row.studentEntryAt} mode="time" />
+              ) : (
+                <span className="text-slate-500">-</span>
+              )}
+            </td>
+            <td className="p-2 text-right">
+              <SessionRowActions row={row} />
             </td>
           </tr>
         ))}

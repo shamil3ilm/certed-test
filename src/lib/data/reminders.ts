@@ -63,6 +63,24 @@ export async function selectSentForUser(userId: string, limit: number): Promise<
   return (data ?? []) as ReminderRow[]
 }
 
+/** Reminders scheduled within an absolute UTC window [startIso, endIso). */
+export async function selectRemindersInRangeForUser(
+  userId: string,
+  startIso: string,
+  endIso: string,
+): Promise<ReminderRow[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('remind_at', startIso)
+    .lt('remind_at', endIso)
+    .order('remind_at', { ascending: true })
+  if (error) throw new Error(`reminders.listInRange: ${error.message}`)
+  return (data ?? []) as ReminderRow[]
+}
+
 export async function insertReminder(row: {
   user_id: string
   title: string

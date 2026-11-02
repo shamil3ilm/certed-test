@@ -53,6 +53,11 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
             </option>
           ))}
         </SelectFilterField>
+        <SelectFilterField label="Visibility" name="vis" defaultValue={filters.visibility}>
+          <option value="">All visibility</option>
+          <option value="class">Whole class</option>
+          <option value="staff">Staff only</option>
+        </SelectFilterField>
         <SearchFilterField
           label="Subject"
           name="subj"
@@ -92,6 +97,9 @@ export default async function DocumentsPage(props: { searchParams: Promise<Docum
                           <Badge>{documentCategoryLabel(document.category)}</Badge>
                           {document.subject && <Badge>{document.subject}</Badge>}
                           {document.file_type && <Badge>{document.file_type}</Badge>}
+                          <Badge tone={document.visibility === 'staff' ? 'warning' : 'slate'}>
+                            {document.visibility === 'staff' ? 'Staff only' : 'Whole class'}
+                          </Badge>
                         </div>
                         <p className="mt-1.5 text-xs text-slate-600">
                           <LocalTime iso={document.created_at} mode="date" /> - {document.download_count} download

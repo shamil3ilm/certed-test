@@ -64,7 +64,11 @@ function DocumentCard({
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
             {doc.subject && <Badge tone="primary">{doc.subject}</Badge>}
             {doc.file_type && <Badge>{doc.file_type}</Badge>}
-            {doc.visibility === 'staff' && data.canManage && <Badge tone="warning">Staff only</Badge>}
+            {data.canManage && (
+              <Badge tone={doc.visibility === 'staff' ? 'warning' : 'slate'}>
+                {doc.visibility === 'staff' ? 'Staff only' : 'Whole class'}
+              </Badge>
+            )}
           </div>
           {doc.description && <p className="mt-1.5 text-sm text-slate-600">{doc.description}</p>}
           <p className="mt-1.5 text-xs text-slate-600">

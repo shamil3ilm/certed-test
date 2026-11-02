@@ -207,7 +207,7 @@ export function SessionTimesForm({
               <strong className="font-semibold text-slate-800">
                 {monitorOptions.find((m) => m.id === monitorId)?.name ?? 'the class tutor'}
               </strong>
-              . An admin records it if someone else monitored.
+              . An Admin or Super Admin records it if someone else monitored.
             </p>
           ))}
       </div>

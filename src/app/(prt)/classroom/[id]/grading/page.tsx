@@ -50,7 +50,7 @@ export default async function ClassGradingPage(props: {
       </div>
 
       <FilterBar clearHref={`/classroom/${course.id}/grading`} showClear={Boolean(searchParams?.q)}>
-        <SearchFilterField name="q" defaultValue={searchParams?.q ?? ''} placeholder="Student or assignment..." />
+        <SearchFilterField name="q" defaultValue={searchParams?.q ?? ''} placeholder="Search assignments..." />
       </FilterBar>
 
       {items.length === 0 ? (
@@ -64,16 +64,17 @@ export default async function ClassGradingPage(props: {
               <ListRow
                 href={`/assignments/${item.assignmentId}#sub-${item.id}`}
                 leading={<Avatar name={item.studentName} role="student" />}
-                title={`${item.studentName} - ${item.assignmentTitle}`}
+                title={item.assignmentTitle}
                 subtitle={
                   <>
-                    submitted <LocalTime iso={item.submittedAt} />
+                    Submitted <LocalTime iso={item.submittedAt} /> &middot; {item.studentName}
                   </>
                 }
                 trailing={
-                  item.status === 'late' ? (
+                  <div className="flex items-center gap-2">
                     <Badge tone={submissionTone(item.status)}>{submissionLabel(item.status)}</Badge>
-                  ) : undefined
+                    <span className="btn btn-sm btn-soft">Grade</span>
+                  </div>
                 }
               />
             </li>

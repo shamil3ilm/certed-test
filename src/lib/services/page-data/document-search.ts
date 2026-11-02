@@ -1,6 +1,11 @@
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { searchDocuments, type DocumentSearchResult } from '@/lib/services/resources'
-import { isDocumentCategory, type DocumentCategory } from '@/lib/documents/categories'
+import {
+  isDocumentCategory,
+  type DocumentCategory,
+  DOCUMENT_VISIBILITY_VALUES,
+  type DocumentVisibility,
+} from '@/lib/documents/categories'
 import { selectActiveEnrollmentRefsByClassIds } from '@/lib/data/class-membership'
 import { getProfileNamesByIds } from '@/lib/services/users'
 
@@ -18,6 +23,7 @@ export type DocumentSearchFilters = {
   q: string
   category: DocumentCategory | ''
   subject: string
+  visibility: DocumentVisibility | ''
   from: string
   to: string
   sort: 'latest' | 'oldest'
@@ -28,6 +34,7 @@ export type DocumentSearchParams = {
   q?: string
   cat?: string
   subj?: string
+  vis?: string
   from?: string
   to?: string
   sort?: string
@@ -83,6 +90,7 @@ export function documentSearchUrl(filters: DocumentSearchFilters, patch: Partial
   if (next.q) sp.set('q', next.q)
   if (next.category) sp.set('cat', next.category)
   if (next.subject) sp.set('subj', next.subject)
+  if (next.visibility) sp.set('vis', next.visibility)
   if (next.from) sp.set('from', next.from)
   if (next.to) sp.set('to', next.to)
   if (next.sort === 'oldest') sp.set('sort', 'oldest')
@@ -91,17 +99,28 @@ export function documentSearchUrl(filters: DocumentSearchFilters, patch: Partial
 }
 
 export async function loadDocumentSearchPageData(searchParams?: DocumentSearchParams): Promise<DocumentSearchPageData> {
+  const visibility =
+    searchParams?.vis && DOCUMENT_VISIBILITY_VALUES.includes(searchParams.vis as DocumentVisibility)
+      ? (searchParams.vis as DocumentVisibility)
+      : ''
   const filters: DocumentSearchFilters = {
     page: parsePageParam(searchParams?.page),
     q: searchParams?.q?.trim() ?? '',
     category: isDocumentCategory(searchParams?.cat ?? '') ? (searchParams!.cat as DocumentCategory) : '',
     subject: searchParams?.subj?.trim() ?? '',
+    visibility,
     from: searchParams?.from ?? '',
     to: searchParams?.to ?? '',
     sort: searchParams?.sort === 'oldest' ? 'oldest' : 'latest',
   }
   const hasActiveFilters = Boolean(
-    filters.q || filters.category || filters.subject || filters.from || filters.to || filters.sort === 'oldest',
+    filters.q ||
+    filters.category ||
+    filters.subject ||
+    filters.visibility ||
+    filters.from ||
+    filters.to ||
+    filters.sort === 'oldest',
   )
   const read = (page: number) =>
     searchDocuments({
@@ -110,6 +129,7 @@ export async function loadDocumentSearchPageData(searchParams?: DocumentSearchPa
       search: filters.q || undefined,
       category: filters.category || undefined,
       subject: filters.subject || undefined,
+      visibility: filters.visibility || undefined,
       dateFrom: isoOrUndefined(filters.from),
       dateTo: isoOrUndefined(filters.to, true),
       sort: filters.sort,

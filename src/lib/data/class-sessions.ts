@@ -331,6 +331,7 @@ export type SessionPageFilter = {
   classId?: string
   subjectId?: string
   tutorId?: string
+  kind?: string
   /** Inclusive calendar-date bounds, 'YYYY-MM-DD'. */
   from?: string
   to?: string
@@ -370,6 +371,7 @@ export async function selectSessionPage(
   if (filter.classId) query = query.eq('class_id', filter.classId)
   if (filter.subjectId) query = query.eq('subject_id', filter.subjectId)
   if (filter.tutorId) query = query.eq('tutor_id', filter.tutorId)
+  if (filter.kind) query = query.eq('kind', filter.kind)
   if (filter.from) query = query.gte('session_date', filter.from)
   if (filter.to) query = query.lte('session_date', filter.to)
   const { data, error, count } = await query.range(range.from, range.to)
