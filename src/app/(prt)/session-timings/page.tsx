@@ -77,9 +77,14 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
           ) : (
             <ul className="mt-3 space-y-3">
               {hours.map((c) => (
-                <li key={c.classId}>
+                <li key={`${c.classId}:${c.subjectName ?? ''}`}>
                   <div className="flex items-baseline justify-between text-sm font-medium text-slate-700">
-                    <span>{c.className}</span>
+                    <span>
+                      {c.className}
+                      {c.subjectName ? (
+                        <span className="font-normal text-slate-500"> &middot; {c.subjectName}</span>
+                      ) : null}
+                    </span>
                     <span className="tabular-nums">{formatMinutes(c.totalMinutes)}</span>
                   </div>
                   <ul className="mt-1 space-y-0.5">

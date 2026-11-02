@@ -1,6 +1,7 @@
 import type { Profile } from '@/lib/auth/profile'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
+import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import {
   listManagerSessionsForDate,
@@ -121,6 +122,12 @@ type ManagerAttendancePageData = {
    *  person as well as the time. Includes a tutor since removed from the class: they still
    *  taught the sessions recorded against them. */
   tutorNames: Map<string, string>
+  /** Active tutors of this class, offerable when an admin records or reattributes a session. */
+  tutorOptions: { id: string; name: string }[]
+  /** Whether the viewer may choose which tutor taught the session (admins/sub-admins). */
+  canChooseTutor: boolean
+  /** Whether the viewer may modify already-recorded session times (admins, sub-admins, or class mentors). */
+  canEditRecordedTimes: boolean
   /** Who an exam can be recorded as monitored by (0123): the academy's active tutors and
    *  mentors, plus anyone already recorded on this date's sessions - an admin, or someone
    *  since revoked - so a saved exam never shows a blank monitor. The form offers it only
@@ -291,6 +298,9 @@ export async function loadClassAttendancePageData(
   const cancelledAs = cancellations.find((e) => e.class_id === courseId)?.title ?? null
   const nameById = new Map([...students.map((s) => [s.id, s.name] as const), ...historicalNames.entries()])
 
+  const isClassMentor = Boolean(flags.hasMentorAuthority && (await mentorAuthorityClassIds(me.id)).has(courseId))
+  const canEditRecordedTimes = flags.isAdmin || flags.isSubAdmin || isClassMentor
+
   return {
     kind: 'manager',
     date,
@@ -300,6 +310,7 @@ export async function loadClassAttendancePageData(
     classSubjectName,
     subjectOptions,
     classHasTutor: tutors.length > 0,
+    canEditRecordedTimes,
     historyFilters,
     hasHistoryFilters: Boolean(historyFilters.status || historyFilters.from || historyFilters.to),
     historyPage,
@@ -319,6 +330,8 @@ export async function loadClassAttendancePageData(
       }
     }),
     tutorNames,
+    tutorOptions: tutors.map((t) => ({ id: t.id, name: t.name })),
+    canChooseTutor: flags.isAdmin || flags.isSubAdmin,
     monitorOptions,
     monitorNames,
     canChooseMonitor: flags.isAdmin || flags.isSubAdmin,

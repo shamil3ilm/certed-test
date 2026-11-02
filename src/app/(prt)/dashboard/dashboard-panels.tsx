@@ -214,14 +214,14 @@ function Upcoming({ events }: { events: CalendarEvent[] }) {
     <ul className="space-y-1 text-sm">
       {events.map((event) => (
         <li key={event.id}>
-          <a href="/calendar" className={WIDGET_ROW_STACK}>
+          <Link href="/calendar" className={WIDGET_ROW_STACK}>
             <span className="w-full truncate" title={event.title}>
               {event.title}
             </span>
             <span className={WIDGET_ROW_META}>
               {event.event_date} - {event.kind}
             </span>
-          </a>
+          </Link>
         </li>
       ))}
     </ul>

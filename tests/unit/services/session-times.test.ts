@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
+vi.mock('@/lib/permission/class', () => ({ mentorAuthorityClassIds: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/class-tutor-validation', () => ({ assertClassTutor: vi.fn() }))
-vi.mock('@/lib/data/class-membership', () => ({ selectActiveTutorRowsForClass: vi.fn() }))
+vi.mock('@/lib/data/class-membership', () => ({
+  selectActiveTutorRowsForClass: vi.fn(),
+  selectActiveEnrollmentRowsForClass: vi.fn(async () => []),
+}))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectRecentSessions: vi.fn(),
   selectTutorOverlappingSessions: vi.fn(),
@@ -18,6 +22,7 @@ vi.mock('@/lib/data/class-sessions', () => ({
 vi.mock('@/lib/services/service-helpers', () => ({ auditPrivilegedAction: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
+import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
@@ -40,6 +45,7 @@ beforeEach(() => {
   vi.mocked(canManageClass).mockResolvedValue(true)
   vi.mocked(insertSession).mockResolvedValue({ id: 's1' } as any)
   vi.mocked(selectTutorOverlappingSessions).mockResolvedValue([])
+  vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set())
 })
 
 describe('saveSessionTimes - the session records WHICH subject was taught', () => {
@@ -212,6 +218,90 @@ describe('saveSessionTimes tutor_id guard', () => {
     expect(insertSession).toHaveBeenCalledWith(expect.objectContaining({ tutor_id: OTHER_TUTOR }))
   })
 
+  it('preserves existing tutor_id when editing a session without passing tutor_id', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: 'e0000000-0000-4000-8000-000000000009',
+      class_id: 'class-1',
+      session_date: '2026-08-05',
+      tutor_id: OTHER_TUTOR,
+      actual_start: null,
+      actual_end: null,
+      updated_at: '2026-08-05T08:00:00.000Z',
+    } as any)
+    vi.mocked(updateSessionById).mockResolvedValue({ id: 'e0000000-0000-4000-8000-000000000009' } as any)
+    vi.mocked(selectActiveTutorRowsForClass).mockResolvedValue([{ id: 'ct1', tutor_id: ACTOR }] as any)
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: 'e0000000-0000-4000-8000-000000000009',
+      actual_start: '2026-08-05T09:00:00.000Z',
+      actual_end: '2026-08-05T10:00:00.000Z',
+    })
+
+    expect(updateSessionById).toHaveBeenCalledWith(
+      'e0000000-0000-4000-8000-000000000009',
+      expect.objectContaining({ tutor_id: OTHER_TUTOR }),
+      '2026-08-05T08:00:00.000Z',
+    )
+  })
+
+  it('assigns the default class tutor when an existing session had null tutor_id', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: 'e0000000-0000-4000-8000-000000000009',
+      class_id: 'class-1',
+      session_date: '2026-08-05',
+      tutor_id: null,
+      actual_start: null,
+      actual_end: null,
+      updated_at: '2026-08-05T08:00:00.000Z',
+    } as any)
+    vi.mocked(updateSessionById).mockResolvedValue({ id: 'e0000000-0000-4000-8000-000000000009' } as any)
+    vi.mocked(selectActiveTutorRowsForClass).mockResolvedValue([{ id: 'ct1', tutor_id: ACTOR }] as any)
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: 'e0000000-0000-4000-8000-000000000009',
+      actual_start: '2026-08-05T09:00:00.000Z',
+      actual_end: '2026-08-05T10:00:00.000Z',
+    })
+
+    expect(updateSessionById).toHaveBeenCalledWith(
+      'e0000000-0000-4000-8000-000000000009',
+      expect.objectContaining({ tutor_id: ACTOR }),
+      '2026-08-05T08:00:00.000Z',
+    )
+  })
+
+  it('lets an admin update tutor_id on an existing session to another class tutor', async () => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue({
+      id: 'e0000000-0000-4000-8000-000000000009',
+      class_id: 'class-1',
+      session_date: '2026-08-05',
+      tutor_id: ACTOR,
+      actual_start: null,
+      actual_end: null,
+      updated_at: '2026-08-05T08:00:00.000Z',
+    } as any)
+    vi.mocked(updateSessionById).mockResolvedValue({ id: 'e0000000-0000-4000-8000-000000000009' } as any)
+    vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: true } as any)
+    vi.mocked(assertClassTutor).mockResolvedValue(undefined)
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: 'e0000000-0000-4000-8000-000000000009',
+      tutor_id: OTHER_TUTOR,
+      actual_start: '2026-08-05T09:00:00.000Z',
+      actual_end: '2026-08-05T10:00:00.000Z',
+    })
+
+    expect(assertClassTutor).toHaveBeenCalledWith(OTHER_TUTOR, 'class-1')
+    expect(updateSessionById).toHaveBeenCalledWith(
+      'e0000000-0000-4000-8000-000000000009',
+      expect.objectContaining({ tutor_id: OTHER_TUTOR }),
+      '2026-08-05T08:00:00.000Z',
+    )
+  })
+
   it('propagates the assignment failure when the tutor does not teach this class', async () => {
     vi.mocked(loadPersonaFlags).mockResolvedValue({ isAdmin: true } as any)
     vi.mocked(assertClassTutor).mockRejectedValue(
@@ -258,6 +348,145 @@ describe('saveSessionTimes window validation', () => {
     await saveSessionTimes(actor, { ...base, actual_start: START, actual_end: '2026-08-05T11:30:00.000Z' })
     expect(insertSession).toHaveBeenCalledWith(
       expect.objectContaining({ actual_start: START, actual_end: '2026-08-05T11:30:00.000Z' }),
+    )
+  })
+})
+
+describe('saveSessionTimes higher authority requirement on already-recorded times', () => {
+  const SESSION_ID = 'e0000000-0000-4000-8000-000000000009'
+  const EXISTING_START = '2026-08-05T09:00:00.000Z'
+  const EXISTING_END = '2026-08-05T10:00:00.000Z'
+
+  const timedSession = {
+    id: SESSION_ID,
+    class_id: 'class-1',
+    session_date: '2026-08-05',
+    tutor_id: ACTOR,
+    kind: 'regular',
+    actual_start: EXISTING_START,
+    actual_end: EXISTING_END,
+    updated_at: '2026-08-05T08:00:00.000Z',
+  }
+
+  beforeEach(() => {
+    vi.mocked(selectSessionByIdAsService).mockResolvedValue(timedSession as any)
+    vi.mocked(updateSessionById).mockResolvedValue({ id: SESSION_ID } as any)
+  })
+
+  it('rejects a plain tutor modifying already-recorded session times', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: false,
+      hasMentorAuthority: false,
+    } as any)
+
+    await expect(
+      saveSessionTimes(actor, {
+        ...base,
+        sessionId: SESSION_ID,
+        actual_start: '2026-08-05T09:30:00.000Z',
+        actual_end: '2026-08-05T10:30:00.000Z',
+      }),
+    ).rejects.toThrow(/Modifying already-recorded session times or session type requires approval/)
+
+    expect(updateSessionById).not.toHaveBeenCalled()
+  })
+
+  it('rejects a plain tutor reclassifying the session kind on an already-recorded session', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: false,
+      hasMentorAuthority: false,
+    } as any)
+
+    await expect(
+      saveSessionTimes(actor, {
+        ...base,
+        sessionId: SESSION_ID,
+        actual_start: EXISTING_START,
+        actual_end: EXISTING_END,
+        kind: 'demo',
+      }),
+    ).rejects.toThrow(/Modifying already-recorded session times or session type requires approval/)
+
+    expect(updateSessionById).not.toHaveBeenCalled()
+  })
+
+  it('permits a plain tutor to update summary or staff_note when times and kind are untouched', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: false,
+      hasMentorAuthority: false,
+    } as any)
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: SESSION_ID,
+      actual_start: EXISTING_START,
+      actual_end: EXISTING_END,
+      summary: 'Updated lesson recap',
+      canEditStaffNote: true,
+      staff_note: 'Internal follow up note',
+    })
+
+    expect(updateSessionById).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({
+        actual_start: EXISTING_START,
+        actual_end: EXISTING_END,
+        summary: 'Updated lesson recap',
+        staff_note: 'Internal follow up note',
+      }),
+      '2026-08-05T08:00:00.000Z',
+    )
+  })
+
+  it('allows an admin to modify already-recorded session times', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: true,
+      isSubAdmin: false,
+      hasMentorAuthority: false,
+    } as any)
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: SESSION_ID,
+      actual_start: '2026-08-05T09:15:00.000Z',
+      actual_end: '2026-08-05T10:15:00.000Z',
+    })
+
+    expect(updateSessionById).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({
+        actual_start: '2026-08-05T09:15:00.000Z',
+        actual_end: '2026-08-05T10:15:00.000Z',
+      }),
+      '2026-08-05T08:00:00.000Z',
+    )
+  })
+
+  it('allows a class mentor to modify already-recorded session times', async () => {
+    vi.mocked(loadPersonaFlags).mockResolvedValue({
+      isAdmin: false,
+      isSubAdmin: false,
+      hasMentorAuthority: true,
+    } as any)
+    vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set(['class-1']))
+
+    await saveSessionTimes(actor, {
+      ...base,
+      sessionId: SESSION_ID,
+      actual_start: '2026-08-05T09:15:00.000Z',
+      actual_end: '2026-08-05T10:15:00.000Z',
+    })
+
+    expect(updateSessionById).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({
+        actual_start: '2026-08-05T09:15:00.000Z',
+        actual_end: '2026-08-05T10:15:00.000Z',
+      }),
+      '2026-08-05T08:00:00.000Z',
     )
   })
 })

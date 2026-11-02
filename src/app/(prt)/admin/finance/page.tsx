@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { todayInZone } from '@/lib/time/format'
@@ -184,12 +185,12 @@ export default async function FinancePage(props: {
           action={
             canManage ? (
               <span className="flex flex-wrap gap-2">
-                <a href="/admin/finance/billing-rates" className="btn btn-soft btn-sm">
+                <Link href="/admin/finance/billing-rates" className="btn btn-soft btn-sm">
                   Hourly rates
-                </a>
-                <a href="/admin/finance/rates" className="btn btn-soft btn-sm">
+                </Link>
+                <Link href="/admin/finance/rates" className="btn btn-soft btn-sm">
                   Currency conversion
-                </a>
+                </Link>
               </span>
             ) : undefined
           }

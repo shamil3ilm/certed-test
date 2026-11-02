@@ -17,6 +17,7 @@ type SessionRecord = {
   kind?: SessionKind | null
   /** Present only on the manager read (it is withheld from the RLS client). */
   monitor_id?: string | null
+  tutor_id?: string | null
   summary?: string | null
   student_feedback?: string | null
   staff_note?: string | null
@@ -35,6 +36,9 @@ export function SessionTimesForm({
   canEditStaffNote,
   monitorOptions,
   canChooseMonitor,
+  tutorOptions = [],
+  canChooseTutor = false,
+  canEditRecordedTimes = true,
   bare = false,
 }: {
   classId: string
@@ -52,6 +56,12 @@ export function SessionTimesForm({
    *  exam but is not offered the choice - and never sends one, so editing an exam an admin
    *  recorded as monitored by someone else cannot rewrite its monitor. */
   canChooseMonitor: boolean
+  /** Active tutors of this class. */
+  tutorOptions?: { id: string; name: string }[]
+  /** Whether the viewer may choose which tutor taught the session (admins/sub-admins). */
+  canChooseTutor?: boolean
+  /** Whether the viewer may edit already-recorded times (admins, sub-admins, or class mentors). */
+  canEditRecordedTimes?: boolean
   /** Drop the card frame and heading: the form is already inside a session's card, under a
    *  "Times & notes" disclosure that names it, so its own frame would be a card in a card. */
   bare?: boolean
@@ -63,6 +73,7 @@ export function SessionTimesForm({
   const [kind, setKind] = useState<SessionKind>('regular')
   // '' = the tutor monitored it. Only sent, and only shown, for an exam.
   const [monitorId, setMonitorId] = useState('')
+  const [tutorId, setTutorId] = useState('')
   const [summary, setSummary] = useState('')
   const [staffNote, setStaffNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -70,12 +81,14 @@ export function SessionTimesForm({
   // bills, so the figure belongs HERE, beside the inputs that produce it and before the save -
   // not in a card below the form that reads 0m until something is entered.
   const recordedMinutes = minutesBetweenLocalTimes(start, end)
+  const isTimesLocked = Boolean(session?.actual_start && session?.actual_end && !canEditRecordedTimes)
 
   useEffect(() => {
     setStart(isoToLocalTime(session?.actual_start ?? null))
     setEnd(isoToLocalTime(session?.actual_end ?? null))
     setKind(session ? kindOf(session) : 'regular')
     setMonitorId(session?.monitor_id ?? '')
+    setTutorId(session?.tutor_id ?? '')
     setSummary(session?.summary ?? '')
     setStaffNote(session?.staff_note ?? '')
   }, [session])
@@ -94,6 +107,7 @@ export function SessionTimesForm({
     // Blank means the tutor monitored it; the service ignores a monitor on any other kind. Only
     // sent by someone who may choose one - an absent field leaves an existing monitor alone.
     if (canChooseMonitor) formData.set('monitor_id', kind === 'exam' ? monitorId : '')
+    if (canChooseTutor && tutorId) formData.set('tutor_id', tutorId)
     formData.set('summary', summary.trim())
     // Only send staff_note when allowed; the service ignores it otherwise, but not
     // sending it keeps a mentor's save from ever touching the field.
@@ -108,6 +122,7 @@ export function SessionTimesForm({
         setEnd('')
         setKind('regular')
         setMonitorId('')
+        setTutorId('')
         setSummary('')
         setStaffNote('')
       }
@@ -122,13 +137,23 @@ export function SessionTimesForm({
   return (
     <form onSubmit={onSubmit} className={bare ? 'space-y-3' : cx(CARD, 'space-y-3 p-4')}>
       {!bare && <h3 className="text-sm font-semibold text-slate-800">Session times</h3>}
+      {isTimesLocked && (
+        <div className="rounded-lg border border-warning-border bg-warning-surface/50 p-3 text-xs text-warning-ink">
+          <p className="font-semibold">Recorded session times are locked</p>
+          <p className="mt-0.5 text-slate-700">
+            Adjusting previously recorded session times or session type requires approval from a mentor or
+            administrator. You may still update the session summary and notes below.
+          </p>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-medium text-slate-600">
           Session type
           <select
             value={kind}
+            disabled={isTimesLocked}
             onChange={(event) => setKind(event.target.value as SessionKind)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
+            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           >
             {SESSION_KINDS.map((k) => (
               <option key={k} value={k}>
@@ -137,6 +162,28 @@ export function SessionTimesForm({
             ))}
           </select>
         </label>
+        {canChooseTutor && tutorOptions.length > 1 && (
+          <label className="text-xs font-medium text-slate-600">
+            Tutor
+            <select
+              value={tutorId}
+              disabled={isTimesLocked}
+              onChange={(event) => setTutorId(event.target.value)}
+              className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            >
+              <option value="">
+                {session?.tutor_id
+                  ? (tutorOptions.find((t) => t.id === session.tutor_id)?.name ?? 'Assigned tutor')
+                  : `Default (${tutorOptions[0]?.name ?? 'first assigned'})`}
+              </option>
+              {tutorOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {kind === 'exam' &&
           (canChooseMonitor ? (
             <label className="text-xs font-medium text-slate-600">
@@ -170,8 +217,9 @@ export function SessionTimesForm({
           <input
             type="time"
             value={start}
+            disabled={isTimesLocked}
             onChange={(event) => setStart(event.target.value)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           />
         </label>
         <label className="text-xs font-medium text-slate-600">
@@ -179,8 +227,9 @@ export function SessionTimesForm({
           <input
             type="time"
             value={end}
+            disabled={isTimesLocked}
             onChange={(event) => setEnd(event.target.value)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           />
         </label>
       </div>
@@ -233,7 +282,7 @@ export function SessionTimesForm({
       )}
 
       <button type="submit" disabled={busy} className="btn btn-sm btn-primary">
-        {busy ? 'Saving...' : 'Save session'}
+        {busy ? 'Saving...' : isTimesLocked ? 'Save notes' : 'Save session'}
       </button>
     </form>
   )

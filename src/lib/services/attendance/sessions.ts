@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
+import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { canWriteClass } from '@/lib/permission/class-write'
 import { isCalendarDate } from '@/lib/time/format'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
@@ -151,12 +152,29 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   // Keeping it in one place avoids two entry points and two capability gates for the
   // same datum.
 
+  // Editing an existing session, or recording a new one? An id identifies the row now that
+  // (class, date) no longer does. Load it first so we can (a) confirm it really belongs to
+  // this class - an id from another class must not be editable through this class's form -
+  // and (b) record what changed in the audit.
+  const rawSessionId = String(input.sessionId ?? '').trim()
+  let before: ClassSession | null = null
+  if (rawSessionId) {
+    validateUuidField(rawSessionId, 'Invalid session id.')
+    const loaded = await selectSessionByIdAsService(rawSessionId)
+    if (!loaded) throw new NotFoundError('That session no longer exists.')
+    if (loaded.class_id !== classId) throw new PermissionError('That session belongs to another class.')
+    // A copy: everything below compares against this AFTER the write, and a store that updates the
+    // row it handed back in place (the mock one does) would otherwise show no change at all.
+    before = { ...loaded }
+  }
+
   // The tutor attributed to a session must be a real tutor of this class. An EXPLICIT
   // id is admin-only unless it's the recorder's own, and is validated + confirmed
   // assigned to the class either way (so a mentor who passes their own id is rejected,
-  // not silently mislabelled). With NO explicit id, default to the class's assigned
-  // tutor - the recorder only if they teach it - so a mentor/admin recording is never
-  // written as the tutor.
+  // not silently mislabelled). With NO explicit id:
+  // - on an edit, PRESERVE the existing tutor (an edit to times or notes must not reattribute
+  //   who taught the session);
+  // - on a new session, default to the class's assigned tutor (the recorder only if they teach it).
   const explicitTutorId = String(input.tutor_id ?? '').trim()
   let tutorId: string | null
   if (explicitTutorId) {
@@ -175,24 +193,10 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
     validateUuidField(explicitTutorId, 'Invalid tutor id.')
     await assertClassTutor(explicitTutorId, classId)
     tutorId = explicitTutorId
+  } else if (before && before.tutor_id) {
+    tutorId = before.tutor_id
   } else {
     tutorId = await defaultSessionTutor(actor.id, classId)
-  }
-
-  // Editing an existing session, or recording a new one? An id identifies the row now that
-  // (class, date) no longer does. Load it first so we can (a) confirm it really belongs to
-  // this class - an id from another class must not be editable through this class's form -
-  // and (b) record what changed in the audit.
-  const rawSessionId = String(input.sessionId ?? '').trim()
-  let before: ClassSession | null = null
-  if (rawSessionId) {
-    validateUuidField(rawSessionId, 'Invalid session id.')
-    const loaded = await selectSessionByIdAsService(rawSessionId)
-    if (!loaded) throw new NotFoundError('That session no longer exists.')
-    if (loaded.class_id !== classId) throw new PermissionError('That session belongs to another class.')
-    // A copy: everything below compares against this AFTER the write, and a store that updates the
-    // row it handed back in place (the mock one does) would otherwise show no change at all.
-    before = { ...loaded }
   }
 
   // What kind of session this is. Absent keeps an edited session as it was and records a new one
@@ -200,6 +204,25 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   const rawKind = String(input.kind ?? '').trim()
   if (rawKind && !isSessionKind(rawKind)) throw new ValidationError('Invalid session type.')
   const kind: SessionKind = rawKind ? (rawKind as SessionKind) : before ? kindOf(before) : 'regular'
+
+  // Modifying already-recorded session times or reclassifying the session type shifts billable
+  // and payable hours retroactively. Edits to an already-timed session require the authority of
+  // the next higher tier (a mentor of this class, or an administrator). Initial entry (when the
+  // session had no recorded window yet) is permitted for the class tutor.
+  const hasExistingRecordedTimes = Boolean(before && before.actual_start && before.actual_end)
+  const isChangingRecordedTimes =
+    hasExistingRecordedTimes &&
+    (window.start !== before!.actual_start || window.end !== before!.actual_end || kind !== kindOf(before!))
+
+  if (isChangingRecordedTimes) {
+    const { isAdmin, isSubAdmin, hasMentorAuthority } = await loadPersonaFlags(actor.id)
+    const isMentorForClass = hasMentorAuthority && (await mentorAuthorityClassIds(actor.id)).has(classId)
+    if (!isAdmin && !isSubAdmin && !isMentorForClass) {
+      throw new PermissionError(
+        'Modifying already-recorded session times or session type requires approval from a mentor or administrator.',
+      )
+    }
+  }
 
   // Who monitored it, which only an exam has. A non-exam always clears the monitor (the database
   // refuses one on any other kind). On an exam, '' means the tutor monitored it and an ABSENT

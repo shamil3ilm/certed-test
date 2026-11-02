@@ -108,9 +108,8 @@ export default async function AttendancePage(props: {
                   <div className="flex items-center justify-between px-4 py-3">
                     <span className="text-sm font-medium text-slate-700">{row.session_date}</span>
                     <span className="flex items-center gap-2">
-                      {/* This mark's own session, when it was a demo or an exam, says so - so the
-                          hours beside it are read as what they were. Regular is the unmarked case. */}
-                      {own && kindOf(own) !== 'regular' && (
+                      {/* Every session clearly displays its type badge (Regular, Demo, Exam). */}
+                      {own && (
                         <Badge tone={kindOf(own) === 'exam' ? 'warning' : 'slate'}>
                           {SESSION_KIND_LABELS[kindOf(own)]}
                         </Badge>
@@ -338,34 +337,32 @@ export default async function AttendancePage(props: {
                     {tutorName && <span>&middot; {tutorName}</span>}
                     {/* The SESSION's subject, stamped when it was recorded (0104) - so a class
                         re-pointed to a new subject keeps its history labelled correctly. */}
+                    {/* The SESSION's subject and explicit session type badge (Regular, Demo, Exam) */}
                     {session.subject_id && <Badge>{data.subjectNames.get(session.subject_id) ?? 'Subject'}</Badge>}
-                    {/* A demo or an exam says so up here: it is not working time (demo) or is
-                        credited to its monitor (exam), and the reader should not have to open the
-                        form to find out which kind of hour this is. */}
-                    {kindOf(session) !== 'regular' && (
-                      <Badge tone={kindOf(session) === 'exam' ? 'warning' : 'slate'}>
-                        {SESSION_KIND_LABELS[kindOf(session)]}
-                      </Badge>
-                    )}
+                    <Badge tone={kindOf(session) === 'exam' ? 'warning' : 'slate'}>
+                      {SESSION_KIND_LABELS[kindOf(session)]}
+                    </Badge>
                     {kindOf(session) === 'exam' && session.monitor_id && (
                       <span>&middot; monitored by {data.monitorNames.get(session.monitor_id) ?? 'another person'}</span>
                     )}
                   </p>
                 </div>
-                <form action={deleteSessionAction}>
-                  <input type="hidden" name="class_id" value={course.id} />
-                  <input type="hidden" name="session_id" value={session.id} />
-                  <input type="hidden" name="session_date" value={data.date} />
-                  <ConfirmSubmit
-                    className="btn btn-sm btn-ghost text-danger-ink"
-                    title="Remove this session?"
-                    message="Every attendance mark for this session is deleted with it, and its hours drop out of the monthly total. Other sessions on this date are unaffected."
-                    confirmLabel="Remove session"
-                    pendingLabel="Removing..."
-                  >
-                    Remove session
-                  </ConfirmSubmit>
-                </form>
+                {(!hasTimes || data.canEditRecordedTimes) && (
+                  <form action={deleteSessionAction}>
+                    <input type="hidden" name="class_id" value={course.id} />
+                    <input type="hidden" name="session_id" value={session.id} />
+                    <input type="hidden" name="session_date" value={data.date} />
+                    <ConfirmSubmit
+                      className="btn btn-sm btn-ghost text-danger-ink"
+                      title="Remove this session?"
+                      message="Every attendance mark for this session is deleted with it, and its hours drop out of the monthly total. Other sessions on this date are unaffected."
+                      confirmLabel="Remove session"
+                      pendingLabel="Removing..."
+                    >
+                      Remove session
+                    </ConfirmSubmit>
+                  </form>
+                )}
               </header>
 
               {/* Times are the exception once recorded - the window already heads the card -
@@ -382,6 +379,9 @@ export default async function AttendancePage(props: {
                     canEditStaffNote={canManageContent}
                     monitorOptions={data.monitorOptions}
                     canChooseMonitor={data.canChooseMonitor}
+                    tutorOptions={data.tutorOptions}
+                    canChooseTutor={data.canChooseTutor}
+                    canEditRecordedTimes={data.canEditRecordedTimes}
                     bare
                   />
                 </div>
@@ -440,6 +440,9 @@ export default async function AttendancePage(props: {
                     canEditStaffNote={canManageContent}
                     monitorOptions={data.monitorOptions}
                     canChooseMonitor={data.canChooseMonitor}
+                    tutorOptions={data.tutorOptions}
+                    canChooseTutor={data.canChooseTutor}
+                    canEditRecordedTimes={data.canEditRecordedTimes}
                     bare
                   />
                 </div>
@@ -454,6 +457,9 @@ export default async function AttendancePage(props: {
                     "the Physics hour" from "the Maths hour" is which class they are on. */}
                 {data.classSubjectName && <Badge>{data.classSubjectName}</Badge>}
               </div>
+              <p className="text-xs text-slate-600">
+                Enter session start and end times to credit teaching hours, or mark attendance on the roster below.
+              </p>
               {classWarnings}
               <SessionTimesForm
                 classId={course.id}
@@ -462,6 +468,9 @@ export default async function AttendancePage(props: {
                 canEditStaffNote={canManageContent}
                 monitorOptions={data.monitorOptions}
                 canChooseMonitor={data.canChooseMonitor}
+                tutorOptions={data.tutorOptions}
+                canChooseTutor={data.canChooseTutor}
+                canEditRecordedTimes={data.canEditRecordedTimes}
               />
             </>
           )}

@@ -335,6 +335,9 @@ describe('loadClassAttendancePageData', () => {
       ],
       // The class's current tutors, with no read for them - see the dedicated test below.
       tutorNames: new Map([['t1', 'Tarun Tutor']]),
+      tutorOptions: [{ id: 't1', name: 'Tarun Tutor' }],
+      canChooseTutor: false,
+      canEditRecordedTimes: false,
       // Nobody is a monitor candidate in this fixture, and no session names one.
       monitorOptions: [],
       monitorNames: new Map(),
