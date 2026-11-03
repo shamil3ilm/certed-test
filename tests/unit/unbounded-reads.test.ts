@@ -207,6 +207,8 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
     'Sessions overlapping ONE window for one tutor - the double-booking check. A tutor ' +
     'cannot hold more concurrent sessions than the window has hours, and the 0101 exclusion ' +
     'constraint enforces that independently.',
+  'src/lib/data/class-sessions.ts:selectStudentOverlappingSessions':
+    'Sessions overlapping ONE window across a student active classes - prevents student double-booking.',
   'src/lib/data/reminders.ts:selectPendingForUser':
     'is_sent = false - the OUTSTANDING reminders of one user. The set drains as reminders ' +
     'fire, so it tracks work in hand rather than accumulating.',

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { metricPercentLabel } from '@/lib/services/mentees-shared'
 import { MessageUserButton } from '../../messages/MessageUserButton'
@@ -66,16 +67,7 @@ export function MenteeHeader({ data, hasMentorAuthority }: { data: MenteePageDat
                     className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary transition hover:border-primary/40 hover:bg-primary/10"
                   >
                     {course.name}
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="h-3 w-3"
-                    >
-                      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <ChevronRight className="h-3 w-3" aria-hidden="true" />
                   </Link>
                 ) : (
                   <Badge key={course.id} tone="primary">

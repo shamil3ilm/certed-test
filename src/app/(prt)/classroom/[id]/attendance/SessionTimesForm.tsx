@@ -207,7 +207,7 @@ export function SessionTimesForm({
               <strong className="font-semibold text-slate-800">
                 {monitorOptions.find((m) => m.id === monitorId)?.name ?? 'the class tutor'}
               </strong>
-              . An Admin or Super Admin records it if someone else monitored.
+              . An admin records it if someone else monitored.
             </p>
           ))}
       </div>
@@ -282,7 +282,7 @@ export function SessionTimesForm({
       )}
 
       <button type="submit" disabled={busy} className="btn btn-sm btn-primary">
-        {busy ? 'Saving...' : isTimesLocked ? 'Save notes' : 'Save session'}
+        {busy ? 'Saving...' : 'Save session'}
       </button>
     </form>
   )

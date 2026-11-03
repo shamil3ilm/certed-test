@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import { GraduationCap, User } from 'lucide-react'
 import type { ClassSummary } from '@/lib/services/classes'
 import type { Tag } from '@/lib/services/tags'
-import { CARD, CLASS_BANNER, RowChevron, cx } from '@/lib/ui'
+import { Badge, CARD, CLASS_BANNER, RowChevron, cx } from '@/lib/ui'
 import { TagChips } from '../tags/TagChips'
 
 /** A 1-on-1 class names its single member; a group class (or an empty one) keeps
@@ -52,9 +53,9 @@ export function ClassCard({
             {c.status === 'archived' ? 'Archived' : 'Active class'}
           </p>
           {!c.subject_id && (
-            <p className="mt-1 inline-flex rounded-full bg-warning-tint px-2 py-0.5 text-meta font-semibold text-warning-ink">
-              No subject set
-            </p>
+            <div className="mt-1">
+              <Badge tone="warning">No subject set</Badge>
+            </div>
           )}
         </div>
       ) : (
@@ -64,9 +65,9 @@ export function ClassCard({
             {c.status === 'archived' ? 'Archived' : 'Active class'}
           </p>
           {!c.subject_id && (
-            <p className="mt-1 inline-flex rounded-full bg-warning-tint/95 px-2 py-0.5 text-meta font-semibold text-warning-ink">
-              No subject set
-            </p>
+            <div className="mt-1">
+              <Badge tone="warning">No subject set</Badge>
+            </div>
           )}
           <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
             {title.slice(0, 1).toUpperCase()}
@@ -77,37 +78,13 @@ export function ClassCard({
         <div className="flex items-center gap-4 text-xs text-slate-600">
           {!grouped && (
             <span className="inline-flex min-w-0 items-center gap-1.5">
-              <svg
-                className="h-4 w-4 shrink-0 text-slate-600"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5a3 3 0 100 6 3 3 0 000-6zM4 19a8 8 0 0116 0"
-                />
-              </svg>
+              <User className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
               <span className="truncate">{primary}</span>
             </span>
           )}
           {!viewerIsStudent && (!viewerIsTutor || (c.tutorCount ?? 0) > 1) && c.tutors && (
             <span className="inline-flex shrink-0 items-center gap-1.5">
-              <svg
-                className="h-4 w-4 text-slate-600"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5"
-                />
-              </svg>
+              <GraduationCap className="h-4 w-4 text-slate-600" aria-hidden="true" />
               {memberSummary(c.tutors, c.tutorCount ?? 0, 'tutor')}
             </span>
           )}

@@ -1,5 +1,6 @@
 import type { ElementType, ReactNode } from 'react'
 import Link from 'next/link'
+import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { CARD, cx } from './core'
 
 /** The one "go back to the parent list" link used at the top of every detail
@@ -13,20 +14,7 @@ export function BackLink({ href, children }: { href: string; children: ReactNode
       href={href}
       className="mb-3 inline-flex min-h-10 items-center gap-1.5 text-xs font-medium text-slate-600 transition hover:-translate-x-0.5 hover:text-primary"
     >
-      {/* A stroked SVG arrow, not the thin `←` glyph, so it stays crisp and clearly
-          visible at this small size (the glyph rendered faint in muted grey). */}
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-3.5 w-3.5"
-      >
-        <path d="M13 8H3m4-4L3 8l4 4" />
-      </svg>
+      <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
       {children}
     </Link>
   )
@@ -195,16 +183,10 @@ export function StatCard({
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</p>
         {href && (
-          <svg
+          <ChevronRight
             className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-primary"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
+            aria-hidden="true"
+          />
         )}
       </div>
       <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>

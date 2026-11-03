@@ -1,4 +1,5 @@
 import { requireCapability } from '@/lib/auth/require-role'
+import { FileText } from 'lucide-react'
 import type { Capability } from '@/lib/capabilities'
 import { listMyDocsPage, myDocTotals, type FinanceKind } from '@/lib/services/finance/finance-docs'
 import { formatMoney, totalByCurrency } from '@/lib/money'
@@ -119,10 +120,7 @@ export async function FinanceDocList({
             <ListRow
               leading={
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinejoin="round" />
-                    <path d="M14 2v6h6M8 13h8M8 17h6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <FileText className="h-5 w-5" aria-hidden="true" />
                 </span>
               }
               title={

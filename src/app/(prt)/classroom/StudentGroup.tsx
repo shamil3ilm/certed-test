@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { CARD, cx } from '@/lib/ui'
+import { ChevronRight } from 'lucide-react'
+import { Badge, CARD, cx } from '@/lib/ui'
 
 /**
  * One student and the subjects they take, as a disclosure: the Classes list and the Grading
@@ -47,22 +48,12 @@ export function StudentGroup({
               hides it: a subject-less class records sessions no filter can reach, and it is found
               by scanning this list. A count nobody can act on from here would be noise; this one
               is the reason to open the group. */}
-          {missingSubject && (
-            <span className="shrink-0 rounded-full bg-warning-tint px-2 py-0.5 text-meta font-semibold text-warning-ink">
-              No subject set
-            </span>
-          )}
+          {missingSubject && <Badge tone="warning">No subject set</Badge>}
           {/* Rotates with the disclosure, so the control says which way it goes. */}
-          <svg
-            aria-hidden="true"
+          <ChevronRight
             className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open/disclosure:rotate-90"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
+            aria-hidden="true"
+          />
         </summary>
         <div className="grid gap-4 border-t border-slate-200 bg-slate-50/50 p-4 sm:grid-cols-2 lg:grid-cols-3">
           {children}

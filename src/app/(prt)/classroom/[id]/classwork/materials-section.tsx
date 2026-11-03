@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { FileText } from 'lucide-react'
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_CATEGORY_VALUES,
@@ -51,13 +52,7 @@ function DocumentCard({
     <Card as="li" className="p-5">
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary/15 text-secondary-ink">
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"
-            />
-          </svg>
+          <FileText className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-slate-900">{doc.title}</p>

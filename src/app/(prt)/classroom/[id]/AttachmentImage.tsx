@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 
 /** Open-link render for a non-embeddable attachment (also the fallback for a broken
  *  image). A plain link never auto-loads external content, so a rotted URL only
@@ -13,13 +14,7 @@ export function AttachmentOpenLink({ url, label }: { url: string; label: string 
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
     >
-      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-        />
-      </svg>
+      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       {label}
     </a>
   )

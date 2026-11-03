@@ -1,6 +1,7 @@
 'use client'
 import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { Modal } from './Modal'
 
 type Item = { primary: string; secondary?: ReactNode; href?: string }
@@ -95,15 +96,7 @@ export function StatModalCard({
           <span className="min-w-0 text-xs text-slate-600">{sub ?? ' '}</span>
           <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-primary">
             View details
-            <svg
-              className="h-3.5 w-3.5 transition group-hover:translate-x-0.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" aria-hidden="true" />
           </span>
         </div>
       </button>
@@ -168,9 +161,7 @@ export function StatModalCard({
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               {viewAllLabel}
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>
         )}

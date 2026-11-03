@@ -5,10 +5,14 @@ vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/class-tutor-validation', () => ({ assertClassTutor: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/services/notifications', () => ({ notifyBestEffort: vi.fn(), notifyClassRoleBestEffort: vi.fn() }))
-vi.mock('@/lib/services/attendance/session-overlap', () => ({ assertNoTutorOverlap: vi.fn() }))
+vi.mock('@/lib/services/attendance/session-overlap', () => ({
+  assertNoTutorOverlap: vi.fn(),
+  assertNoStudentOverlap: vi.fn(),
+}))
 vi.mock('@/lib/data/class-membership', () => ({
   selectActiveTutorRowsForClass: vi.fn(),
   selectActiveClassIdsForStudent: vi.fn(),
+  selectActiveEnrollmentRowsForClass: vi.fn(async () => []),
 }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionByIdAsService: vi.fn(),

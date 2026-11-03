@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { CARD, cx } from './core'
 
 /* The shared "record row" pattern used by every list page. */
@@ -8,19 +9,13 @@ import { CARD, cx } from './core'
  *  and colouring on the row's group-hover. */
 export function RowChevron({ className = '' }: { className?: string }) {
   return (
-    <svg
+    <ChevronRight
       className={cx(
         'h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-primary',
         className,
       )}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
       aria-hidden="true"
-    >
-      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    />
   )
 }
 

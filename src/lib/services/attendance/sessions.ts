@@ -5,7 +5,7 @@ import { mentorAuthorityClassIds } from '@/lib/permission/class'
 import { canWriteClass } from '@/lib/permission/class-write'
 import { isCalendarDate } from '@/lib/time/format'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
-import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
+import { assertNoTutorOverlap, assertNoStudentOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { NotFoundError, PermissionError, ValidationError } from '@/lib/errors'
 import {
@@ -19,7 +19,11 @@ import {
   writeStudentSessionFeedback,
   type ClassSessionRow,
 } from '@/lib/data/class-sessions'
-import { selectActiveClassIdsForStudent, selectActiveTutorRowsForClass } from '@/lib/data/class-membership'
+import {
+  selectActiveClassIdsForStudent,
+  selectActiveEnrollmentRowsForClass,
+  selectActiveTutorRowsForClass,
+} from '@/lib/data/class-membership'
 import { studentHasAttendance } from '@/lib/data/attendance'
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { validateUuidField } from '@/lib/validation/id'
@@ -240,6 +244,15 @@ export async function saveSessionTimes(actor: Profile, input: SaveSessionActionI
   // their teaching (the database constraint makes the same exemption, 0123).
   if (!(kind === 'exam' && monitorId)) {
     await assertNoTutorOverlap(tutorId, window.start, window.end, before?.id ?? null)
+  }
+
+  // A student cannot attend two classes at once - reject a window that overlaps another session
+  // across any of the student's enrolled classes.
+  const enrollees = await selectActiveEnrollmentRowsForClass(classId)
+  const studentId = enrollees[0]?.student_id
+  if (studentId) {
+    const studentClassIds = await selectActiveClassIdsForStudent(studentId)
+    await assertNoStudentOverlap(studentClassIds, window.start, window.end, before?.id ?? null)
   }
 
   // Times + summary are editable by any manageAttendance holder (mentors included, via

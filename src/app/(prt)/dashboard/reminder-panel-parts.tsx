@@ -1,5 +1,6 @@
 'use client'
 
+import { Clock } from 'lucide-react'
 import type { Reminder } from '@/lib/services/reminders'
 import { ArchivedList } from '@/lib/ui'
 import { formatDate, formatDateTime, isoToDatetimeLocal } from '@/lib/time/format'
@@ -107,17 +108,10 @@ export function ReminderItems({
               overdue ? 'border-danger-border bg-danger-surface' : 'border-slate-100 bg-slate-50'
             }`}
           >
-            <svg
+            <Clock
               className={`mt-0.5 h-4 w-4 shrink-0 ${overdue ? 'text-danger-ink' : 'text-primary'}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
               aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
-            </svg>
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-800">
                 {reminder.title}

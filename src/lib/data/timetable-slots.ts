@@ -30,6 +30,7 @@ type TimetableSlotPatch = Partial<Omit<TimetableSlotRow, 'id' | 'created_at'>>
 export type SlotFilters = {
   classId?: string
   classIds?: string[]
+  tutorId?: string
   dayOfWeek?: number
   activeOnly?: boolean
   limit?: number
@@ -42,6 +43,7 @@ export async function selectSlots(filters: SlotFilters = {}): Promise<TimetableS
   let q = supabase.from('timetable_slots').select('*').order('day_of_week', { ascending: true })
   if (filters.classId) q = q.eq('class_id', filters.classId)
   if (filters.classIds) q = q.in('class_id', filters.classIds)
+  if (filters.tutorId) q = q.eq('tutor_id', filters.tutorId)
   if (filters.dayOfWeek != null) q = q.eq('day_of_week', filters.dayOfWeek)
   if (filters.activeOnly !== false) q = q.eq('active', true)
   if (filters.limit) q = q.limit(filters.limit)

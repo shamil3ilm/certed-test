@@ -11,6 +11,7 @@ import { selectSubjectsByIds } from '@/lib/data/subjects'
 import {
   selectActiveEnrollmentRefsByClassIds,
   selectActiveEnrollmentPairsByStudentIds,
+  selectActiveClassIdsForStudent,
 } from '@/lib/data/class-membership'
 import { toRange, type Page } from '@/lib/pagination'
 import { getProfileNamesByIds, getProfileLabelsByIds } from '@/lib/services/users'
@@ -25,7 +26,7 @@ import {
 import { selectJoinRowsForSessionsAsService, updateJoinAtAsService } from '@/lib/data/attendance'
 import { resolveSessionWindow } from '@/lib/attendance/session-window'
 import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
-import { assertNoTutorOverlap } from '@/lib/services/attendance/session-overlap'
+import { assertNoTutorOverlap, assertNoStudentOverlap } from '@/lib/services/attendance/session-overlap'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 
@@ -325,9 +326,13 @@ export async function updateStudentJoinTime(actor: Profile, input: UpdateStudent
   // The list always names the session; fall back to the day's first for any caller that
   // does not, which preserves the old day-level behaviour on a single-session day.
   const daySessions = await selectSessionsForDate(input.classId, input.sessionDate)
-  const markSessionId = input.sessionId ?? daySessions[0]?.id
-  if (!markSessionId) {
+  if (daySessions.length === 0) {
     throw new NotFoundError('No session recorded for this date yet - record the session first.')
+  }
+
+  let matchedSession: ClassSessionRow | null = null
+  if (input.sessionId) {
+    matchedSession = daySessions.find((x) => x.id === input.sessionId) ?? null
   }
 
   let joinAt: string | null = null
@@ -335,13 +340,23 @@ export async function updateStudentJoinTime(actor: Profile, input: UpdateStudent
     const parsed = new Date(input.joinAt)
     if (Number.isNaN(parsed.getTime())) throw new ValidationError('Enter a valid joined time.')
     joinAt = parsed.toISOString()
-    // Which window must the entry fall inside? The named session when the caller gives
-    // one. Without a name the session is unknown, so the guard widens to the DAY's overall
-    // window (earliest start -> latest end) - loose enough to admit an entry belonging to
-    // any of that day's sessions, still tight enough to reject a time from elsewhere.
-    const session = input.sessionId
-      ? (daySessions.find((x) => x.id === input.sessionId) ?? null)
-      : dayWindowOf(daySessions)
+
+    // On a multi-session day without an explicit sessionId, resolve the specific session whose
+    // window (including the early-join grace window) contains this entry time.
+    if (!matchedSession && daySessions.length > 1) {
+      const parsedMs = parsed.getTime()
+      matchedSession =
+        daySessions.find((s) => {
+          if (!s.actual_start || !s.actual_end) return false
+          const earliest = new Date(s.actual_start).getTime() - EARLY_JOIN_GRACE_MINUTES * 60_000
+          const latest = new Date(s.actual_end).getTime()
+          return parsedMs >= earliest && parsedMs <= latest
+        }) ?? null
+    }
+
+    // Which window must the entry fall inside? The named or matched session when known.
+    // Without a specific match, the guard widens to the DAY's overall window.
+    const session = matchedSession ?? dayWindowOf(daySessions)
     // Data integrity: a student cannot join after the class has ended.
     if (session?.actual_end && parsed.getTime() > new Date(session.actual_end).getTime()) {
       throw new ValidationError('Student joined time cannot be after the class end time.')
@@ -359,6 +374,11 @@ export async function updateStudentJoinTime(actor: Profile, input: UpdateStudent
         )
       }
     }
+  }
+
+  const markSessionId = input.sessionId ?? matchedSession?.id ?? daySessions[0]?.id
+  if (!markSessionId) {
+    throw new NotFoundError('No session recorded for this date yet - record the session first.')
   }
 
   const updated = await updateJoinAtAsService(markSessionId, student, joinAt)
@@ -435,6 +455,12 @@ export async function updateSessionTimes(actor: Profile, input: UpdateSessionTim
   // with their teaching - the same exemption saveSessionTimes and the database constraint make.
   const tutorAbsent = kindOf(existing) === 'exam' && existing.monitor_id && existing.monitor_id !== existing.tutor_id
   if (!tutorAbsent) await assertNoTutorOverlap(existing.tutor_id, start, end, existing.id)
+
+  const student = (await selectActiveEnrollmentRefsByClassIds([existing.class_id]))[0]?.student_id
+  if (student) {
+    const studentClassIds = await selectActiveClassIdsForStudent(student)
+    await assertNoStudentOverlap(studentClassIds, start, end, existing.id)
+  }
 
   // Taken BEFORE the write: the row can be a live object (the mock store hands it back by
   // reference and updates it in place), so afterwards `existing` already holds the new window and a

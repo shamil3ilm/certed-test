@@ -1,4 +1,5 @@
-import { requireCapability } from '@/lib/auth/require-role'
+import { redirectDenied } from '@/lib/auth/require-role'
+import { redirectForAccessState } from '@/lib/auth/guards'
 import { loadSessionTimingsPageData, type SessionTimingSearchParams } from '@/lib/services/page-data/session-timings'
 import type { MenteeSessionTiming as SessionTimingRow } from '@/lib/services/mentor-session-timings'
 import { getClassTutorHours } from '@/lib/services/teaching-hours'
@@ -31,7 +32,12 @@ import { ClassHoursTabs } from '../ClassHoursTabs'
  *  understate the totals and leave older sessions unreachable. */
 export default async function SessionTimingsPage(props: { searchParams: Promise<SessionTimingSearchParams> }) {
   const searchParams = await props.searchParams
-  const me = await requireCapability('viewMentees')
+  const actor = await getActorContext()
+  if (!actor.profile || actor.accessState !== 'active') redirectForAccessState(actor)
+  if (!actor.capabilities.allowed.has('viewMentees') && !actor.capabilities.allowed.has('manageClasses')) {
+    redirectDenied(actor)
+  }
+  const me = actor.profile
   // Same split the list itself makes: a mentor is scoped to their mentees, an oversight
   // actor (admin or sub-admin) sees every class. The copy has to follow, or the page tells
   // an admin these are "your mentees'" sessions while showing them the whole academy.
@@ -40,8 +46,7 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
   // A manageClasses holder reaches this page as the Sessions tab of Class hours, whose Monthly
   // totals tab already reports this month's hours per tutor - and more. For them the summary
   // panel below would be the same table twice, so it is a mentor's alone, and so is its read.
-  const { capabilities } = await getActorContext()
-  const hasTotalsTab = capabilities.allowed.has('manageClasses')
+  const hasTotalsTab = actor.capabilities.allowed.has('manageClasses')
   const month = hasTotalsTab ? null : todayInZone(await getInstituteTimeZone()).slice(0, 7)
   const [data, hours] = await Promise.all([
     loadSessionTimingsPageData(me, searchParams),

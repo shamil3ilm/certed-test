@@ -20,13 +20,46 @@ import { canWriteCalendar, assertClassActive } from '@/lib/permission'
 import { assertClassTutor } from '@/lib/services/class-tutor-validation'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyClassOfSlotChange } from '@/lib/services/timetable-notify'
-import { PermissionError, NotFoundError } from '@/lib/errors'
+import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
 
 export type TimetableSlot = TimetableSlotRow
 
 const slotIdSchema = z.string().uuid()
+
+/**
+ * Check if a timetable slot interval collides with existing active slots.
+ */
+export function assertNoSlotCollision(
+  existingSlots: TimetableSlotRow[],
+  startTime: string,
+  endTime: string,
+  excludeSlotId: string | null = null,
+): void {
+  const collision = existingSlots.find(
+    (s) => s.id !== excludeSlotId && s.active && s.start_time < endTime && s.end_time > startTime,
+  )
+  if (collision) {
+    throw new ValidationError('That tutor already has an active timetable slot at this time on this weekday.')
+  }
+}
+
+/**
+ * Reject a double-booked timetable slot: a tutor cannot hold two overlapping active timetable
+ * slots on the same day of the week.
+ */
+export async function assertNoTutorSlotOverlap(
+  tutorId: string | null,
+  dayOfWeek: number,
+  startTime: string,
+  endTime: string,
+  excludeSlotId: string | null = null,
+): Promise<void> {
+  if (!tutorId) return
+  const slots = await selectSlots({ tutorId, dayOfWeek, activeOnly: true })
+  assertNoSlotCollision(slots, startTime, endTime, excludeSlotId)
+}
 
 export function validateCreateSlotInput(input: unknown): CreateSlotInput {
   return parseOrThrow(createSlotSchema, input)

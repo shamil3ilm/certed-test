@@ -7,10 +7,12 @@ vi.mock('@/lib/services/class-tutor-validation', () => ({ assertClassTutor: vi.f
 vi.mock('@/lib/data/class-membership', () => ({
   selectActiveTutorRowsForClass: vi.fn(),
   selectActiveEnrollmentRowsForClass: vi.fn(async () => []),
+  selectActiveClassIdsForStudent: vi.fn(async () => []),
 }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectRecentSessions: vi.fn(),
   selectTutorOverlappingSessions: vi.fn(),
+  selectStudentOverlappingSessions: vi.fn(async () => []),
   selectSessionsForDate: vi.fn(),
   selectSessionsForDateAsService: vi.fn(),
   selectSessionByIdAsService: vi.fn(),
@@ -30,6 +32,7 @@ import {
   insertSession,
   selectSessionByIdAsService,
   selectTutorOverlappingSessions,
+  selectStudentOverlappingSessions,
   updateSessionById,
 } from '@/lib/data/class-sessions'
 import { saveSessionTimes } from '@/lib/services/attendance/sessions'
@@ -45,6 +48,7 @@ beforeEach(() => {
   vi.mocked(canManageClass).mockResolvedValue(true)
   vi.mocked(insertSession).mockResolvedValue({ id: 's1' } as any)
   vi.mocked(selectTutorOverlappingSessions).mockResolvedValue([])
+  vi.mocked(selectStudentOverlappingSessions).mockResolvedValue([])
   vi.mocked(mentorAuthorityClassIds).mockResolvedValue(new Set())
 })
 

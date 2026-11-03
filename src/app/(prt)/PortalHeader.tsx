@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import { Bell } from 'lucide-react'
 import { getActorContext } from '@/lib/session/actor-context'
 import { countUnreadNotifications } from '@/lib/services/notifications'
 import { ProfileMenu } from './ProfileMenu'
 import { MobileNav } from './MobileNav'
 import { NavLinks } from './NavLinks'
 import { navFor } from './nav'
-import { personaLabel } from '@/lib/ui'
+import { BrandLogo, personaLabel } from '@/lib/ui'
 
 export async function PortalHeader() {
   const actor = await getActorContext()
@@ -29,15 +29,7 @@ export async function PortalHeader() {
               aria-label="Cert-Ed Academia - go to dashboard"
               className="flex shrink-0 items-center"
             >
-              <Image
-                src="/cert-ed-academia-online-tuition-logo.webp"
-                alt="Cert-Ed Academia"
-                width={320}
-                height={80}
-                className="w-auto max-w-full object-contain"
-                style={{ height: 'clamp(2.25rem, 4.5vw, 3.75rem)' }}
-                priority
-              />
+              <BrandLogo priority />
             </Link>
           </div>
 
@@ -51,20 +43,7 @@ export async function PortalHeader() {
               aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
               className="relative grid min-h-10 min-w-10 place-items-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-700"
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
+              <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
               {unread > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[1rem] place-items-center rounded-full bg-primary px-1 text-micro font-semibold leading-none text-white">
                   {unread > 9 ? '9+' : unread}

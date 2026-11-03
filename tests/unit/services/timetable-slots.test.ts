@@ -25,6 +25,8 @@ import {
   validateCreateSlotInput,
   validateUpdateSlotInput,
   validateSlotId,
+  assertNoSlotCollision,
+  assertNoTutorSlotOverlap,
 } from '@/lib/services/timetable-slots'
 import { PermissionError, NotFoundError, ValidationError, RateLimitError } from '@/lib/errors'
 
@@ -291,5 +293,47 @@ describe('timetable slot API-input helpers', () => {
       entity_type: 'timetable_slot',
       entity_id: '550e8400-e29b-41d4-a716-446655440000',
     })
+  })
+})
+
+describe('assertNoSlotCollision & assertNoTutorSlotOverlap', () => {
+  const existingSlot = {
+    id: 'slot-1',
+    class_id: 'class-1',
+    subject: 'Maths',
+    tutor_id: 'tutor-1',
+    day_of_week: 1,
+    start_time: '09:00',
+    end_time: '10:00',
+    mode_or_location: null,
+    timezone: null,
+    active: true,
+    created_at: '2026-01-01',
+  }
+
+  it('no-ops when tutorId is null in assertNoTutorSlotOverlap', async () => {
+    await expect(assertNoTutorSlotOverlap(null, 1, '09:00', '10:00')).resolves.toBeUndefined()
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
+  it('assertNoSlotCollision passes when intervals do not overlap', () => {
+    expect(() => assertNoSlotCollision([existingSlot], '10:00', '11:00')).not.toThrow()
+    expect(() => assertNoSlotCollision([existingSlot], '08:00', '09:00')).not.toThrow()
+  })
+
+  it('assertNoSlotCollision ignores the slot being edited', () => {
+    expect(() => assertNoSlotCollision([existingSlot], '09:00', '10:00', 'slot-1')).not.toThrow()
+  })
+
+  it('assertNoSlotCollision throws ValidationError when interval overlaps an active slot', () => {
+    expect(() => assertNoSlotCollision([existingSlot], '09:30', '10:30')).toThrow(ValidationError)
+    expect(() => assertNoSlotCollision([existingSlot], '08:30', '09:30')).toThrow(
+      'That tutor already has an active timetable slot at this time on this weekday.',
+    )
+  })
+
+  it('assertNoSlotCollision ignores inactive slots', () => {
+    const inactive = { ...existingSlot, active: false }
+    expect(() => assertNoSlotCollision([inactive], '09:30', '10:30')).not.toThrow()
   })
 })

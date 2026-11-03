@@ -1,6 +1,6 @@
 import 'server-only'
 import { ValidationError } from '@/lib/errors'
-import { selectTutorOverlappingSessions } from '@/lib/data/class-sessions'
+import { selectTutorOverlappingSessions, selectStudentOverlappingSessions } from '@/lib/data/class-sessions'
 
 /**
  * Reject a double-booking: a tutor cannot teach two classes at once. Given the tutor a session
@@ -23,5 +23,24 @@ export async function assertNoTutorOverlap(
   const others = (await selectTutorOverlappingSessions(tutorId, start, end)).filter((s) => s.id !== excludeSessionId)
   if (others.length > 0) {
     throw new ValidationError('That tutor already has an overlapping session at this time.')
+  }
+}
+
+/**
+ * Reject a student double-booking: a student cannot attend two classes at once. Given the student's
+ * active classes and a proposed session window, fail if ANOTHER recorded session overlaps it.
+ */
+export async function assertNoStudentOverlap(
+  studentClassIds: string[],
+  start: string | null,
+  end: string | null,
+  excludeSessionId: string | null,
+): Promise<void> {
+  if (studentClassIds.length === 0 || start == null || end == null) return
+  const others = (await selectStudentOverlappingSessions(studentClassIds, start, end)).filter(
+    (s) => s.id !== excludeSessionId,
+  )
+  if (others.length > 0) {
+    throw new ValidationError('The student already has an overlapping session in another class at this time.')
   }
 }

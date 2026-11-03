@@ -19,7 +19,10 @@ vi.mock('@/lib/data/subjects', () => ({ selectSubjectsByIds: vi.fn() }))
 vi.mock('@/lib/services/classes/class-labels', () => ({
   resolveClassLabels: async (rows: Array<{ id: string; name: string }>) => new Map(rows.map((r) => [r.id, r.name])),
 }))
-vi.mock('@/lib/data/class-membership', () => ({ selectActiveEnrollmentRefsByClassIds: vi.fn() }))
+vi.mock('@/lib/data/class-membership', () => ({
+  selectActiveEnrollmentRefsByClassIds: vi.fn(),
+  selectActiveClassIdsForStudent: vi.fn(async () => []),
+}))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn(), getProfileLabelsByIds: vi.fn() }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionById: vi.fn(),
@@ -27,6 +30,7 @@ vi.mock('@/lib/data/class-sessions', () => ({
   selectSessionByIdAsService: vi.fn(),
   selectSessionPage: vi.fn(),
   selectTutorOverlappingSessions: vi.fn(),
+  selectStudentOverlappingSessions: vi.fn(async () => []),
   updateSessionActualTimesAsService: vi.fn(),
 }))
 vi.mock('@/lib/data/attendance', () => ({
@@ -143,6 +147,28 @@ describe('updateStudentJoinTime - the entry must belong to the session window', 
   it('clearing the entry (null) skips the window checks', async () => {
     await updateStudentJoinTime(actor, { ...base, joinAt: null })
     expect(updateJoinAtAsService).toHaveBeenCalledWith('ses1', 's1', null)
+  })
+
+  it('resolves the matching session on a multi-session day without explicit sessionId', async () => {
+    const morningSession = {
+      id: 'morning-ses',
+      class_id: 'c1',
+      session_date: '2026-08-05',
+      actual_start: '2026-08-05T10:00:00.000Z',
+      actual_end: '2026-08-05T11:00:00.000Z',
+    }
+    const afternoonSession = {
+      id: 'afternoon-ses',
+      class_id: 'c1',
+      session_date: '2026-08-05',
+      actual_start: '2026-08-05T14:00:00.000Z',
+      actual_end: '2026-08-05T15:00:00.000Z',
+    }
+    vi.mocked(selectSessionsForDate).mockResolvedValue([morningSession, afternoonSession] as never)
+
+    // A student joining at 14:05 belongs to the afternoon session (14:00 - 15:00)
+    await updateStudentJoinTime(actor, { ...base, joinAt: '2026-08-05T14:05:00.000Z' })
+    expect(updateJoinAtAsService).toHaveBeenCalledWith('afternoon-ses', 's1', '2026-08-05T14:05:00.000Z')
   })
 })
 

@@ -294,6 +294,25 @@ export async function selectTutorOverlappingSessions(
     .map(({ id, class_id, session_date }) => ({ id, class_id, session_date }))
 }
 
+/** Sessions across a student's enrolled classes whose recorded window OVERLAPS [startIso, endIso) -
+ *  the base for the student double-booking check (a student cannot attend two classes at once). */
+export async function selectStudentOverlappingSessions(
+  classIds: string[],
+  startIso: string,
+  endIso: string,
+): Promise<Array<{ id: string; class_id: string; session_date: string }>> {
+  if (classIds.length === 0) return []
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('class_sessions')
+    .select('id, class_id, session_date')
+    .in('class_id', classIds)
+    .lt('actual_start', endIso)
+    .gt('actual_end', startIso)
+  if (error) throw new Error(`classSessions.studentOverlapping: ${error.message}`)
+  return (data ?? []) as Array<{ id: string; class_id: string; session_date: string }>
+}
+
 /** Set ONLY one session's student feedback through the caller's OWN RLS session (not
  *  service role), so the class_sessions RLS - enrolled + attended, student_feedback
  *  column only (migration 0068) - is the real control. Keyed on the session's id: a class

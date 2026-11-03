@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { MoreVertical } from 'lucide-react'
 import { isoToLocalTime, localTimeToIso } from '@/lib/time/format'
 import { assertActionOk } from '../action-client'
 import { EscapableDetails } from '../EscapableDetails'
@@ -86,11 +87,7 @@ export function SessionRowActions({ row }: { row: SessionTimingRow }) {
           summaryAriaLabel={`Actions for session on ${row.sessionDate}`}
           summary={
             <span className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100">
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="10" cy="4" r="2" />
-                <circle cx="10" cy="10" r="2" />
-                <circle cx="10" cy="16" r="2" />
-              </svg>
+              <MoreVertical className="h-4 w-4" aria-hidden="true" />
             </span>
           }
         >

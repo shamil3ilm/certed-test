@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
-import Image from 'next/image'
+import { BrandLogo } from '@/lib/ui'
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -26,14 +26,7 @@ const Navbar = () => {
         <div className="flex justify-between h-20 items-center">
           <div className="flex-shrink-0 flex items-center">
             <Link href="/" className="flex items-center">
-              <Image
-                src="/cert-ed-academia-online-tuition-logo.webp"
-                alt="Cert-Ed Academia logo for online tuition classes"
-                width={320}
-                height={80}
-                className="h-14 w-auto object-contain"
-                priority
-              />
+              <BrandLogo alt="Cert-Ed Academia logo for online tuition classes" className="!h-14" priority />
             </Link>
           </div>
 

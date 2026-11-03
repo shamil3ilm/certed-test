@@ -3,9 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/permission/personas', () => ({ loadPersonaFlags: vi.fn() }))
 vi.mock('@/lib/services/class-tutor-validation', () => ({ assertClassTutor: vi.fn() }))
+vi.mock('@/lib/services/attendance/session-overlap', () => ({
+  assertNoTutorOverlap: vi.fn(),
+  assertNoStudentOverlap: vi.fn(),
+}))
 vi.mock('@/lib/data/class-membership', () => ({
   selectActiveTutorRowsForClass: vi.fn(),
   selectActiveClassIdsForStudent: vi.fn(),
+  selectActiveEnrollmentRowsForClass: vi.fn(async () => []),
 }))
 vi.mock('@/lib/data/class-sessions', () => ({
   selectRecentSessions: vi.fn(),

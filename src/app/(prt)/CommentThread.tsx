@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { Comment, CommentEntity } from '@/lib/services/comments'
 import { LocalTime } from './LocalTime'
 import { addCommentAction, deleteCommentAction } from './comment-actions'
@@ -146,14 +147,7 @@ function CommentThreadBody({
         className="flex min-h-10 items-center gap-1.5 rounded text-xs font-semibold text-slate-600 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         aria-expanded={open}
       >
-        <svg
-          aria-hidden="true"
-          className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M6 4l4 4-4 4V4z" />
-        </svg>
+        <ChevronRight aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} />
         {comments.length === 0 ? 'Add a comment' : `${comments.length} comment${comments.length !== 1 ? 's' : ''}`}
       </button>
 
