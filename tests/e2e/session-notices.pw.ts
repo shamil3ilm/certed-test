@@ -110,9 +110,11 @@ test('whoever a session’s hours belong to is told when they change, and nobody
   await page.goto(`/session-timings?student=${SEED.sara}&from=${DAY}&to=${DAY}`, { waitUntil: 'networkidle' })
   // The exam's own row (the table lists one row per session and student), then the editor inside it.
   const examRow = page.locator('tr', { hasText: DAY }).filter({ hasText: 'Exam' })
-  const examEditor = examRow.locator('form').filter({ has: page.getByLabel('Session end time') })
-  await examEditor.getByLabel('Session end time').fill('15:30')
-  await submitAndReload(page, () => examEditor.getByRole('button', { name: 'Save' }).click())
+  await examRow.locator('summary').click()
+  await examRow.getByRole('button', { name: 'Edit timings' }).click()
+  const modal = page.getByRole('dialog')
+  await modal.getByLabel('Session end time').fill('15:30')
+  await submitAndReload(page, () => modal.getByRole('button', { name: 'Save' }).click())
 
   // Removing the exam tells the monitor it is gone.
   await loginAs(page, 'admin@mock.test', { clearCookies: true })

@@ -31,27 +31,40 @@ export function SessionRowActions({ row }: { row: SessionTimingRow }) {
     setBusy(true)
 
     try {
-      // 1. Update session actual start/end times
-      const sessionData = new FormData()
-      sessionData.set('session_id', row.sessionId)
-      sessionData.set('class_id', row.classId)
-      sessionData.set('session_date', row.sessionDate)
-      sessionData.set('start_at', start ? localTimeToIso(row.sessionDate, start) : '')
-      sessionData.set('end_at', end ? localTimeToIso(row.sessionDate, end) : '')
-      if (row.updatedAt) sessionData.set('expected_updated_at', row.updatedAt)
+      let updatedSomething = false
+      const initialStart = isoToLocalTime(row.startAt)
+      const initialEnd = isoToLocalTime(row.endAt)
+      const initialJoin = isoToLocalTime(row.studentEntryAt)
 
-      assertActionOk(await updateSessionTimesAction(sessionData), 'Could not update session times')
+      // 1. Update session actual start/end times if changed
+      if (start !== initialStart || end !== initialEnd) {
+        const sessionData = new FormData()
+        sessionData.set('session_id', row.sessionId)
+        sessionData.set('class_id', row.classId)
+        sessionData.set('session_date', row.sessionDate)
+        sessionData.set('start_at', start ? localTimeToIso(row.sessionDate, start) : '')
+        sessionData.set('end_at', end ? localTimeToIso(row.sessionDate, end) : '')
+        if (row.updatedAt) sessionData.set('expected_updated_at', row.updatedAt)
 
-      // 2. Update student join entry time if changed or specified
-      const joinData = new FormData()
-      joinData.set('session_id', row.sessionId)
-      joinData.set('class_id', row.classId)
-      joinData.set('session_date', row.sessionDate)
-      joinData.set('join_at', joinTime ? localTimeToIso(row.sessionDate, joinTime) : '')
+        assertActionOk(await updateSessionTimesAction(sessionData), 'Could not update session times')
+        updatedSomething = true
+      }
 
-      assertActionOk(await updateStudentJoinAction(joinData), 'Could not update student entry time')
+      // 2. Update student join entry time if changed
+      if (joinTime !== initialJoin) {
+        const joinData = new FormData()
+        joinData.set('session_id', row.sessionId)
+        joinData.set('class_id', row.classId)
+        joinData.set('session_date', row.sessionDate)
+        joinData.set('join_at', joinTime ? localTimeToIso(row.sessionDate, joinTime) : '')
 
-      toast('Session timings updated', 'success')
+        assertActionOk(await updateStudentJoinAction(joinData), 'Could not update student entry time')
+        updatedSomething = true
+      }
+
+      if (updatedSomething) {
+        toast('Session timings updated', 'success')
+      }
       setModalOpen(false)
       router.refresh()
     } catch (error) {
@@ -141,7 +154,7 @@ export function SessionRowActions({ row }: { row: SessionTimingRow }) {
               Cancel
             </button>
             <button type="submit" disabled={busy} className="btn btn-sm btn-primary">
-              {busy ? 'Saving...' : 'Save timings'}
+              {busy ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>

@@ -210,6 +210,9 @@ const BOUNDED_BY_DESIGN: Record<string, string> = {
   'src/lib/data/reminders.ts:selectPendingForUser':
     'is_sent = false - the OUTSTANDING reminders of one user. The set drains as reminders ' +
     'fire, so it tracks work in hand rather than accumulating.',
+  'src/lib/data/reminders.ts:selectRemindersInRangeForUser':
+    'The reminders of ONE user in ONE calendar date window [startIso, endIso). ' +
+    'Bounded by what one person schedules or is assigned in that window.',
   'src/lib/data/reminders.ts:selectAssignedByCreator':
     'Reminders one person created FOR OTHERS. NOTE: the weakest bound in this list - there ' +
     'is no is_sent filter, so it does accumulate over a tenure. Convert this one first; it ' +
