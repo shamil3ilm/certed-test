@@ -1,12 +1,7 @@
 import Link from 'next/link'
 import type { Profile } from '@/lib/auth/profile'
-import { revokeUserAction, restoreUserAction, eraseUserAction, editUserAction } from './actions'
-import { MessageUserButton } from '../../messages/MessageUserButton'
 import { Badge, Card, Avatar, profileStatusTone, staffRoleLabel, statusLabel } from '@/lib/ui'
-import { Input, SubmitButton } from '../../form'
-import { ConfirmSubmit } from '../../ConfirmSubmit'
-import { EscapableDetails } from '../../EscapableDetails'
-import { CloseDisclosureWhenDone } from '../../CloseDisclosureWhenDone'
+import { UserRowActions } from './UserRowActions'
 
 /** Map an account status to the shared Badge tone (the canonical status chip). */
 /**
@@ -74,104 +69,16 @@ export function UserRow({
           </div>
         </div>
         {manageable ? (
-          <>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <EscapableDetails
-                className="relative text-xs"
-                summaryClassName="cursor-pointer btn btn-sm btn-ghost"
-                summary="Edit details"
-                summaryAriaLabel={`Edit details for ${who}`}
-              >
-                <form
-                  action={editUserAction}
-                  className="absolute right-0 z-10 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
-                >
-                  <input type="hidden" name="id" value={p.id} />
-                  <label className="block text-xs font-medium text-slate-600">
-                    Name
-                    <Input name="full_name" defaultValue={p.full_name ?? ''} className="mt-1" />
-                  </label>
-                  {/* Role is a fixed identity - set at account creation, never edited here. */}
-                  <p className="text-xs text-slate-600">
-                    Role: <span className="font-medium text-slate-600">{visibleRoleLabel}</span>
-                  </p>
-                  {isStudent && (
-                    <label className="block text-xs font-medium text-slate-600">
-                      Class
-                      <Input name="class_level" defaultValue={p.class_level ?? ''} className="mt-1 min-w-[10rem]" />
-                    </label>
-                  )}
-                  <SubmitButton className="btn-sm btn-ghost" pendingLabel="Saving...">
-                    Save
-                  </SubmitButton>
-                  <CloseDisclosureWhenDone />
-                </form>
-              </EscapableDetails>
-              {canEditPermissions && !self && (
-                <Link
-                  href={`/admin/users/${p.id}/permissions`}
-                  className="btn btn-sm btn-ghost"
-                  aria-label={`Permissions for ${who}`}
-                >
-                  Permissions
-                </Link>
-              )}
-              {!self && p.status === 'active' && (
-                <MessageUserButton recipientId={p.id} className="btn-sm btn-ghost" aria-label={`Message ${who}`} />
-              )}
-              {self ? (
-                <span className="text-xs italic text-slate-600">Your own account</span>
-              ) : p.status === 'disabled' ? (
-                <>
-                  {/* Restoring re-grants sign-in, so it confirms like its siblings rather
-                      than firing on a single click next to the irreversible Erase. */}
-                  <form action={restoreUserAction}>
-                    <input type="hidden" name="id" value={p.id} />
-                    <ConfirmSubmit
-                      className="btn btn-sm btn-success"
-                      title="Restore access?"
-                      message={`${who} can sign in again straight away, with the access they had before.`}
-                      confirmLabel="Restore"
-                      pendingLabel="Restoring..."
-                      variant="primary"
-                      aria-label={`Restore access for ${who}`}
-                    >
-                      Restore
-                    </ConfirmSubmit>
-                  </form>
-                  {canErase && (
-                    <form action={eraseUserAction}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <ConfirmSubmit
-                        className="btn btn-sm btn-danger"
-                        title="Erase this account permanently?"
-                        message={`${who} - their personal data and login are permanently deleted and CANNOT be restored. Audit and finance records are kept.`}
-                        confirmLabel="Erase permanently"
-                        pendingLabel="Erasing..."
-                        aria-label={`Erase ${who} permanently`}
-                      >
-                        Erase
-                      </ConfirmSubmit>
-                    </form>
-                  )}
-                </>
-              ) : (
-                <form action={revokeUserAction}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <ConfirmSubmit
-                    className="btn btn-sm btn-danger"
-                    title="Revoke access?"
-                    message={`${who} is signed out and blocked on their next request.`}
-                    confirmLabel="Revoke"
-                    pendingLabel="Revoking..."
-                    aria-label={`Revoke access for ${who}`}
-                  >
-                    Revoke
-                  </ConfirmSubmit>
-                </form>
-              )}
-            </div>
-          </>
+          <div className="ml-auto flex items-center">
+            <UserRowActions
+              p={p}
+              who={who}
+              self={self}
+              canEditPermissions={canEditPermissions}
+              canErase={canErase}
+              visibleRoleLabel={visibleRoleLabel}
+            />
+          </div>
         ) : (
           <span className="ml-auto text-xs italic text-slate-600">Managed by a Super Admin</span>
         )}

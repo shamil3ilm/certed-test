@@ -28,6 +28,7 @@ export function ClassHoursTabs() {
           <Link
             key={tab.href}
             href={tab.href}
+            scroll={false}
             aria-current={active ? 'page' : undefined}
             className={cx(
               'shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition',

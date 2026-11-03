@@ -91,6 +91,7 @@ export default async function AdminUsersPage(props: {
           <Link
             key={t.key}
             href={`/admin/users?tab=${t.key}`}
+            scroll={false}
             className={cx(
               'shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition',
               data.filters.tab === t.key
@@ -123,6 +124,7 @@ export default async function AdminUsersPage(props: {
                   sortBy: data.filters.sortBy,
                   sortOrder: data.filters.sortOrder,
                 })}
+                scroll={false}
                 aria-current={active ? 'page' : undefined}
                 className={cx(
                   'shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold transition',

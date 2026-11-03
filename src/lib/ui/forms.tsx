@@ -1,4 +1,14 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
+'use client'
+
+import {
+  useTransition,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from 'react'
+import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { cx } from './core'
 
 /* The shared GET filter/search bar used by the Users hub, grading queue,
@@ -97,6 +107,7 @@ export function FilterBar({
   applyLabel = 'Apply',
   className = '',
   hidden = false,
+  action,
   children,
 }: {
   clearHref?: string
@@ -110,19 +121,77 @@ export function FilterBar({
    * never be cleared.
    */
   hidden?: boolean
+  /**
+   * Optional custom submission target (e.g. `/students/123#hours`).
+   * When omitted, submits to the current pathname.
+   */
+  action?: string
   children: ReactNode
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [isPending, startTransition] = useTransition()
+
   if (hidden) return null
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const form = e.currentTarget
+    const formData = new FormData(form)
+    const sp = new URLSearchParams()
+    for (const [key, val] of formData.entries()) {
+      if (typeof val === 'string') {
+        const trimmed = val.trim()
+        if (trimmed !== '') {
+          sp.append(key, trimmed)
+        }
+      }
+    }
+
+    let targetPath = pathname ?? ''
+    let targetHash = typeof window !== 'undefined' ? window.location.hash : ''
+
+    if (action) {
+      if (action.startsWith('#')) {
+        targetHash = action
+      } else {
+        try {
+          const parsed = new URL(action, 'http://localhost')
+          targetPath = parsed.pathname
+          if (parsed.hash) {
+            targetHash = parsed.hash
+          }
+        } catch {
+          targetPath = action
+        }
+      }
+    }
+
+    const query = sp.toString()
+    const destination = `${targetPath}${query ? `?${query}` : ''}${targetHash}`
+
+    startTransition(() => {
+      if (
+        typeof window !== 'undefined' &&
+        `${window.location.pathname}${window.location.search}${window.location.hash}` === destination
+      ) {
+        router.refresh()
+      } else {
+        router.push(destination, { scroll: false })
+      }
+    })
+  }
+
   return (
-    <form className={cx('flex flex-wrap items-end gap-2', className)}>
+    <form onSubmit={handleSubmit} className={cx('flex flex-wrap items-end gap-2', className)}>
       {children}
-      <button type="submit" className="btn btn-sm btn-soft">
+      <button type="submit" disabled={isPending} className="btn btn-sm btn-soft">
         {applyLabel}
       </button>
       {showClear && clearHref && (
-        <a href={clearHref} className="text-xs font-medium text-slate-600 hover:text-primary">
+        <Link href={clearHref} scroll={false} className="text-xs font-medium text-slate-600 hover:text-primary">
           Clear
-        </a>
+        </Link>
       )}
     </form>
   )

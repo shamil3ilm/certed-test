@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { getBrowserAuthAvailability, requestPasswordResetClient } from '../../auth-client'
 import { Field, Input } from '../../form'
 import { useHydratedFlag } from '@/lib/ui/client-env'
@@ -49,9 +50,9 @@ export function ForgotPasswordForm() {
           If an account exists for <strong>{email}</strong>, we&apos;ve sent a password-reset link. Check your inbox
           (and your spam folder).
         </p>
-        <a href="/login" className="btn btn-soft w-full">
+        <Link href="/login" className="btn btn-soft w-full">
           Back to sign in
-        </a>
+        </Link>
       </div>
     )
   }
@@ -66,9 +67,9 @@ export function ForgotPasswordForm() {
       <button type="submit" disabled={busy || !hydrated || !authAvailability.ok} className="btn btn-primary w-full">
         {busy ? 'Sending...' : 'Send reset link'}
       </button>
-      <a href="/login" className="block text-center text-xs font-medium text-slate-600 hover:underline">
+      <Link href="/login" className="block text-center text-xs font-medium text-slate-600 hover:underline">
         Back to sign in
-      </a>
+      </Link>
     </form>
   )
 }

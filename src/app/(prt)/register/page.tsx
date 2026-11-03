@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isMock } from '@/lib/mock/env'
 import { getActorContext } from '@/lib/session/actor-context'
@@ -21,9 +22,9 @@ export default async function RegisterPage() {
       <RegisterForm termsBody={<TermsBody />} privacyBody={<PrivacyBody />} />
       <p className="mt-6 text-center text-xs text-slate-600">
         Already set up?{' '}
-        <a href="/login" className="font-medium text-primary hover:underline">
+        <Link href="/login" className="font-medium text-primary hover:underline">
           Sign in
-        </a>
+        </Link>
       </p>
     </AuthShell>
   )

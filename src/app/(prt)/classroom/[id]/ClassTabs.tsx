@@ -25,6 +25,7 @@ export function ClassTabs({ id, canGrade }: { id: string; canGrade: boolean }) {
           <Link
             key={t.label}
             href={href}
+            scroll={false}
             aria-current={active ? 'page' : undefined}
             className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
               active

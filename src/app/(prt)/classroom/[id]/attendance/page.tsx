@@ -282,20 +282,9 @@ export default async function AttendancePage(props: {
           </AlertBanner>
         )}
 
-        <form className="flex flex-wrap items-end gap-2">
-          <label className="text-xs font-medium text-slate-600">
-            Session date
-            <input
-              type="date"
-              name="date"
-              defaultValue={data.date}
-              className="mt-1 block rounded border border-slate-200 px-2 py-1 text-sm"
-            />
-          </label>
-          <button type="submit" className="btn btn-sm btn-soft">
-            Load
-          </button>
-        </form>
+        <FilterBar applyLabel="Load">
+          <DateFilterField label="Session date" name="date" defaultValue={data.date} />
+        </FilterBar>
 
         {sessionsForForm.map((session, index) => {
           const tutorName = session.tutor_id ? (data.tutorNames.get(session.tutor_id) ?? null) : null

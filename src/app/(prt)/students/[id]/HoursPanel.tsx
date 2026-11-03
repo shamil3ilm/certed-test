@@ -3,7 +3,7 @@ import { getStudentMonth } from '@/lib/services/hours-breakdown'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { isMonth } from '@/lib/time/month-window'
-import { Card, EmptyState, FILTER_CONTROL, SectionLabel, cx } from '@/lib/ui'
+import { Card, EmptyState, FilterBar, FilterField, FILTER_CONTROL, SectionLabel, cx } from '@/lib/ui'
 import { StudentHoursView, StudentLedger } from '../../HoursTables'
 
 /**
@@ -44,18 +44,14 @@ export async function HoursPanel({
             regular ones.
           </p>
         </div>
-        <form className="flex items-end gap-2" action={`/students/${studentId}#hours`}>
+        <FilterBar action={`/students/${studentId}#hours`} applyLabel="View">
           {Object.entries(carry).map(([name, value]) =>
             value ? <input key={name} type="hidden" name={name} value={value} /> : null,
           )}
-          <label className="text-xs font-medium text-slate-600">
-            Month
-            <input type="month" name="hoursMonth" defaultValue={month} className={cx(FILTER_CONTROL, 'mt-1 block')} />
-          </label>
-          <button type="submit" className="btn btn-sm btn-soft">
-            View
-          </button>
-        </form>
+          <FilterField label="Month">
+            <input type="month" name="hoursMonth" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
+          </FilterField>
+        </FilterBar>
       </div>
       <div className="mt-2">
         {hours ? (

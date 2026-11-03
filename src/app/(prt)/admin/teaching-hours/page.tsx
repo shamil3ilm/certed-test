@@ -181,7 +181,9 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
                 <td className="p-2 font-medium text-slate-800">
                   {i === 0 ? (
                     <>
-                      {c.className}
+                      <Link href={`/classroom/${c.classId}`} className="hover:text-primary hover:underline">
+                        {c.className}
+                      </Link>
                       {c.subjectName && (
                         <span className="block text-xs font-normal text-slate-500">{c.subjectName}</span>
                       )}
@@ -195,7 +197,16 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
                     seeing, while "Tutor" on every row would just be skimmed past. */}
                 <td className="p-2 text-slate-600">
                   <span className="inline-flex items-baseline gap-1.5">
-                    {t.tutorName}
+                    {t.tutorId ? (
+                      <Link
+                        href={`/admin/teaching-hours/person/${t.tutorId}?month=${month}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {t.tutorName}
+                      </Link>
+                    ) : (
+                      t.tutorName
+                    )}
                     {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
                       <span className="text-meta font-medium text-slate-500">
                         {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
@@ -246,7 +257,14 @@ function StudentsTable({ students, month }: { students: HoursBreakdown['students
         <tbody>
           {students.map((s) => (
             <tr key={s.studentId} className="border-t">
-              <td className="p-2 font-medium text-slate-800">{s.studentName}</td>
+              <td className="p-2 font-medium text-slate-800">
+                <Link
+                  href={`/students/${s.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                  className="hover:text-primary hover:underline"
+                >
+                  {s.studentName}
+                </Link>
+              </td>
               <td className="p-2 text-right font-medium tabular-nums text-slate-800">{cell(s.total.regular)}</td>
               <Num>{cell(s.total.demo)}</Num>
               <Num>{cell(s.total.exam)}</Num>

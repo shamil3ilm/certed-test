@@ -1,4 +1,5 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import Link from 'next/link'
 import { formatMinutes } from '@/lib/attendance/hours'
 import { workingMinutes, type ByKind } from '@/lib/attendance/hours-breakdown'
 import type {
@@ -66,7 +67,7 @@ function Stat({ label, value, note }: { label: string; value: number; note?: str
 
 /** Hours RECEIVED by one student: subject, tutor and kind. */
 export function StudentHoursView({ hours }: { hours: StudentHours }) {
-  const rows = (items: ReadonlyArray<{ key: string; label: string; minutes: ByKind }>, heading: string) => (
+  const rows = (items: ReadonlyArray<{ key: string; label: ReactNode; minutes: ByKind }>, heading: string) => (
     <table className="data-table w-full text-sm">
       <thead>
         <tr className="text-left text-slate-600">
@@ -112,7 +113,17 @@ export function StudentHoursView({ hours }: { hours: StudentHours }) {
       </Block>
       <Block title="By tutor" note="The tutor each session was recorded against.">
         {rows(
-          hours.byTutor.map((t) => ({ key: t.tutorId ?? 'none', label: t.tutorName, minutes: t.minutes })),
+          hours.byTutor.map((t) => ({
+            key: t.tutorId ?? 'none',
+            label: t.tutorId ? (
+              <Link href={`/admin/teaching-hours/person/${t.tutorId}`} className="hover:text-primary hover:underline">
+                {t.tutorName}
+              </Link>
+            ) : (
+              t.tutorName
+            ),
+            minutes: t.minutes,
+          })),
           'Tutor',
         )}
       </Block>
@@ -146,7 +157,7 @@ export function StudentHoursView({ hours }: { hours: StudentHours }) {
 /** Hours WORKED by one person: subject, student and kind. */
 export function PersonHoursView({ hours }: { hours: PersonHours }) {
   const working = workingMinutes(hours.minutes)
-  const rows = (items: ReadonlyArray<{ key: string; label: string; minutes: ByKind }>, heading: string) => (
+  const rows = (items: ReadonlyArray<{ key: string; label: ReactNode; minutes: ByKind }>, heading: string) => (
     <table className="data-table w-full text-sm">
       <thead>
         <tr className="text-left text-slate-600">
@@ -199,7 +210,17 @@ export function PersonHoursView({ hours }: { hours: PersonHours }) {
         note="Regular leaves exam monitoring out; Working includes it. Demo is never part of Working."
       >
         {rows(
-          hours.byStudent.map((s) => ({ key: s.studentId ?? 'none', label: s.studentName, minutes: s.minutes })),
+          hours.byStudent.map((s) => ({
+            key: s.studentId ?? 'none',
+            label: s.studentId ? (
+              <Link href={`/students/${s.studentId}`} className="hover:text-primary hover:underline">
+                {s.studentName}
+              </Link>
+            ) : (
+              s.studentName
+            ),
+            minutes: s.minutes,
+          })),
           'Student',
         )}
       </Block>
@@ -268,8 +289,27 @@ export function StudentLedger({ rows }: { rows: readonly StudentLedgerRow[] }) {
                 <td className={cx('p-2 text-right tabular-nums', r.counted ? 'text-slate-800' : 'text-slate-500')}>
                   {r.minutes > 0 ? formatMinutes(r.minutes) : '-'}
                 </td>
-                <td className="p-2 font-medium text-slate-800">{r.subjectName}</td>
-                <td className="p-2 text-slate-600">{r.tutorName}</td>
+                <td className="p-2 font-medium text-slate-800">
+                  {r.classId ? (
+                    <Link href={`/classroom/${r.classId}`} className="hover:text-primary hover:underline">
+                      {r.subjectName}
+                    </Link>
+                  ) : (
+                    r.subjectName
+                  )}
+                </td>
+                <td className="p-2 text-slate-600">
+                  {r.tutorId ? (
+                    <Link
+                      href={`/admin/teaching-hours/person/${r.tutorId}`}
+                      className="hover:text-primary hover:underline"
+                    >
+                      {r.tutorName}
+                    </Link>
+                  ) : (
+                    r.tutorName
+                  )}
+                </td>
                 <td className="p-2 text-slate-600">
                   <KindCell kind={r.kind} monitorName={r.monitorName} />
                 </td>
@@ -336,7 +376,15 @@ export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
               <td className="p-2 text-right tabular-nums text-slate-800">
                 {r.minutes > 0 ? formatMinutes(r.minutes) : '-'}
               </td>
-              <td className="p-2 font-medium text-slate-800">{r.subjectName}</td>
+              <td className="p-2 font-medium text-slate-800">
+                {r.classId ? (
+                  <Link href={`/classroom/${r.classId}`} className="hover:text-primary hover:underline">
+                    {r.subjectName}
+                  </Link>
+                ) : (
+                  r.subjectName
+                )}
+              </td>
               <td className="p-2 text-slate-600">
                 {r.studentNames.length > 0 ? (
                   r.studentNames.join(', ')
@@ -386,12 +434,13 @@ export function MenteesHoursTable({ rows, month }: { rows: readonly MenteeHours[
           {rows.map((r) => (
             <tr key={r.studentId} className="border-t">
               <td className="p-2 font-medium text-slate-800">
-                <a
+                <Link
                   className="text-primary hover:underline"
                   href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                  scroll={false}
                 >
                   {r.studentName}
-                </a>
+                </Link>
               </td>
               <Num strong>{cell(r.total.regular)}</Num>
               <Num>{cell(r.total.demo)}</Num>

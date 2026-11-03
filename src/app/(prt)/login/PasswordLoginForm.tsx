@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getBrowserAuthAvailability, signInWithPasswordClient } from '../auth-client'
 import { Field, Input, PasswordInput } from '../form'
@@ -80,9 +81,9 @@ export function PasswordLoginForm() {
         <PasswordInput name="password" required placeholder="Your password" autoComplete="current-password" />
       </Field>
       <div className="text-right">
-        <a href="/login/forgot" className="text-xs font-medium text-primary hover:underline">
+        <Link href="/login/forgot" className="text-xs font-medium text-primary hover:underline">
           Forgot password?
-        </a>
+        </Link>
       </div>
       {!authAvailability.ok && <AlertBanner tone="warning">{authAvailability.message}</AlertBanner>}
       {error && <AlertBanner tone="warning">{error}</AlertBanner>}

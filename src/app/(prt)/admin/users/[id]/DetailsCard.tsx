@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Card, Badge, profileStatusTone, roleLabel, statusLabel } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../../../form'
 import { EscapableDetails } from '../../../EscapableDetails'
@@ -36,49 +37,54 @@ export function DetailsCard({ profile }: { profile: ProfileDetails }) {
           </p>
         </div>
 
-        <EscapableDetails
-          className="relative text-xs"
-          summaryClassName="cursor-pointer btn btn-sm btn-soft"
-          summary="Edit details"
-        >
-          <form
-            action={editDetailsAction}
-            className="absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/admin/users/${profile.id}/permissions`} className="btn btn-sm btn-soft">
+            Permissions & Capabilities
+          </Link>
+          <EscapableDetails
+            className="relative text-xs"
+            summaryClassName="cursor-pointer btn btn-sm btn-soft"
+            summary="Edit details"
           >
-            <input type="hidden" name="id" value={profile.id} />
-            <Field label="Name">
-              <Input name="full_name" defaultValue={profile.full_name ?? ''} />
-            </Field>
-            {isStudent && (
-              <Field label="Class / grade">
-                <Input name="class_level" defaultValue={profile.class_level ?? ''} placeholder="e.g. Grade 10" />
+            <form
+              action={editDetailsAction}
+              className="absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
+            >
+              <input type="hidden" name="id" value={profile.id} />
+              <Field label="Name">
+                <Input name="full_name" defaultValue={profile.full_name ?? ''} />
               </Field>
-            )}
-            <Field label="Country">
-              <Input name="country" list="country-list" defaultValue={profile.country ?? ''} autoComplete="off" />
-            </Field>
-            <Field label="Phone">
-              <Input name="phone" type="tel" defaultValue={profile.phone ?? ''} />
-            </Field>
-            {isStudent && (
-              <>
-                <Field label="Guardian name">
-                  <Input name="guardian_name" defaultValue={profile.guardian_name ?? ''} />
+              {isStudent && (
+                <Field label="Class / grade">
+                  <Input name="class_level" defaultValue={profile.class_level ?? ''} placeholder="e.g. Grade 10" />
                 </Field>
-                <Field label="Guardian phone">
-                  <Input name="guardian_phone" type="tel" defaultValue={profile.guardian_phone ?? ''} />
-                </Field>
-              </>
-            )}
-            <Field label="Joined on">
-              <Input name="joined_on" type="date" defaultValue={profile.joined_on ?? ''} />
-            </Field>
-            <SubmitButton className="btn-sm btn-primary" pendingLabel="Saving...">
-              Save
-            </SubmitButton>
-            <CloseDisclosureWhenDone />
-          </form>
-        </EscapableDetails>
+              )}
+              <Field label="Country">
+                <Input name="country" list="country-list" defaultValue={profile.country ?? ''} autoComplete="off" />
+              </Field>
+              <Field label="Phone">
+                <Input name="phone" type="tel" defaultValue={profile.phone ?? ''} />
+              </Field>
+              {isStudent && (
+                <>
+                  <Field label="Guardian name">
+                    <Input name="guardian_name" defaultValue={profile.guardian_name ?? ''} />
+                  </Field>
+                  <Field label="Guardian phone">
+                    <Input name="guardian_phone" type="tel" defaultValue={profile.guardian_phone ?? ''} />
+                  </Field>
+                </>
+              )}
+              <Field label="Joined on">
+                <Input name="joined_on" type="date" defaultValue={profile.joined_on ?? ''} />
+              </Field>
+              <SubmitButton className="btn-sm btn-primary" pendingLabel="Saving...">
+                Save
+              </SubmitButton>
+              <CloseDisclosureWhenDone />
+            </form>
+          </EscapableDetails>
+        </div>
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">

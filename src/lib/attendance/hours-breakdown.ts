@@ -252,6 +252,7 @@ export interface LedgerMark extends BreakdownMark {
 
 export interface StudentLedgerRaw {
   sessionId: string
+  classId?: string | null
   /** The calendar date the session was recorded against. */
   sessionDate: string | null
   startAt: string | null
@@ -298,6 +299,7 @@ export function ledgerForStudent(
     const kind = kindOf(session)
     rows.push({
       sessionId: session.id,
+      classId: session.class_id,
       sessionDate: session.session_date ?? null,
       startAt: session.actual_start,
       endAt: session.actual_end,

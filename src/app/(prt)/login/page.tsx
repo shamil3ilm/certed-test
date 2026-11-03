@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isMock } from '@/lib/mock/env'
 import { getActorContext } from '@/lib/session/actor-context'
@@ -52,13 +53,13 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
           Account created - sign in below.
         </p>
       )}
-      <PasswordLoginForm />
       <GoogleSignInGate />
+      <PasswordLoginForm />
       <p className="mt-4 text-center text-xs text-slate-600">
         First time?{' '}
-        <a href="/register" className="font-medium text-primary hover:underline">
+        <Link href="/register" className="font-medium text-primary hover:underline">
           Set up your account
-        </a>
+        </Link>
       </p>
     </AuthShell>
   )

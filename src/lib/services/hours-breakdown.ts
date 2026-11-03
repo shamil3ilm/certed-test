@@ -206,11 +206,13 @@ export async function getAcademyBreakdown(actorId: string, month: string): Promi
 
 export interface StudentLedgerRow {
   sessionId: string
+  classId?: string | null
   sessionDate: string | null
   startAt: string | null
   endAt: string | null
   minutes: number
   subjectName: string
+  tutorId?: string | null
   tutorName: string
   kind: SessionKind
   /** Who monitored an exam when it was not the tutor; null otherwise. */
@@ -390,11 +392,13 @@ export async function getStudentMonth(actor: Profile, studentId: string, month: 
     hours,
     ledger: rows.map((r) => ({
       sessionId: r.sessionId,
+      classId: r.classId ?? null,
       sessionDate: r.sessionDate,
       startAt: r.startAt,
       endAt: r.endAt,
       minutes: r.minutes,
       subjectName: names.subject(r.subjectId),
+      tutorId: r.tutorId ?? null,
       tutorName: names.person(r.tutorId, UNASSIGNED),
       kind: r.kind,
       monitorName: r.monitorId ? names.person(r.monitorId, UNASSIGNED) : null,

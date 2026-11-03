@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getActorContext } from '@/lib/session/actor-context'
 import { AuthShell } from '../../auth/AuthShell'
 import { ResetPasswordForm } from './ResetPasswordForm'
@@ -15,9 +16,9 @@ export default async function ResetPasswordPage() {
   if (!userId) {
     return (
       <AuthShell title="Reset link invalid" subtitle="This password-reset link is invalid or has expired.">
-        <a href="/login/forgot" className="btn btn-primary w-full">
+        <Link href="/login/forgot" className="btn btn-primary w-full">
           Request a new link
-        </a>
+        </Link>
       </AuthShell>
     )
   }
