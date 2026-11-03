@@ -3,8 +3,7 @@
 import { GoogleSignIn } from './GoogleSignIn'
 
 /**
- * Sign in with Google option.
- * Rendered by default below email/password without requiring #google hash.
+ * Google sign-in section rendered below the email/password form.
  */
 export function GoogleSignInGate() {
   return (

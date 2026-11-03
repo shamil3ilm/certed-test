@@ -76,14 +76,11 @@ try {
 }
 
 // ── 4. Google sign-in (OAuth consent screen) ─────────────────────────────────
-// Deliberately NOT probed over HTTP. GoogleSignInGate renders the control only when
-// window.location.hash === '#google', and a fragment is never sent to the server - so the
-// button is absent from every server response by design. Probing it anyway produced a
-// confident false alarm ("config is missing") against a perfectly healthy deployment,
-// which is worse than not checking at all: a preflight that cries wolf stops being read.
+// Sign in with Google is available on /login by default. The OAuth consent screen
+// and redirect URI need manual verification on a live deployment.
 manual(
   'oauth-consent',
-  'open /login#google, sign in with Google once, and confirm the consent screen is PUBLISHED (a test-mode app admits only listed users)',
+  'open /login, sign in with Google once, and confirm the consent screen is PUBLISHED (a test-mode app admits only listed users)',
 )
 
 // ── 5. Security headers ──────────────────────────────────────────────────────
