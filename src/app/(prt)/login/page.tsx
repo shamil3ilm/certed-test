@@ -53,8 +53,8 @@ export default async function LoginPage(props: { searchParams: Promise<LoginSear
           Account created - sign in below.
         </p>
       )}
-      <GoogleSignInGate />
       <PasswordLoginForm />
+      <GoogleSignInGate />
       <p className="mt-4 text-center text-xs text-slate-600">
         First time?{' '}
         <Link href="/register" className="font-medium text-primary hover:underline">
