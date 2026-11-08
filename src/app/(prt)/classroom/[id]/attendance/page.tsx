@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireClassAccess } from '../../access'
 import { canEditStaffNote } from '@/lib/permission'
 import {
@@ -524,13 +525,14 @@ export default async function AttendancePage(props: {
                   return (
                     <tr key={`${row.session_date}-${row.name}-${i}`}>
                       <td className="whitespace-nowrap">
-                        <a
+                        <Link
                           href={`?date=${row.session_date}`}
+                          scroll={false}
                           className="font-medium text-slate-700 transition hover:text-primary"
                           title="Open this session"
                         >
                           {row.session_date}
-                        </a>
+                        </Link>
                       </td>
                       <td className="whitespace-nowrap text-slate-600">
                         {/* Which session the mark belongs to. A day can hold several (0094), so

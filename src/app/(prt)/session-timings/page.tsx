@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirectDenied } from '@/lib/auth/require-role'
 import { redirectForAccessState } from '@/lib/auth/guards'
 import { loadSessionTimingsPageData, type SessionTimingSearchParams } from '@/lib/services/page-data/session-timings'
@@ -151,9 +152,13 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                     ) : (
                       <>
                         {group.total} session{group.total === 1 ? '' : 's'}.{' '}
-                        <a className="link" href={sessionTimingsPageHref({ ...filters, student: group.studentId }, 1)}>
+                        <Link
+                          className="link"
+                          href={sessionTimingsPageHref({ ...filters, student: group.studentId }, 1)}
+                          scroll={false}
+                        >
                           View sessions
-                        </a>
+                        </Link>
                       </>
                     )}
                   </p>
