@@ -71,7 +71,7 @@ export default async function MenteePage(props: {
 
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-      <BackLink href="/students">Back to mentees</BackLink>
+      <BackLink href="/students">{hasMentorAuthority ? 'Back to mentees' : 'Back to mentoring'}</BackLink>
       {searchParams?.error === '1' && (
         <AlertBanner tone="warning" className="mt-2">
           Couldn&apos;t add that note - please try again.

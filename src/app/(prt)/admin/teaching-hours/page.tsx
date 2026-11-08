@@ -26,7 +26,7 @@ import { PersonHoursView, StudentHoursView } from '../../HoursTables'
 
 const SECTIONS = [
   { href: '#people', label: 'Tutors & mentors' },
-  { href: '#by-class', label: 'By class' },
+  { href: '#by-class', label: 'By class & tutor' },
   { href: '#students', label: 'Students' },
 ] as const
 

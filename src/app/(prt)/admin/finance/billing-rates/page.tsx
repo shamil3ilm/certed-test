@@ -26,7 +26,7 @@ export default async function BillingRatesPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
-      <BackLink href="/admin/finance">Finance</BackLink>
+      <BackLink href="/admin/finance">Back to Finance</BackLink>
       <PageHeader
         title="Hourly rates"
         description={`What each student pays and each tutor or mentor earns per hour. Receipts and pay slips are generated from these rates and the recorded class hours. New people default to ${baseCurrency}.`}

@@ -230,6 +230,7 @@ To guarantee optimal experience on mobile, tablet, and desktop:
 8. **UI/UX Spacing Normalization & Information Architecture Polish**:
    - Resolved visual collision where Month FilterBars touched stat cards on `/admin/teaching-hours/person/[id]`, `/my-hours`, and `/students/[id]/HoursPanel` by enforcing standard vertical separation (`mb-6` / `mt-5`).
    - Elevated table clarity in the Class Hours report (`ClassTutorTable`): added an explicit `Subject` column and made every row a self-contained record of `Class` &rarr; `Subject` &rarr; `Tutor` &rarr; `Sessions` &rarr; `Hours`. This aligns 1:1 with the CSV export and eliminates blank-cell confusion when a class is taught across multiple tutors or subjects.
+   - Enforced nomenclature hierarchy and navigational parity: aligned SectionJumpNav (`By class & tutor`) with SectionHeading, unified all BackLink prefixes (`Back to Finance`), and persona-tailored the student detail back link (`Back to mentees` for mentors, `Back to mentoring` for oversight admins).
 
 ---
 

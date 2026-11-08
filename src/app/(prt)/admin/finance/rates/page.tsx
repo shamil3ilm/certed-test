@@ -18,7 +18,7 @@ export default async function FxRatesPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
-      <BackLink href="/admin/finance">Finance</BackLink>
+      <BackLink href="/admin/finance">Back to Finance</BackLink>
       <PageHeader
         title="Currency conversion"
         description="Normalise every receipt and pay slip into one base currency using rates you maintain by date."
