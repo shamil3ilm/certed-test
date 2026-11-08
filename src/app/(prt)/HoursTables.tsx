@@ -247,14 +247,25 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
  * page. Pass `true` only when the viewer holds `viewMentees` (mentor or admin);
  * a plain tutor without mentee oversight should see the name as plain text.
  */
-export function PersonHoursView({ hours, canLinkStudent = false }: { hours: PersonHours; canLinkStudent?: boolean }) {
+export function PersonHoursView({
+  hours,
+  month,
+  canLinkStudent = false,
+}: {
+  hours: PersonHours
+  month?: string
+  canLinkStudent?: boolean
+}) {
   const working = workingMinutes(hours.minutes)
 
   /** Render a student name, optionally linked to their detail page. */
   function StudentName({ studentId, studentName }: { studentId: string | null; studentName: string }) {
     if (studentId && canLinkStudent) {
+      const href = month
+        ? `/students/${studentId}?hoursMonth=${encodeURIComponent(month)}#hours`
+        : `/students/${studentId}`
       return (
-        <Link prefetch={false} href={`/students/${studentId}`} className="hover:text-primary hover:underline">
+        <Link prefetch={false} href={href} className="hover:text-primary hover:underline">
           {studentName}
         </Link>
       )

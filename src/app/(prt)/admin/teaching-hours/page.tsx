@@ -135,7 +135,7 @@ function PeopleTable({ people, month }: { people: HoursBreakdown['people']; mont
 
 /** One collapsed card per person: open it for their subject-by-subject and student-by-student
  *  breakdown. Collapsed, because most readers want the totals and a few want the detail. */
-function PeopleDetail({ people }: { people: HoursBreakdown['people'] }) {
+function PeopleDetail({ people, month }: { people: HoursBreakdown['people']; month: string }) {
   return (
     <div className="mt-3 space-y-2">
       {people.map((p) => (
@@ -147,7 +147,7 @@ function PeopleDetail({ people }: { people: HoursBreakdown['people'] }) {
             </span>
           </summary>
           <div className="border-t border-slate-100 p-4">
-            <PersonHoursView hours={p} canLinkStudent={true} />
+            <PersonHoursView hours={p} month={month} canLinkStudent={true} />
           </div>
         </details>
       ))}
@@ -394,7 +394,7 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
             note="Working hours are regular teaching plus exam monitoring; an exam counts for whoever monitored it. Demo classes are shown beside it and are never working time. Open a name for the subject-by-subject and student-by-student detail."
           />
           <PeopleTable people={people} month={month} />
-          <PeopleDetail people={people} />
+          <PeopleDetail people={people} month={month} />
 
           <SectionHeading
             id="by-class"
