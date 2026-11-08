@@ -15,8 +15,7 @@ import {
   EmptyState,
   PageHeader,
   FilterBar,
-  FilterField,
-  FILTER_CONTROL,
+  MonthFilterField,
   SectionJumpNav,
   roleLabelIfUnexpected,
   cx,
@@ -357,9 +356,7 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <FilterBar applyLabel="View">
-          <FilterField label="Month">
-            <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
-          </FilterField>
+          <MonthFilterField defaultValue={month} name="month" />
         </FilterBar>
         <a
           href={`/api/teaching-hours/export?month=${encodeURIComponent(month)}`}

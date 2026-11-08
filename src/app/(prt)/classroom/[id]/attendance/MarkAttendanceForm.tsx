@@ -184,22 +184,22 @@ function MarkAttendanceFormBody({
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                <label className="inline-flex items-center gap-1">
+                <label className="inline-flex items-center gap-1.5">
                   Join
                   <input
                     type="time"
                     value={t.join}
                     onChange={(event) => setTime(row.id, 'join', event.target.value)}
-                    className="rounded border border-slate-200 px-1.5 py-1"
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </label>
-                <label className="inline-flex items-center gap-1">
+                <label className="inline-flex items-center gap-1.5">
                   Leave
                   <input
                     type="time"
                     value={t.leave}
                     onChange={(event) => setTime(row.id, 'leave', event.target.value)}
-                    className="rounded border border-slate-200 px-1.5 py-1"
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </label>
                 {metrics.learningMinutes != null && (

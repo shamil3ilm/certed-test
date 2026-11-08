@@ -88,14 +88,14 @@ export function AssignReminderForm({
           maxLength={2000}
           aria-label="Reminder note"
           placeholder="A note for them (optional)"
-          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <input
           name="remind_at"
           type="datetime-local"
           required
           aria-label="Remind at"
-          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <button type="submit" disabled={busy} className="btn btn-sm btn-soft">
           {busy ? 'Assigning...' : 'Assign reminder'}

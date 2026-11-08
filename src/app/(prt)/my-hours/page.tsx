@@ -4,7 +4,7 @@ import { getMenteesHoursReceived, getMyWork, getStudentMonth } from '@/lib/servi
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { isMonth } from '@/lib/time/month-window'
-import { EmptyState, FilterBar, FilterField, FILTER_CONTROL, PageHeader, SectionLabel, cx } from '@/lib/ui'
+import { EmptyState, FilterBar, MonthFilterField, PageHeader, SectionLabel } from '@/lib/ui'
 import { MenteesHoursTable, PersonHoursView, StudentHoursView, StudentLedger, WorkLedger } from '../HoursTables'
 
 /**
@@ -42,9 +42,7 @@ export default async function MyHoursPage(props: { searchParams: Promise<{ month
       />
 
       <FilterBar className="mt-4 mb-6" applyLabel="View">
-        <FilterField label="Month">
-          <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
-        </FilterField>
+        <MonthFilterField defaultValue={month} name="month" />
       </FilterBar>
 
       {isStudent ? (

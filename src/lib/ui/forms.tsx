@@ -16,7 +16,8 @@ import { cx } from './core'
 
 /** Standard control styling for a FilterBar input/select. Add `w-full` for a
  *  flexible search box. */
-export const FILTER_CONTROL = 'mt-1 block rounded border border-slate-200 px-2 py-1.5 text-sm'
+export const FILTER_CONTROL =
+  'mt-1 block rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
 
 /** Standard width treatment for the primary search field in a FilterBar. */
 export const FILTER_SEARCH_FIELD = 'min-w-0 flex-[2_1_18rem] sm:min-w-[18rem]'
@@ -95,6 +96,24 @@ export function DateFilterField({
   return (
     <FilterField label={label} className={className}>
       <input type="date" className={cx(FILTER_CONTROL, inputClassName)} {...props} />
+    </FilterField>
+  )
+}
+
+/** Shared month field for FilterBar layouts. */
+export function MonthFilterField({
+  label = 'Month',
+  className = '',
+  inputClassName = '',
+  ...props
+}: {
+  label?: string
+  className?: string
+  inputClassName?: string
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  return (
+    <FilterField label={label} className={className}>
+      <input type="month" className={cx(FILTER_CONTROL, 'block', inputClassName)} {...props} />
     </FilterField>
   )
 }

@@ -3,7 +3,7 @@ import { getStudentMonth } from '@/lib/services/hours-breakdown'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { isMonth } from '@/lib/time/month-window'
-import { Card, EmptyState, FilterBar, FilterField, FILTER_CONTROL, SectionLabel, cx } from '@/lib/ui'
+import { Card, EmptyState, FilterBar, MonthFilterField, SectionLabel } from '@/lib/ui'
 import { StudentHoursView, StudentLedger } from '../../HoursTables'
 
 /**
@@ -49,9 +49,7 @@ export async function HoursPanel({
           {Object.entries(carry).map(([name, value]) =>
             value ? <input key={name} type="hidden" name={name} value={value} /> : null,
           )}
-          <FilterField label="Month">
-            <input type="month" name="hoursMonth" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
-          </FilterField>
+          <MonthFilterField defaultValue={month} name="hoursMonth" />
         </FilterBar>
       </div>
       <div className="mt-5">

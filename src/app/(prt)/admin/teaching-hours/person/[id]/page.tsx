@@ -5,7 +5,7 @@ import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { getProfileById } from '@/lib/services/users'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { isMonth } from '@/lib/time/month-window'
-import { BackLink, EmptyState, FilterBar, FilterField, FILTER_CONTROL, PageHeader, cx } from '@/lib/ui'
+import { BackLink, EmptyState, FilterBar, MonthFilterField, PageHeader } from '@/lib/ui'
 import { PersonHoursView, WorkLedger } from '../../../../HoursTables'
 
 /**
@@ -39,9 +39,7 @@ export default async function PersonHoursPage(props: {
       />
 
       <FilterBar className="mt-4 mb-6" applyLabel="View">
-        <FilterField label="Month">
-          <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
-        </FilterField>
+        <MonthFilterField defaultValue={month} name="month" />
       </FilterBar>
 
       {work ? (

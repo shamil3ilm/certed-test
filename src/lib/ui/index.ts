@@ -46,6 +46,7 @@ export {
   SearchFilterField,
   SelectFilterField,
   DateFilterField,
+  MonthFilterField,
   FilterBar,
 } from './forms'
 export { pillButtonClass, segmentedButtonClass, SEGMENTED_GROUP } from './toggles'

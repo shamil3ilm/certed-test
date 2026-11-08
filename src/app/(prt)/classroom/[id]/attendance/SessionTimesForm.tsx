@@ -153,7 +153,7 @@ export function SessionTimesForm({
             value={kind}
             disabled={isTimesLocked}
             onChange={(event) => setKind(event.target.value as SessionKind)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           >
             {SESSION_KINDS.map((k) => (
               <option key={k} value={k}>
@@ -169,7 +169,7 @@ export function SessionTimesForm({
               value={tutorId}
               disabled={isTimesLocked}
               onChange={(event) => setTutorId(event.target.value)}
-              className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             >
               <option value="">
                 {session?.tutor_id
@@ -191,7 +191,7 @@ export function SessionTimesForm({
               <select
                 value={monitorId}
                 onChange={(event) => setMonitorId(event.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
+                className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="">The class tutor</option>
                 {monitorOptions.map((m) => (
@@ -219,7 +219,7 @@ export function SessionTimesForm({
             value={start}
             disabled={isTimesLocked}
             onChange={(event) => setStart(event.target.value)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           />
         </label>
         <label className="text-xs font-medium text-slate-600">
@@ -229,7 +229,7 @@ export function SessionTimesForm({
             value={end}
             disabled={isTimesLocked}
             onChange={(event) => setEnd(event.target.value)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           />
         </label>
       </div>
