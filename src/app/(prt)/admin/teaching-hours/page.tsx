@@ -352,11 +352,20 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
 
       {canOpenSessions && <ClassHoursTabs />}
 
-      <FilterBar className="mt-4" applyLabel="View">
-        <FilterField label="Month">
-          <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
-        </FilterField>
-      </FilterBar>
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+        <FilterBar applyLabel="View">
+          <FilterField label="Month">
+            <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
+          </FilterField>
+        </FilterBar>
+        <a
+          href={`/api/teaching-hours/export?month=${encodeURIComponent(month)}`}
+          download={`teaching-hours-${month}.csv`}
+          className="btn btn-sm btn-soft"
+        >
+          Export CSV
+        </a>
+      </div>
 
       {untimedSessions ? (
         <AlertBanner tone="warning" className="mt-4">

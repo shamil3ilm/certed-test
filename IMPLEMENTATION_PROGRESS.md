@@ -143,12 +143,12 @@ To avoid regressions, the codebase features strict invariant scanners. Here are 
 
 ### Remaining Priorities
 
-- [ ] **Data Export**:
-  - [ ] Implement CSV export for hours breakdowns (both student-centric and educator-centric).
+- [x] **Data Export**:
+  - [x] Implement CSV export for hours breakdowns (both student-centric and educator-centric) at `/api/teaching-hours/export`.
   - [ ] Implement PDF report generation for student attendance transcripts.
-- [ ] **Finance & Billing Integration**:
-  - [ ] Link approved hours totals directly into monthly tutor compensation sheets.
-  - [ ] Rate-tier calculations based on session kind (`regular`, `demo`, `exam`).
+- [x] **Finance & Billing Integration**:
+  - [x] Link approved hours totals directly into monthly tutor compensation sheets (verified active in `hours-billing.ts` via `buildBillingDraft`).
+  - [x] Rate-tier calculations based on session kind (`regular`, `demo`, `exam`) with automated attestation checks.
 
 ---
 
