@@ -25,9 +25,18 @@ import { usersUrl } from '@/lib/services/page-data/admin-users'
  *  already the interactive cards in AdminOverview, so this row adds only the
  *  library + activity figures below them. */
 export async function AdminAnalyticsStats({ pendingAccess, me }: { pendingAccess: number; me: Profile }) {
+  const tz = await getInstituteTimeZone()
+  const month = todayInZone(tz).slice(0, 7)
   const { announcements, documentDownloads } = await getAdminAnalytics(me)
   return (
-    <StatGrid cols={3}>
+    <StatGrid cols={4}>
+      <StatCard
+        label="Class hours"
+        value="Report"
+        sub="teaching & student totals"
+        tone="primary"
+        href={`/admin/teaching-hours?month=${month}`}
+      />
       <StatCard
         label="Pending access"
         value={pendingAccess}
@@ -63,13 +72,13 @@ export async function TutorAnalyticsStats({ me }: { me: Profile }) {
         value={teachingHours}
         tone="primary"
         sub={`${sessionsHeld} session${sessionsHeld === 1 ? '' : 's'} held`}
-        href={attendanceHref}
+        href="/my-hours"
       />
       <StatCard
         label="This month"
         value={formatHours(monthly.minutes)}
         sub={`${monthly.sessionCount} session${monthly.sessionCount === 1 ? '' : 's'}`}
-        href={attendanceHref}
+        href={`/my-hours?month=${month}`}
       />
       <StatCard label="Graded" value={graded} sub="results recorded" href={gradingHref} />
       <StatCard label="Attendance" value={`${attendanceRate}%`} sub="across your classes" href={attendanceHref} />
@@ -88,7 +97,7 @@ export async function StudentAnalyticsStats({ me }: { me: Profile }) {
         value={learningHours}
         tone="primary"
         sub={`${sessionsAttended} session${sessionsAttended === 1 ? '' : 's'} attended`}
-        href={attendanceHref}
+        href="/my-hours"
       />
       <StatCard label="Graded work" value={gradedWork} sub="results recorded" href="/grades" />
       <StatCard label="Attendance" value={`${attendanceRate}%`} sub="of your sessions" href={attendanceHref} />

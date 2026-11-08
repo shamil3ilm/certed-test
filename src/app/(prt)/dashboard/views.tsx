@@ -47,11 +47,13 @@ export function SubAdminDashboard({
   canViewUsers,
   canManageUsers,
   canManageMentorships,
+  canManageClasses,
 }: {
   data: SubAdminDashboardViewData
   canViewUsers: boolean
   canManageUsers: boolean
   canManageMentorships: boolean
+  canManageClasses?: boolean
 }) {
   return (
     <SubAdminOverview
@@ -59,6 +61,7 @@ export function SubAdminDashboard({
       canViewUsers={canViewUsers}
       canManageUsers={canManageUsers}
       canManageMentorships={canManageMentorships}
+      canManageClasses={canManageClasses}
     />
   )
 }

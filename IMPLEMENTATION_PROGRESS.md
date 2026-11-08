@@ -111,6 +111,16 @@ To avoid regressions, the codebase features strict invariant scanners. Here are 
 - **Why It Happens**: Vitest spawns isolated jsdom environments across CPU cores, and filesystem walks over all files in `src/` and `scripts/` saturate disk I/O.
 - **Solution**: Targeted test execution or increasing test timeout for heavy file-scanning tests (`testTimeout: 15000`).
 
+### 3.8. Dual-Remote Synchronization Divergence Trap
+
+- **The Mistake**: Pushing local commits to `staging` before checking and rebasing against remote changes on `origin` (production).
+- **Why It Fails**: In multi-remote architectures (`staging` at `shamil3ilm/certed-test` and `origin` at `certedapp/wed_cert`), direct commits made upstream on `origin` (e.g. `f9a9f0e Update README.md`) cause local `main` to diverge from `origin`. If `staging` is pushed first (`git push staging main:main`), and then `origin` rejects the push (`fetch first`), rebasing local `main` on `origin/main` rewrites commit hashes locally. Consequently, `staging` will subsequently reject the rebased commits because their history diverged.
+- **Rule & Prevention Protocol**:
+  1. Always fetch both remotes before pushing: `git fetch origin main && git fetch staging main`.
+  2. If upstream changes exist on either remote, rebase locally: `git rebase origin/main`.
+  3. Push cleanly to origin: `git push origin main:main`.
+  4. If staging previously received pre-rebased commits, update staging using lease verification: `git push staging main:main --force-with-lease`. Never use bare `--force`.
+
 ---
 
 ## 4. Current Status & Verification Metrics
@@ -136,6 +146,16 @@ To avoid regressions, the codebase features strict invariant scanners. Here are 
   - [x] `/admin/teaching-hours/person/[id]` detail view showing both session ledger and student-subject breakdown.
   - [x] `/students/[id]` `HoursPanel` integration.
   - [x] `/my-hours` self-service view (students, tutors, and mentor mentee rollups).
+- [x] **Dashboard Hours & KPI Cross-Linking**:
+  - [x] Admin overview: Added primary "Class hours" KPI tile linking to `/admin/teaching-hours?month={month}`.
+  - [x] SubAdmin dashboard: Added capability-checked "Class hours" quick action link gated by `canManageClasses`.
+  - [x] Mentor dashboard: Added direct "Mentee hours &rarr;" CTA in `MenteesPanel` linking to `/my-hours#mentees`.
+  - [x] Tutor dashboard: Linked "Teaching hours (all time)" and "This month" KPI tiles to `/my-hours` and `/my-hours?month={month}`.
+  - [x] Student dashboard: Linked "Learning hours" KPI tile to `/my-hours`.
+- [x] **UI Simplification & Responsive Dropdowns**:
+  - [x] Converted `StudentReportActions` from 3 sprawling horizontal buttons into a single, keyboard-navigable `<details>`/`<summary>` dropdown disclosure with `FileText` and `ChevronDown` icons.
+  - [x] Added `Download` icon to the CSV Export button on `/admin/teaching-hours`.
+  - [x] Formatted and verified responsive across mobile, tablet, and desktop viewports.
 - [x] **Lint & Format Verification**:
   - [x] Removed unused `isStudent`, `ReactNode`, `ByKind`.
   - [x] Replaced `text-[11px]` arbitrary pixel classes with `text-meta`.
@@ -145,7 +165,7 @@ To avoid regressions, the codebase features strict invariant scanners. Here are 
 
 - [x] **Data Export**:
   - [x] Implement CSV export for hours breakdowns (both student-centric and educator-centric) at `/api/teaching-hours/export`.
-  - [ ] Implement PDF report generation for student attendance transcripts.
+  - [ ] Implement PDF report generation for student attendance transcripts. _(Future Enhancement — marked as deferred for current cycle)_
 - [x] **Finance & Billing Integration**:
   - [x] Link approved hours totals directly into monthly tutor compensation sheets (verified active in `hours-billing.ts` via `buildBillingDraft`).
   - [x] Rate-tier calculations based on session kind (`regular`, `demo`, `exam`) with automated attestation checks.
@@ -200,14 +220,18 @@ To guarantee optimal experience on mobile, tablet, and desktop:
 
 The project repository is configured with two upstream targets:
 
-1. **Staging Environment**:
-   - Remote: `staging` (`https://github.com/shamil3ilm/certed-test.git`)
-   - Status: Up to date (`267f106..22bc433` pushed).
-2. **Production Environment**:
+1. **Production Environment**:
    - Remote: `origin` (`https://github.com/certedapp/wed_cert`)
-   - Remote commit `f9a9f0e` (`Update README.md`) has been cleanly fetched and rebased locally.
-   - Local `main` commit `0264727` is ready to be pushed to both remotes via:
+   - Remote commit `f9a9f0e` (`Update README.md`) has been cleanly fetched and rebased into local `main`.
+   - Local `main` is ahead of `origin/main` by 3 commits and ready for fast-forward push.
+2. **Staging Environment**:
+   - Remote: `staging` (`https://github.com/shamil3ilm/certed-test.git`)
+   - Previously held pre-rebased commit `22bc433`.
+   - After rebasing locally against `origin/main`, staging must be updated with lease verification:
      ```bash
+     # Push to production (fast-forward)
      git push origin main:main
-     git push staging main:main
+
+     # Push to staging with lease safety (syncs rebased history)
+     git push staging main:main --force-with-lease
      ```

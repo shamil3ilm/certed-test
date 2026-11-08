@@ -28,9 +28,14 @@ export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   return (
     <DashboardSection>
       <Panel title="Mentee roster">
-        <p className="mb-3 text-sm text-slate-600">
-          Students you look after across subjects. Open one to review their overall progress.
-        </p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-600">
+            Students you look after across subjects. Open one to review their overall progress.
+          </p>
+          <Link href="/my-hours#mentees" className={WIDGET_CTA_LINK}>
+            Mentee hours &rarr;
+          </Link>
+        </div>
         {mentees.length === 0 ? (
           <p className="text-sm text-slate-600">No mentees assigned yet - an admin will assign them.</p>
         ) : (
@@ -60,11 +65,13 @@ export function SubAdminOverview({
   canViewUsers,
   canManageUsers,
   canManageMentorships,
+  canManageClasses = false,
 }: {
   data: SubAdminDashboardViewData
   canViewUsers: boolean
   canManageUsers: boolean
   canManageMentorships: boolean
+  canManageClasses?: boolean
 }) {
   if (!canViewUsers) {
     return (
@@ -114,9 +121,16 @@ export function SubAdminOverview({
                   : 'Add, edit or revoke students and tutors.'}
           </p>
         </div>
-        <Link href="/admin/users" className="btn btn-primary shrink-0">
-          {canManageUsers ? 'Manage users' : 'View users'}
-        </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canManageClasses && (
+            <Link href="/admin/teaching-hours" className="btn btn-soft">
+              Class hours
+            </Link>
+          )}
+          <Link href="/admin/users" className="btn btn-primary">
+            {canManageUsers ? 'Manage users' : 'View users'}
+          </Link>
+        </div>
       </Card>
       <DashboardSection className="grid gap-4 lg:grid-cols-2">
         <UpcomingPanel events={data.upcoming} />

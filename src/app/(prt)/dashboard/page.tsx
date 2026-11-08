@@ -43,6 +43,7 @@ export default async function Dashboard(props: { searchParams: Promise<{ denied?
           canViewUsers={actor.capabilities.allowed.has('viewUsers')}
           canManageUsers={actor.capabilities.allowed.has('manageUsers')}
           canManageMentorships={actor.capabilities.allowed.has('manageMentorships')}
+          canManageClasses={actor.capabilities.allowed.has('manageClasses')}
         />
       )}
       {data.kind === 'mentor' && (

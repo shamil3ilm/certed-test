@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Download } from 'lucide-react'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
 import { getAcademyClassHours, type AcademyClassHours } from '@/lib/services/teaching-hours'
@@ -361,9 +362,10 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
         <a
           href={`/api/teaching-hours/export?month=${encodeURIComponent(month)}`}
           download={`teaching-hours-${month}.csv`}
-          className="btn btn-sm btn-soft"
+          className="btn btn-sm btn-soft inline-flex items-center gap-1.5"
         >
-          Export CSV
+          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Export CSV</span>
         </a>
       </div>
 
