@@ -244,7 +244,7 @@ To guarantee optimal experience on mobile, tablet, and desktop:
      - **Scoping & Security**: Negative access verification (students hard-blocked from admin finance, mentors constrained to assigned mentees).
 10. **Design System & Form Filter Standardization**:
     - Replaced raw browser date inputs across teaching-hours and person details with custom, token-aligned `MonthFilterField`, `YearFilterField`, and `DateRangeFilterField`.
-    - Integrated standard custom SVG slate chevron (`appearance-none bg-[url(...)]`) across select fields and dropdowns, retiring unstyled browser dropdown arrows.
+    - Integrated standard custom SVG slate chevron (`appearance-none` with SVG background) across select fields and dropdowns, retiring unstyled browser dropdown arrows.
     - Calendar view decluttered: FullCalendar month day-cells redesigned with compact single-line pills, status color dots, tabular times, truncated labels, and rich hover tooltips.
     - Future-only scheduling guards: prevented creating sessions, events, or reminders in the past while maintaining full historical attendance and time recording capability.
     - Unified row heights and padding (`p-3 sm:px-4`, `items-center`) across Classes, Grading, and Users.
@@ -255,6 +255,10 @@ To guarantee optimal experience on mobile, tablet, and desktop:
 12. **Illogical & Redundant Flow Elimination**:
     - **Teaching Hours Simplification** (`/admin/teaching-hours`): Removed the redundant middle "By class & tutor" table and its standalone query. The page now cleanly presents the two authoritative breakdowns: (1) educator hours worked and (2) student hours received, each with regular/demo/exam separation.
     - **Access Management Clarification** (`/admin/messaging`): Removed dead circular pointer card that merely redirected to `/admin/users`. Renamed the destination to **"Messaging rules"** in nav and page headings. Sub-admins now view the communication matrix in read-only mode with explicit guidance that edits require Super Admin authority, completely eliminating the previous empty state.
+13. **Contrast Floor & CI Verification Gate (`faint-text-contrast.test.ts`)**:
+    - **Root Cause of CI Failure**: Commit `b137645` introduced an empty-cell fallback dash `<span className="text-slate-400">-</span>` in `ClassTutorTable`. Because `text-slate-400` measures 2.56:1 against white (failing the WCAG AA 4.5:1 floor for readable text), `tests/unit/faint-text-contrast.test.ts` flagged it as an offender in CI `npm run test:coverage`.
+    - **Resolution & Audit**: Eliminating `ClassTutorTable` in `44bd829` removed the offending dash. Audited all remaining occurrences of `text-slate-300` / `text-slate-400` across `src/` to ensure they are strictly non-textual / decorative (`aria-hidden`, SVG strokes), `placeholder:`, or dark-surface exempt (`Footer.tsx`).
+    - **Tailwind CSS v4 Build Guard**: Neutralized arbitrary utility class signatures in Markdown documentation to prevent Tailwind v4's content scanner from synthesizing invalid Webpack module resolutions (`bg-[url(...)]` &rarr; `Cannot find module './...'`). All CI verification gates (`typecheck`, `lint`, `format:check`, `test:coverage`, `build`, and `check:bundle`) pass with 0 errors.
 
 ---
 
