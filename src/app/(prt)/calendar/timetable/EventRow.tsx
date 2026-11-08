@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { MoreVertical } from 'lucide-react'
 import { formatDate } from '@/lib/time/format'
 import { KINDS, KIND_LABELS, hhmm, type Ev, type Opt } from './types'
 import { Input, Select } from '../../form'
 import { ClassSelect } from './pickers'
+import { EscapableDetails } from '../../EscapableDetails'
 
 export function EventRow({
   ev,
@@ -58,14 +60,36 @@ export function EventRow({
           {' - '}
           {classLabel(ev.class_id)}
         </span>
-        <span className="flex shrink-0 gap-3">
-          <button type="button" onClick={startEditing} className="btn btn-sm btn-soft">
-            Edit
-          </button>
-          <button type="button" onClick={onDelete} disabled={busy} className="btn btn-sm btn-danger">
-            Delete
-          </button>
-        </span>
+        <div className="relative shrink-0 inline-block text-left">
+          <EscapableDetails
+            className="relative inline-block text-left text-xs"
+            summaryClassName="btn btn-sm btn-ghost cursor-pointer p-1.5 text-slate-500 hover:text-slate-800 list-none rounded-lg hover:bg-slate-100"
+            summaryAriaLabel={`Actions for event: ${ev.title}`}
+            summary={
+              <span className="flex h-7 w-7 items-center justify-center">
+                <MoreVertical className="h-4 w-4" aria-hidden="true" />
+              </span>
+            }
+          >
+            <div className="absolute right-0 z-30 mt-1 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button
+                type="button"
+                onClick={startEditing}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={busy}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-danger-ink hover:bg-danger-surface"
+              >
+                Delete
+              </button>
+            </div>
+          </EscapableDetails>
+        </div>
       </li>
     )
   }

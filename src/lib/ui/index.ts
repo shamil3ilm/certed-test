@@ -15,6 +15,7 @@
  */
 export { cx, CARD, ARCHIVED_ROW } from './core'
 export { BrandLogo } from './brand-logo'
+export { GoogleIcon } from './brand-icons'
 export { initials, roleTone, CLASS_BANNER, Avatar } from './identity'
 export {
   roleLabel,

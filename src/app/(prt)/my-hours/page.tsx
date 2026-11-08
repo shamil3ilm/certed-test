@@ -61,7 +61,7 @@ export default async function MyHoursPage(props: { searchParams: Promise<{ month
           {mentees.length > 0 && <SectionLabel className="mt-6">Hours you worked</SectionLabel>}
           {work ? (
             <>
-              <PersonHoursView hours={work.hours} />
+              <PersonHoursView hours={work.hours} canLinkStudent={hasMentorAuthority} />
               <WorkLedger rows={work.ledger} />
             </>
           ) : (

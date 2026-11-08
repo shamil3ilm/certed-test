@@ -33,6 +33,7 @@ export async function HoursPanel({
   const tz = await getInstituteTimeZone()
   const month = monthParam && isMonth(monthParam) ? monthParam : todayInZone(tz).slice(0, 7)
   const { hours, ledger } = await getStudentMonth(me, studentId, month)
+  const canLinkTutor = me.role === 'admin' || me.role === 'sub_admin'
 
   return (
     <Card id="hours" className="mt-6 scroll-mt-20 p-4">
@@ -56,8 +57,8 @@ export async function HoursPanel({
       <div className="mt-2">
         {hours ? (
           <>
-            <StudentHoursView hours={hours} />
-            <StudentLedger rows={ledger} />
+            <StudentHoursView hours={hours} canLinkTutor={canLinkTutor} />
+            <StudentLedger rows={ledger} canLinkTutor={canLinkTutor} />
           </>
         ) : (
           <EmptyState>No classes recorded for this student in {formatMonthLabel(month)}.</EmptyState>

@@ -394,6 +394,8 @@ describe('getMenteesHoursReceived - a mentor`s roll-up', () => {
       new Map([
         [SARA, { name: 'Sara Student', role: 'student' }],
         ['student-sam', { name: 'Sam Student', role: 'student' }],
+        [TUTOR, { name: 'Tarun Tutor', role: 'tutor' }],
+        [OTHER, { name: 'Olga Other', role: 'tutor' }],
       ]),
     )
   })
@@ -405,6 +407,25 @@ describe('getMenteesHoursReceived - a mentor`s roll-up', () => {
     expect(rows.map((r) => r.studentName)).toEqual(['Sam Student', 'Sara Student'])
     expect(rows[0].total).toEqual({ regular: 0, demo: 0, exam: 0 })
     expect(rows[1].total).toEqual({ regular: 60, demo: 0, exam: 0 })
+  })
+
+  it('includes bySubject and byTutor breakdowns for each mentee', async () => {
+    vi.mocked(selectSessionsForClassesInRange).mockResolvedValue([
+      session('s1', { subject_id: MATHS, tutor_id: TUTOR }),
+      session('s2', { subject_id: MATHS, tutor_id: OTHER, actual_end: '2026-08-05T10:40:00.000Z' }),
+    ] as never)
+    vi.mocked(selectAttendedForSessions).mockResolvedValue([
+      { session_id: 's1', student_id: SARA },
+      { session_id: 's2', student_id: SARA },
+    ])
+    const rows = await getMenteesHoursReceived(actor('mentor-1'), '2026-08')
+    const sara = rows.find((r) => r.studentId === SARA)!
+    expect(sara.bySubject).toHaveLength(1)
+    expect(sara.bySubject![0].subjectName).toBe('Maths')
+    expect(sara.bySubject![0].byTutor).toEqual([
+      { tutorId: TUTOR, tutorName: 'Tarun Tutor', minutes: { regular: 60, demo: 0, exam: 0 } },
+      { tutorId: OTHER, tutorName: 'Olga Other', minutes: { regular: 40, demo: 0, exam: 0 } },
+    ])
   })
 
   it('reads only the classes the mentor has authority over', async () => {

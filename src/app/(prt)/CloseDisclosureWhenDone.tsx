@@ -2,10 +2,13 @@
 import { useEffect, useRef } from 'react'
 import { useFormStatus } from 'react-dom'
 
-/** Close the nearest <details> ancestor of `node`, if it sits in one. */
+/** Close the nearest <details> ancestor of `node`, and any enclosing parent disclosures. */
 export function closeEnclosingDisclosure(node: Element | null): void {
-  const disclosure = node?.closest('details')
-  if (disclosure) disclosure.open = false
+  let disclosure = node?.closest('details') ?? null
+  while (disclosure) {
+    disclosure.open = false
+    disclosure = disclosure.parentElement?.closest('details') ?? null
+  }
 }
 
 /**

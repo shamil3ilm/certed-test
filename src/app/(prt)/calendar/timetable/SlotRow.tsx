@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { MoreVertical } from 'lucide-react'
 import { DAYS, hhmm, type Opt, type Slot } from './types'
 import { Input, Select } from '../../form'
 import { TutorSelect } from './pickers'
+import { EscapableDetails } from '../../EscapableDetails'
 import { formatWeeklySlotInZone } from '@/lib/time/weekly-slot-format'
 import { useViewerTimeZone } from '../../ViewerTimeZone'
 
@@ -66,19 +68,36 @@ export function SlotRow({
           {tutorName(slot.tutor_id)}
           {slot.mode_or_location ? ` - ${slot.mode_or_location}` : ''}
         </span>
-        <span className="flex shrink-0 gap-3">
-          <button type="button" onClick={startEditing} className="btn btn-sm btn-soft">
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={onToggle}
-            disabled={busy}
-            className={`btn btn-sm ${slot.active ? 'btn-warning' : 'btn-success'}`}
+        <div className="relative shrink-0 inline-block text-left">
+          <EscapableDetails
+            className="relative inline-block text-left text-xs"
+            summaryClassName="btn btn-sm btn-ghost cursor-pointer p-1.5 text-slate-500 hover:text-slate-800 list-none rounded-lg hover:bg-slate-100"
+            summaryAriaLabel={`Actions for slot: ${slot.subject}`}
+            summary={
+              <span className="flex h-7 w-7 items-center justify-center">
+                <MoreVertical className="h-4 w-4" aria-hidden="true" />
+              </span>
+            }
           >
-            {slot.active ? 'Deactivate' : 'Activate'}
-          </button>
-        </span>
+            <div className="absolute right-0 z-30 mt-1 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button
+                type="button"
+                onClick={startEditing}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={onToggle}
+                disabled={busy}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium hover:bg-slate-100 ${slot.active ? 'text-warning-ink' : 'text-success-ink'}`}
+              >
+                {slot.active ? 'Deactivate' : 'Activate'}
+              </button>
+            </div>
+          </EscapableDetails>
+        </div>
       </li>
     )
   }
@@ -122,7 +141,7 @@ export function SlotRow({
         End
         <Input type="time" className="mt-1" value={end} onChange={(event) => setEnd(event.target.value)} />
       </label>
-      <div className="flex gap-3 sm:col-span-2">
+      <div className="flex items-center gap-3 sm:col-span-2">
         <button
           type="button"
           disabled={busy}
@@ -144,9 +163,29 @@ export function SlotRow({
         <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
           Cancel
         </button>
-        <button type="button" onClick={onDelete} disabled={busy} className="ml-auto btn btn-sm btn-danger">
-          Delete
-        </button>
+        <div className="relative ml-auto">
+          <EscapableDetails
+            className="relative inline-block text-left text-xs"
+            summaryClassName="btn btn-sm btn-ghost cursor-pointer p-1.5 text-slate-500 hover:text-slate-800 list-none rounded-lg hover:bg-slate-100"
+            summaryAriaLabel="More slot actions"
+            summary={
+              <span className="flex h-7 w-7 items-center justify-center">
+                <MoreVertical className="h-4 w-4" aria-hidden="true" />
+              </span>
+            }
+          >
+            <div className="absolute right-0 z-30 mt-1 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={busy}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-danger-ink hover:bg-danger-surface"
+              >
+                Delete slot
+              </button>
+            </div>
+          </EscapableDetails>
+        </div>
       </div>
       <span className="hidden">{classes.length}</span>
     </li>

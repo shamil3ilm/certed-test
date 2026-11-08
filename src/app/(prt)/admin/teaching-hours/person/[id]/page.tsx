@@ -46,7 +46,7 @@ export default async function PersonHoursPage(props: {
 
       {work ? (
         <>
-          <PersonHoursView hours={work.hours} />
+          <PersonHoursView hours={work.hours} canLinkStudent={true} />
           <WorkLedger rows={work.ledger} />
         </>
       ) : (

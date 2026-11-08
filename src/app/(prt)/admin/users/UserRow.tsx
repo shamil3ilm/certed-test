@@ -31,7 +31,6 @@ export function UserRow({
   teaches?: boolean
   mentors?: boolean
 }) {
-  const isStudent = p.role === 'student'
   const visibleRoleLabel = staffRoleLabel({ role: p.role, teaches, mentors })
   // Names the account every control acts on. The email is always included because
   // it is the only unique part: two people can share a full name, and addresses

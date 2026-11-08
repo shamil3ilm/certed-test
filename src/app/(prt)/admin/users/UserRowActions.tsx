@@ -7,6 +7,7 @@ import type { Profile } from '@/lib/auth/profile'
 import { EscapableDetails } from '../../EscapableDetails'
 import { Modal } from '../../Modal'
 import { ConfirmSubmit } from '../../ConfirmSubmit'
+import { CloseDisclosureWhenDone } from '../../CloseDisclosureWhenDone'
 import { Input, SubmitButton } from '../../form'
 import { revokeUserAction, restoreUserAction, eraseUserAction, editUserAction } from './actions'
 
@@ -78,10 +79,11 @@ export function UserRowActions({
             <div className="my-1 border-t border-slate-100" />
 
             {self ? (
-              <div className="px-3 py-1.5 text-[11px] italic text-slate-400">Your own account</div>
+              <div className="px-3 py-1.5 text-meta italic text-slate-500">Your own account</div>
             ) : p.status === 'disabled' ? (
               <>
                 <form action={restoreUserAction}>
+                  <CloseDisclosureWhenDone />
                   <input type="hidden" name="id" value={p.id} />
                   <ConfirmSubmit
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-success-ink hover:bg-success-surface"
@@ -97,6 +99,7 @@ export function UserRowActions({
                 </form>
                 {canErase && (
                   <form action={eraseUserAction}>
+                    <CloseDisclosureWhenDone />
                     <input type="hidden" name="id" value={p.id} />
                     <ConfirmSubmit
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-danger-ink hover:bg-danger-surface"
@@ -113,6 +116,7 @@ export function UserRowActions({
               </>
             ) : (
               <form action={revokeUserAction}>
+                <CloseDisclosureWhenDone />
                 <input type="hidden" name="id" value={p.id} />
                 <ConfirmSubmit
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-danger-ink hover:bg-danger-surface"

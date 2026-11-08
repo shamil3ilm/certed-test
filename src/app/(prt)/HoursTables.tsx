@@ -1,7 +1,7 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { workingMinutes, type ByKind } from '@/lib/attendance/hours-breakdown'
+import { workingMinutes } from '@/lib/attendance/hours-breakdown'
 import type {
   MenteeHours,
   PersonHours,
@@ -65,38 +65,25 @@ function Stat({ label, value, note }: { label: string; value: number; note?: str
   )
 }
 
-/** Hours RECEIVED by one student: subject, tutor and kind. */
-export function StudentHoursView({ hours }: { hours: StudentHours }) {
-  const rows = (items: ReadonlyArray<{ key: string; label: ReactNode; minutes: ByKind }>, heading: string) => (
-    <table className="data-table w-full text-sm">
-      <thead>
-        <tr className="text-left text-slate-600">
-          <Head>{heading}</Head>
-          <Head right>Regular</Head>
-          <Head right>Demo</Head>
-          <Head right>Exam</Head>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((r) => (
-          <tr key={r.key} className="border-t">
-            <td className="p-2 font-medium text-slate-800">{r.label}</td>
-            <Num strong>{cell(r.minutes.regular)}</Num>
-            <Num>{cell(r.minutes.demo)}</Num>
-            <Num>{cell(r.minutes.exam)}</Num>
-          </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr className="border-t-2 font-medium text-slate-700">
-          <td className="p-2">Total</td>
-          <Num strong>{cell(hours.total.regular)}</Num>
-          <Num strong>{cell(hours.total.demo)}</Num>
-          <Num strong>{cell(hours.total.exam)}</Num>
-        </tr>
-      </tfoot>
-    </table>
-  )
+/** Hours RECEIVED by one student: subject, tutor and kind.
+ *
+ * `canLinkTutor` controls whether tutor names are rendered as clickable links
+ * to the admin teaching-hours detail page. Pass `true` only when the viewer
+ * holds `manageClasses` (admin/sub-admin); a student or mentor should see the
+ * name as plain text since the target page would refuse them.
+ */
+export function StudentHoursView({ hours, canLinkTutor = false }: { hours: StudentHours; canLinkTutor?: boolean }) {
+  /** Render a tutor name, optionally linked to their admin hours page. */
+  function TutorName({ tutorId, tutorName }: { tutorId: string | null; tutorName: string }) {
+    if (tutorId && canLinkTutor) {
+      return (
+        <Link href={`/admin/teaching-hours/person/${tutorId}`} className="hover:text-primary hover:underline">
+          {tutorName}
+        </Link>
+      )
+    }
+    return <>{tutorName}</>
+  }
 
   return (
     <div>
@@ -106,26 +93,122 @@ export function StudentHoursView({ hours }: { hours: StudentHours }) {
         <Stat label="Exam" value={hours.total.exam} note="Reported separately" />
       </div>
       <Block title="By subject">
-        {rows(
-          hours.bySubject.map((s) => ({ key: s.subjectId ?? 'none', label: s.subjectName, minutes: s.minutes })),
-          'Subject',
-        )}
+        <table className="data-table w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <Head>Subject</Head>
+              <Head right>Regular</Head>
+              <Head right>Demo</Head>
+              <Head right>Exam</Head>
+            </tr>
+          </thead>
+          <tbody>
+            {hours.bySubject.map((s) => (
+              <Fragment key={s.subjectId ?? 'none'}>
+                <tr className="border-t">
+                  <td className="p-2 font-medium text-slate-800">
+                    <span>{s.subjectName}</span>
+                    {s.byTutor && s.byTutor.length === 1 && (
+                      <span className="ml-2 text-xs font-normal text-slate-500">
+                        · <TutorName tutorId={s.byTutor[0].tutorId} tutorName={s.byTutor[0].tutorName} />
+                      </span>
+                    )}
+                    {s.byTutor && s.byTutor.length > 1 && (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+                        {s.byTutor.length} tutors
+                      </span>
+                    )}
+                  </td>
+                  <Num strong>{cell(s.minutes.regular)}</Num>
+                  <Num>{cell(s.minutes.demo)}</Num>
+                  <Num>{cell(s.minutes.exam)}</Num>
+                </tr>
+                {s.byTutor &&
+                  s.byTutor.length > 1 &&
+                  s.byTutor.map((t) => (
+                    <tr
+                      key={`${s.subjectId ?? 'none'}-${t.tutorId ?? 'none'}`}
+                      className="border-t border-slate-100 bg-slate-50/50 text-xs"
+                    >
+                      <td className="p-2 pl-6 text-slate-700">
+                        <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                        <TutorName tutorId={t.tutorId} tutorName={t.tutorName} />
+                      </td>
+                      <Num>{cell(t.minutes.regular)}</Num>
+                      <Num>{cell(t.minutes.demo)}</Num>
+                      <Num>{cell(t.minutes.exam)}</Num>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-medium text-slate-700">
+              <td className="p-2">Total</td>
+              <Num strong>{cell(hours.total.regular)}</Num>
+              <Num strong>{cell(hours.total.demo)}</Num>
+              <Num strong>{cell(hours.total.exam)}</Num>
+            </tr>
+          </tfoot>
+        </table>
       </Block>
       <Block title="By tutor" note="The tutor each session was recorded against.">
-        {rows(
-          hours.byTutor.map((t) => ({
-            key: t.tutorId ?? 'none',
-            label: t.tutorId ? (
-              <Link href={`/admin/teaching-hours/person/${t.tutorId}`} className="hover:text-primary hover:underline">
-                {t.tutorName}
-              </Link>
-            ) : (
-              t.tutorName
-            ),
-            minutes: t.minutes,
-          })),
-          'Tutor',
-        )}
+        <table className="data-table w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <Head>Tutor</Head>
+              <Head right>Regular</Head>
+              <Head right>Demo</Head>
+              <Head right>Exam</Head>
+            </tr>
+          </thead>
+          <tbody>
+            {hours.byTutor.map((t) => (
+              <Fragment key={t.tutorId ?? 'none'}>
+                <tr className="border-t">
+                  <td className="p-2 font-medium text-slate-800">
+                    <TutorName tutorId={t.tutorId} tutorName={t.tutorName} />
+                    {t.bySubject && t.bySubject.length === 1 && (
+                      <span className="ml-2 text-xs font-normal text-slate-500">· {t.bySubject[0].subjectName}</span>
+                    )}
+                    {t.bySubject && t.bySubject.length > 1 && (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+                        {t.bySubject.length} subjects
+                      </span>
+                    )}
+                  </td>
+                  <Num strong>{cell(t.minutes.regular)}</Num>
+                  <Num>{cell(t.minutes.demo)}</Num>
+                  <Num>{cell(t.minutes.exam)}</Num>
+                </tr>
+                {t.bySubject &&
+                  t.bySubject.length > 1 &&
+                  t.bySubject.map((sub) => (
+                    <tr
+                      key={`${t.tutorId ?? 'none'}-${sub.subjectId ?? 'none'}`}
+                      className="border-t border-slate-100 bg-slate-50/50 text-xs"
+                    >
+                      <td className="p-2 pl-6 text-slate-700">
+                        <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                        {sub.subjectName}
+                      </td>
+                      <Num>{cell(sub.minutes.regular)}</Num>
+                      <Num>{cell(sub.minutes.demo)}</Num>
+                      <Num>{cell(sub.minutes.exam)}</Num>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-medium text-slate-700">
+              <td className="p-2">Total</td>
+              <Num strong>{cell(hours.total.regular)}</Num>
+              <Num strong>{cell(hours.total.demo)}</Num>
+              <Num strong>{cell(hours.total.exam)}</Num>
+            </tr>
+          </tfoot>
+        </table>
       </Block>
       {hours.total.exam > 0 && (
         <Block
@@ -154,42 +237,26 @@ export function StudentHoursView({ hours }: { hours: StudentHours }) {
   )
 }
 
-/** Hours WORKED by one person: subject, student and kind. */
-export function PersonHoursView({ hours }: { hours: PersonHours }) {
+/** Hours WORKED by one person: subject, student and kind.
+ *
+ * `canLinkStudent` controls whether student names link to their mentee detail
+ * page. Pass `true` only when the viewer holds `viewMentees` (mentor or admin);
+ * a plain tutor without mentee oversight should see the name as plain text.
+ */
+export function PersonHoursView({ hours, canLinkStudent = false }: { hours: PersonHours; canLinkStudent?: boolean }) {
   const working = workingMinutes(hours.minutes)
-  const rows = (items: ReadonlyArray<{ key: string; label: ReactNode; minutes: ByKind }>, heading: string) => (
-    <table className="data-table w-full text-sm">
-      <thead>
-        <tr className="text-left text-slate-600">
-          <Head>{heading}</Head>
-          <Head right>Regular</Head>
-          <Head right>Exam</Head>
-          <Head right>Working</Head>
-          <Head right>Demo</Head>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((r) => (
-          <tr key={r.key} className="border-t">
-            <td className="p-2 font-medium text-slate-800">{r.label}</td>
-            <Num>{cell(r.minutes.regular)}</Num>
-            <Num>{cell(r.minutes.exam)}</Num>
-            <Num strong>{cell(workingMinutes(r.minutes))}</Num>
-            <Num>{cell(r.minutes.demo)}</Num>
-          </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr className="border-t-2 font-medium text-slate-700">
-          <td className="p-2">Total</td>
-          <Num strong>{cell(hours.minutes.regular)}</Num>
-          <Num strong>{cell(hours.minutes.exam)}</Num>
-          <Num strong>{cell(working)}</Num>
-          <Num strong>{cell(hours.minutes.demo)}</Num>
-        </tr>
-      </tfoot>
-    </table>
-  )
+
+  /** Render a student name, optionally linked to their detail page. */
+  function StudentName({ studentId, studentName }: { studentId: string | null; studentName: string }) {
+    if (studentId && canLinkStudent) {
+      return (
+        <Link href={`/students/${studentId}`} className="hover:text-primary hover:underline">
+          {studentName}
+        </Link>
+      )
+    }
+    return <>{studentName}</>
+  }
 
   return (
     <div>
@@ -200,29 +267,133 @@ export function PersonHoursView({ hours }: { hours: PersonHours }) {
         <Stat label="Demo" value={hours.minutes.demo} note="Not working time" />
       </div>
       <Block title="By subject">
-        {rows(
-          hours.bySubject.map((s) => ({ key: s.subjectId ?? 'none', label: s.subjectName, minutes: s.minutes })),
-          'Subject',
-        )}
+        <table className="data-table w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <Head>Subject</Head>
+              <Head right>Regular</Head>
+              <Head right>Exam</Head>
+              <Head right>Working</Head>
+              <Head right>Demo</Head>
+            </tr>
+          </thead>
+          <tbody>
+            {hours.bySubject.map((s) => (
+              <Fragment key={s.subjectId ?? 'none'}>
+                <tr className="border-t">
+                  <td className="p-2 font-medium text-slate-800">
+                    <span>{s.subjectName}</span>
+                    {s.byStudent && s.byStudent.length === 1 && (
+                      <span className="ml-2 text-xs font-normal text-slate-500">
+                        · <StudentName studentId={s.byStudent[0].studentId} studentName={s.byStudent[0].studentName} />
+                      </span>
+                    )}
+                    {s.byStudent && s.byStudent.length > 1 && (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+                        {s.byStudent.length} students
+                      </span>
+                    )}
+                  </td>
+                  <Num>{cell(s.minutes.regular)}</Num>
+                  <Num>{cell(s.minutes.exam)}</Num>
+                  <Num strong>{cell(workingMinutes(s.minutes))}</Num>
+                  <Num>{cell(s.minutes.demo)}</Num>
+                </tr>
+                {s.byStudent &&
+                  s.byStudent.length > 1 &&
+                  s.byStudent.map((stud) => (
+                    <tr
+                      key={`${s.subjectId ?? 'none'}-${stud.studentId ?? 'none'}`}
+                      className="border-t border-slate-100 bg-slate-50/50 text-xs"
+                    >
+                      <td className="p-2 pl-6 text-slate-700">
+                        <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                        <StudentName studentId={stud.studentId} studentName={stud.studentName} />
+                      </td>
+                      <Num>{cell(stud.minutes.regular)}</Num>
+                      <Num>{cell(stud.minutes.exam)}</Num>
+                      <Num strong>{cell(workingMinutes(stud.minutes))}</Num>
+                      <Num>{cell(stud.minutes.demo)}</Num>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-medium text-slate-700">
+              <td className="p-2">Total</td>
+              <Num strong>{cell(hours.minutes.regular)}</Num>
+              <Num strong>{cell(hours.minutes.exam)}</Num>
+              <Num strong>{cell(working)}</Num>
+              <Num strong>{cell(hours.minutes.demo)}</Num>
+            </tr>
+          </tfoot>
+        </table>
       </Block>
       <Block
         title="By student"
         note="Regular leaves exam monitoring out; Working includes it. Demo is never part of Working."
       >
-        {rows(
-          hours.byStudent.map((s) => ({
-            key: s.studentId ?? 'none',
-            label: s.studentId ? (
-              <Link href={`/students/${s.studentId}`} className="hover:text-primary hover:underline">
-                {s.studentName}
-              </Link>
-            ) : (
-              s.studentName
-            ),
-            minutes: s.minutes,
-          })),
-          'Student',
-        )}
+        <table className="data-table w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <Head>Student</Head>
+              <Head right>Regular</Head>
+              <Head right>Exam</Head>
+              <Head right>Working</Head>
+              <Head right>Demo</Head>
+            </tr>
+          </thead>
+          <tbody>
+            {hours.byStudent.map((s) => (
+              <Fragment key={s.studentId ?? 'none'}>
+                <tr className="border-t">
+                  <td className="p-2 font-medium text-slate-800">
+                    <StudentName studentId={s.studentId} studentName={s.studentName} />
+                    {s.bySubject && s.bySubject.length === 1 && (
+                      <span className="ml-2 text-xs font-normal text-slate-500">· {s.bySubject[0].subjectName}</span>
+                    )}
+                    {s.bySubject && s.bySubject.length > 1 && (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+                        {s.bySubject.length} subjects
+                      </span>
+                    )}
+                  </td>
+                  <Num>{cell(s.minutes.regular)}</Num>
+                  <Num>{cell(s.minutes.exam)}</Num>
+                  <Num strong>{cell(workingMinutes(s.minutes))}</Num>
+                  <Num>{cell(s.minutes.demo)}</Num>
+                </tr>
+                {s.bySubject &&
+                  s.bySubject.length > 1 &&
+                  s.bySubject.map((sub) => (
+                    <tr
+                      key={`${s.studentId ?? 'none'}-${sub.subjectId ?? 'none'}`}
+                      className="border-t border-slate-100 bg-slate-50/50 text-xs"
+                    >
+                      <td className="p-2 pl-6 text-slate-700">
+                        <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                        {sub.subjectName}
+                      </td>
+                      <Num>{cell(sub.minutes.regular)}</Num>
+                      <Num>{cell(sub.minutes.exam)}</Num>
+                      <Num strong>{cell(workingMinutes(sub.minutes))}</Num>
+                      <Num>{cell(sub.minutes.demo)}</Num>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-medium text-slate-700">
+              <td className="p-2">Total</td>
+              <Num strong>{cell(hours.minutes.regular)}</Num>
+              <Num strong>{cell(hours.minutes.exam)}</Num>
+              <Num strong>{cell(working)}</Num>
+              <Num strong>{cell(hours.minutes.demo)}</Num>
+            </tr>
+          </tfoot>
+        </table>
       </Block>
     </div>
   )
@@ -258,7 +429,13 @@ function KindCell({ kind, monitorName }: { kind: SessionKind; monitorName?: stri
  * missed are listed too, with their length struck back to a dash in the hours - the totals above
  * are built from exactly the rows marked as counted.
  */
-export function StudentLedger({ rows }: { rows: readonly StudentLedgerRow[] }) {
+export function StudentLedger({
+  rows,
+  canLinkTutor = false,
+}: {
+  rows: readonly StudentLedgerRow[]
+  canLinkTutor?: boolean
+}) {
   if (rows.length === 0) return null
   return (
     <Block
@@ -299,7 +476,7 @@ export function StudentLedger({ rows }: { rows: readonly StudentLedgerRow[] }) {
                   )}
                 </td>
                 <td className="p-2 text-slate-600">
-                  {r.tutorId ? (
+                  {r.tutorId && canLinkTutor ? (
                     <Link
                       href={`/admin/teaching-hours/person/${r.tutorId}`}
                       className="hover:text-primary hover:underline"
@@ -416,15 +593,25 @@ export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
  * A mentor's mentees, one row each: what each received this month as regular, demo and exam.
  * Every mentee is listed - a student with no sessions reads as dashes, not as missing - and the
  * name opens that mentee's full breakdown for the same month.
+ *
+ * Subject-wise breakdown is shown under each mentee, broken down again by tutor when multiple tutors teach it.
  */
-export function MenteesHoursTable({ rows, month }: { rows: readonly MenteeHours[]; month: string }) {
+export function MenteesHoursTable({
+  rows,
+  month,
+  canLinkTutor = false,
+}: {
+  rows: readonly MenteeHours[]
+  month: string
+  canLinkTutor?: boolean
+}) {
   if (rows.length === 0) return null
   return (
     <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
       <table aria-label="Hours received, by mentee" className="data-table w-full text-sm">
         <thead>
           <tr className="text-left text-slate-600">
-            <Head>Mentee</Head>
+            <Head>Mentee / Subject / Tutor</Head>
             <Head right>Regular</Head>
             <Head right>Demo</Head>
             <Head right>Exam</Head>
@@ -432,20 +619,82 @@ export function MenteesHoursTable({ rows, month }: { rows: readonly MenteeHours[
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.studentId} className="border-t">
-              <td className="p-2 font-medium text-slate-800">
-                <Link
-                  className="text-primary hover:underline"
-                  href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
-                  scroll={false}
-                >
-                  {r.studentName}
-                </Link>
-              </td>
-              <Num strong>{cell(r.total.regular)}</Num>
-              <Num>{cell(r.total.demo)}</Num>
-              <Num>{cell(r.total.exam)}</Num>
-            </tr>
+            <Fragment key={r.studentId}>
+              <tr className="border-t bg-white">
+                <td className="p-2 font-medium text-slate-800">
+                  <Link
+                    className="text-primary hover:underline"
+                    href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                    scroll={false}
+                  >
+                    {r.studentName}
+                  </Link>
+                </td>
+                <Num strong>{cell(r.total.regular)}</Num>
+                <Num>{cell(r.total.demo)}</Num>
+                <Num>{cell(r.total.exam)}</Num>
+              </tr>
+              {r.bySubject &&
+                r.bySubject.length > 0 &&
+                r.bySubject.map((s) => (
+                  <Fragment key={`${r.studentId}-${s.subjectId ?? 'none'}`}>
+                    <tr className="border-t border-slate-100 bg-slate-50/40 text-xs">
+                      <td className="p-2 pl-6 text-slate-700">
+                        <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                        <span className="font-medium text-slate-800">{s.subjectName}</span>
+                        {s.byTutor && s.byTutor.length === 1 && (
+                          <span className="ml-1.5 text-slate-500">
+                            ·{' '}
+                            {s.byTutor[0].tutorId && canLinkTutor ? (
+                              <Link
+                                href={`/admin/teaching-hours/person/${s.byTutor[0].tutorId}`}
+                                className="hover:text-primary hover:underline"
+                              >
+                                {s.byTutor[0].tutorName}
+                              </Link>
+                            ) : (
+                              s.byTutor[0].tutorName
+                            )}
+                          </span>
+                        )}
+                        {s.byTutor && s.byTutor.length > 1 && (
+                          <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-meta text-slate-600">
+                            {s.byTutor.length} tutors
+                          </span>
+                        )}
+                      </td>
+                      <Num>{cell(s.minutes.regular)}</Num>
+                      <Num>{cell(s.minutes.demo)}</Num>
+                      <Num>{cell(s.minutes.exam)}</Num>
+                    </tr>
+                    {s.byTutor &&
+                      s.byTutor.length > 1 &&
+                      s.byTutor.map((t) => (
+                        <tr
+                          key={`${r.studentId}-${s.subjectId ?? 'none'}-${t.tutorId ?? 'none'}`}
+                          className="border-t border-slate-100/70 bg-slate-50/80 text-meta"
+                        >
+                          <td className="p-1.5 pl-10 text-slate-600">
+                            <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                            {t.tutorId && canLinkTutor ? (
+                              <Link
+                                href={`/admin/teaching-hours/person/${t.tutorId}`}
+                                className="hover:text-primary hover:underline"
+                              >
+                                {t.tutorName}
+                              </Link>
+                            ) : (
+                              t.tutorName
+                            )}
+                          </td>
+                          <Num>{cell(t.minutes.regular)}</Num>
+                          <Num>{cell(t.minutes.demo)}</Num>
+                          <Num>{cell(t.minutes.exam)}</Num>
+                        </tr>
+                      ))}
+                  </Fragment>
+                ))}
+            </Fragment>
           ))}
         </tbody>
       </table>

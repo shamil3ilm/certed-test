@@ -53,7 +53,20 @@ import { PermissionError } from '@/lib/errors'
  *   one student's hours received               the student, their mentor, or an admin/sub-admin
  */
 
+export interface SubjectTutorHours {
+  tutorId: string | null
+  tutorName: string
+  minutes: ByKind
+}
+
 export interface SubjectHours {
+  subjectId: string | null
+  subjectName: string
+  minutes: ByKind
+  byTutor?: SubjectTutorHours[]
+}
+
+export interface TutorSubjectHours {
   subjectId: string | null
   subjectName: string
   minutes: ByKind
@@ -64,9 +77,28 @@ export interface StudentHours {
   studentName: string
   total: ByKind
   bySubject: SubjectHours[]
-  byTutor: Array<{ tutorId: string | null; tutorName: string; minutes: ByKind }>
+  byTutor: Array<{
+    tutorId: string | null
+    tutorName: string
+    minutes: ByKind
+    bySubject?: TutorSubjectHours[]
+  }>
   /** Exam minutes by who actually monitored them. */
   examMonitors: Array<{ monitorId: string | null; monitorName: string; minutes: number }>
+}
+
+export interface PersonStudentHours {
+  studentId: string | null
+  studentName: string
+  minutes: ByKind
+  bySubject?: Array<{ subjectId: string | null; subjectName: string; minutes: ByKind }>
+}
+
+export interface PersonSubjectHours {
+  subjectId: string | null
+  subjectName: string
+  minutes: ByKind
+  byStudent?: Array<{ studentId: string | null; studentName: string; minutes: ByKind }>
 }
 
 export interface PersonHours {
@@ -76,8 +108,8 @@ export interface PersonHours {
   personRole: string | null
   minutes: ByKind
   sessions: ByKind
-  bySubject: SubjectHours[]
-  byStudent: Array<{ studentId: string | null; studentName: string; minutes: ByKind }>
+  bySubject: PersonSubjectHours[]
+  byStudent: PersonStudentHours[]
 }
 
 export interface HoursBreakdown {
@@ -99,10 +131,20 @@ function profileIdsIn(people: readonly PersonHoursRaw[], students: readonly Stud
   for (const p of people) {
     if (p.personId) ids.add(p.personId)
     for (const s of p.byStudent) if (s.studentId) ids.add(s.studentId)
+    for (const sub of p.bySubject) {
+      if (sub.byStudent) {
+        for (const s of sub.byStudent) if (s.studentId) ids.add(s.studentId)
+      }
+    }
   }
   for (const s of students) {
     ids.add(s.studentId)
     for (const t of s.byTutor) if (t.tutorId) ids.add(t.tutorId)
+    for (const sub of s.bySubject) {
+      if (sub.byTutor) {
+        for (const t of sub.byTutor) if (t.tutorId) ids.add(t.tutorId)
+      }
+    }
     for (const m of s.examMonitors) if (m.monitorId) ids.add(m.monitorId)
   }
   return [...ids]
@@ -110,8 +152,22 @@ function profileIdsIn(people: readonly PersonHoursRaw[], students: readonly Stud
 
 function subjectIdsIn(people: readonly PersonHoursRaw[], students: readonly StudentHoursRaw[]): string[] {
   const ids = new Set<string>()
-  for (const p of people) for (const s of p.bySubject) if (s.subjectId) ids.add(s.subjectId)
-  for (const s of students) for (const sub of s.bySubject) if (sub.subjectId) ids.add(sub.subjectId)
+  for (const p of people) {
+    for (const s of p.bySubject) if (s.subjectId) ids.add(s.subjectId)
+    for (const stud of p.byStudent) {
+      if (stud.bySubject) {
+        for (const s of stud.bySubject) if (s.subjectId) ids.add(s.subjectId)
+      }
+    }
+  }
+  for (const s of students) {
+    for (const sub of s.bySubject) if (sub.subjectId) ids.add(sub.subjectId)
+    for (const t of s.byTutor) {
+      if (t.bySubject) {
+        for (const sub of t.bySubject) if (sub.subjectId) ids.add(sub.subjectId)
+      }
+    }
+  }
   return [...ids]
 }
 
@@ -130,11 +186,22 @@ async function nameThem(
   ])
   const subjectName = new Map(subjects.map((s) => [s.id, s.name]))
   const nameOf = (id: string | null, fallback: string) => (id ? (labels.get(id)?.name ?? 'Unknown') : fallback)
-  const subjectsOf = (rows: ReadonlyArray<{ subjectId: string | null; minutes: ByKind }>): SubjectHours[] =>
+  const subjectsOf = (
+    rows: ReadonlyArray<{
+      subjectId: string | null
+      minutes: ByKind
+      byTutor?: ReadonlyArray<{ tutorId: string | null; minutes: ByKind }>
+    }>,
+  ): SubjectHours[] =>
     rows.map((r) => ({
       subjectId: r.subjectId,
       subjectName: r.subjectId ? (subjectName.get(r.subjectId) ?? NO_SUBJECT) : NO_SUBJECT,
       minutes: r.minutes,
+      byTutor: r.byTutor?.map((t) => ({
+        tutorId: t.tutorId,
+        tutorName: nameOf(t.tutorId, UNASSIGNED),
+        minutes: t.minutes,
+      })),
     }))
 
   return {
@@ -144,11 +211,25 @@ async function nameThem(
       personRole: p.personId ? (labels.get(p.personId)?.role ?? null) : null,
       minutes: p.minutes,
       sessions: p.sessions,
-      bySubject: subjectsOf(p.bySubject),
+      bySubject: p.bySubject.map((sub) => ({
+        subjectId: sub.subjectId,
+        subjectName: sub.subjectId ? (subjectName.get(sub.subjectId) ?? NO_SUBJECT) : NO_SUBJECT,
+        minutes: sub.minutes,
+        byStudent: sub.byStudent?.map((s) => ({
+          studentId: s.studentId,
+          studentName: nameOf(s.studentId, NO_ATTENDANCE),
+          minutes: s.minutes,
+        })),
+      })),
       byStudent: p.byStudent.map((s) => ({
         studentId: s.studentId,
         studentName: nameOf(s.studentId, NO_ATTENDANCE),
         minutes: s.minutes,
+        bySubject: s.bySubject?.map((sub) => ({
+          subjectId: sub.subjectId,
+          subjectName: sub.subjectId ? (subjectName.get(sub.subjectId) ?? NO_SUBJECT) : NO_SUBJECT,
+          minutes: sub.minutes,
+        })),
       })),
     })),
     students: students.map((s) => ({
@@ -160,6 +241,11 @@ async function nameThem(
         tutorId: t.tutorId,
         tutorName: nameOf(t.tutorId, UNASSIGNED),
         minutes: t.minutes,
+        bySubject: t.bySubject?.map((sub) => ({
+          subjectId: sub.subjectId,
+          subjectName: sub.subjectId ? (subjectName.get(sub.subjectId) ?? NO_SUBJECT) : NO_SUBJECT,
+          minutes: sub.minutes,
+        })),
       })),
       examMonitors: s.examMonitors.map((m) => ({
         monitorId: m.monitorId,
@@ -432,6 +518,8 @@ export interface MenteeHours {
   studentId: string
   studentName: string
   total: ByKind
+  bySubject?: SubjectHours[]
+  byTutor?: Array<{ tutorId: string | null; tutorName: string; minutes: ByKind }>
 }
 
 /**
@@ -451,13 +539,20 @@ export async function getMenteesHoursReceived(actor: Profile, month: string): Pr
   const { startIso, endIso } = await windowFor(month)
   const sessions = await selectSessionsForClassesInRange(classIds, startIso, endIso)
   const marks = sessions.length > 0 ? await selectAttendedForSessions(sessions.map((s) => s.id)) : []
-  const totals = new Map(breakdownByStudent(sessions, marks).map((s) => [s.studentId, s.total]))
+  const rawStudents = breakdownByStudent(sessions, marks)
+  const { students } = await nameThem([], rawStudents)
+  const studentMap = new Map(students.map((s) => [s.studentId, s]))
   const labels = await getProfileLabelsByIds(studentIds)
   return studentIds
-    .map((id) => ({
-      studentId: id,
-      studentName: labels.get(id)?.name ?? 'Unknown student',
-      total: totals.get(id) ?? emptyByKind(),
-    }))
+    .map((id) => {
+      const s = studentMap.get(id)
+      return {
+        studentId: id,
+        studentName: labels.get(id)?.name ?? 'Unknown student',
+        total: s?.total ?? emptyByKind(),
+        bySubject: s?.bySubject ?? [],
+        byTutor: s?.byTutor ?? [],
+      }
+    })
     .sort((a, b) => a.studentName.localeCompare(b.studentName))
 }

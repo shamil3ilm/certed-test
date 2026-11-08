@@ -145,7 +145,7 @@ function PeopleDetail({ people }: { people: HoursBreakdown['people'] }) {
             </span>
           </summary>
           <div className="border-t border-slate-100 p-4">
-            <PersonHoursView hours={p} />
+            <PersonHoursView hours={p} canLinkStudent={true} />
           </div>
         </details>
       ))}
@@ -302,7 +302,7 @@ function StudentsDetail({ students, month }: { students: HoursBreakdown['student
             </span>
           </summary>
           <div className="border-t border-slate-100 p-4">
-            <StudentHoursView hours={s} />
+            <StudentHoursView hours={s} canLinkTutor={true} />
             <p className="mt-3 text-xs">
               <Link
                 href={`/students/${s.studentId}?hoursMonth=${month}#hours`}

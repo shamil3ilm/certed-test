@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { MoreVertical } from 'lucide-react'
 import { Card, Badge, profileStatusTone, roleLabel, statusLabel } from '@/lib/ui'
 import { Field, Input, SubmitButton } from '../../../form'
 import { EscapableDetails } from '../../../EscapableDetails'
@@ -22,6 +23,10 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
  * (name, class, country, phone, guardian, joined date). Softer fields (DOB,
  * qualifications, bio) are shown read-only here - the person self-completes
  * them in settings. This page is admin/sub-admin only, so joined_on is visible.
+ *
+ * Actions are grouped in a single 3-dot menu to avoid a cluttered button row:
+ * "Edit details" opens the inline form; "Permissions & Capabilities" navigates to
+ * the per-user override editor.
  */
 export function DetailsCard({ profile }: { profile: ProfileDetails }) {
   const isStudent = profile.role === 'student'
@@ -37,52 +42,70 @@ export function DetailsCard({ profile }: { profile: ProfileDetails }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/admin/users/${profile.id}/permissions`} className="btn btn-sm btn-soft">
-            Permissions & Capabilities
-          </Link>
+        {/* Single 3-dot menu: Edit details + Permissions & Capabilities */}
+        <div className="relative inline-block text-left">
           <EscapableDetails
-            className="relative text-xs"
-            summaryClassName="cursor-pointer btn btn-sm btn-soft"
-            summary="Edit details"
+            className="relative inline-block text-left text-xs"
+            summaryClassName="btn btn-sm btn-ghost cursor-pointer p-1.5 text-slate-500 hover:text-slate-800 list-none rounded-lg hover:bg-slate-100"
+            summaryAriaLabel={`Actions for ${profile.full_name ?? profile.email}`}
+            summary={
+              <span className="flex h-7 w-7 items-center justify-center">
+                <MoreVertical className="h-4 w-4" aria-hidden="true" />
+              </span>
+            }
           >
-            <form
-              action={editDetailsAction}
-              className="absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
-            >
-              <input type="hidden" name="id" value={profile.id} />
-              <Field label="Name">
-                <Input name="full_name" defaultValue={profile.full_name ?? ''} />
-              </Field>
-              {isStudent && (
-                <Field label="Class / grade">
-                  <Input name="class_level" defaultValue={profile.class_level ?? ''} placeholder="e.g. Grade 10" />
-                </Field>
-              )}
-              <Field label="Country">
-                <Input name="country" list="country-list" defaultValue={profile.country ?? ''} autoComplete="off" />
-              </Field>
-              <Field label="Phone">
-                <Input name="phone" type="tel" defaultValue={profile.phone ?? ''} />
-              </Field>
-              {isStudent && (
-                <>
-                  <Field label="Guardian name">
-                    <Input name="guardian_name" defaultValue={profile.guardian_name ?? ''} />
+            <div className="absolute right-0 z-30 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              {/* Edit details – sub-disclosure that opens the inline form */}
+              <EscapableDetails
+                className="relative"
+                summaryClassName="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 list-none"
+                summary="Edit details"
+              >
+                <form
+                  action={editDetailsAction}
+                  className="absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-white p-3 shadow-md"
+                >
+                  <input type="hidden" name="id" value={profile.id} />
+                  <Field label="Name">
+                    <Input name="full_name" defaultValue={profile.full_name ?? ''} />
                   </Field>
-                  <Field label="Guardian phone">
-                    <Input name="guardian_phone" type="tel" defaultValue={profile.guardian_phone ?? ''} />
+                  {isStudent && (
+                    <Field label="Class / grade">
+                      <Input name="class_level" defaultValue={profile.class_level ?? ''} placeholder="e.g. Grade 10" />
+                    </Field>
+                  )}
+                  <Field label="Country">
+                    <Input name="country" list="country-list" defaultValue={profile.country ?? ''} autoComplete="off" />
                   </Field>
-                </>
-              )}
-              <Field label="Joined on">
-                <Input name="joined_on" type="date" defaultValue={profile.joined_on ?? ''} />
-              </Field>
-              <SubmitButton className="btn-sm btn-primary" pendingLabel="Saving...">
-                Save
-              </SubmitButton>
-              <CloseDisclosureWhenDone />
-            </form>
+                  <Field label="Phone">
+                    <Input name="phone" type="tel" defaultValue={profile.phone ?? ''} />
+                  </Field>
+                  {isStudent && (
+                    <>
+                      <Field label="Guardian name">
+                        <Input name="guardian_name" defaultValue={profile.guardian_name ?? ''} />
+                      </Field>
+                      <Field label="Guardian phone">
+                        <Input name="guardian_phone" type="tel" defaultValue={profile.guardian_phone ?? ''} />
+                      </Field>
+                    </>
+                  )}
+                  <Field label="Joined on">
+                    <Input name="joined_on" type="date" defaultValue={profile.joined_on ?? ''} />
+                  </Field>
+                  <SubmitButton className="btn-sm btn-primary" pendingLabel="Saving...">
+                    Save
+                  </SubmitButton>
+                  <CloseDisclosureWhenDone />
+                </form>
+              </EscapableDetails>
+              <Link
+                href={`/admin/users/${profile.id}/permissions`}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Permissions &amp; Capabilities
+              </Link>
+            </div>
           </EscapableDetails>
         </div>
       </div>

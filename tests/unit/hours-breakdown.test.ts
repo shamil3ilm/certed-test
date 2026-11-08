@@ -143,6 +143,32 @@ describe('breakdownByStudent - hours RECEIVED, split by kind', () => {
   it('ignores a mark for a session outside the set it was given', () => {
     expect(breakdownByStudent(sessions, [{ session_id: 'elsewhere', student_id: SARA }])).toEqual([])
   })
+
+  it('breaks down multiple tutors for the same subject for a student', () => {
+    const rows = [
+      session('m1', { tutor_id: T1, subject_id: MATHS, minutes: 60 }),
+      session('m2', { tutor_id: T2, subject_id: MATHS, minutes: 40 }),
+      session('p1', { tutor_id: T1, subject_id: PHYS, minutes: 30 }),
+    ]
+    const marks = rows.map((r) => ({ session_id: r.id, student_id: SARA }))
+    const [sara] = breakdownByStudent(rows, marks)
+
+    // Subject MATHS has 2 tutors (T1: 60, T2: 40)
+    const maths = sara.bySubject.find((s) => s.subjectId === MATHS)!
+    expect(maths.minutes.regular).toBe(100)
+    expect(maths.byTutor).toEqual([
+      { tutorId: T1, minutes: { regular: 60, demo: 0, exam: 0 } },
+      { tutorId: T2, minutes: { regular: 40, demo: 0, exam: 0 } },
+    ])
+
+    // Tutor T1 has 2 subjects (MATHS: 60, PHYS: 30)
+    const t1 = sara.byTutor.find((t) => t.tutorId === T1)!
+    expect(t1.minutes.regular).toBe(90)
+    expect(t1.bySubject).toEqual([
+      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 } },
+      { subjectId: PHYS, minutes: { regular: 30, demo: 0, exam: 0 } },
+    ])
+  })
 })
 
 describe('breakdownByPerson - hours WORKED, split by kind', () => {
@@ -207,7 +233,45 @@ describe('breakdownByPerson - hours WORKED, split by kind', () => {
     const rows = [session('e', { kind: 'exam', monitor_id: MON, minutes: 90 })]
     const [monitor] = breakdownByPerson(rows, [{ session_id: 'e', student_id: SARA }])
     expect(monitor.personId).toBe(MON)
-    expect(monitor.byStudent).toEqual([{ studentId: SARA, minutes: { regular: 0, demo: 0, exam: 90 } }])
+    expect(monitor.byStudent).toEqual([
+      {
+        studentId: SARA,
+        minutes: { regular: 0, demo: 0, exam: 90 },
+        bySubject: [{ subjectId: MATHS, minutes: { regular: 0, demo: 0, exam: 90 } }],
+      },
+    ])
+  })
+
+  it('breaks down multiple subjects for the same student for a tutor', () => {
+    const rows = [
+      session('m1', { tutor_id: T1, subject_id: MATHS, minutes: 60 }),
+      session('p1', { tutor_id: T1, subject_id: PHYS, minutes: 45 }),
+    ]
+    const marks = rows.map((r) => ({ session_id: r.id, student_id: SARA }))
+    const [tutor] = breakdownByPerson(rows, marks)
+    const sara = tutor.byStudent.find((s) => s.studentId === SARA)!
+    expect(sara.minutes.regular).toBe(105)
+    expect(sara.bySubject).toEqual([
+      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 } },
+      { subjectId: PHYS, minutes: { regular: 45, demo: 0, exam: 0 } },
+    ])
+  })
+
+  it('breaks down same tutor for multiple students for different subjects', () => {
+    const rows = [
+      session('m1', { tutor_id: T1, subject_id: MATHS, minutes: 60 }),
+      session('p2', { tutor_id: T1, subject_id: PHYS, minutes: 45 }),
+    ]
+    const marks = [
+      { session_id: 'm1', student_id: SARA },
+      { session_id: 'p2', student_id: SAM },
+    ]
+    const [tutor] = breakdownByPerson(rows, marks)
+    expect(tutor.byStudent).toHaveLength(2)
+    const sara = tutor.byStudent.find((s) => s.studentId === SARA)!
+    expect(sara.bySubject).toEqual([{ subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 } }])
+    const sam = tutor.byStudent.find((s) => s.studentId === SAM)!
+    expect(sam.bySubject).toEqual([{ subjectId: PHYS, minutes: { regular: 45, demo: 0, exam: 0 } }])
   })
 
   it('counts a session with no recorded window as a session of zero minutes', () => {
