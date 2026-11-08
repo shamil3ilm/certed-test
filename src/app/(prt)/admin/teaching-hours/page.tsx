@@ -167,6 +167,9 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
               Class
             </th>
             <th scope="col" className="p-2">
+              Subject
+            </th>
+            <th scope="col" className="p-2">
               Tutor
             </th>
             <NumHead>Sessions</NumHead>
@@ -175,28 +178,19 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
         </thead>
         <tbody>
           {classes.map((c) =>
-            c.tutors.map((t, i) => (
+            c.tutors.map((t) => (
               <tr key={`${c.classId}:${c.subjectName ?? ''}:${t.tutorId ?? 'unassigned'}`} className="border-t">
-                {/* The class name prints once per group; the repeat would be noise. A class
-                    that taught two subjects this month is TWO groups, so the subject is
-                    named underneath - otherwise the rows read as an unexplained duplicate. */}
                 <td className="p-2 font-medium text-slate-800">
-                  {i === 0 ? (
-                    <>
-                      <Link
-                        prefetch={false}
-                        href={`/classroom/${c.classId}`}
-                        className="hover:text-primary hover:underline"
-                      >
-                        {c.className}
-                      </Link>
-                      {c.subjectName && (
-                        <span className="block text-xs font-normal text-slate-500">{c.subjectName}</span>
-                      )}
-                    </>
-                  ) : (
-                    ''
-                  )}
+                  <Link
+                    prefetch={false}
+                    href={`/classroom/${c.classId}`}
+                    className="hover:text-primary hover:underline"
+                  >
+                    {c.className}
+                  </Link>
+                </td>
+                <td className="p-2 text-slate-600">
+                  {c.subjectName ? c.subjectName : <span className="text-slate-400">-</span>}
                 </td>
                 {/* Role shown only when it is NOT a plain tutor: these hours feed the
                     payslip draft, so a mentor account credited with teaching is worth
@@ -229,7 +223,7 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
         </tbody>
         <tfoot>
           <tr className="border-t-2 font-medium text-slate-700">
-            <td className="p-2" colSpan={2}>
+            <td className="p-2" colSpan={3}>
               Total - {formatMonthLabel(month)}
             </td>
             <td className="p-2 text-right tabular-nums">{sessions}</td>
@@ -404,7 +398,7 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
 
           <SectionHeading
             id="by-class"
-            title="By class"
+            title="By class and tutor"
             note="Every recorded session, demo and exam included - the figures receipts and pay slips are still drafted from, until what a demo or an exam should bill is decided."
           />
           <ClassTutorTable classes={tutorClasses} month={month} />

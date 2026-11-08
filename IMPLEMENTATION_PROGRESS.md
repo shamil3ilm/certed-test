@@ -229,7 +229,7 @@ To guarantee optimal experience on mobile, tablet, and desktop:
    - **Weekly Timetable Slots** (`useTimetableData.ts`, `TimetableManager.tsx`): Implemented optimistic state toggles (`toggleSlot`) that instantly flip slot active/inactive states in local state without waiting for network round-trips, with automatic rollback if the API request fails.
 8. **UI/UX Spacing Normalization & Information Architecture Polish**:
    - Resolved visual collision where Month FilterBars touched stat cards on `/admin/teaching-hours/person/[id]`, `/my-hours`, and `/students/[id]/HoursPanel` by enforcing standard vertical separation (`mb-6` / `mt-5`).
-   - Aligned Class Hours section labeling to "By class" (`#by-class`) to reflect primary class grouping hierarchy while preserving multi-tutor accountability breakdown per row.
+   - Elevated table clarity in the Class Hours report (`ClassTutorTable`): added an explicit `Subject` column and made every row a self-contained record of `Class` &rarr; `Subject` &rarr; `Tutor` &rarr; `Sessions` &rarr; `Hours`. This aligns 1:1 with the CSV export and eliminates blank-cell confusion when a class is taught across multiple tutors or subjects.
 
 ---
 
