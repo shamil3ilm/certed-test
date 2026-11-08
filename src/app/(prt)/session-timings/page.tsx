@@ -153,6 +153,7 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
                       <>
                         {group.total} session{group.total === 1 ? '' : 's'}.{' '}
                         <Link
+                          prefetch={false}
                           className="link"
                           href={sessionTimingsPageHref({ ...filters, student: group.studentId }, 1)}
                           scroll={false}

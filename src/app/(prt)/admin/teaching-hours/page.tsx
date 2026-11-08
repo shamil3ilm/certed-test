@@ -92,6 +92,7 @@ function PeopleTable({ people, month }: { people: HoursBreakdown['people']; mont
                 <span className="inline-flex items-baseline gap-1.5">
                   {p.personId ? (
                     <Link
+                      prefetch={false}
                       href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
                       className="hover:text-primary hover:underline"
                     >
@@ -182,7 +183,11 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
                 <td className="p-2 font-medium text-slate-800">
                   {i === 0 ? (
                     <>
-                      <Link href={`/classroom/${c.classId}`} className="hover:text-primary hover:underline">
+                      <Link
+                        prefetch={false}
+                        href={`/classroom/${c.classId}`}
+                        className="hover:text-primary hover:underline"
+                      >
                         {c.className}
                       </Link>
                       {c.subjectName && (
@@ -200,6 +205,7 @@ function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutor
                   <span className="inline-flex items-baseline gap-1.5">
                     {t.tutorId ? (
                       <Link
+                        prefetch={false}
                         href={`/admin/teaching-hours/person/${t.tutorId}?month=${month}`}
                         className="hover:text-primary hover:underline"
                       >
@@ -260,6 +266,7 @@ function StudentsTable({ students, month }: { students: HoursBreakdown['students
             <tr key={s.studentId} className="border-t">
               <td className="p-2 font-medium text-slate-800">
                 <Link
+                  prefetch={false}
                   href={`/students/${s.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
                   className="hover:text-primary hover:underline"
                 >
@@ -306,6 +313,7 @@ function StudentsDetail({ students, month }: { students: HoursBreakdown['student
             <StudentHoursView hours={s} canLinkTutor={true} />
             <p className="mt-3 text-xs">
               <Link
+                prefetch={false}
                 href={`/students/${s.studentId}?hoursMonth=${month}#hours`}
                 className="font-medium text-primary hover:underline"
               >
@@ -396,7 +404,7 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
 
           <SectionHeading
             id="by-class"
-            title="By class and tutor"
+            title="By class"
             note="Every recorded session, demo and exam included - the figures receipts and pay slips are still drafted from, until what a demo or an exam should bill is decided."
           />
           <ClassTutorTable classes={tutorClasses} month={month} />

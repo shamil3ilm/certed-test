@@ -41,7 +41,7 @@ export default async function MyHoursPage(props: { searchParams: Promise<{ month
         }
       />
 
-      <FilterBar className="mt-4" applyLabel="View">
+      <FilterBar className="mt-4 mb-6" applyLabel="View">
         <FilterField label="Month">
           <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
         </FilterField>

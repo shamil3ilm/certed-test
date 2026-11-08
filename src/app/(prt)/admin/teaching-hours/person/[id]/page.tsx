@@ -38,17 +38,17 @@ export default async function PersonHoursPage(props: {
         description="Hours worked this month, by subject and student, and the sessions behind them. Working hours are regular teaching plus any exam monitored; demo classes are shown separately and are not working time."
       />
 
-      <FilterBar className="mt-4" applyLabel="View">
+      <FilterBar className="mt-4 mb-6" applyLabel="View">
         <FilterField label="Month">
           <input type="month" name="month" defaultValue={month} className={cx(FILTER_CONTROL, 'block')} />
         </FilterField>
       </FilterBar>
 
       {work ? (
-        <>
+        <div className="space-y-6">
           <PersonHoursView hours={work.hours} canLinkStudent={true} />
           <WorkLedger rows={work.ledger} />
-        </>
+        </div>
       ) : (
         <EmptyState>
           {name} has no recorded teaching or exam monitoring in {formatMonthLabel(month)}.

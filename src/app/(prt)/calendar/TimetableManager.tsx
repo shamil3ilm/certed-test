@@ -30,7 +30,7 @@ type Props = {
 
 export function TimetableManager({ classes, tutors, isAdmin, academyTz }: Props) {
   const [tab, setTab] = useState<'slot' | 'event'>('slot')
-  const { slots, events, error, busy, run, confirmDelete } = useTimetableData()
+  const { slots, events, error, busy, run, toggleSlot, confirmDelete } = useTimetableData()
 
   const classLabel = useCallback(
     (id: string | null) => (id ? (classes.find((course) => course.id === id)?.name ?? 'Class') : ACADEMY_WIDE_LABEL),
@@ -80,7 +80,9 @@ export function TimetableManager({ classes, tutors, isAdmin, academyTz }: Props)
                 classLabel={classLabel}
                 tutorName={tutorName}
                 onSave={(patch) => run(() => api(`/api/timetable/${slot.id}`, 'PATCH', patch))}
-                onToggle={() => run(() => api(`/api/timetable/${slot.id}`, 'PATCH', { active: !slot.active }))}
+                onToggle={() => {
+                  void toggleSlot(slot)
+                }}
                 onDelete={confirmDelete(`slot for ${classLabel(slot.class_id)}`, () =>
                   api(`/api/timetable/${slot.id}`, 'DELETE'),
                 )}

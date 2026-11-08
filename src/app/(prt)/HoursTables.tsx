@@ -77,7 +77,11 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
   function TutorName({ tutorId, tutorName }: { tutorId: string | null; tutorName: string }) {
     if (tutorId && canLinkTutor) {
       return (
-        <Link href={`/admin/teaching-hours/person/${tutorId}`} className="hover:text-primary hover:underline">
+        <Link
+          prefetch={false}
+          href={`/admin/teaching-hours/person/${tutorId}`}
+          className="hover:text-primary hover:underline"
+        >
           {tutorName}
         </Link>
       )
@@ -250,7 +254,7 @@ export function PersonHoursView({ hours, canLinkStudent = false }: { hours: Pers
   function StudentName({ studentId, studentName }: { studentId: string | null; studentName: string }) {
     if (studentId && canLinkStudent) {
       return (
-        <Link href={`/students/${studentId}`} className="hover:text-primary hover:underline">
+        <Link prefetch={false} href={`/students/${studentId}`} className="hover:text-primary hover:underline">
           {studentName}
         </Link>
       )
@@ -468,7 +472,11 @@ export function StudentLedger({
                 </td>
                 <td className="p-2 font-medium text-slate-800">
                   {r.classId ? (
-                    <Link href={`/classroom/${r.classId}`} className="hover:text-primary hover:underline">
+                    <Link
+                      prefetch={false}
+                      href={`/classroom/${r.classId}`}
+                      className="hover:text-primary hover:underline"
+                    >
                       {r.subjectName}
                     </Link>
                   ) : (
@@ -478,6 +486,7 @@ export function StudentLedger({
                 <td className="p-2 text-slate-600">
                   {r.tutorId && canLinkTutor ? (
                     <Link
+                      prefetch={false}
                       href={`/admin/teaching-hours/person/${r.tutorId}`}
                       className="hover:text-primary hover:underline"
                     >
@@ -555,7 +564,11 @@ export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
               </td>
               <td className="p-2 font-medium text-slate-800">
                 {r.classId ? (
-                  <Link href={`/classroom/${r.classId}`} className="hover:text-primary hover:underline">
+                  <Link
+                    prefetch={false}
+                    href={`/classroom/${r.classId}`}
+                    className="hover:text-primary hover:underline"
+                  >
                     {r.subjectName}
                   </Link>
                 ) : (
@@ -623,6 +636,7 @@ export function MenteesHoursTable({
               <tr className="border-t bg-white">
                 <td className="p-2 font-medium text-slate-800">
                   <Link
+                    prefetch={false}
                     className="text-primary hover:underline"
                     href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
                     scroll={false}
@@ -647,6 +661,7 @@ export function MenteesHoursTable({
                             ·{' '}
                             {s.byTutor[0].tutorId && canLinkTutor ? (
                               <Link
+                                prefetch={false}
                                 href={`/admin/teaching-hours/person/${s.byTutor[0].tutorId}`}
                                 className="hover:text-primary hover:underline"
                               >
@@ -678,6 +693,7 @@ export function MenteesHoursTable({
                             <span className="mr-1.5 font-mono text-slate-500">↳</span>
                             {t.tutorId && canLinkTutor ? (
                               <Link
+                                prefetch={false}
                                 href={`/admin/teaching-hours/person/${t.tutorId}`}
                                 className="hover:text-primary hover:underline"
                               >

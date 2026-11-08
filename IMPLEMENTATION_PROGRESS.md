@@ -221,6 +221,15 @@ To guarantee optimal experience on mobile, tablet, and desktop:
 5. **Section Filter State Isolation & Anchor Scoping**:
    - FilterBars on multi-section surfaces (`classroom/[id]/attendance`, `students/[id]`, `classroom/[id]/classwork`, `classroom/[id]`) now explicitly preserve sibling sections' query parameters (`date`, `aStatus`, `aFrom`, `aTo`, `hoursMonth`, `notePage`) and stay anchored to their target section hash (`#attendance-history`, `#mark-attendance`, `#assignments`, `#materials`, `#announcements`).
    - Applying a filter, search, or pagination in one section updates strictly that related section without resetting or reloading any other section on the page.
+6. **Selective Prefetch Optimization (`prefetch={false}`)**:
+   - Next.js App Router eagerly prefetches all `<Link>` elements visible in the viewport by default. For data-dense views (`HoursTables.tsx`, `admin/teaching-hours/page.tsx`, `session-timings/page.tsx`) with dozens of rows, this triggered dozens of concurrent background RSC requests.
+   - Enforced `prefetch={false}` on all row-level ledger, student profile, classroom, and tutor drill-down links. Data is fetched on-demand upon hover or click, eliminating database and network saturation.
+7. **React 19 `useOptimistic` & In-Memory Optimistic Toggles**:
+   - **Attendance Marking** (`MarkAttendanceForm.tsx`): Integrated React 19's `useOptimistic` hook and `startTransition` to provide instant UI feedback when marking individual or all students ("Present", "Late", "Absent"). Form actions and background revalidation do not freeze or jitter the UI.
+   - **Weekly Timetable Slots** (`useTimetableData.ts`, `TimetableManager.tsx`): Implemented optimistic state toggles (`toggleSlot`) that instantly flip slot active/inactive states in local state without waiting for network round-trips, with automatic rollback if the API request fails.
+8. **UI/UX Spacing Normalization & Information Architecture Polish**:
+   - Resolved visual collision where Month FilterBars touched stat cards on `/admin/teaching-hours/person/[id]`, `/my-hours`, and `/students/[id]/HoursPanel` by enforcing standard vertical separation (`mb-6` / `mt-5`).
+   - Aligned Class Hours section labeling to "By class" (`#by-class`) to reflect primary class grouping hierarchy while preserving multi-tutor accountability breakdown per row.
 
 ---
 
@@ -230,17 +239,15 @@ The project repository is configured with two upstream targets and synchronized 
 
 1. **Staging Environment**:
    - Remote: `staging` (`https://github.com/shamil3ilm/certed-test.git`)
-   - Synchronized first via:
+   - Synchronized first via standard fast-forward push:
      ```bash
-     git push staging main:main --force-with-lease
+     git push staging main:main
      ```
-   - Current commit: `c7e7b8a`
 2. **Production Environment**:
    - Remote: `origin` (`https://github.com/certedapp/wed_cert`)
    - Synchronized second via:
      ```bash
      git push origin main:main
      ```
-   - Current commit: `c7e7b8a`
 3. **Commit Identity Verification**:
    - Git author and committer verified as `Mohamed Shamil <shamil3ilm@gmail.com>`. All commits enforce this identity.

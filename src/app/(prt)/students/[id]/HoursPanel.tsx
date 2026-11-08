@@ -54,7 +54,7 @@ export async function HoursPanel({
           </FilterField>
         </FilterBar>
       </div>
-      <div className="mt-2">
+      <div className="mt-5">
         {hours ? (
           <>
             <StudentHoursView hours={hours} canLinkTutor={canLinkTutor} />

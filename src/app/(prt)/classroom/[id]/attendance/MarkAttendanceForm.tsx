@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, useOptimistic, startTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { SEGMENTED_GROUP, segmentedButtonClass } from '@/lib/ui'
 import { formatMinutes, studentMetrics, type SessionTimes } from '@/lib/attendance/hours'
@@ -72,6 +72,19 @@ function MarkAttendanceFormBody({
   const { toast } = useUI()
   const [busy, setBusy] = useState(false)
   const [rows, setRows] = useState<Row[]>(students)
+  const [optimisticRows, setOptimisticRows] = useOptimistic(
+    rows,
+    (
+      current: Row[],
+      update:
+        { type: 'setStatus'; id: string; status: AttendanceStatus } | { type: 'setAll'; status: AttendanceStatus },
+    ) => {
+      if (update.type === 'setAll') {
+        return current.map((r) => ({ ...r, status: update.status }))
+      }
+      return current.map((r) => (r.id === update.id ? { ...r, status: update.status } : r))
+    },
+  )
   // Join/leave as local "HH:mm", seeded on the client (timezone-correct).
   const [times, setTimes] = useState<Record<string, { join: string; leave: string }>>({})
 
@@ -82,16 +95,22 @@ function MarkAttendanceFormBody({
   }, [students])
 
   function setStatus(id: string, status: AttendanceStatus) {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, status } : row)))
+    startTransition(() => {
+      setOptimisticRows({ type: 'setStatus', id, status })
+      setRows((current) => current.map((row) => (row.id === id ? { ...row, status } : row)))
+    })
   }
   function setAll(status: AttendanceStatus) {
-    setRows((current) => current.map((row) => ({ ...row, status })))
+    startTransition(() => {
+      setOptimisticRows({ type: 'setAll', status })
+      setRows((current) => current.map((row) => ({ ...row, status })))
+    })
   }
   function setTime(id: string, which: 'join' | 'leave', value: string) {
     setTimes((current) => ({ ...current, [id]: { ...(current[id] ?? { join: '', leave: '' }), [which]: value } }))
   }
 
-  const markedCount = rows.filter((row) => row.status !== null).length
+  const markedCount = optimisticRows.filter((row) => row.status !== null).length
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -104,7 +123,7 @@ function MarkAttendanceFormBody({
     formData.set('class_id', classId)
     formData.set('session_date', date)
     if (sessionId) formData.set('session_id', sessionId)
-    for (const row of rows) {
+    for (const row of optimisticRows) {
       if (row.status === null) continue
       formData.set(`status:${row.id}`, row.status)
       const t = times[row.id]
@@ -115,7 +134,9 @@ function MarkAttendanceFormBody({
     try {
       const result = assertActionOk(await markAttendanceAction(formData), 'Could not save attendance')
       toast(`Attendance saved (${result?.saved ?? markedCount})`, 'success')
-      router.refresh()
+      startTransition(() => {
+        router.refresh()
+      })
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not save attendance', 'error')
     } finally {
@@ -134,11 +155,11 @@ function MarkAttendanceFormBody({
           Mark all present
         </button>
         <p className="text-xs text-slate-600">
-          {markedCount} of {rows.length} marked - unmarked students are not recorded
+          {markedCount} of {optimisticRows.length} marked - unmarked students are not recorded
         </p>
       </div>
       <ul className="space-y-2">
-        {rows.map((row) => {
+        {optimisticRows.map((row) => {
           const t = times[row.id] ?? { join: '', leave: '' }
           const metrics = studentMetrics(session ?? EMPTY_SESSION, {
             join_at: localTimeToIso(date, t.join) || null,

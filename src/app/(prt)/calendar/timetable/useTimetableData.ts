@@ -86,5 +86,30 @@ export function useTimetableData() {
     [confirm, run],
   )
 
-  return { slots, events, error, busy, run, confirmDelete }
+  /**
+   * Optimistic toggle for slot active status. Flips the status in local memory
+   * immediately for responsive UI feedback without waiting for network round-trip,
+   * rolling back if the request fails.
+   */
+  const toggleSlot = useCallback(
+    async (slot: Slot) => {
+      const nextActive = !slot.active
+      setSlots((current) => current.map((s) => (s.id === slot.id ? { ...s, active: nextActive } : s)))
+      setError(null)
+      try {
+        await api(`/api/timetable/${slot.id}`, 'PATCH', { active: nextActive })
+        router.refresh()
+        toast(nextActive ? 'Slot activated' : 'Slot deactivated', 'success')
+      } catch (toggleError) {
+        // Rollback on failure
+        setSlots((current) => current.map((s) => (s.id === slot.id ? { ...s, active: slot.active } : s)))
+        const message = toggleError instanceof Error ? toggleError.message : 'Could not toggle slot'
+        setError(message)
+        toast(message, 'error')
+      }
+    },
+    [router, toast],
+  )
+
+  return { slots, events, error, busy, run, toggleSlot, confirmDelete }
 }
