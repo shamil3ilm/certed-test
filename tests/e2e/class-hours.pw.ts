@@ -48,18 +48,15 @@ test('records a session and attendance, then reports the hours on both sides', a
   await loginAs(page, 'admin@mock.test', { clearCookies: true })
   await page.goto(REPORT)
 
-  // Every section is present, and the class that was just taught appears in each.
+  // The two core sections are present: Tutors & mentors and Students.
   await expect(page.getByRole('heading', { name: 'Tutors & mentors' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'By class and tutor' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Students' })).toBeVisible()
 
-  // The three summary tables are found by name: each person or student also opens into detail
+  // The two summary tables are found by name: each person or student also opens into detail
   // tables of its own, so counting every table on the page would count those too.
   const workedTable = page.getByRole('table', { name: 'Hours worked, by tutor and mentor' })
-  const classTable = page.getByRole('table', { name: 'Hours by class and tutor' })
   const receivedTable = page.getByRole('table', { name: 'Hours received, by student' })
   await expect(workedTable).toBeVisible()
-  await expect(classTable).toBeVisible()
   await expect(receivedTable).toBeVisible()
 
   // The tutor who ran the session is credited at least the window that was recorded. The last

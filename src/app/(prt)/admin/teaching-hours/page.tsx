@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { Download } from 'lucide-react'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
-import { getAcademyClassHours, type AcademyClassHours } from '@/lib/services/teaching-hours'
 import { getAcademyBreakdown, type HoursBreakdown } from '@/lib/services/hours-breakdown'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
@@ -25,7 +24,6 @@ import { PersonHoursView, StudentHoursView } from '../../HoursTables'
 
 const SECTIONS = [
   { href: '#people', label: 'Tutors & mentors' },
-  { href: '#by-class', label: 'By class & tutor' },
   { href: '#students', label: 'Students' },
 ] as const
 
@@ -154,86 +152,6 @@ function PeopleDetail({ people, month }: { people: HoursBreakdown['people']; mon
   )
 }
 
-function ClassTutorTable({ classes, month }: { classes: AcademyClassHours['tutorClasses']; month: string }) {
-  const minutes = classes.reduce((sum, c) => sum + c.totalMinutes, 0)
-  const sessions = classes.reduce((sum, c) => sum + c.tutors.reduce((s, t) => s + t.sessionCount, 0), 0)
-  return (
-    <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
-      <table aria-label="Hours by class and tutor" className="data-table w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-600">
-            <th scope="col" className="p-2">
-              Class
-            </th>
-            <th scope="col" className="p-2">
-              Subject
-            </th>
-            <th scope="col" className="p-2">
-              Tutor
-            </th>
-            <NumHead>Sessions</NumHead>
-            <NumHead>Hours</NumHead>
-          </tr>
-        </thead>
-        <tbody>
-          {classes.map((c) =>
-            c.tutors.map((t) => (
-              <tr key={`${c.classId}:${c.subjectName ?? ''}:${t.tutorId ?? 'unassigned'}`} className="border-t">
-                <td className="p-2 font-medium text-slate-800">
-                  <Link
-                    prefetch={false}
-                    href={`/classroom/${c.classId}`}
-                    className="hover:text-primary hover:underline"
-                  >
-                    {c.className}
-                  </Link>
-                </td>
-                <td className="p-2 text-slate-600">
-                  {c.subjectName ? c.subjectName : <span className="text-slate-400">-</span>}
-                </td>
-                {/* Role shown only when it is NOT a plain tutor: these hours feed the
-                    payslip draft, so a mentor account credited with teaching is worth
-                    seeing, while "Tutor" on every row would just be skimmed past. */}
-                <td className="p-2 text-slate-600">
-                  <span className="inline-flex items-baseline gap-1.5">
-                    {t.tutorId ? (
-                      <Link
-                        prefetch={false}
-                        href={`/admin/teaching-hours/person/${t.tutorId}?month=${month}`}
-                        className="hover:text-primary hover:underline"
-                      >
-                        {t.tutorName}
-                      </Link>
-                    ) : (
-                      t.tutorName
-                    )}
-                    {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
-                      <span className="text-meta font-medium text-slate-500">
-                        {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
-                      </span>
-                    )}
-                  </span>
-                </td>
-                <Num>{t.sessionCount}</Num>
-                <Num>{formatMinutes(t.minutes)}</Num>
-              </tr>
-            )),
-          )}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 font-medium text-slate-700">
-            <td className="p-2" colSpan={3}>
-              Total - {formatMonthLabel(month)}
-            </td>
-            <td className="p-2 text-right tabular-nums">{sessions}</td>
-            <td className="p-2 text-right tabular-nums">{formatMinutes(minutes)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  )
-}
-
 /**
  * Hours RECEIVED, one row per student, with regular, demo and exam as separate columns. A
  * student is credited with a session's recorded window when marked present or late for it.
@@ -339,11 +257,8 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
   const canOpenSessions = capabilities.allowed.has('viewMentees')
   const tz = await getInstituteTimeZone()
   const month = monthParam && isMonth(monthParam) ? monthParam : todayInZone(tz).slice(0, 7)
-  const [{ tutorClasses }, { people, students, untimedSessions }] = await Promise.all([
-    getAcademyClassHours(me.id, month),
-    getAcademyBreakdown(me.id, month),
-  ])
-  const hasSessions = tutorClasses.length > 0
+  const { people, students, untimedSessions } = await getAcademyBreakdown(me.id, month)
+  const hasSessions = people.length > 0 || students.length > 0
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
@@ -392,13 +307,6 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
           />
           <PeopleTable people={people} month={month} />
           <PeopleDetail people={people} month={month} />
-
-          <SectionHeading
-            id="by-class"
-            title="By class and tutor"
-            note="Every recorded session, demo and exam included - the figures receipts and pay slips are still drafted from, until what a demo or an exam should bill is decided."
-          />
-          <ClassTutorTable classes={tutorClasses} month={month} />
 
           <SectionHeading
             id="students"

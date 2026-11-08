@@ -93,7 +93,7 @@ const NAV_RULES: Array<NavItem & { capability: Capability }> = [
     capability: 'manageClasses',
     alsoActiveOn: ['/session-timings'],
   },
-  { href: '/admin/messaging', label: 'Access management', group: 'admin', capability: 'manageUsers' },
+  { href: '/admin/messaging', label: 'Messaging rules', group: 'admin', capability: 'manageUsers' },
   // Admin-tier only: Organization settings expose the bank/IFSC fields the DB
   // restricts to admins (is_active_admin(), 0017), so this must match the page's
   // requireRole(['admin']) guard - manageAdminTier is the hard admin-only marker

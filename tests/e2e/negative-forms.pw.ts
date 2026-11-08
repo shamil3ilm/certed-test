@@ -47,7 +47,7 @@ test('negative ui -- a student sees no content-management controls on their own 
 test('negative ui -- a student nav exposes no admin / oversight destinations', async ({ page }) => {
   await loginAs(page, 'student@mock.test')
   await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45000 })
-  for (const label of ['Users', 'Finance', 'Audit log', 'Access management', 'Mentees', 'Mentoring']) {
+  for (const label of ['Users', 'Finance', 'Audit log', 'Messaging rules', 'Mentees', 'Mentoring']) {
     await expect(
       page.getByRole('link', { name: label, exact: true }),
       `student must not see a "${label}" link`,

@@ -121,7 +121,7 @@ const ICONS: Record<string, ReactNode> = {
       <rect x="17.5" y="5" width="3.5" height="13" rx="1" />
     </>
   ),
-  // Access management: a shield-check (permissions / who-can-do-what).
+  // Messaging rules: a shield-check (communication permissions / policy).
   '/admin/messaging': (
     <>
       <path d="M12 3l7 2.5v5.5c0 4.4-3 7.4-7 8.5-4-1.1-7-4.1-7-8.5V5.5Z" />

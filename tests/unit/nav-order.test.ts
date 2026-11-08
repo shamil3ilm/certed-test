@@ -20,7 +20,7 @@ describe('nav ordering by persona', () => {
       'Users',
       'Finance',
       'Class hours',
-      'Access management',
+      'Messaging rules',
       'Organization',
       'Audit log',
       'Mentoring', // admin holds viewUsers: /students is an oversight view, not "my mentees"
@@ -41,7 +41,7 @@ describe('nav ordering by persona', () => {
       'Dashboard',
       'Users',
       'Class hours',
-      'Access management',
+      'Messaging rules',
       'Mentoring',
       'Messages',
       'Classes',

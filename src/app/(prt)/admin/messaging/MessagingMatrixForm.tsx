@@ -21,13 +21,20 @@ const LABELS: Record<MessagingPersona, string> = {
   student: 'Student',
 }
 
-export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record<string, boolean> }) {
+export function MessagingMatrixForm({
+  initialEnabled,
+  readOnly = false,
+}: {
+  initialEnabled: Record<string, boolean>
+  readOnly?: boolean
+}) {
   const router = useRouter()
   const { toast } = useUI()
   const [enabled, setEnabled] = useState<Set<string>>(() => new Set(Object.keys(initialEnabled)))
   const [isPending, startTransition] = useTransition()
 
   function toggle(a: MessagingPersona, b: MessagingPersona) {
+    if (readOnly) return
     const key = pairKey(a, b)
     setEnabled((current) => {
       const next = new Set(current)
@@ -112,7 +119,7 @@ export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record
                         type="checkbox"
                         checked={enabled.has(key)}
                         onChange={() => toggle(a, b)}
-                        disabled={isPending}
+                        disabled={readOnly || isPending}
                         aria-label={`Allow ${LABELS[a]} and ${LABELS[b]} to message each other academy-wide`}
                         className="h-4 w-4 accent-primary"
                       />
@@ -128,9 +135,15 @@ export function MessagingMatrixForm({ initialEnabled }: { initialEnabled: Record
         Always on: mentors and the admin team can always message each other. Not available: students and tutors never
         message admins directly - they go through their mentor.
       </p>
-      <button type="submit" disabled={isPending} className="btn btn-primary">
-        {isPending ? 'Saving...' : 'Save messaging access'}
-      </button>
+      {readOnly ? (
+        <p className="text-xs font-medium text-slate-500">
+          Viewing current academy messaging rules. Editing requires Super Admin authority.
+        </p>
+      ) : (
+        <button type="submit" disabled={isPending} className="btn btn-primary">
+          {isPending ? 'Saving...' : 'Save messaging access'}
+        </button>
+      )}
     </form>
   )
 }

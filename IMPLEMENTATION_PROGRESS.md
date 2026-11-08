@@ -242,6 +242,19 @@ To guarantee optimal experience on mobile, tablet, and desktop:
      - **Student**: Full learning lifecycle (calendar/timetable grid, custodial homework file upload, materials preview, grade verification, personal attendance, and PDF report card download).
      - **Mentor**: Mentee roll-up table, exam monitoring verification, pastoral notes paging, and month-preserved mentee hours inspection (`?hoursMonth=...#hours`).
      - **Scoping & Security**: Negative access verification (students hard-blocked from admin finance, mentors constrained to assigned mentees).
+10. **Design System & Form Filter Standardization**:
+    - Replaced raw browser date inputs across teaching-hours and person details with custom, token-aligned `MonthFilterField`, `YearFilterField`, and `DateRangeFilterField`.
+    - Integrated standard custom SVG slate chevron (`appearance-none bg-[url(...)]`) across select fields and dropdowns, retiring unstyled browser dropdown arrows.
+    - Calendar view decluttered: FullCalendar month day-cells redesigned with compact single-line pills, status color dots, tabular times, truncated labels, and rich hover tooltips.
+    - Future-only scheduling guards: prevented creating sessions, events, or reminders in the past while maintaining full historical attendance and time recording capability.
+    - Unified row heights and padding (`p-3 sm:px-4`, `items-center`) across Classes, Grading, and Users.
+11. **Responsive Invariants Across All Viewports**:
+    - All tables and data grids feature container-level horizontal overflow wrapping (`overflow-x-auto`) to guarantee zero clipping or horizontal page blowout on mobile screens (320px–480px).
+    - Navigation jump bars (`SectionJumpNav`), filter bars (`FilterBar`), and button toolbars adapt responsively via flex-wrap and responsive padding (`p-4 sm:p-6 lg:p-8`).
+    - Matrix controls and form dialogs support touch targets exceeding 44px min-dimension with legible typography and high-contrast focus rings.
+12. **Illogical & Redundant Flow Elimination**:
+    - **Teaching Hours Simplification** (`/admin/teaching-hours`): Removed the redundant middle "By class & tutor" table and its standalone query. The page now cleanly presents the two authoritative breakdowns: (1) educator hours worked and (2) student hours received, each with regular/demo/exam separation.
+    - **Access Management Clarification** (`/admin/messaging`): Removed dead circular pointer card that merely redirected to `/admin/users`. Renamed the destination to **"Messaging rules"** in nav and page headings. Sub-admins now view the communication matrix in read-only mode with explicit guidance that edits require Super Admin authority, completely eliminating the previous empty state.
 
 ---
 
