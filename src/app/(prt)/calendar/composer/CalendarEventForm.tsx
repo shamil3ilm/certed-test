@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { ACADEMY_WIDE_LABEL } from '@/lib/ui'
 import { Input, Select } from '../../form'
 import { requestJson } from '../../api-client'
-import { EVENT_KINDS } from '../calendar-config'
+import { EVENT_KINDS, calendarDateInZone } from '../calendar-config'
 import type { Opt } from '../calendar-types'
 
 const EVENT_KIND_META = {
@@ -44,6 +44,8 @@ export function CalendarEventForm({
   onSuccess: () => void
   onError: (message: string) => void
 }) {
+  const todayYmd = calendarDateInZone(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [eventDate, setEventDate] = useState(() => (date < todayYmd ? todayYmd : date))
   const [title, setTitle] = useState('')
   const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
   const [kind, setKind] = useState<(typeof EVENT_KINDS)[number]>('event')
@@ -58,13 +60,21 @@ export function CalendarEventForm({
     setBusy(true)
     setError(null)
 
+    if (eventDate < todayYmd) {
+      const message = 'Cannot schedule an event or holiday on a past date.'
+      setError(message)
+      onError(message)
+      setBusy(false)
+      return
+    }
+
     try {
       await requestJson('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
-          event_date: date,
+          event_date: eventDate,
           kind,
           class_id: classId || null,
           start_time: start || undefined,
@@ -91,6 +101,17 @@ export function CalendarEventForm({
           required
           onChange={(event) => setTitle(event.target.value)}
           placeholder={kindMeta.titlePlaceholder}
+          className="mt-1"
+        />
+      </label>
+      <label className="text-sm">
+        Date
+        <Input
+          type="date"
+          value={eventDate}
+          min={todayYmd}
+          required
+          onChange={(event) => setEventDate(event.target.value)}
           className="mt-1"
         />
       </label>

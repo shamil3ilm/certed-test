@@ -41,12 +41,16 @@ export { ExternalActionLink } from './external-action-link'
 export { SECTION_JUMP_LINK, SectionJumpNav } from './section-jump-nav'
 export {
   FILTER_CONTROL,
+  SELECT_CONTROL,
   FILTER_SEARCH_FIELD,
   FilterField,
   SearchFilterField,
   SelectFilterField,
   DateFilterField,
   MonthFilterField,
+  YearFilterField,
+  DateRangeFilterField,
+  SortFilterField,
   FilterBar,
 } from './forms'
 export { pillButtonClass, segmentedButtonClass, SEGMENTED_GROUP } from './toggles'

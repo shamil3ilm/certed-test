@@ -7,6 +7,7 @@ import { requestJson } from '../../api-client'
 import { api } from '../timetable/api'
 import { DAYS } from '../timetable/types'
 import type { Opt } from '../calendar-types'
+import { calendarDateInZone } from '../calendar-config'
 
 /** Weekday index (0=Sun..6=Sat) for a YYYY-MM-DD date, read at UTC noon so it
  *  never drifts a day from timezone edges. Matches DAYS / slot day_of_week. */
@@ -35,7 +36,9 @@ export function ClassCreateForm({
   onSuccess: (message: string) => void
   onError: (message: string) => void
 }) {
+  const todayYmd = calendarDateInZone(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [recurring, setRecurring] = useState(false)
+  const [sessionDate, setSessionDate] = useState(() => (date < todayYmd ? todayYmd : date))
   const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
   const [subject, setSubject] = useState('')
   const [tutorId, setTutorId] = useState('')
@@ -68,12 +71,17 @@ export function ClassCreateForm({
         })
         onSuccess('Weekly class added')
       } else {
+        if (sessionDate < todayYmd) {
+          throw new Error(
+            'Cannot schedule a session on a past date. Missed session times should be recorded on the class attendance page.',
+          )
+        }
         await requestJson('/api/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: subject,
-            event_date: date,
+            event_date: sessionDate,
             kind: 'event',
             class_id: classId || null,
             start_time: start || undefined,
@@ -119,7 +127,7 @@ export function ClassCreateForm({
       <p className="text-xs text-slate-600 sm:col-span-2">
         {recurring
           ? 'Repeats every week on the chosen day - shows on the calendar and timetable.'
-          : `A single class on ${date}.`}
+          : `A single class on ${sessionDate}.`}
       </p>
 
       <label className="text-sm sm:col-span-2">
@@ -158,7 +166,21 @@ export function ClassCreateForm({
           </Select>
         </label>
       ) : (
-        <div className="hidden sm:block" aria-hidden />
+        <label className="text-sm">
+          Session date
+          <Input
+            type="date"
+            value={sessionDate}
+            min={todayYmd}
+            required
+            onChange={(event) => {
+              const val = event.target.value
+              setSessionDate(val)
+              setDay(weekdayOf(val))
+            }}
+            className="mt-1"
+          />
+        </label>
       )}
 
       <label className="text-sm">

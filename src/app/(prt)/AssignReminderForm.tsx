@@ -24,6 +24,9 @@ export function AssignReminderForm({
   const { toast } = useUI()
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
+  const [minTime] = useState(() =>
+    new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+  )
 
   if (classes.length === 0) return null
 
@@ -35,6 +38,10 @@ export function AssignReminderForm({
     const remindAt = new Date(String(data.get('remind_at') ?? ''))
     if (Number.isNaN(remindAt.getTime())) {
       toast('Choose when the reminder is for.', 'error')
+      return
+    }
+    if (remindAt.getTime() < Date.now() - 60000) {
+      toast('Reminders cannot be scheduled for past dates or times.', 'error')
       return
     }
     data.set('remind_at', remindAt.toISOString())
@@ -94,6 +101,7 @@ export function AssignReminderForm({
           name="remind_at"
           type="datetime-local"
           required
+          min={minTime}
           aria-label="Remind at"
           className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />

@@ -14,6 +14,11 @@ import { cx } from '@/lib/ui'
 const FIELD =
   'block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50'
 
+const SELECT_FIELD = cx(
+  FIELD,
+  'cursor-pointer appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20fill=%22none%22%20viewBox=%220%200%2020%2020%22%3E%3Cpath%20stroke=%22%2364748b%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%20stroke-width=%221.5%22%20d=%22m6%208%204%204%204-4%22/%3E%3C/svg%3E")] bg-[length:1.25rem_1.25rem] bg-[right_0.75rem_center] bg-no-repeat pr-9',
+)
+
 /** Labelled field wrapper. */
 export function Field({
   label,
@@ -59,7 +64,7 @@ export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<
 
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select {...props} className={cx(FIELD, className)}>
+    <select {...props} className={cx(SELECT_FIELD, className)}>
       {children}
     </select>
   )

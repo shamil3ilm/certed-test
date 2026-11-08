@@ -146,11 +146,18 @@ export function CalendarView({
 
   const openComposer = useCallback(
     (initialTab?: ComposerTab, dateOverride?: string) => {
-      const date =
-        dateOverride ?? calendarDateInZone(new Date(), deviceTz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const today = calendarDateInZone(new Date(), deviceTz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+      if (dateOverride && dateOverride < today) {
+        toast(
+          'Cannot schedule new sessions or reminders on past dates. To record missed session times, open the class attendance page.',
+          'info',
+        )
+        return
+      }
+      const date = dateOverride ?? today
       setComposerState({ date, initialTab })
     },
-    [deviceTz],
+    [deviceTz, toast],
   )
 
   return (
@@ -209,6 +216,30 @@ export function CalendarView({
                 })
             }}
             events={fetchEvents}
+            eventContent={(arg) => {
+              const isDayGrid = arg.view.type.startsWith('dayGrid')
+              if (!isDayGrid) return null
+
+              const timeText = arg.timeText
+              const title = arg.event.title
+              const source = arg.event.extendedProps.source as CalendarItem['source'] | undefined
+              const color = (source && COLORS[source]) || arg.event.backgroundColor || 'var(--primary)'
+
+              return (
+                <div
+                  className="flex w-full min-w-0 items-center gap-1.5 px-1 py-0.5 text-xs leading-none"
+                  title={timeText ? `${timeText} · ${title}` : title}
+                >
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: color }}
+                    aria-hidden="true"
+                  />
+                  {timeText && <span className="shrink-0 font-medium text-slate-500 tabular-nums">{timeText}</span>}
+                  <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{title}</span>
+                </div>
+              )
+            }}
             dateClick={canOpenComposer ? (info) => openComposer(undefined, info.dateStr) : undefined}
             eventClick={(info) => {
               const event = info.event

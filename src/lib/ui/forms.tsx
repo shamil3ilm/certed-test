@@ -14,10 +14,16 @@ import { cx } from './core'
 /* The shared GET filter/search bar used by the Users hub, grading queue,
  * activity log and finance ledger. */
 
-/** Standard control styling for a FilterBar input/select. Add `w-full` for a
+/** Standard control styling for a FilterBar input. Add `w-full` for a
  *  flexible search box. */
 export const FILTER_CONTROL =
   'mt-1 block rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
+
+/** Standard control styling for FilterBar select dropdowns with custom chevron. */
+export const SELECT_CONTROL = cx(
+  FILTER_CONTROL,
+  'cursor-pointer appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20fill=%22none%22%20viewBox=%220%200%2020%2020%22%3E%3Cpath%20stroke=%22%2364748b%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%20stroke-width=%221.5%22%20d=%22m6%208%204%204%204-4%22/%3E%3C/svg%3E")] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat pr-8',
+)
 
 /** Standard width treatment for the primary search field in a FilterBar. */
 export const FILTER_SEARCH_FIELD = 'min-w-0 flex-[2_1_18rem] sm:min-w-[18rem]'
@@ -75,7 +81,7 @@ export function SelectFilterField({
 } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <FilterField label={label} className={className}>
-      <select className={cx(FILTER_CONTROL, selectClassName)} {...props}>
+      <select className={cx(SELECT_CONTROL, selectClassName)} {...props}>
         {children}
       </select>
     </FilterField>
@@ -114,6 +120,135 @@ export function MonthFilterField({
   return (
     <FilterField label={label} className={className}>
       <input type="month" className={cx(FILTER_CONTROL, 'block', inputClassName)} {...props} />
+    </FilterField>
+  )
+}
+
+/** Shared year field for FilterBar layouts. Supports custom selectable years or a standard year number picker. */
+export function YearFilterField({
+  label = 'Year',
+  name = 'year',
+  className = '',
+  inputClassName = '',
+  years,
+  defaultValue,
+  ...props
+}: {
+  label?: string
+  name?: string
+  className?: string
+  inputClassName?: string
+  years?: number[]
+  defaultValue?: string | number
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  if (years && years.length > 0) {
+    return (
+      <FilterField label={label} className={className}>
+        <select
+          name={name}
+          defaultValue={defaultValue != null ? String(defaultValue) : undefined}
+          className={cx(SELECT_CONTROL, inputClassName)}
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </FilterField>
+    )
+  }
+  return (
+    <FilterField label={label} className={className}>
+      <input
+        type="number"
+        name={name}
+        defaultValue={defaultValue}
+        min="2000"
+        max="2099"
+        step="1"
+        placeholder="YYYY"
+        className={cx(FILTER_CONTROL, 'w-24', inputClassName)}
+        {...props}
+      />
+    </FilterField>
+  )
+}
+
+/** Shared date-range field (From - To) for FilterBar layouts. */
+export function DateRangeFilterField({
+  label = 'Date range',
+  fromName = 'from',
+  toName = 'to',
+  fromLabel = 'From',
+  toLabel = 'To',
+  defaultFrom = '',
+  defaultTo = '',
+  className = '',
+}: {
+  label?: string
+  fromName?: string
+  toName?: string
+  fromLabel?: string
+  toLabel?: string
+  defaultFrom?: string
+  defaultTo?: string
+  className?: string
+}) {
+  return (
+    <div className={cx('flex flex-col', className)}>
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <div className="mt-1 flex items-center gap-1.5">
+        <input
+          type="date"
+          name={fromName}
+          defaultValue={defaultFrom}
+          aria-label={fromLabel}
+          title={fromLabel}
+          className={FILTER_CONTROL}
+        />
+        <span className="text-xs font-medium text-slate-600" aria-hidden="true">
+          &ndash;
+        </span>
+        <input
+          type="date"
+          name={toName}
+          defaultValue={defaultTo}
+          aria-label={toLabel}
+          title={toLabel}
+          className={FILTER_CONTROL}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** Shared sort dropdown field with options array and unified select styling. */
+export function SortFilterField({
+  label = 'Sort by',
+  name = 'sort',
+  defaultValue,
+  options,
+  className = '',
+  selectClassName = '',
+  ...props
+}: {
+  label?: string
+  name?: string
+  defaultValue?: string
+  options: Array<{ value: string; label: string }>
+  className?: string
+  selectClassName?: string
+} & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'children'>) {
+  return (
+    <FilterField label={label} className={className}>
+      <select name={name} defaultValue={defaultValue} className={cx(SELECT_CONTROL, selectClassName)} {...props}>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </FilterField>
   )
 }

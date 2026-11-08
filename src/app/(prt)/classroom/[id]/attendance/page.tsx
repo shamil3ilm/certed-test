@@ -19,6 +19,7 @@ import {
   SectionLabel,
   SectionJumpNav,
   DateFilterField,
+  DateRangeFilterField,
   FilterBar,
   CARD,
   StatCard,
@@ -496,8 +497,12 @@ export default async function AttendancePage(props: {
             <option value="late">Late</option>
             <option value="absent">Absent</option>
           </SelectFilterField>
-          <DateFilterField label="From" name="aFrom" defaultValue={data.historyFilters.from} />
-          <DateFilterField label="To" name="aTo" defaultValue={data.historyFilters.to} />
+          <DateRangeFilterField
+            fromName="aFrom"
+            toName="aTo"
+            defaultFrom={data.historyFilters.from}
+            defaultTo={data.historyFilters.to}
+          />
         </FilterBar>
 
         {data.historyTotal === 0 ? (

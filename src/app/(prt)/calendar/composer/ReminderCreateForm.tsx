@@ -14,9 +14,13 @@ export function ReminderCreateForm({
   onSuccess: () => void
   onError: (message: string) => void
 }) {
+  const [nowLocal] = useState(() =>
+    new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+  )
+  const initialTime = defaultLocalDateTime(date)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [remindAt, setRemindAt] = useState(defaultLocalDateTime(date))
+  const [remindAt, setRemindAt] = useState(initialTime < nowLocal ? nowLocal : initialTime)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -26,6 +30,13 @@ export function ReminderCreateForm({
     const remindAtIso = toIsoFromLocalDateTime(remindAt)
     if (!remindAtIso) {
       const message = 'Enter a valid reminder time'
+      setError(message)
+      onError(message)
+      return
+    }
+
+    if (new Date(remindAtIso).getTime() < Date.now() - 60000) {
+      const message = 'Reminders cannot be scheduled for past dates or times.'
       setError(message)
       onError(message)
       return
@@ -76,8 +87,9 @@ export function ReminderCreateForm({
           type="datetime-local"
           value={remindAt}
           required
+          min={nowLocal}
           onChange={(event) => setRemindAt(event.target.value)}
-          className="mt-1 block w-full"
+          className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </label>
       <div className="mt-1 flex gap-2">

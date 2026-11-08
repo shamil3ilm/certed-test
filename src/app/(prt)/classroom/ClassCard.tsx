@@ -40,48 +40,65 @@ export function ClassCard({
   const title = studentIsImplied ? (subjectName ?? c.name) : c.name
   const linkHref = href ?? `/classroom/${c.id}`
 
+  if (grouped) {
+    return (
+      <Link
+        href={linkHref}
+        className={cx(
+          CARD,
+          'group relative flex items-center justify-between overflow-hidden p-3 transition hover:-translate-y-0.5 hover:shadow-md sm:px-4',
+        )}
+      >
+        <span aria-hidden="true" className={cx('absolute inset-y-0 left-0 w-1 bg-gradient-to-b', CLASS_BANNER)} />
+        <div className="min-w-0 flex-1 pl-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Title className="truncate text-sm font-semibold text-slate-900">{title}</Title>
+            {c.status === 'archived' && <Badge tone="slate">Archived</Badge>}
+            {!c.subject_id && <Badge tone="warning">No subject</Badge>}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+            {c.tutors && c.tutors.length > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-1.5">
+                <GraduationCap className="h-3.5 w-3.5 text-slate-600" aria-hidden="true" />
+                <span>{memberSummary(c.tutors, c.tutorCount ?? 0, 'tutor')}</span>
+              </span>
+            )}
+            {tags.length > 0 && <TagChips tags={tags} />}
+          </div>
+        </div>
+        <div className="ml-3 flex shrink-0 items-center gap-2">
+          {actionLabel && <span className="btn btn-sm btn-soft">{actionLabel}</span>}
+          <RowChevron />
+        </div>
+      </Link>
+    )
+  }
+
   return (
     <Link
       href={linkHref}
       className={cx(CARD, 'group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md')}
     >
-      {grouped ? (
-        <div className="relative px-4 py-3 sm:px-5">
-          <span aria-hidden="true" className={cx('absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b', CLASS_BANNER)} />
-          <Title className="text-base font-semibold leading-snug text-slate-900">{title}</Title>
-          <p className="mt-0.5 text-meta font-medium text-slate-600">
-            {c.status === 'archived' ? 'Archived' : 'Active class'}
-          </p>
-          {!c.subject_id && (
-            <div className="mt-1">
-              <Badge tone="warning">No subject set</Badge>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className={`relative bg-gradient-to-br ${CLASS_BANNER} p-4 sm:p-5`}>
-          <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{title}</Title>
-          <p className="mt-0.5 text-xs font-medium text-white/80">
-            {c.status === 'archived' ? 'Archived' : 'Active class'}
-          </p>
-          {!c.subject_id && (
-            <div className="mt-1">
-              <Badge tone="warning">No subject set</Badge>
-            </div>
-          )}
-          <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
-            {title.slice(0, 1).toUpperCase()}
-          </span>
-        </div>
-      )}
+      <div className={`relative bg-gradient-to-br ${CLASS_BANNER} p-4 sm:p-5`}>
+        <Title className="pr-10 text-base font-bold leading-snug text-white sm:text-lg">{title}</Title>
+        <p className="mt-0.5 text-xs font-medium text-white/80">
+          {c.status === 'archived' ? 'Archived' : 'Active class'}
+        </p>
+        {!c.subject_id && (
+          <div className="mt-1">
+            <Badge tone="warning">No subject set</Badge>
+          </div>
+        )}
+        <span className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold text-white ring-1 ring-white/30">
+          {title.slice(0, 1).toUpperCase()}
+        </span>
+      </div>
       <div className="px-4 py-3 sm:px-5">
         <div className="flex items-center gap-4 text-xs text-slate-600">
-          {!grouped && (
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <User className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
-              <span className="truncate">{primary}</span>
-            </span>
-          )}
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <User className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
+            <span className="truncate">{primary}</span>
+          </span>
           {!viewerIsStudent && (!viewerIsTutor || (c.tutorCount ?? 0) > 1) && c.tutors && (
             <span className="inline-flex shrink-0 items-center gap-1.5">
               <GraduationCap className="h-4 w-4 text-slate-600" aria-hidden="true" />

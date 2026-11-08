@@ -42,7 +42,7 @@ export function UserRow({
   const who = p.full_name ? `${p.full_name} (${p.email})` : p.email
   return (
     <Card as="li" className="p-3">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar name={p.full_name ?? p.email} role={p.role} />
           <div className="min-w-0">

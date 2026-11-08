@@ -55,7 +55,7 @@ export function StudentGroup({
             aria-hidden="true"
           />
         </summary>
-        <div className="grid gap-4 border-t border-slate-200 bg-slate-50/50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2.5 border-t border-slate-200 bg-slate-50/50 p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-3">
           {children}
         </div>
       </details>

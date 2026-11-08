@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Clock } from 'lucide-react'
 import type { Reminder } from '@/lib/services/reminders'
 import { ArchivedList } from '@/lib/ui'
@@ -28,6 +29,10 @@ export function ReminderEditor({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
   onCancel: () => void
 }) {
+  const [minTime] = useState(() =>
+    new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+  )
+
   return (
     <form
       id="reminder-add-form"
@@ -60,6 +65,7 @@ export function ReminderEditor({
           name="remind_at"
           type="datetime-local"
           required
+          min={minTime}
           defaultValue={editing ? isoToDatetimeLocal(editing.remind_at) : ''}
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />

@@ -1,5 +1,5 @@
 import { STATUS_OPTIONS, usersUrl, type RoleFilter, type UsersTab } from '@/lib/services/page-data/admin-users'
-import { FilterBar, SearchFilterField, SelectFilterField } from '@/lib/ui'
+import { FilterBar, SearchFilterField, SelectFilterField, SortFilterField } from '@/lib/ui'
 
 /** Search + status + sort for the People list, all in one Apply. Role is the tab strip above,
  *  and rides along as a hidden field; tab does too, so filtering keeps you on the People list
@@ -40,15 +40,25 @@ export function UsersFilterBar({
           </option>
         ))}
       </SelectFilterField>
-      <SelectFilterField label="Sort by" name="sortBy" defaultValue={sortBy ?? 'created_at'}>
-        <option value="created_at">Date added</option>
-        <option value="name">Name</option>
-        <option value="email">Email</option>
-      </SelectFilterField>
-      <SelectFilterField label="Order" name="sortOrder" defaultValue={sortOrder ?? 'desc'}>
-        <option value="desc">Newest first</option>
-        <option value="asc">Oldest first</option>
-      </SelectFilterField>
+      <SortFilterField
+        label="Sort by"
+        name="sortBy"
+        defaultValue={sortBy ?? 'created_at'}
+        options={[
+          { value: 'created_at', label: 'Date added' },
+          { value: 'name', label: 'Name' },
+          { value: 'email', label: 'Email' },
+        ]}
+      />
+      <SortFilterField
+        label="Order"
+        name="sortOrder"
+        defaultValue={sortOrder ?? 'desc'}
+        options={[
+          { value: 'desc', label: 'Newest first' },
+          { value: 'asc', label: 'Oldest first' },
+        ]}
+      />
     </FilterBar>
   )
 }

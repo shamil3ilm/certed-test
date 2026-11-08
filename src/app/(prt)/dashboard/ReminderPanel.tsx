@@ -76,6 +76,10 @@ function ReminderPanelBody({
     // below - or creation always fails validation and reverts.
     const remindAtDate = new Date(remindAt)
     if (Number.isNaN(remindAtDate.getTime())) return
+    if (remindAtDate.getTime() < Date.now() - 60000) {
+      toast('Reminders cannot be scheduled for past dates or times', 'error')
+      return
+    }
     const remindAtIso = remindAtDate.toISOString()
     formData.set('remind_at', remindAtIso)
     const description = String(formData.get('description') ?? '').trim() || null

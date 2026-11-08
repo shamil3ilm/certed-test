@@ -388,8 +388,7 @@ html {
     text-align: center;
     font-size: 1rem;
   }
-  .prt-scope .fc .fc-list-event-title,
-  .prt-scope .fc .fc-event-title {
+  .prt-scope .fc .fc-list-event-title {
     white-space: normal;
   }
 }
@@ -421,4 +420,32 @@ html {
 .prt-scope .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
   font-weight: 700;
   color: var(--primary);
+}
+
+/* Minimal day-cube event pill in FullCalendar to eliminate clutter */
+.prt-scope .fc .fc-daygrid-event {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin: 1.5px 2px;
+  padding: 1px 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.prt-scope .fc .fc-daygrid-event:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.prt-scope .fc .fc-daygrid-event .fc-event-main {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prt-scope .fc .fc-daygrid-event .fc-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
