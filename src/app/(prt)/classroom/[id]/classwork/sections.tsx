@@ -30,6 +30,7 @@ export function AssignmentsSection({ data, me, courseId }: { data: ClassworkPage
       {/* A class accumulates every kind of work over years, so "show me the exams" is the
           question a reader arrives with. Same FilterBar the materials below it use. */}
       <FilterBar
+        action="#assignments"
         clearHref={classworkUrl(data, { assignmentType: '', assignmentPage: 1 }, 'assignments')}
         showClear={Boolean(data.assignmentType)}
       >

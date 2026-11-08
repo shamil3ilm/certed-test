@@ -134,6 +134,7 @@ export function MaterialsSection({ data, me, courseId }: { data: ClassworkPageDa
       {data.canManageContent && <UploadForm classes={data.classList} />}
 
       <FilterBar
+        action="#materials"
         clearHref={classworkUrl(
           data,
           { q: '', category: '', subject: '', from: '', to: '', sort: 'latest' },

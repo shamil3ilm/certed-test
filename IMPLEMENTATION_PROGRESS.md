@@ -213,11 +213,14 @@ To guarantee optimal experience on mobile, tablet, and desktop:
    - Eliminated N+1 entity name lookups in hours breakdown by consolidating profile and subject label queries into single batched requests (`getProfileLabelsByIds`, `getSubjectLabelsByIds`).
 3. **Escapable Disclosure Tree**:
    - Using standard HTML `<details>` and `<summary>` via `EscapableDetails` provides keyboard accessibility (`Escape` key dismiss, outside click dismiss) without bloated third-party dropdown libraries.
-4. **Elimination of Unnecessary Full-Page Reloads**:
+4. **Elimination of Unnecessary Full-Page Reloads & Scoped Section Refresh**:
    - Replaced native `<a>` tags with Next.js client-side `<Link scroll={false}>` in key high-frequency workflows:
      - Classroom attendance history table (`src/app/(prt)/classroom/[id]/attendance/page.tsx`): clicking past session dates now performs seamless in-place client transitions instead of tearing down the layout, scripts, and styles.
      - Session timings student drill-downs (`src/app/(prt)/session-timings/page.tsx`): clicking "View sessions" navigates within client router memory.
    - Audited all internal anchors and verified zero remaining unoptimized native links across `src/app/`.
+5. **Section Filter State Isolation & Anchor Scoping**:
+   - FilterBars on multi-section surfaces (`classroom/[id]/attendance`, `students/[id]`, `classroom/[id]/classwork`, `classroom/[id]`) now explicitly preserve sibling sections' query parameters (`date`, `aStatus`, `aFrom`, `aTo`, `hoursMonth`, `notePage`) and stay anchored to their target section hash (`#attendance-history`, `#mark-attendance`, `#assignments`, `#materials`, `#announcements`).
+   - Applying a filter, search, or pagination in one section updates strictly that related section without resetting or reloading any other section on the page.
 
 ---
 

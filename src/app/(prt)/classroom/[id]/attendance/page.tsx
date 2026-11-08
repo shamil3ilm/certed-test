@@ -283,8 +283,11 @@ export default async function AttendancePage(props: {
           </AlertBanner>
         )}
 
-        <FilterBar applyLabel="Load">
+        <FilterBar applyLabel="Load" action="#mark-attendance">
           <DateFilterField label="Session date" name="date" defaultValue={data.date} />
+          {data.historyFilters.status && <input type="hidden" name="aStatus" value={data.historyFilters.status} />}
+          {data.historyFilters.from && <input type="hidden" name="aFrom" value={data.historyFilters.from} />}
+          {data.historyFilters.to && <input type="hidden" name="aTo" value={data.historyFilters.to} />}
         </FilterBar>
 
         {sessionsForForm.map((session, index) => {
@@ -481,7 +484,11 @@ export default async function AttendancePage(props: {
         <SectionLabel>Attendance details</SectionLabel>
         {/* GET form: status + date-range filters run server-side. Keeps the marking
             `date` so applying a filter doesn't reset the session above. */}
-        <FilterBar clearHref={`?date=${data.date}`} showClear={data.hasHistoryFilters}>
+        <FilterBar
+          action="#attendance-history"
+          clearHref={`?date=${data.date}#attendance-history`}
+          showClear={data.hasHistoryFilters}
+        >
           <input type="hidden" name="date" value={data.date} />
           <SelectFilterField label="Status" name="aStatus" defaultValue={data.historyFilters.status}>
             <option value="">All statuses</option>

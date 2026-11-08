@@ -19,13 +19,14 @@ const NOTES_PAGE_SIZE = 20
  *  never resets the evaluation period or class filter above them. */
 function notePageHref(
   studentId: string,
-  searchParams: { period?: string; classId?: string; sort?: string } | undefined,
+  searchParams: { period?: string; classId?: string; sort?: string; hoursMonth?: string } | undefined,
   page: number,
 ): string {
   const sp = new URLSearchParams()
   if (searchParams?.period) sp.set('period', searchParams.period)
   if (searchParams?.classId) sp.set('classId', searchParams.classId)
   if (searchParams?.sort) sp.set('sort', searchParams.sort)
+  if (searchParams?.hoursMonth) sp.set('hoursMonth', searchParams.hoursMonth)
   if (page > 1) sp.set('notePage', String(page))
   const query = sp.toString()
   return query ? `/students/${studentId}?${query}#pastoral-notes` : `/students/${studentId}#pastoral-notes`

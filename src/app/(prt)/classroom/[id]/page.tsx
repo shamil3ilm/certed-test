@@ -91,7 +91,12 @@ export default async function ClassStreamPage(props: {
       <section id="announcements" className="scroll-mt-20 space-y-4">
         <SectionLabel>Announcements</SectionLabel>
 
-        <FilterBar clearHref="?" showClear={Boolean(data.streamQ)} applyLabel="Search">
+        <FilterBar
+          action="#announcements"
+          clearHref="?#announcements"
+          showClear={Boolean(data.streamQ)}
+          applyLabel="Search"
+        >
           <SearchFilterField
             label="Search posts"
             name="streamQ"

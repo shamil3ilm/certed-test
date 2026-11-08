@@ -97,7 +97,7 @@ export function EvaluationOverview({
   studentId: string
   classes: Overview['classes']
   evaluations: Overview['evaluations']
-  searchParams?: { period?: string; classId?: string; sort?: string }
+  searchParams?: { period?: string; classId?: string; sort?: string; hoursMonth?: string; notePage?: string }
 }) {
   return (
     <section className="mt-6 space-y-4">
@@ -107,9 +107,11 @@ export function EvaluationOverview({
       </div>
 
       <FilterBar
-        clearHref={`/students/${studentId}`}
+        clearHref={`/students/${studentId}${searchParams?.hoursMonth ? `?hoursMonth=${encodeURIComponent(searchParams.hoursMonth)}#hours` : ''}`}
         showClear={Boolean(evaluations.filters.classId || searchParams?.period || searchParams?.sort)}
       >
+        {searchParams?.hoursMonth && <input type="hidden" name="hoursMonth" value={searchParams.hoursMonth} />}
+        {searchParams?.notePage && <input type="hidden" name="notePage" value={searchParams.notePage} />}
         <SelectFilterField label="Period" name="period" defaultValue={evaluations.filters.period}>
           {PERIOD_OPTIONS.map((period) => (
             <option key={period.value} value={period.value}>
