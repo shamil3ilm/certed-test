@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { DAYS, type Opt } from './types'
 import { ClassSelect, TutorSelect } from './pickers'
+import { Input, Select } from '../../form'
 import { useViewerTimeZone } from '../../ViewerTimeZone'
 
 export function SlotForm({
@@ -47,8 +48,8 @@ export function SlotForm({
       <ClassSelect classes={classes} value={classId} onChange={setClassId} />
       <label className="text-sm">
         Subject
-        <input
-          className="mt-1 w-full rounded border p-2"
+        <Input
+          className="mt-1"
           placeholder="e.g. Algebra"
           value={subject}
           required
@@ -58,45 +59,29 @@ export function SlotForm({
       <TutorSelect tutors={tutors} value={tutorId} onChange={setTutorId} />
       <label className="text-sm">
         Day
-        <select
-          className="mt-1 w-full rounded border p-2"
-          value={day}
-          onChange={(event) => setDay(Number(event.target.value))}
-        >
+        <Select className="mt-1" value={day} onChange={(event) => setDay(Number(event.target.value))}>
           {DAYS.map((label, index) => (
             <option key={label} value={index}>
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="text-sm">
         Start (your time)
-        <input
-          type="time"
-          className="mt-1 w-full rounded border p-2"
-          value={start}
-          required
-          onChange={(event) => setStart(event.target.value)}
-        />
+        <Input type="time" className="mt-1" value={start} required onChange={(event) => setStart(event.target.value)} />
       </label>
       <label className="text-sm">
         End (your time)
-        <input
-          type="time"
-          className="mt-1 w-full rounded border p-2"
-          value={end}
-          required
-          onChange={(event) => setEnd(event.target.value)}
-        />
+        <Input type="time" className="mt-1" value={end} required onChange={(event) => setEnd(event.target.value)} />
       </label>
       <p className="text-meta text-slate-600 sm:col-span-2">
         Times are in your time zone ({viewerTz}). Everyone else sees them converted to their own.
       </p>
       <label className="text-sm">
         Room / mode
-        <input
-          className="mt-1 w-full rounded border p-2"
+        <Input
+          className="mt-1"
           placeholder="Room 1 / Online"
           value={room}
           onChange={(event) => setRoom(event.target.value)}

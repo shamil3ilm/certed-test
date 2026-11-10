@@ -28,6 +28,22 @@ export function workingMinutes(minutes: ByKind): number {
   return minutes.regular + minutes.exam
 }
 
+/** Sum an array of ByKind records into a single ByKind record. */
+export function sumByKind(items: readonly ByKind[]): ByKind {
+  const res = emptyByKind()
+  for (const k of items) {
+    res.regular += k.regular
+    res.demo += k.demo
+    res.exam += k.exam
+  }
+  return res
+}
+
+/** Total across all three kinds (regular + demo + exam). */
+export function totalByKind(k: ByKind): number {
+  return k.regular + k.demo + k.exam
+}
+
 /** The columns of a session this module reads. Wider rows are fine - SessionHoursRow is one. */
 export interface BreakdownSession {
   id: string
@@ -67,18 +83,22 @@ function addTo(map: Map<string | null, ByKind>, key: string | null, kind: Sessio
   map.set(key, bucket)
 }
 
-function total(minutes: ByKind): number {
-  return minutes.regular + minutes.demo + minutes.exam
-}
-
 /** Map -> rows, the largest bucket first so the reader meets the weight first. */
 function rowsOf<T extends string>(
-  map: Map<string | null, ByKind>,
+  minutesMap: Map<string | null, ByKind>,
+  sessionsMap: Map<string | null, ByKind>,
   idKey: T,
-): Array<Record<T, string | null> & { minutes: ByKind }> {
-  return [...map.entries()]
-    .map(([id, minutes]) => ({ [idKey]: id, minutes }) as Record<T, string | null> & { minutes: ByKind })
-    .sort((a, b) => total(b.minutes) - total(a.minutes))
+): Array<Record<T, string | null> & { minutes: ByKind; sessions: ByKind }> {
+  return [...minutesMap.entries()]
+    .map(
+      ([id, minutes]) =>
+        ({
+          [idKey]: id,
+          minutes,
+          sessions: sessionsMap.get(id) ?? emptyByKind(),
+        }) as Record<T, string | null> & { minutes: ByKind; sessions: ByKind },
+    )
+    .sort((a, b) => totalByKind(b.minutes) - totalByKind(a.minutes))
 }
 
 /* -------------------------------------------------------------------------------------- */
@@ -88,17 +108,20 @@ function rowsOf<T extends string>(
 export interface StudentHoursRaw {
   studentId: string
   total: ByKind
+  sessions: ByKind
   bySubject: Array<{
     subjectId: string | null
     minutes: ByKind
-    byTutor: Array<{ tutorId: string | null; minutes: ByKind }>
+    sessions: ByKind
+    byTutor: Array<{ tutorId: string | null; minutes: ByKind; sessions: ByKind }>
   }>
   /** The tutor each session was attributed to. For an exam this is the class tutor, which is
    *  not necessarily who monitored it - see examMonitors. */
   byTutor: Array<{
     tutorId: string | null
     minutes: ByKind
-    bySubject: Array<{ subjectId: string | null; minutes: ByKind }>
+    sessions: ByKind
+    bySubject: Array<{ subjectId: string | null; minutes: ByKind; sessions: ByKind }>
   }>
   /** Exam minutes by the person who actually monitored them, so an exam someone other than
    *  the tutor watched is visible as such. */
@@ -119,10 +142,15 @@ export function breakdownByStudent(
     string,
     {
       total: ByKind
+      sessions: ByKind
       subjects: Map<string | null, ByKind>
+      subjectSessions: Map<string | null, ByKind>
       tutors: Map<string | null, ByKind>
+      tutorSessions: Map<string | null, ByKind>
       subjectTutors: Map<string | null, Map<string | null, ByKind>>
+      subjectTutorSessions: Map<string | null, Map<string | null, ByKind>>
       tutorSubjects: Map<string | null, Map<string | null, ByKind>>
+      tutorSubjectSessions: Map<string | null, Map<string | null, ByKind>>
       monitors: Map<string | null, number>
     }
   >()
@@ -134,17 +162,25 @@ export function breakdownByStudent(
     const minutes = minutesOf(session)
     const entry = students.get(mark.student_id) ?? {
       total: emptyByKind(),
+      sessions: emptyByKind(),
       subjects: new Map<string | null, ByKind>(),
+      subjectSessions: new Map<string | null, ByKind>(),
       tutors: new Map<string | null, ByKind>(),
+      tutorSessions: new Map<string | null, ByKind>(),
       subjectTutors: new Map<string | null, Map<string | null, ByKind>>(),
+      subjectTutorSessions: new Map<string | null, Map<string | null, ByKind>>(),
       tutorSubjects: new Map<string | null, Map<string | null, ByKind>>(),
+      tutorSubjectSessions: new Map<string | null, Map<string | null, ByKind>>(),
       monitors: new Map<string | null, number>(),
     }
     entry.total[kind] += minutes
+    entry.sessions[kind] += 1
     const subId = session.subject_id ?? null
     const tutId = session.tutor_id ?? null
     addTo(entry.subjects, subId, kind, minutes)
+    addTo(entry.subjectSessions, subId, kind, 1)
     addTo(entry.tutors, tutId, kind, minutes)
+    addTo(entry.tutorSessions, tutId, kind, 1)
 
     let sTutors = entry.subjectTutors.get(subId)
     if (!sTutors) {
@@ -152,6 +188,12 @@ export function breakdownByStudent(
       entry.subjectTutors.set(subId, sTutors)
     }
     addTo(sTutors, tutId, kind, minutes)
+    let sTutorSess = entry.subjectTutorSessions.get(subId)
+    if (!sTutorSess) {
+      sTutorSess = new Map<string | null, ByKind>()
+      entry.subjectTutorSessions.set(subId, sTutorSess)
+    }
+    addTo(sTutorSess, tutId, kind, 1)
 
     let tSubjects = entry.tutorSubjects.get(tutId)
     if (!tSubjects) {
@@ -159,6 +201,12 @@ export function breakdownByStudent(
       entry.tutorSubjects.set(tutId, tSubjects)
     }
     addTo(tSubjects, subId, kind, minutes)
+    let tSubjectSess = entry.tutorSubjectSessions.get(tutId)
+    if (!tSubjectSess) {
+      tSubjectSess = new Map<string | null, ByKind>()
+      entry.tutorSubjectSessions.set(tutId, tSubjectSess)
+    }
+    addTo(tSubjectSess, subId, kind, 1)
 
     if (kind === 'exam') {
       const monitor = sessionWorker(session)
@@ -171,25 +219,36 @@ export function breakdownByStudent(
     .map(([studentId, e]) => ({
       studentId,
       total: e.total,
+      sessions: e.sessions,
       bySubject: [...e.subjects.entries()]
         .map(([subjectId, minutes]) => ({
           subjectId,
           minutes,
-          byTutor: rowsOf(e.subjectTutors.get(subjectId) ?? new Map(), 'tutorId'),
+          sessions: e.subjectSessions.get(subjectId) ?? emptyByKind(),
+          byTutor: rowsOf(
+            e.subjectTutors.get(subjectId) ?? new Map(),
+            e.subjectTutorSessions.get(subjectId) ?? new Map(),
+            'tutorId',
+          ),
         }))
-        .sort((a, b) => total(b.minutes) - total(a.minutes)),
+        .sort((a, b) => totalByKind(b.minutes) - totalByKind(a.minutes)),
       byTutor: [...e.tutors.entries()]
         .map(([tutorId, minutes]) => ({
           tutorId,
           minutes,
-          bySubject: rowsOf(e.tutorSubjects.get(tutorId) ?? new Map(), 'subjectId'),
+          sessions: e.tutorSessions.get(tutorId) ?? emptyByKind(),
+          bySubject: rowsOf(
+            e.tutorSubjects.get(tutorId) ?? new Map(),
+            e.tutorSubjectSessions.get(tutorId) ?? new Map(),
+            'subjectId',
+          ),
         }))
-        .sort((a, b) => total(b.minutes) - total(a.minutes)),
+        .sort((a, b) => totalByKind(b.minutes) - totalByKind(a.minutes)),
       examMonitors: [...e.monitors.entries()]
         .map(([monitorId, minutes]) => ({ monitorId, minutes }))
         .sort((a, b) => b.minutes - a.minutes),
     }))
-    .sort((a, b) => total(b.total) - total(a.total) || a.studentId.localeCompare(b.studentId))
+    .sort((a, b) => totalByKind(b.total) - totalByKind(a.total) || a.studentId.localeCompare(b.studentId))
 }
 
 /* -------------------------------------------------------------------------------------- */
@@ -206,14 +265,16 @@ export interface PersonHoursRaw {
   bySubject: Array<{
     subjectId: string | null
     minutes: ByKind
-    byStudent: Array<{ studentId: string | null; minutes: ByKind }>
+    sessions: ByKind
+    byStudent: Array<{ studentId: string | null; minutes: ByKind; sessions: ByKind }>
   }>
   /** The students those hours were spent with. null is "nobody was marked present or late" -
    *  kept as its own row so the student rows still add up to the person's total. */
   byStudent: Array<{
     studentId: string | null
     minutes: ByKind
-    bySubject: Array<{ subjectId: string | null; minutes: ByKind }>
+    sessions: ByKind
+    bySubject: Array<{ subjectId: string | null; minutes: ByKind; sessions: ByKind }>
   }>
 }
 
@@ -244,9 +305,13 @@ export function breakdownByPerson(
       minutes: ByKind
       sessions: ByKind
       subjects: Map<string | null, ByKind>
+      subjectSessions: Map<string | null, ByKind>
       students: Map<string | null, ByKind>
+      studentSessions: Map<string | null, ByKind>
       subjectStudents: Map<string | null, Map<string | null, ByKind>>
+      subjectStudentSessions: Map<string | null, Map<string | null, ByKind>>
       studentSubjects: Map<string | null, Map<string | null, ByKind>>
+      studentSubjectSessions: Map<string | null, Map<string | null, ByKind>>
     }
   >()
 
@@ -260,26 +325,38 @@ export function breakdownByPerson(
       minutes: emptyByKind(),
       sessions: emptyByKind(),
       subjects: new Map<string | null, ByKind>(),
+      subjectSessions: new Map<string | null, ByKind>(),
       students: new Map<string | null, ByKind>(),
+      studentSessions: new Map<string | null, ByKind>(),
       subjectStudents: new Map<string | null, Map<string | null, ByKind>>(),
+      subjectStudentSessions: new Map<string | null, Map<string | null, ByKind>>(),
       studentSubjects: new Map<string | null, Map<string | null, ByKind>>(),
+      studentSubjectSessions: new Map<string | null, Map<string | null, ByKind>>(),
     }
     entry.minutes[kind] += minutes
     entry.sessions[kind] += 1
     const subId = session.subject_id ?? null
     addTo(entry.subjects, subId, kind, minutes)
+    addTo(entry.subjectSessions, subId, kind, 1)
 
     let subStudents = entry.subjectStudents.get(subId)
     if (!subStudents) {
       subStudents = new Map<string | null, ByKind>()
       entry.subjectStudents.set(subId, subStudents)
     }
+    let subStudentSess = entry.subjectStudentSessions.get(subId)
+    if (!subStudentSess) {
+      subStudentSess = new Map<string | null, ByKind>()
+      entry.subjectStudentSessions.set(subId, subStudentSess)
+    }
 
     const attendees = attendeesBySession.get(session.id)
     if (attendees && attendees.length > 0) {
       for (const studentId of attendees) {
         addTo(entry.students, studentId, kind, minutes)
+        addTo(entry.studentSessions, studentId, kind, 1)
         addTo(subStudents, studentId, kind, minutes)
+        addTo(subStudentSess, studentId, kind, 1)
 
         let studSubjects = entry.studentSubjects.get(studentId)
         if (!studSubjects) {
@@ -287,10 +364,18 @@ export function breakdownByPerson(
           entry.studentSubjects.set(studentId, studSubjects)
         }
         addTo(studSubjects, subId, kind, minutes)
+        let studSubjectSess = entry.studentSubjectSessions.get(studentId)
+        if (!studSubjectSess) {
+          studSubjectSess = new Map<string | null, ByKind>()
+          entry.studentSubjectSessions.set(studentId, studSubjectSess)
+        }
+        addTo(studSubjectSess, subId, kind, 1)
       }
     } else {
       addTo(entry.students, null, kind, minutes)
+      addTo(entry.studentSessions, null, kind, 1)
       addTo(subStudents, null, kind, minutes)
+      addTo(subStudentSess, null, kind, 1)
 
       let studSubjects = entry.studentSubjects.get(null)
       if (!studSubjects) {
@@ -298,6 +383,12 @@ export function breakdownByPerson(
         entry.studentSubjects.set(null, studSubjects)
       }
       addTo(studSubjects, subId, kind, minutes)
+      let studSubjectSess = entry.studentSubjectSessions.get(null)
+      if (!studSubjectSess) {
+        studSubjectSess = new Map<string | null, ByKind>()
+        entry.studentSubjectSessions.set(null, studSubjectSess)
+      }
+      addTo(studSubjectSess, subId, kind, 1)
     }
     people.set(key, entry)
   }
@@ -311,16 +402,26 @@ export function breakdownByPerson(
         .map(([subjectId, minutes]) => ({
           subjectId,
           minutes,
-          byStudent: rowsOf(e.subjectStudents.get(subjectId) ?? new Map(), 'studentId'),
+          sessions: e.subjectSessions.get(subjectId) ?? emptyByKind(),
+          byStudent: rowsOf(
+            e.subjectStudents.get(subjectId) ?? new Map(),
+            e.subjectStudentSessions.get(subjectId) ?? new Map(),
+            'studentId',
+          ),
         }))
-        .sort((a, b) => total(b.minutes) - total(a.minutes)),
+        .sort((a, b) => totalByKind(b.minutes) - totalByKind(a.minutes)),
       byStudent: [...e.students.entries()]
         .map(([studentId, minutes]) => ({
           studentId,
           minutes,
-          bySubject: rowsOf(e.studentSubjects.get(studentId) ?? new Map(), 'subjectId'),
+          sessions: e.studentSessions.get(studentId) ?? emptyByKind(),
+          bySubject: rowsOf(
+            e.studentSubjects.get(studentId) ?? new Map(),
+            e.studentSubjectSessions.get(studentId) ?? new Map(),
+            'subjectId',
+          ),
         }))
-        .sort((a, b) => total(b.minutes) - total(a.minutes)),
+        .sort((a, b) => totalByKind(b.minutes) - totalByKind(a.minutes)),
     }))
     .sort(
       (a, b) =>

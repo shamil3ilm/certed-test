@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { cx } from '@/lib/ui'
+import { SELECT_CONTROL, cx } from '@/lib/ui'
 import type { FxRatesPageData } from '@/lib/services/finance/fx-admin'
 import { useUI } from '../../../Providers'
 import { addRateAction, deleteRateAction, recomputeAction, setBaseCurrencyAction } from './actions'
@@ -58,7 +58,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
           <label className="flex flex-col gap-1">
             <span className={LABEL}>Currency</span>
             <select
-              className={INPUT}
+              className={cx(SELECT_CONTROL, '!h-9')}
               defaultValue={data.baseCurrency}
               disabled={pending}
               // Confirmed, and the select is restored when declined: this re-prices every
@@ -122,7 +122,7 @@ export function RatesManager({ data }: { data: FxRatesPageData }) {
         >
           <label className="flex flex-col gap-1">
             <span className={LABEL}>Currency</span>
-            <select name="currency" className={INPUT} required defaultValue="">
+            <select name="currency" className={cx(SELECT_CONTROL, '!h-9')} required defaultValue="">
               <option value="" disabled>
                 Select
               </option>

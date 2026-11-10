@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { kindOf, type SessionKind } from '@/lib/attendance/session-kind'
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { canManageClass } from '@/lib/permission'
 import { mentorAuthorityClassIds } from '@/lib/permission/class'
@@ -45,6 +46,7 @@ export type AttendanceHistoryRow = {
   session_start: string | null
   session_end: string | null
   tutor_name: string | null
+  session_kind: SessionKind
 }
 
 const ATTENDANCE_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent']
@@ -327,6 +329,7 @@ export async function loadClassAttendancePageData(
         session_start: session?.actual_start ?? null,
         session_end: session?.actual_end ?? null,
         tutor_name: session?.tutor_id ? (tutorNames.get(session.tutor_id) ?? null) : null,
+        session_kind: session ? kindOf(session) : 'regular',
       }
     }),
     tutorNames,

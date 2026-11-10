@@ -1,5 +1,5 @@
 'use client'
-import { Card, EmptyState, staffPickerLabel } from '@/lib/ui'
+import { Badge, Card, EmptyState, staffPickerLabel } from '@/lib/ui'
 import { Field, Input, Select, SubmitButton } from '../../../form'
 import { ConfirmSubmit } from '../../../ConfirmSubmit'
 import type { StudentSubject } from '@/lib/services/page-data/user-detail'
@@ -96,10 +96,7 @@ export function SubjectsPanel({
                   <span className="text-xs text-warning-ink">No tutor yet</span>
                 ) : (
                   s.tutors.map((t) => (
-                    <span
-                      key={t.id}
-                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
-                    >
+                    <Badge key={t.id} tone="slate" className="gap-1 font-normal">
                       {t.name}
                       <form action={removeSubjectTutorAction} className="contents">
                         <input type="hidden" name="student_id" value={studentId} />
@@ -120,7 +117,7 @@ export function SubjectsPanel({
                           ×
                         </ConfirmSubmit>
                       </form>
-                    </span>
+                    </Badge>
                   ))
                 )}
                 <form action={addSubjectTutorAction} className="flex items-center gap-1">

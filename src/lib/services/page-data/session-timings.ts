@@ -182,10 +182,11 @@ export async function loadSessionTimingsPageData(
           filters: studentClassIds ? { ...query, studentClassIds } : query,
         })
 
-  const [subjects, tutors, students] = await Promise.all([
+  const [subjects, tutors, students, scopedIds] = await Promise.all([
     selectActiveSubjects(),
     listActiveByRole('tutor'),
     listActiveByRole('student'),
+    filters.student ? Promise.resolve(null) : rosterStudentIds(actor),
   ])
   const options = {
     students,
@@ -221,7 +222,6 @@ export async function loadSessionTimingsPageData(
   // the property a session-paged list could never have: a student's sessions are never
   // split across a page boundary, because the page IS a set of students. Same reasoning
   // /classroom records for its roster paging.
-  const scopedIds = await rosterStudentIds(actor)
   const readRoster = (page: number) =>
     selectProfilePage('student', {
       page,

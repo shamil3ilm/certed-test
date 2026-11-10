@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -18,21 +19,21 @@ export type SubjectRow = {
 
 const COLUMNS = 'id, name, active, created_at'
 
-/** Active subjects for the pickers, alphabetical. RLS-readable by any active user. */
-export async function selectActiveSubjects(): Promise<SubjectRow[]> {
+/** Active subjects for the pickers, alphabetical. RLS-readable by any active user. Deduped per-request. */
+export const selectActiveSubjects = cache(async (): Promise<SubjectRow[]> => {
   const supabase = await createClient()
   const { data, error } = await supabase.from('subjects').select(COLUMNS).eq('active', true).order('name')
   if (error) throw new Error(`subjects.listActive: ${error.message}`)
   return (data ?? []) as SubjectRow[]
-}
+})
 
-/** A subject by id, or null. Service-role - used when composing a class's name. */
-export async function selectSubjectById(id: string): Promise<SubjectRow | null> {
+/** A subject by id, or null. Service-role - used when composing a class's name. Deduped per-request. */
+export const selectSubjectById = cache(async (id: string): Promise<SubjectRow | null> => {
   const admin = createAdminClient()
   const { data, error } = await admin.from('subjects').select(COLUMNS).eq('id', id).maybeSingle()
   if (error) throw new Error(`subjects.selectSubjectById: ${error.message}`)
   return (data as SubjectRow) ?? null
-}
+})
 
 /** Subjects for a set of ids (active or not), for resolving a class's subject name.
  *  Service-role - a deactivated subject still names its existing classes. */

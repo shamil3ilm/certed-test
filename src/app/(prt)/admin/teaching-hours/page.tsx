@@ -8,19 +8,9 @@ import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { isMonth } from '@/lib/time/month-window'
 import { formatMinutes } from '@/lib/attendance/hours'
 import { workingMinutes } from '@/lib/attendance/hours-breakdown'
-import {
-  AlertBanner,
-  CARD,
-  EmptyState,
-  PageHeader,
-  FilterBar,
-  MonthFilterField,
-  SectionJumpNav,
-  roleLabelIfUnexpected,
-  cx,
-} from '@/lib/ui'
+import { AlertBanner, EmptyState, PageHeader, FilterBar, MonthFilterField, SectionJumpNav } from '@/lib/ui'
 import { ClassHoursTabs } from '../../ClassHoursTabs'
-import { PersonHoursView, StudentHoursView } from '../../HoursTables'
+import { PersonHoursView, StudentHoursView, ReceivedHoursTable, WorkedHoursTable } from '../../HoursTables'
 
 const SECTIONS = [
   { href: '#people', label: 'Tutors & mentors' },
@@ -36,98 +26,15 @@ function SectionHeading({ id, title, note }: { id: string; title: string; note: 
   )
 }
 
-/** Right-aligned numeric cell - tabular figures keep the hour columns on a common axis. */
-function Num({ children }: { children: React.ReactNode }) {
-  return <td className="p-2 text-right tabular-nums text-slate-600">{children}</td>
-}
-
-/**
- * Header for a `Num` column. From `sm` up it is fixed and narrow, so the counts cluster at
- * the right of the table instead of being spread across it by auto layout: these are one- or
- * two-character figures, and a column sized for the whole table strands each one far from the
- * next. Below `sm` the width is left to auto layout - three fixed columns plus a name would
- * exceed a phone's width and put the hours behind a sideways scroll.
- */
-function NumHead({ children }: { children: React.ReactNode }) {
-  return (
-    <th scope="col" className="p-2 text-right sm:w-28">
-      {children}
-    </th>
-  )
-}
-
 /** A zero prints as a dash, so the figures that ARE there are not buried in a column of "0m". */
 const cell = (minutes: number) => (minutes > 0 ? formatMinutes(minutes) : '-')
 
 /**
- * Hours WORKED, one row per tutor / mentor, split by what the time was. Working = Regular +
- * Exam monitoring; Demo is reported beside it and never part of it. An exam is credited to the
- * person who MONITORED it, which is not always the class's tutor.
+ * Hours WORKED, one row per tutor / mentor, split by what the time was.
+ * Subject-wise and student-wise breakdown is shown under each person for consistency with mentor views.
  */
 function PeopleTable({ people, month }: { people: HoursBreakdown['people']; month: string }) {
-  const sum = (pick: (p: HoursBreakdown['people'][number]) => number) => people.reduce((n, p) => n + pick(p), 0)
-  const sessions = sum((p) => p.sessions.regular + p.sessions.demo + p.sessions.exam)
-  return (
-    <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
-      <table aria-label="Hours worked, by tutor and mentor" className="data-table w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-600">
-            <th scope="col" className="p-2">
-              Tutor / mentor
-            </th>
-            <NumHead>Sessions</NumHead>
-            <NumHead>Regular</NumHead>
-            <NumHead>Exam</NumHead>
-            <NumHead>Demo</NumHead>
-            <NumHead>Working</NumHead>
-          </tr>
-        </thead>
-        <tbody>
-          {people.map((p) => (
-            <tr key={p.personId ?? 'unassigned'} className="border-t">
-              <td className="p-2 font-medium text-slate-800">
-                <span className="inline-flex items-baseline gap-1.5">
-                  {p.personId ? (
-                    <Link
-                      prefetch={false}
-                      href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
-                      className="hover:text-primary hover:underline"
-                    >
-                      {p.personName}
-                    </Link>
-                  ) : (
-                    p.personName
-                  )}
-                  {roleLabelIfUnexpected(p.personRole, 'tutor') && (
-                    <span className="text-meta font-medium text-slate-500">
-                      {roleLabelIfUnexpected(p.personRole, 'tutor')}
-                    </span>
-                  )}
-                </span>
-              </td>
-              <Num>{p.sessions.regular + p.sessions.demo + p.sessions.exam}</Num>
-              <Num>{cell(p.minutes.regular)}</Num>
-              <Num>{cell(p.minutes.exam)}</Num>
-              <Num>{cell(p.minutes.demo)}</Num>
-              <td className="p-2 text-right font-medium tabular-nums text-slate-800">
-                {cell(workingMinutes(p.minutes))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 font-medium text-slate-700">
-            <td className="p-2">Total - {formatMonthLabel(month)}</td>
-            <td className="p-2 text-right tabular-nums">{sessions}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((p) => p.minutes.regular))}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((p) => p.minutes.exam))}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((p) => p.minutes.demo))}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((p) => workingMinutes(p.minutes)))}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  )
+  return <WorkedHoursTable people={people} month={month} canLinkStudent={true} showTotal={true} />
 }
 
 /** One collapsed card per person: open it for their subject-by-subject and student-by-student
@@ -153,56 +60,20 @@ function PeopleDetail({ people, month }: { people: HoursBreakdown['people']; mon
 }
 
 /**
- * Hours RECEIVED, one row per student, with regular, demo and exam as separate columns. A
- * student is credited with a session's recorded window when marked present or late for it.
- * Each row opens (below) into subject-by-subject and tutor-by-tutor detail.
+ * Hours RECEIVED, one row per student, with regular, demo and exam as separate columns.
+ * Subject-wise and tutor-wise breakdown is shown under each student for consistency with mentor views.
  */
 function StudentsTable({ students, month }: { students: HoursBreakdown['students']; month: string }) {
-  const sum = (pick: (s: HoursBreakdown['students'][number]) => number) => students.reduce((n, s) => n + pick(s), 0)
   return (
-    <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
-      <table aria-label="Hours received, by student" className="data-table w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-600">
-            <th scope="col" className="p-2">
-              Student
-            </th>
-            <NumHead>Regular</NumHead>
-            <NumHead>Demo</NumHead>
-            <NumHead>Exam</NumHead>
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((s) => (
-            <tr key={s.studentId} className="border-t">
-              <td className="p-2 font-medium text-slate-800">
-                <Link
-                  prefetch={false}
-                  href={`/students/${s.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
-                  className="hover:text-primary hover:underline"
-                >
-                  {s.studentName}
-                </Link>
-              </td>
-              <td className="p-2 text-right font-medium tabular-nums text-slate-800">{cell(s.total.regular)}</td>
-              <Num>{cell(s.total.demo)}</Num>
-              <Num>{cell(s.total.exam)}</Num>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          {/* The hours DO add up: they are hours received, and the academy delivered the sum of
-              them. No session count, because a session taught to two students would be counted
-              twice - the real session count for the month is in the tutor table above. */}
-          <tr className="border-t-2 font-medium text-slate-700">
-            <td className="p-2">Total - {formatMonthLabel(month)}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((s) => s.total.regular))}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((s) => s.total.demo))}</td>
-            <td className="p-2 text-right tabular-nums">{cell(sum((s) => s.total.exam))}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
+    <ReceivedHoursTable
+      title="Hours received, by student"
+      headerLabel="Student / Subject / Tutor"
+      rows={students}
+      month={month}
+      canLinkTutor={true}
+      canLinkStudent={true}
+      showTotal={true}
+    />
   )
 }
 
@@ -253,9 +124,8 @@ export default async function ClassHoursReportPage(props: { searchParams: Promis
   const { month: monthParam } = await props.searchParams
   const me = await requireCapability('manageClasses')
   // The Sessions tab is its own route behind viewMentees; offer it only to a reader it admits.
-  const { capabilities } = await getActorContext()
+  const [{ capabilities }, tz] = await Promise.all([getActorContext(), getInstituteTimeZone()])
   const canOpenSessions = capabilities.allowed.has('viewMentees')
-  const tz = await getInstituteTimeZone()
   const month = monthParam && isMonth(monthParam) ? monthParam : todayInZone(tz).slice(0, 7)
   const { people, students, untimedSessions } = await getAcademyBreakdown(me.id, month)
   const hasSessions = people.length > 0 || students.length > 0

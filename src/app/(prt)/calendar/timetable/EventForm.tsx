@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { DAYS, KINDS, KIND_LABELS, hhmm, type Opt, type Slot } from './types'
 import { ClassSelect } from './pickers'
+import { Input, Select } from '../../form'
 
 export function EventForm({
   classes,
@@ -44,8 +45,8 @@ export function EventForm({
     >
       <label className="text-sm">
         Title
-        <input
-          className="mt-1 w-full rounded border p-2"
+        <Input
+          className="mt-1"
           placeholder="Title"
           value={title}
           required
@@ -54,10 +55,11 @@ export function EventForm({
       </label>
       <label className="text-sm">
         Date
-        <input
+        <Input
           type="date"
-          className="mt-1 w-full rounded border p-2"
+          className="mt-1"
           value={date}
+          min={new Date().toISOString().slice(0, 10)}
           required
           onChange={(event) => setDate(event.target.value)}
         />
@@ -73,8 +75,8 @@ export function EventForm({
       />
       <label className="text-sm">
         Kind
-        <select
-          className="mt-1 w-full rounded border p-2"
+        <Select
+          className="mt-1"
           value={kind}
           onChange={(event) => {
             setKind(event.target.value as (typeof KINDS)[number])
@@ -86,13 +88,13 @@ export function EventForm({
               {KIND_LABELS[kindOption] ?? kindOption}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {affectsSlot && (
         <label className="text-sm sm:col-span-2">
           Class to {kind === 'cancellation' ? 'cancel' : 'reschedule'} on this date (optional)
-          <select
-            className="mt-1 w-full rounded border p-2"
+          <Select
+            className="mt-1"
             value={slotId}
             onChange={(event) => setSlotId(event.target.value)}
             disabled={!classId}
@@ -103,7 +105,7 @@ export function EventForm({
                 {s.subject} ({DAYS[s.day_of_week]} {hhmm(s.start_time)}-{hhmm(s.end_time)})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
       <button type="submit" disabled={busy} className="btn btn-primary w-full sm:col-span-2">

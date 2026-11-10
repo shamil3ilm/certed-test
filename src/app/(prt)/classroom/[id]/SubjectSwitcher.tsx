@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { SubjectOption } from '@/lib/services/classes/class-identity'
+import { Select } from '../../form'
 import { siblingHref } from './sibling-href'
 
 /**
@@ -54,18 +55,18 @@ export function SubjectSwitcher({
         <label className="sr-only" htmlFor="subject-switcher">
           {`Subject for ${studentName}`}
         </label>
-        <select
+        <Select
           id="subject-switcher"
           value={current?.classId ?? classId}
           onChange={(e) => router.push(siblingHref(pathname, classId, e.target.value, search))}
-          className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800"
+          className="min-w-0"
         >
           {options.map((o) => (
             <option key={o.classId} value={o.classId}>
               {o.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     )
   }

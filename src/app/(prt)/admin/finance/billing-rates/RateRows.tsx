@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { SELECT_CONTROL, cx } from '@/lib/ui'
 import { SUPPORTED_CURRENCIES } from '@/lib/money'
 import type { RatePerson } from '@/lib/services/finance/billing-rates-admin'
 import { assertActionOk } from '../../../action-client'
@@ -58,7 +59,7 @@ function RateRow({ person }: { person: RatePerson }) {
             name="currency"
             value={currency}
             onChange={(event) => setCurrency(event.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className={cx(SELECT_CONTROL, '!py-1.5 !text-sm')}
           >
             {SUPPORTED_CURRENCIES.map((code) => (
               <option key={code} value={code}>

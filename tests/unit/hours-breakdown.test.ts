@@ -157,16 +157,16 @@ describe('breakdownByStudent - hours RECEIVED, split by kind', () => {
     const maths = sara.bySubject.find((s) => s.subjectId === MATHS)!
     expect(maths.minutes.regular).toBe(100)
     expect(maths.byTutor).toEqual([
-      { tutorId: T1, minutes: { regular: 60, demo: 0, exam: 0 } },
-      { tutorId: T2, minutes: { regular: 40, demo: 0, exam: 0 } },
+      { tutorId: T1, minutes: { regular: 60, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
+      { tutorId: T2, minutes: { regular: 40, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
     ])
 
     // Tutor T1 has 2 subjects (MATHS: 60, PHYS: 30)
     const t1 = sara.byTutor.find((t) => t.tutorId === T1)!
     expect(t1.minutes.regular).toBe(90)
     expect(t1.bySubject).toEqual([
-      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 } },
-      { subjectId: PHYS, minutes: { regular: 30, demo: 0, exam: 0 } },
+      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
+      { subjectId: PHYS, minutes: { regular: 30, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
     ])
   })
 })
@@ -237,7 +237,14 @@ describe('breakdownByPerson - hours WORKED, split by kind', () => {
       {
         studentId: SARA,
         minutes: { regular: 0, demo: 0, exam: 90 },
-        bySubject: [{ subjectId: MATHS, minutes: { regular: 0, demo: 0, exam: 90 } }],
+        sessions: { regular: 0, demo: 0, exam: 1 },
+        bySubject: [
+          {
+            subjectId: MATHS,
+            minutes: { regular: 0, demo: 0, exam: 90 },
+            sessions: { regular: 0, demo: 0, exam: 1 },
+          },
+        ],
       },
     ])
   })
@@ -252,8 +259,8 @@ describe('breakdownByPerson - hours WORKED, split by kind', () => {
     const sara = tutor.byStudent.find((s) => s.studentId === SARA)!
     expect(sara.minutes.regular).toBe(105)
     expect(sara.bySubject).toEqual([
-      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 } },
-      { subjectId: PHYS, minutes: { regular: 45, demo: 0, exam: 0 } },
+      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
+      { subjectId: PHYS, minutes: { regular: 45, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
     ])
   })
 
@@ -269,9 +276,13 @@ describe('breakdownByPerson - hours WORKED, split by kind', () => {
     const [tutor] = breakdownByPerson(rows, marks)
     expect(tutor.byStudent).toHaveLength(2)
     const sara = tutor.byStudent.find((s) => s.studentId === SARA)!
-    expect(sara.bySubject).toEqual([{ subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 } }])
+    expect(sara.bySubject).toEqual([
+      { subjectId: MATHS, minutes: { regular: 60, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
+    ])
     const sam = tutor.byStudent.find((s) => s.studentId === SAM)!
-    expect(sam.bySubject).toEqual([{ subjectId: PHYS, minutes: { regular: 45, demo: 0, exam: 0 } }])
+    expect(sam.bySubject).toEqual([
+      { subjectId: PHYS, minutes: { regular: 45, demo: 0, exam: 0 }, sessions: { regular: 1, demo: 0, exam: 0 } },
+    ])
   })
 
   it('counts a session with no recorded window as a session of zero minutes', () => {

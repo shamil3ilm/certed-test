@@ -130,10 +130,11 @@ export async function listMenteeSessionTimings(
 ): Promise<Page<MenteeSessionTiming>> {
   const scope = await scopeFilter(actor)
   const { studentClassIds, ...rest } = opts.filters ?? {}
-  const scopedClassIds = studentClassIds
+  const studentClassSet = studentClassIds ? new Set(studentClassIds) : null
+  const scopedClassIds = studentClassSet
     ? // Intersect: a mentor's scope wins over the requested student, so a student outside
       // their mentees narrows to nothing rather than widening the list.
-      (scope.classIds?.filter((id) => studentClassIds.includes(id)) ?? studentClassIds)
+      (scope.classIds?.filter((id) => studentClassSet.has(id)) ?? studentClassIds)
     : scope.classIds
   const { items: sessions, total } = await selectSessionPage(
     { excludeClassIds: scope.excludeClassIds, classIds: scopedClassIds, ...rest },
@@ -262,12 +263,13 @@ export async function listSessionTimingsByStudents(
     else classesByStudent.set(pair.student_id, [pair.class_id])
   }
 
+  const scopeClassSet = scope.classIds ? new Set(scope.classIds) : null
   const pages = await Promise.all(
     opts.studentIds.map(async (studentId) => {
       const own = classesByStudent.get(studentId) ?? []
       // Intersect with a mentor's scope; an oversight reader has no classIds and is
       // narrowed by excludeClassIds instead, exactly as the flat list does it.
-      const classIds = scope.classIds ? own.filter((id) => scope.classIds?.includes(id)) : own
+      const classIds = scopeClassSet ? own.filter((id) => scopeClassSet.has(id)) : own
       if (classIds.length === 0) return { studentId, rows: [] as ClassSessionRow[], total: 0 }
       const { items, total } = await selectSessionPage(
         { excludeClassIds: scope.excludeClassIds, classIds, ...(opts.filters ?? {}) },

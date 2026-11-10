@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { CARD, cx } from '@/lib/ui'
+import { Select } from '../../../form'
 import { assertActionOk } from '../../../action-client'
 import { useUI } from '../../../Providers'
 import { saveSessionAction } from './actions'
@@ -149,27 +150,27 @@ export function SessionTimesForm({
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-medium text-slate-600">
           Session type
-          <select
+          <Select
             value={kind}
             disabled={isTimesLocked}
             onChange={(event) => setKind(event.target.value as SessionKind)}
-            className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            className="mt-1"
           >
             {SESSION_KINDS.map((k) => (
               <option key={k} value={k}>
                 {SESSION_KIND_LABELS[k]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         {canChooseTutor && tutorOptions.length > 1 && (
           <label className="text-xs font-medium text-slate-600">
             Tutor
-            <select
+            <Select
               value={tutorId}
               disabled={isTimesLocked}
               onChange={(event) => setTutorId(event.target.value)}
-              className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              className="mt-1"
             >
               <option value="">
                 {session?.tutor_id
@@ -181,25 +182,21 @@ export function SessionTimesForm({
                   {t.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         {kind === 'exam' &&
           (canChooseMonitor ? (
             <label className="text-xs font-medium text-slate-600">
               Monitored by
-              <select
-                value={monitorId}
-                onChange={(event) => setMonitorId(event.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
+              <Select value={monitorId} onChange={(event) => setMonitorId(event.target.value)} className="mt-1">
                 <option value="">The class tutor</option>
                 {monitorOptions.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           ) : (
             <p className="self-end text-xs text-slate-600">

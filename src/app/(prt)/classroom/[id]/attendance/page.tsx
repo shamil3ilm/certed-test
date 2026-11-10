@@ -25,6 +25,7 @@ import {
   StatCard,
   PaginationBar,
   SelectFilterField,
+  SELECT_CONTROL,
   cx,
   attendanceTone,
   statusLabel,
@@ -211,7 +212,7 @@ export default async function AttendancePage(props: {
               name="subject_id"
               required
               defaultValue=""
-              className="rounded-lg border border-warning-border bg-white px-2 py-1 text-xs text-slate-800"
+              className={cx(SELECT_CONTROL, '!py-1 !text-xs border-warning-border')}
             >
               <option value="" disabled>
                 Choose the subject...
@@ -550,15 +551,20 @@ export default async function AttendancePage(props: {
                         {/* Which session the mark belongs to. A day can hold several (0094), so
                             the date alone cannot say whether this was the morning or the
                             afternoon - and "late" means nothing without what it was late for. */}
-                        {row.session_start && row.session_end ? (
-                          <>
-                            <LocalTime iso={row.session_start} mode="time" />
-                            {' - '}
-                            <LocalTime iso={row.session_end} mode="time" />
-                          </>
-                        ) : (
-                          <span className="text-slate-600">Times not recorded</span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {row.session_start && row.session_end ? (
+                            <span>
+                              <LocalTime iso={row.session_start} mode="time" />
+                              {' - '}
+                              <LocalTime iso={row.session_end} mode="time" />
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">Times not recorded</span>
+                          )}
+                          <Badge tone={row.session_kind === 'exam' ? 'warning' : 'slate'} className="font-normal">
+                            {SESSION_KIND_LABELS[row.session_kind ?? 'regular']}
+                          </Badge>
+                        </div>
                         {row.tutor_name && <span className="block text-xs text-slate-500">{row.tutor_name}</span>}
                       </td>
                       <td className="whitespace-nowrap text-slate-600">{row.name}</td>

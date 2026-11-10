@@ -142,6 +142,8 @@ const nextConfig = {
     // issue/void the /dashboard finance card could show a stale cached copy on
     // navigation. `dynamic: 0` disables that reuse so any navigation refetches.
     staleTimes: { dynamic: 0 },
+    // Optimize icon imports by tree-shaking barrel index, shrinking chunk sizes and compile times.
+    optimizePackageImports: ['lucide-react'],
   },
   // Defense-in-depth security headers (HSTS is added at the Vercel edge).
   async headers() {

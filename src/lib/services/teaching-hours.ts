@@ -2,6 +2,8 @@ import 'server-only'
 import { requireActorCapability } from '@/lib/services/authorization'
 import type { Profile } from '@/lib/auth/profile'
 import { minutesBetween } from '@/lib/attendance/hours'
+import { emptyByKind, type ByKind } from '@/lib/attendance/hours-breakdown'
+import { kindOf } from '@/lib/attendance/session-kind'
 import { monthWindow } from '@/lib/time/month-window'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import {
@@ -42,6 +44,7 @@ export interface TutorHours {
   tutorRole: string | null
   minutes: number
   sessionCount: number
+  byKind?: { minutes: ByKind; sessions: ByKind }
 }
 
 export interface ClassTutorHours {
@@ -51,6 +54,8 @@ export interface ClassTutorHours {
    *  month appears as two rows, one per subject; null only for pre-0104 sessions. */
   subjectName: string | null
   totalMinutes: number
+  totalSessions?: number
+  byKind?: { minutes: ByKind; sessions: ByKind }
   tutors: TutorHours[]
 }
 
@@ -61,6 +66,7 @@ interface RawGroup {
   tutorId: string | null
   minutes: number
   sessionCount: number
+  byKind: { minutes: ByKind; sessions: ByKind }
 }
 
 /**
@@ -82,9 +88,14 @@ export function aggregateClassTutorHours(rows: readonly SessionHoursRow[]): RawG
       tutorId: r.tutor_id ?? null,
       minutes: 0,
       sessionCount: 0,
+      byKind: { minutes: emptyByKind(), sessions: emptyByKind() },
     }
-    group.minutes += minutesBetween(r.actual_start, r.actual_end) ?? 0
+    const mins = minutesBetween(r.actual_start, r.actual_end) ?? 0
+    const kind = kindOf(r)
+    group.minutes += mins
     group.sessionCount += 1
+    group.byKind.minutes[kind] += mins
+    group.byKind.sessions[kind] += 1
     byKey.set(key, group)
   }
   return [...byKey.values()]
@@ -98,10 +109,10 @@ async function subjectNamesFor(groups: ReadonlyArray<{ subjectId: string | null 
 
 /** Resolve class + tutor names and fold into per-class rows, sorted for display. */
 async function shapeClassTutorHours(groups: RawGroup[]): Promise<ClassTutorHours[]> {
-  const subjectNames = await subjectNamesFor(groups)
   const classIds = [...new Set(groups.map((g) => g.classId))]
   const tutorIds = [...new Set(groups.map((g) => g.tutorId).filter((id): id is string => id != null))]
-  const [classes, names] = await Promise.all([
+  const [subjectNames, classes, names] = await Promise.all([
+    subjectNamesFor(groups),
     classIds.length ? selectClassesByIds(classIds) : Promise.resolve([]),
     tutorIds.length
       ? getProfileLabelsByIds(tutorIds)
@@ -117,6 +128,8 @@ async function shapeClassTutorHours(groups: RawGroup[]): Promise<ClassTutorHours
       className: classNameById.get(g.classId) ?? 'Unknown class',
       subjectName: g.subjectId ? (subjectNames.get(g.subjectId) ?? null) : null,
       totalMinutes: 0,
+      totalSessions: 0,
+      byKind: { minutes: emptyByKind(), sessions: emptyByKind() },
       tutors: [],
     }
     entry.tutors.push({
@@ -125,8 +138,18 @@ async function shapeClassTutorHours(groups: RawGroup[]): Promise<ClassTutorHours
       tutorRole: g.tutorId ? (names.get(g.tutorId)?.role ?? null) : null,
       minutes: g.minutes,
       sessionCount: g.sessionCount,
+      byKind: g.byKind,
     })
     entry.totalMinutes += g.minutes
+    entry.totalSessions = (entry.totalSessions ?? 0) + g.sessionCount
+    if (entry.byKind) {
+      entry.byKind.minutes.regular += g.byKind.minutes.regular
+      entry.byKind.minutes.demo += g.byKind.minutes.demo
+      entry.byKind.minutes.exam += g.byKind.minutes.exam
+      entry.byKind.sessions.regular += g.byKind.sessions.regular
+      entry.byKind.sessions.demo += g.byKind.sessions.demo
+      entry.byKind.sessions.exam += g.byKind.sessions.exam
+    }
     byClass.set(key, entry)
   }
   const result = [...byClass.values()]
@@ -318,10 +341,10 @@ export function aggregateClassStudentHours(
 
 /** Resolve class + student names and fold into per-class rows, sorted for display. */
 async function shapeClassStudentHours(groups: RawStudentGroup[]): Promise<ClassStudentHours[]> {
-  const subjectNames = await subjectNamesFor(groups)
   const classIds = [...new Set(groups.map((g) => g.classId))]
   const studentIds = [...new Set(groups.map((g) => g.studentId))]
-  const [classes, names] = await Promise.all([
+  const [subjectNames, classes, names] = await Promise.all([
+    subjectNamesFor(groups),
     classIds.length ? selectClassesByIds(classIds) : Promise.resolve([]),
     studentIds.length ? getProfileNamesByIds(studentIds) : Promise.resolve(new Map<string, string>()),
   ])
@@ -379,8 +402,8 @@ export async function getAcademyClassHours(actorId: string, month: string): Prom
   // Academy-wide: scope by EXCLUDING archived classes rather than listing every active one.
   // The inclusion list is one uuid per class in a GET URL and grows with the academy; the
   // exclusion is the same Q7 rule from the small side. Same shape /session-timings uses.
-  const { startIso, endIso } = await windowFor(month)
-  const sessions = await selectSessionsForClassesInRange(null, startIso, endIso, await selectArchivedClassIds())
+  const [{ startIso, endIso }, archived] = await Promise.all([windowFor(month), selectArchivedClassIds()])
+  const sessions = await selectSessionsForClassesInRange(null, startIso, endIso, archived)
   if (sessions.length === 0) return { personTotals: [], tutorClasses: [], studentClasses: [] }
 
   // Only the sessions actually in the window need an attendance lookup.

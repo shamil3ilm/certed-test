@@ -423,8 +423,18 @@ describe('getMenteesHoursReceived - a mentor`s roll-up', () => {
     expect(sara.bySubject).toHaveLength(1)
     expect(sara.bySubject![0].subjectName).toBe('Maths')
     expect(sara.bySubject![0].byTutor).toEqual([
-      { tutorId: TUTOR, tutorName: 'Tarun Tutor', minutes: { regular: 60, demo: 0, exam: 0 } },
-      { tutorId: OTHER, tutorName: 'Olga Other', minutes: { regular: 40, demo: 0, exam: 0 } },
+      {
+        tutorId: TUTOR,
+        tutorName: 'Tarun Tutor',
+        minutes: { regular: 60, demo: 0, exam: 0 },
+        sessions: { regular: 1, demo: 0, exam: 0 },
+      },
+      {
+        tutorId: OTHER,
+        tutorName: 'Olga Other',
+        minutes: { regular: 40, demo: 0, exam: 0 },
+        sessions: { regular: 1, demo: 0, exam: 0 },
+      },
     ])
   })
 

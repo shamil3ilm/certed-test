@@ -331,6 +331,7 @@ describe('loadClassAttendancePageData', () => {
           session_start: null,
           session_end: null,
           tutor_name: null,
+          session_kind: 'regular',
         },
       ],
       // The class's current tutors, with no read for them - see the dedicated test below.

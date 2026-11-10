@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import { Select } from './form'
 import { assertActionOk } from './action-client'
 import { useUI } from './Providers'
 import { assignReminderAction } from './dashboard/actions'
@@ -68,18 +69,13 @@ export function AssignReminderForm({
       </summary>
       <form onSubmit={onSubmit} className="mt-2 space-y-2">
         {classes.length > 1 && (
-          <select
-            name="classId"
-            aria-label="Class"
-            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-            defaultValue={classes[0].id}
-          >
+          <Select name="classId" aria-label="Class" defaultValue={classes[0].id}>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <input
           name="title"

@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
 import { formatMinutes } from '@/lib/attendance/hours'
-import { workingMinutes } from '@/lib/attendance/hours-breakdown'
+import { workingMinutes, sumByKind, totalByKind } from '@/lib/attendance/hours-breakdown'
 import type {
   MenteeHours,
   PersonHours,
@@ -10,7 +10,8 @@ import type {
   WorkLedgerRow,
 } from '@/lib/services/hours-breakdown'
 import { SESSION_KIND_LABELS, type SessionKind } from '@/lib/attendance/session-kind'
-import { Badge, CARD, attendanceTone, cx, statusLabel } from '@/lib/ui'
+import { formatMonthLabel } from '@/lib/time/format'
+import { Badge, CARD, attendanceTone, cx, statusLabel, roleLabelIfUnexpected } from '@/lib/ui'
 import { LocalTime } from './LocalTime'
 
 /**
@@ -42,6 +43,76 @@ function Num({ children, strong = false }: { children: React.ReactNode; strong?:
     <td className={cx('p-2 text-right tabular-nums', strong ? 'font-medium text-slate-800' : 'text-slate-600')}>
       {children}
     </td>
+  )
+}
+
+function CountPill({ count, label }: { count: number; label: string }) {
+  return (
+    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+      {count} {label}
+    </span>
+  )
+}
+
+function ReceivedHeaders() {
+  return (
+    <>
+      <Head right>Sessions</Head>
+      <Head right>Regular</Head>
+      <Head right>Demo</Head>
+      <Head right>Exam</Head>
+    </>
+  )
+}
+
+function ReceivedCells({
+  sessions,
+  minutes,
+  strong = false,
+}: {
+  sessions: { regular: number; demo: number; exam: number }
+  minutes: { regular: number; demo: number; exam: number }
+  strong?: boolean
+}) {
+  return (
+    <>
+      <Num strong={strong}>{totalByKind(sessions)}</Num>
+      <Num strong={strong}>{cell(minutes.regular)}</Num>
+      <Num strong={strong}>{cell(minutes.demo)}</Num>
+      <Num strong={strong}>{cell(minutes.exam)}</Num>
+    </>
+  )
+}
+
+function WorkedHeaders() {
+  return (
+    <>
+      <Head right>Sessions</Head>
+      <Head right>Regular</Head>
+      <Head right>Exam</Head>
+      <Head right>Demo</Head>
+      <Head right>Working</Head>
+    </>
+  )
+}
+
+function WorkedCells({
+  sessions,
+  minutes,
+  strong = false,
+}: {
+  sessions: { regular: number; demo: number; exam: number }
+  minutes: { regular: number; demo: number; exam: number }
+  strong?: boolean
+}) {
+  return (
+    <>
+      <Num strong={strong}>{totalByKind(sessions)}</Num>
+      <Num strong={strong}>{cell(minutes.regular)}</Num>
+      <Num strong={strong}>{cell(minutes.exam)}</Num>
+      <Num strong={strong}>{cell(minutes.demo)}</Num>
+      <Num strong={strong}>{cell(workingMinutes(minutes))}</Num>
+    </>
   )
 }
 
@@ -92,18 +163,24 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
   return (
     <div>
       <div className="flex flex-wrap gap-3">
-        <Stat label="Regular" value={hours.total.regular} note="Class hours" />
-        <Stat label="Demo" value={hours.total.demo} note="Reported separately" />
-        <Stat label="Exam" value={hours.total.exam} note="Reported separately" />
+        <Stat label="Regular" value={hours.total.regular} note={`${hours.sessions.regular} sessions`} />
+        <Stat
+          label="Demo"
+          value={hours.total.demo}
+          note={hours.sessions.demo > 0 ? `${hours.sessions.demo} sessions` : 'Reported separately'}
+        />
+        <Stat
+          label="Exam"
+          value={hours.total.exam}
+          note={hours.sessions.exam > 0 ? `${hours.sessions.exam} exams` : 'Reported separately'}
+        />
       </div>
       <Block title="By subject">
         <table className="data-table w-full text-sm">
           <thead>
             <tr className="text-left text-slate-600">
               <Head>Subject</Head>
-              <Head right>Regular</Head>
-              <Head right>Demo</Head>
-              <Head right>Exam</Head>
+              <ReceivedHeaders />
             </tr>
           </thead>
           <tbody>
@@ -117,15 +194,9 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                         · <TutorName tutorId={s.byTutor[0].tutorId} tutorName={s.byTutor[0].tutorName} />
                       </span>
                     )}
-                    {s.byTutor && s.byTutor.length > 1 && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                        {s.byTutor.length} tutors
-                      </span>
-                    )}
+                    {s.byTutor && s.byTutor.length > 1 && <CountPill count={s.byTutor.length} label="tutors" />}
                   </td>
-                  <Num strong>{cell(s.minutes.regular)}</Num>
-                  <Num>{cell(s.minutes.demo)}</Num>
-                  <Num>{cell(s.minutes.exam)}</Num>
+                  <ReceivedCells sessions={s.sessions} minutes={s.minutes} strong />
                 </tr>
                 {s.byTutor &&
                   s.byTutor.length > 1 &&
@@ -138,9 +209,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                         <span className="mr-1.5 font-mono text-slate-500">↳</span>
                         <TutorName tutorId={t.tutorId} tutorName={t.tutorName} />
                       </td>
-                      <Num>{cell(t.minutes.regular)}</Num>
-                      <Num>{cell(t.minutes.demo)}</Num>
-                      <Num>{cell(t.minutes.exam)}</Num>
+                      <ReceivedCells sessions={t.sessions} minutes={t.minutes} />
                     </tr>
                   ))}
               </Fragment>
@@ -149,9 +218,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
               <td className="p-2">Total</td>
-              <Num strong>{cell(hours.total.regular)}</Num>
-              <Num strong>{cell(hours.total.demo)}</Num>
-              <Num strong>{cell(hours.total.exam)}</Num>
+              <ReceivedCells sessions={hours.sessions} minutes={hours.total} strong />
             </tr>
           </tfoot>
         </table>
@@ -161,9 +228,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           <thead>
             <tr className="text-left text-slate-600">
               <Head>Tutor</Head>
-              <Head right>Regular</Head>
-              <Head right>Demo</Head>
-              <Head right>Exam</Head>
+              <ReceivedHeaders />
             </tr>
           </thead>
           <tbody>
@@ -175,15 +240,9 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                     {t.bySubject && t.bySubject.length === 1 && (
                       <span className="ml-2 text-xs font-normal text-slate-500">· {t.bySubject[0].subjectName}</span>
                     )}
-                    {t.bySubject && t.bySubject.length > 1 && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                        {t.bySubject.length} subjects
-                      </span>
-                    )}
+                    {t.bySubject && t.bySubject.length > 1 && <CountPill count={t.bySubject.length} label="subjects" />}
                   </td>
-                  <Num strong>{cell(t.minutes.regular)}</Num>
-                  <Num>{cell(t.minutes.demo)}</Num>
-                  <Num>{cell(t.minutes.exam)}</Num>
+                  <ReceivedCells sessions={t.sessions} minutes={t.minutes} strong />
                 </tr>
                 {t.bySubject &&
                   t.bySubject.length > 1 &&
@@ -196,9 +255,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                         <span className="mr-1.5 font-mono text-slate-500">↳</span>
                         {sub.subjectName}
                       </td>
-                      <Num>{cell(sub.minutes.regular)}</Num>
-                      <Num>{cell(sub.minutes.demo)}</Num>
-                      <Num>{cell(sub.minutes.exam)}</Num>
+                      <ReceivedCells sessions={sub.sessions} minutes={sub.minutes} />
                     </tr>
                   ))}
               </Fragment>
@@ -207,9 +264,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
               <td className="p-2">Total</td>
-              <Num strong>{cell(hours.total.regular)}</Num>
-              <Num strong>{cell(hours.total.demo)}</Num>
-              <Num strong>{cell(hours.total.exam)}</Num>
+              <ReceivedCells sessions={hours.sessions} minutes={hours.total} strong />
             </tr>
           </tfoot>
         </table>
@@ -286,10 +341,7 @@ export function PersonHoursView({
           <thead>
             <tr className="text-left text-slate-600">
               <Head>Subject</Head>
-              <Head right>Regular</Head>
-              <Head right>Exam</Head>
-              <Head right>Working</Head>
-              <Head right>Demo</Head>
+              <WorkedHeaders />
             </tr>
           </thead>
           <tbody>
@@ -303,16 +355,9 @@ export function PersonHoursView({
                         · <StudentName studentId={s.byStudent[0].studentId} studentName={s.byStudent[0].studentName} />
                       </span>
                     )}
-                    {s.byStudent && s.byStudent.length > 1 && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                        {s.byStudent.length} students
-                      </span>
-                    )}
+                    {s.byStudent && s.byStudent.length > 1 && <CountPill count={s.byStudent.length} label="students" />}
                   </td>
-                  <Num>{cell(s.minutes.regular)}</Num>
-                  <Num>{cell(s.minutes.exam)}</Num>
-                  <Num strong>{cell(workingMinutes(s.minutes))}</Num>
-                  <Num>{cell(s.minutes.demo)}</Num>
+                  <WorkedCells sessions={s.sessions} minutes={s.minutes} strong />
                 </tr>
                 {s.byStudent &&
                   s.byStudent.length > 1 &&
@@ -325,10 +370,7 @@ export function PersonHoursView({
                         <span className="mr-1.5 font-mono text-slate-500">↳</span>
                         <StudentName studentId={stud.studentId} studentName={stud.studentName} />
                       </td>
-                      <Num>{cell(stud.minutes.regular)}</Num>
-                      <Num>{cell(stud.minutes.exam)}</Num>
-                      <Num strong>{cell(workingMinutes(stud.minutes))}</Num>
-                      <Num>{cell(stud.minutes.demo)}</Num>
+                      <WorkedCells sessions={stud.sessions} minutes={stud.minutes} />
                     </tr>
                   ))}
               </Fragment>
@@ -337,10 +379,7 @@ export function PersonHoursView({
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
               <td className="p-2">Total</td>
-              <Num strong>{cell(hours.minutes.regular)}</Num>
-              <Num strong>{cell(hours.minutes.exam)}</Num>
-              <Num strong>{cell(working)}</Num>
-              <Num strong>{cell(hours.minutes.demo)}</Num>
+              <WorkedCells sessions={hours.sessions} minutes={hours.minutes} strong />
             </tr>
           </tfoot>
         </table>
@@ -353,10 +392,7 @@ export function PersonHoursView({
           <thead>
             <tr className="text-left text-slate-600">
               <Head>Student</Head>
-              <Head right>Regular</Head>
-              <Head right>Exam</Head>
-              <Head right>Working</Head>
-              <Head right>Demo</Head>
+              <WorkedHeaders />
             </tr>
           </thead>
           <tbody>
@@ -368,16 +404,9 @@ export function PersonHoursView({
                     {s.bySubject && s.bySubject.length === 1 && (
                       <span className="ml-2 text-xs font-normal text-slate-500">· {s.bySubject[0].subjectName}</span>
                     )}
-                    {s.bySubject && s.bySubject.length > 1 && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                        {s.bySubject.length} subjects
-                      </span>
-                    )}
+                    {s.bySubject && s.bySubject.length > 1 && <CountPill count={s.bySubject.length} label="subjects" />}
                   </td>
-                  <Num>{cell(s.minutes.regular)}</Num>
-                  <Num>{cell(s.minutes.exam)}</Num>
-                  <Num strong>{cell(workingMinutes(s.minutes))}</Num>
-                  <Num>{cell(s.minutes.demo)}</Num>
+                  <WorkedCells sessions={s.sessions} minutes={s.minutes} strong />
                 </tr>
                 {s.bySubject &&
                   s.bySubject.length > 1 &&
@@ -390,10 +419,7 @@ export function PersonHoursView({
                         <span className="mr-1.5 font-mono text-slate-500">↳</span>
                         {sub.subjectName}
                       </td>
-                      <Num>{cell(sub.minutes.regular)}</Num>
-                      <Num>{cell(sub.minutes.exam)}</Num>
-                      <Num strong>{cell(workingMinutes(sub.minutes))}</Num>
-                      <Num>{cell(sub.minutes.demo)}</Num>
+                      <WorkedCells sessions={sub.sessions} minutes={sub.minutes} />
                     </tr>
                   ))}
               </Fragment>
@@ -402,10 +428,7 @@ export function PersonHoursView({
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
               <td className="p-2">Total</td>
-              <Num strong>{cell(hours.minutes.regular)}</Num>
-              <Num strong>{cell(hours.minutes.exam)}</Num>
-              <Num strong>{cell(working)}</Num>
-              <Num strong>{cell(hours.minutes.demo)}</Num>
+              <WorkedCells sessions={hours.sessions} minutes={hours.minutes} strong />
             </tr>
           </tfoot>
         </table>
@@ -614,31 +637,37 @@ export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
 }
 
 /**
- * A mentor's mentees, one row each: what each received this month as regular, demo and exam.
- * Every mentee is listed - a student with no sessions reads as dashes, not as missing - and the
- * name opens that mentee's full breakdown for the same month.
- *
- * Subject-wise breakdown is shown under each mentee, broken down again by tutor when multiple tutors teach it.
+ * Received hours table (Student / Mentee -> Subject -> Tutor).
+ * Shared by mentor mentee views and admin teaching-hours students view.
  */
-export function MenteesHoursTable({
+export function ReceivedHoursTable({
+  title = 'Hours received, by mentee',
+  headerLabel = 'Mentee / Subject / Tutor',
   rows,
   month,
   canLinkTutor = false,
+  canLinkStudent = true,
+  showTotal = false,
 }: {
-  rows: readonly MenteeHours[]
+  title?: string
+  headerLabel?: string
+  rows: readonly (MenteeHours | StudentHours)[]
   month: string
   canLinkTutor?: boolean
+  canLinkStudent?: boolean
+  showTotal?: boolean
 }) {
   if (rows.length === 0) return null
+  const totalMins = showTotal ? sumByKind(rows.map((r) => r.total)) : null
+  const totalSess = showTotal ? sumByKind(rows.map((r) => r.sessions)) : null
+
   return (
     <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
-      <table aria-label="Hours received, by mentee" className="data-table w-full text-sm">
+      <table aria-label={title} className="data-table w-full text-sm">
         <thead>
           <tr className="text-left text-slate-600">
-            <Head>Mentee / Subject / Tutor</Head>
-            <Head right>Regular</Head>
-            <Head right>Demo</Head>
-            <Head right>Exam</Head>
+            <Head>{headerLabel}</Head>
+            <ReceivedHeaders />
           </tr>
         </thead>
         <tbody>
@@ -646,18 +675,20 @@ export function MenteesHoursTable({
             <Fragment key={r.studentId}>
               <tr className="border-t bg-white">
                 <td className="p-2 font-medium text-slate-800">
-                  <Link
-                    prefetch={false}
-                    className="text-primary hover:underline"
-                    href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
-                    scroll={false}
-                  >
-                    {r.studentName}
-                  </Link>
+                  {canLinkStudent ? (
+                    <Link
+                      prefetch={false}
+                      className="text-primary hover:underline"
+                      href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                      scroll={false}
+                    >
+                      {r.studentName}
+                    </Link>
+                  ) : (
+                    r.studentName
+                  )}
                 </td>
-                <Num strong>{cell(r.total.regular)}</Num>
-                <Num>{cell(r.total.demo)}</Num>
-                <Num>{cell(r.total.exam)}</Num>
+                <ReceivedCells sessions={r.sessions} minutes={r.total} strong />
               </tr>
               {r.bySubject &&
                 r.bySubject.length > 0 &&
@@ -673,7 +704,7 @@ export function MenteesHoursTable({
                             {s.byTutor[0].tutorId && canLinkTutor ? (
                               <Link
                                 prefetch={false}
-                                href={`/admin/teaching-hours/person/${s.byTutor[0].tutorId}`}
+                                href={`/admin/teaching-hours/person/${s.byTutor[0].tutorId}?month=${month}`}
                                 className="hover:text-primary hover:underline"
                               >
                                 {s.byTutor[0].tutorName}
@@ -683,15 +714,9 @@ export function MenteesHoursTable({
                             )}
                           </span>
                         )}
-                        {s.byTutor && s.byTutor.length > 1 && (
-                          <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-meta text-slate-600">
-                            {s.byTutor.length} tutors
-                          </span>
-                        )}
+                        {s.byTutor && s.byTutor.length > 1 && <CountPill count={s.byTutor.length} label="tutors" />}
                       </td>
-                      <Num>{cell(s.minutes.regular)}</Num>
-                      <Num>{cell(s.minutes.demo)}</Num>
-                      <Num>{cell(s.minutes.exam)}</Num>
+                      <ReceivedCells sessions={s.sessions} minutes={s.minutes} />
                     </tr>
                     {s.byTutor &&
                       s.byTutor.length > 1 &&
@@ -705,7 +730,7 @@ export function MenteesHoursTable({
                             {t.tutorId && canLinkTutor ? (
                               <Link
                                 prefetch={false}
-                                href={`/admin/teaching-hours/person/${t.tutorId}`}
+                                href={`/admin/teaching-hours/person/${t.tutorId}?month=${month}`}
                                 className="hover:text-primary hover:underline"
                               >
                                 {t.tutorName}
@@ -714,9 +739,7 @@ export function MenteesHoursTable({
                               t.tutorName
                             )}
                           </td>
-                          <Num>{cell(t.minutes.regular)}</Num>
-                          <Num>{cell(t.minutes.demo)}</Num>
-                          <Num>{cell(t.minutes.exam)}</Num>
+                          <ReceivedCells sessions={t.sessions} minutes={t.minutes} />
                         </tr>
                       ))}
                   </Fragment>
@@ -724,6 +747,171 @@ export function MenteesHoursTable({
             </Fragment>
           ))}
         </tbody>
+        {showTotal && totalMins && totalSess && (
+          <tfoot>
+            <tr className="border-t-2 font-medium text-slate-700">
+              <td className="p-2">Total - {formatMonthLabel(month)}</td>
+              <ReceivedCells sessions={totalSess} minutes={totalMins} strong />
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  )
+}
+
+/**
+ * A mentor's mentees, one row each: what each received this month as regular, demo and exam.
+ * Every mentee is listed - a student with no sessions reads as dashes, not as missing - and the
+ * name opens that mentee's full breakdown for the same month.
+ */
+export function MenteesHoursTable({
+  rows,
+  month,
+  canLinkTutor = false,
+}: {
+  rows: readonly MenteeHours[]
+  month: string
+  canLinkTutor?: boolean
+}) {
+  return (
+    <ReceivedHoursTable
+      title="Hours received, by mentee"
+      headerLabel="Mentee / Subject / Tutor"
+      rows={rows}
+      month={month}
+      canLinkTutor={canLinkTutor}
+      canLinkStudent={true}
+      showTotal={false}
+    />
+  )
+}
+
+/**
+ * Worked hours table (Tutor / Mentor -> Subject -> Student).
+ * Used by admin teaching-hours view to report hours worked with hierarchical drilldown.
+ */
+export function WorkedHoursTable({
+  people,
+  month,
+  canLinkStudent = true,
+  showTotal = true,
+}: {
+  people: readonly PersonHours[]
+  month: string
+  canLinkStudent?: boolean
+  showTotal?: boolean
+}) {
+  if (people.length === 0) return null
+  const totalMins = showTotal ? sumByKind(people.map((p) => p.minutes)) : null
+  const totalSess = showTotal ? sumByKind(people.map((p) => p.sessions)) : null
+
+  return (
+    <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
+      <table aria-label="Hours worked, by tutor and mentor" className="data-table w-full text-sm">
+        <thead>
+          <tr className="text-left text-slate-600">
+            <Head>Tutor / mentor / Subject / Student</Head>
+            <WorkedHeaders />
+          </tr>
+        </thead>
+        <tbody>
+          {people.map((p) => (
+            <Fragment key={p.personId ?? 'unassigned'}>
+              <tr className="border-t bg-white">
+                <td className="p-2 font-medium text-slate-800">
+                  <span className="inline-flex items-baseline gap-1.5">
+                    {p.personId ? (
+                      <Link
+                        prefetch={false}
+                        href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {p.personName}
+                      </Link>
+                    ) : (
+                      p.personName
+                    )}
+                    {roleLabelIfUnexpected(p.personRole, 'tutor') && (
+                      <span className="text-meta font-medium text-slate-500">
+                        {roleLabelIfUnexpected(p.personRole, 'tutor')}
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <WorkedCells sessions={p.sessions} minutes={p.minutes} strong />
+              </tr>
+              {p.bySubject &&
+                p.bySubject.length > 0 &&
+                p.bySubject.map((sub) => (
+                  <Fragment key={`${p.personId ?? 'unassigned'}-${sub.subjectId ?? 'none'}`}>
+                    <tr className="border-t border-slate-100 bg-slate-50/40 text-xs">
+                      <td className="p-2 pl-6 text-slate-700">
+                        <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                        <span className="font-medium text-slate-800">{sub.subjectName}</span>
+                        {sub.byStudent && sub.byStudent.length === 1 && (
+                          <span className="ml-1.5 text-slate-500">
+                            ·{' '}
+                            {sub.byStudent[0].studentId && canLinkStudent ? (
+                              <Link
+                                prefetch={false}
+                                href={`/students/${sub.byStudent[0].studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                                className="hover:text-primary hover:underline"
+                              >
+                                {sub.byStudent[0].studentName}
+                              </Link>
+                            ) : (
+                              sub.byStudent[0].studentName
+                            )}
+                          </span>
+                        )}
+                        {sub.byStudent && sub.byStudent.length > 1 && (
+                          <CountPill count={sub.byStudent.length} label="students" />
+                        )}
+                      </td>
+                      <WorkedCells sessions={sub.sessions} minutes={sub.minutes} />
+                    </tr>
+                    {sub.byStudent &&
+                      sub.byStudent.length > 1 &&
+                      sub.byStudent.map((stud) => (
+                        <tr
+                          key={`${p.personId ?? 'unassigned'}-${sub.subjectId ?? 'none'}-${stud.studentId ?? 'none'}`}
+                          className="border-t border-slate-100/70 bg-slate-50/80 text-meta"
+                        >
+                          <td className="p-1.5 pl-10 text-slate-600">
+                            <span className="mr-1.5 font-mono text-slate-500">↳</span>
+                            {stud.studentId && canLinkStudent ? (
+                              <Link
+                                prefetch={false}
+                                href={`/students/${stud.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                                className="hover:text-primary hover:underline"
+                              >
+                                {stud.studentName}
+                              </Link>
+                            ) : (
+                              stud.studentName
+                            )}
+                          </td>
+                          <WorkedCells sessions={stud.sessions} minutes={stud.minutes} />
+                        </tr>
+                      ))}
+                  </Fragment>
+                ))}
+            </Fragment>
+          ))}
+        </tbody>
+        {showTotal && (
+          <tfoot>
+            <tr className="border-t-2 font-medium text-slate-700">
+              <td className="p-2">Total - {formatMonthLabel(month)}</td>
+              <WorkedCells
+                sessions={totalSess ?? { regular: 0, demo: 0, exam: 0 }}
+                minutes={totalMins ?? { regular: 0, demo: 0, exam: 0 }}
+                strong
+              />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   )

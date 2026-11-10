@@ -7,6 +7,7 @@ import { getClassTutorHours } from '@/lib/services/teaching-hours'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
 import { formatMinutes } from '@/lib/attendance/hours'
+import { emptyByKind, sumByKind, totalByKind, workingMinutes } from '@/lib/attendance/hours-breakdown'
 import { Badge, CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabelIfUnexpected } from '@/lib/ui'
 import { SESSION_KIND_LABELS } from '@/lib/attendance/session-kind'
 import { LocalTime } from '../LocalTime'
@@ -81,41 +82,118 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
               No hours recorded yet this month - they appear once a session&apos;s start and end times are saved.
             </p>
           ) : (
-            <ul className="mt-3 space-y-3">
-              {hours.map((c) => (
-                <li key={`${c.classId}:${c.subjectName ?? ''}`}>
-                  <div className="flex items-baseline justify-between text-sm font-medium text-slate-700">
-                    <span>
-                      {c.className}
-                      {c.subjectName ? (
-                        <span className="font-normal text-slate-500"> &middot; {c.subjectName}</span>
-                      ) : null}
-                    </span>
-                    <span className="tabular-nums">{formatMinutes(c.totalMinutes)}</span>
+            <>
+              {/* Overall summary banner with session counts and type breakdown */}
+              {(() => {
+                const mins = sumByKind(hours.map((c) => c.byKind?.minutes ?? emptyByKind()))
+                const sess = sumByKind(hours.map((c) => c.byKind?.sessions ?? emptyByKind()))
+                const totalWorking = workingMinutes(mins)
+                const totalSessions =
+                  totalByKind(sess) ||
+                  hours.reduce((n, c) => n + (c.totalSessions ?? c.tutors.reduce((s, t) => s + t.sessionCount, 0)), 0)
+
+                return (
+                  <div className="mt-3 flex flex-wrap gap-2.5">
+                    <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+                      <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Working hours</p>
+                      <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+                        {formatMinutes(totalWorking > 0 ? totalWorking : hours.reduce((n, c) => n + c.totalMinutes, 0))}
+                      </p>
+                      <p className="text-meta text-slate-500">{totalSessions} total sessions</p>
+                    </div>
+                    <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+                      <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Regular</p>
+                      <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+                        {formatMinutes(mins.regular)}
+                      </p>
+                      <p className="text-meta text-slate-500">{sess.regular} sessions</p>
+                    </div>
+                    {sess.exam > 0 && (
+                      <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+                        <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Exam</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+                          {formatMinutes(mins.exam)}
+                        </p>
+                        <p className="text-meta text-slate-500">{sess.exam} exams</p>
+                      </div>
+                    )}
+                    {sess.demo > 0 && (
+                      <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+                        <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Demo</p>
+                        <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+                          {formatMinutes(mins.demo)}
+                        </p>
+                        <p className="text-meta text-slate-500">{sess.demo} demos</p>
+                      </div>
+                    )}
                   </div>
-                  <ul className="mt-1 space-y-0.5">
-                    {c.tutors.map((t) => (
-                      <li
-                        key={t.tutorId ?? 'unassigned'}
-                        className="flex items-baseline justify-between text-xs text-slate-600"
-                      >
-                        <span className="inline-flex items-baseline gap-1.5">
-                          {t.tutorName}
-                          {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
-                            <span className="text-meta font-medium text-slate-500">
-                              {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
-                            </span>
+                )
+              })()}
+
+              <ul className="mt-4 space-y-3">
+                {hours.map((c) => {
+                  const classSessions = c.totalSessions ?? c.tutors.reduce((s, t) => s + t.sessionCount, 0)
+                  return (
+                    <li key={`${c.classId}:${c.subjectName ?? ''}`}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm font-medium text-slate-700">
+                        <span>
+                          {c.className}
+                          {c.subjectName ? (
+                            <span className="font-normal text-slate-500"> &middot; {c.subjectName}</span>
+                          ) : null}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 tabular-nums">
+                          <span>{formatMinutes(c.totalMinutes)}</span>
+                          <span className="text-xs font-normal text-slate-500">
+                            &middot; {classSessions} session{classSessions === 1 ? '' : 's'}
+                          </span>
+                          {c.byKind && c.byKind.sessions.exam > 0 && (
+                            <Badge tone="warning">{c.byKind.sessions.exam} exam</Badge>
+                          )}
+                          {c.byKind && c.byKind.sessions.demo > 0 && (
+                            <Badge tone="slate">{c.byKind.sessions.demo} demo</Badge>
                           )}
                         </span>
-                        <span className="tabular-nums">
-                          {formatMinutes(t.minutes)} &middot; {t.sessionCount} session{t.sessionCount === 1 ? '' : 's'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
+                      </div>
+                      <ul className="mt-1 space-y-0.5">
+                        {c.tutors.map((t) => (
+                          <li
+                            key={t.tutorId ?? 'unassigned'}
+                            className="flex items-baseline justify-between text-xs text-slate-600"
+                          >
+                            <span className="inline-flex items-baseline gap-1.5">
+                              {t.tutorName}
+                              {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
+                                <span className="text-meta font-medium text-slate-500">
+                                  {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
+                                </span>
+                              )}
+                            </span>
+                            <span className="tabular-nums">
+                              {formatMinutes(t.minutes)} &middot; {t.sessionCount} session
+                              {t.sessionCount === 1 ? '' : 's'}
+                              {t.byKind && (t.byKind.sessions.exam > 0 || t.byKind.sessions.demo > 0) && (
+                                <span className="ml-1 text-meta text-slate-500">
+                                  (
+                                  {[
+                                    t.byKind.sessions.regular > 0 && `${t.byKind.sessions.regular} reg`,
+                                    t.byKind.sessions.exam > 0 && `${t.byKind.sessions.exam} exam`,
+                                    t.byKind.sessions.demo > 0 && `${t.byKind.sessions.demo} demo`,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(', ')}
+                                  )
+                                </span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
           )}
         </section>
       )}

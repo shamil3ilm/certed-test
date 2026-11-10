@@ -206,8 +206,11 @@ export async function loadClassroomPageData(
   }
 
   const isAcademyWide = flags.isClassAdmin
-  const admitted = await filteredClassIds(filters.subject, filters.tag)
-  let scopedIds = await scopeStudentIds(me, isAcademyWide)
+  const [admitted, scopedRaw] = await Promise.all([
+    filteredClassIds(filters.subject, filters.tag),
+    scopeStudentIds(me, isAcademyWide),
+  ])
+  let scopedIds = scopedRaw
 
   // A subject or tag filter narrows the ROSTER too - otherwise a page could be filled with
   // students whose classes all fell out of the filter, and render as blank groups.
@@ -248,15 +251,18 @@ export async function loadClassroomPageData(
     unassignedTotal: unassigned.total,
     unassignedTruncated: unassigned.total > unassigned.items.length,
     groupByStudentView: true,
-    tagsByClass: withExtras
-      ? await tagsForEntities('class', [
-          ...groups.flatMap((g) => g.classes.map((c) => c.id)),
-          ...unassigned.items.map((c) => c.id),
-        ])
-      : new Map(),
-    // Grouped cards only: the unassigned section has no student heading above it, so those
-    // classes keep their full name rather than reducing to a bare subject that names nobody.
-    subjectByClass: await subjectNameByClassId(groups.flatMap((g) => g.classes)),
+    ...(await (async () => {
+      const [tagsByClass, subjectByClass] = await Promise.all([
+        withExtras
+          ? tagsForEntities('class', [
+              ...groups.flatMap((g) => g.classes.map((c) => c.id)),
+              ...unassigned.items.map((c) => c.id),
+            ])
+          : Promise.resolve(new Map()),
+        subjectNameByClassId(groups.flatMap((g) => g.classes)),
+      ])
+      return { tagsByClass, subjectByClass }
+    })()),
     total: roster.total,
     totalPages: totalPages(roster.total, CLASSES_PAGE_SIZE),
     flags,
@@ -296,10 +302,12 @@ async function unassignedClasses(admitted: Set<string> | null): Promise<Page<Cla
   const names = await getProfileNamesByIds([...new Set(tutorPairs.map((p) => p.tutor_id))])
   const tutorsByClass = new Map<string, { id: string; name: string }[]>()
   for (const p of tutorPairs) {
-    tutorsByClass.set(p.class_id, [
-      ...(tutorsByClass.get(p.class_id) ?? []),
-      { id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' },
-    ])
+    const list = tutorsByClass.get(p.class_id)
+    if (list) {
+      list.push({ id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' })
+    } else {
+      tutorsByClass.set(p.class_id, [{ id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' }])
+    }
   }
   return {
     items: classes.map((c) => {
@@ -332,10 +340,12 @@ async function buildGroups(
   const tutorsByClass = new Map<string, { id: string; name: string }[]>()
   for (const p of tutorPairs) {
     if (!readable.has(p.class_id)) continue
-    tutorsByClass.set(p.class_id, [
-      ...(tutorsByClass.get(p.class_id) ?? []),
-      { id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' },
-    ])
+    const list = tutorsByClass.get(p.class_id)
+    if (list) {
+      list.push({ id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' })
+    } else {
+      tutorsByClass.set(p.class_id, [{ id: p.tutor_id, name: names.get(p.tutor_id) ?? 'Unknown' }])
+    }
   }
 
   const classById = new Map(classes.map((c) => [c.id, c]))

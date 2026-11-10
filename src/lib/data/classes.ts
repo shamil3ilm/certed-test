@@ -124,7 +124,7 @@ export async function selectActiveClassIds(): Promise<string[]> {
  * applied as `not.in(archivedIds)` instead - identical result, a list that shrinks rather
  * than grows with the academy.
  */
-export async function selectArchivedClassIds(): Promise<string[]> {
+export const selectArchivedClassIds = cache(async (): Promise<string[]> => {
   const admin = createAdminClient()
   // MUST be complete. This list is used as an EXCLUSION, so a truncated one does not
   // shorten the result - it lets archived classes back INTO an oversight list that Q7 says
@@ -136,7 +136,7 @@ export async function selectArchivedClassIds(): Promise<string[]> {
     'data.classes.archivedIds',
   )
   return rows.map((c) => c.id)
-}
+})
 
 /** Of the given class ids, the subset that are ACTIVE (non-archived). Empty in, empty out.
  *  Used to trim a mentor/tutor's authority set to live classes for the hour reports (Q7). */
