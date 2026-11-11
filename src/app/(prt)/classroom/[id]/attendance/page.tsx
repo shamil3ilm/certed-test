@@ -511,7 +511,7 @@ export default async function AttendancePage(props: {
             {data.hasHistoryFilters ? 'No records match these filters.' : 'No attendance recorded yet.'}
           </EmptyState>
         ) : (
-          <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
+          <div className={cx(CARD, 'mt-3 max-w-full overflow-x-auto')}>
             <table className="data-table w-full text-sm">
               <thead>
                 <tr>

@@ -3,11 +3,8 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { getActorContext } from '@/lib/session/actor-context'
 import { loadCalendarPageData } from '@/lib/services/page-data/calendar-page'
+import { CalendarView } from './CalendarView'
 import { PageHeader } from '@/lib/ui'
-
-const CalendarView = dynamic(() => import('./CalendarView').then((mod) => mod.CalendarView), {
-  loading: () => <div className="h-96 animate-pulse rounded-2xl border border-slate-200 bg-slate-50" />,
-})
 
 const TimetableManager = dynamic(() => import('./TimetableManager').then((mod) => mod.TimetableManager), {
   loading: () => <div className="mt-6 h-64 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />,

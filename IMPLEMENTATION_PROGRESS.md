@@ -266,11 +266,13 @@ To guarantee optimal experience on mobile, tablet, and desktop:
     - **Resolution & Audit**: Eliminating `ClassTutorTable` in `44bd829` removed the offending dash. Audited all remaining occurrences of `text-slate-300` / `text-slate-400` across `src/` to ensure they are strictly non-textual / decorative (`aria-hidden`, SVG strokes), `placeholder:`, or dark-surface exempt (`Footer.tsx`).
     - **Tailwind CSS v4 Build Guard**: Neutralized arbitrary utility class signatures in Markdown documentation to prevent Tailwind v4's content scanner from synthesizing invalid Webpack module resolutions (such as arbitrary URL backgrounds like `url-placeholder` &rarr; `Cannot find module`). All CI verification gates (`typecheck`, `lint`, `format:check`, `test:coverage`, `build`, and `check:bundle`) pass with 0 errors.
 14. **Cross-Persona Hours & Session Types Parity**:
-    - **Uniform Metric Dimensionality**: Every hours view across all personas (Admin `/admin/teaching-hours`, Mentor `/my-hours` & `/students/[id]`, Tutor `/my-hours`, Student `/my-hours`) now tracks both `sessions` count and duration `minutes` by kind (`regular`, `demo`, `exam`).
-    - **Session Kind Clarity**: Exam sessions and demo sessions are clearly badged (`<Badge tone="warning">`, `<Badge tone="slate">`) and broken down both at the summary banner level and in nested rows.
+    - **Uniform Metric Dimensionality**: Every hours view across all personas (Admin `/admin/teaching-hours`, Mentor `/my-hours` & `/students/[id]`, Tutor `/my-hours`, Student `/my-hours`) tracks session metrics and duration minutes by kind (`regular`, `demo`, `exam`).
+    - **Clean Decoupled Hierarchy & Semantic Headers**:
+      - Top-level roll-up tables render exactly one row per entity with simple, logical headers: `Tutor / mentor` for staff and `Student` (or `Mentee`) for students. Completely eliminated confusing composite headers (such as `Tutor / mentor / Subject / Student` or `Student / Subject / Tutor`) and inlined sub-rows in top-level summaries.
+      - Detailed breakdowns by subject, tutor, or student are cleanly housed in dedicated, independent tables (`PersonHoursView` and `StudentHoursView`) with explicit single-purpose column headers (`Subject`, `Tutor`, `Student`, `Monitor`).
     - **Consistent Column Architecture**:
-      - Received Hours: `[Entity] | Sessions | Regular | Demo | Exam`
-      - Worked Hours: `[Entity] | Sessions | Regular | Exam | Demo | Working`
+      - Received Hours Summary: `[Student/Mentee] | Regular | Demo | Exam`
+      - Worked Hours Summary: `[Tutor/Mentor] | Sessions | Regular | Exam | Demo | Working`
 15. **High-Density Engineering & Anti-Bloat Architecture (Token Conservation)**:
     - **Principle**: Reject sprawling AI model boilerplate and bloated implementations. Emphasize concise, minimal, highest-quality code that expresses complex logic in punchy, maintainable abstractions.
     - **Pure Mathematical Primitives**: Added `sumByKind` and `totalByKind` to `@/lib/attendance/hours-breakdown`. Replaced pages of manual iterative `.reduce(...)` loops with single-line pure calculations.
@@ -287,10 +289,15 @@ To guarantee optimal experience on mobile, tablet, and desktop:
     - **Algorithmic Complexity & Memory Allocations ($O(1)$ Lookups & In-Place Mutation)**:
       - Replaced linear array `.includes()` searches within filters with `Set.has()` in `mentor-session-timings.ts` (`studentClassSet`, `scopeClassSet`), turning $O(N \times M)$ scans into $O(1)$ constant-time checks.
       - Replaced array spread syntax inside loops `[...(map.get(key) ?? []), item]` in `classroom.ts` with in-place `.push()`, eliminating quadratic $O(K^2)$ garbage collection churn.
-    - **Next.js Package Optimization & Dynamic Code-Splitting**:
+    - **Next.js Package Optimization**:
       - Enabled `experimental.optimizePackageImports = ['lucide-react']` in `next.config.js` to automatically tree-shake barrel indexes, drastically speeding up compilation and shrinking client chunks.
-      - Dynamically code-split `CalendarView` via `next/dynamic` with skeleton boundaries in `calendar/page.tsx`, ensuring instantaneous critical-path HTML delivery while asynchronously streaming heavy calendar plugin dependencies.
     - **Finance Itemization Touch-Up Preparedness**: Recorded final touch-up roadmap: itemizing regular, demo, and exam session breakdowns on generated PDF receipts/payslips, and unifying the rates and billing-rates admin portals under a single cohesive tabbed workspace.
+17. **Resolution of CI E2E Regressions & Permanent Verification Invariants**:
+    - **Dynamic SSR Chunk Hydration on Critical Views**: Reverted `CalendarView` in `calendar/page.tsx` from `next/dynamic` with animated pulse skeleton to static import. Dynamic chunk loading triggered race conditions where Playwright's `networkidle` fired while the DOM skeleton was mounted, breaking calendar agenda assertions in `calendar-timezone.pw.ts`.
+    - **Strict Table Dimension Scoping in E2E**: Removed inlined sub-rows from summary tables so `tbody tr` matches only top-level entity rows. Fixed `demoRows` assertion count in `hours-breakdown.pw.ts:55` and restored column indices across `class-hours.pw.ts` and `hours-breakdown.pw.ts`.
+    - **Dynamic Future Timestamps in Form Tests**: Updated `dashboard-cards.pw.ts` reminder tests to schedule dates in the future rather than hardcoding expired dates (August 2026), satisfying the past-date guardrail in `ReminderPanel.tsx`.
+    - **Nested Action Menu Invariants**: Updated `new-ui-flows.pw.ts` to explicitly open the `<EscapableDetails>` three-dot disclosure before asserting or clicking `Revoke` / `Restore` lifecycle buttons.
+    - **Viewport Overflow Containment**: Constrained attendance history table wrapper on `classroom/[id]/attendance/page.tsx` with `w-full max-w-full overflow-x-auto`, ensuring zero horizontal spillover at 320px mobile viewport in `responsive.pw.ts`.
 
 ---
 

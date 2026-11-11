@@ -67,7 +67,7 @@ function StudentsTable({ students, month }: { students: HoursBreakdown['students
   return (
     <ReceivedHoursTable
       title="Hours received, by student"
-      headerLabel="Student / Subject / Tutor"
+      headerLabel="Student"
       rows={students}
       month={month}
       canLinkTutor={true}

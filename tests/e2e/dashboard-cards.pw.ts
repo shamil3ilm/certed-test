@@ -152,7 +152,7 @@ test('Dashboard reminder controls are interactive', async ({ page }) => {
   const reminderForm = page.locator('#reminder-add-form')
   await expect(reminderForm).toBeVisible()
   await reminderForm.getByRole('textbox', { name: 'Title' }).fill(reminderTitle)
-  await reminderForm.locator('input[name=remind_at]').fill('2026-08-01T09:00')
+  await reminderForm.locator('input[name=remind_at]').fill('2027-08-01T09:00')
   await reminderForm.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('paragraph').filter({ hasText: reminderTitle }).first()).toBeVisible()
 
@@ -170,7 +170,7 @@ test('Dashboard reminder controls are interactive', async ({ page }) => {
   await page.getByRole('button', { name: '+ Add' }).click()
   await expect(reminderForm).toBeVisible()
   await reminderForm.getByRole('textbox', { name: 'Title' }).fill(deleteReminderTitle)
-  await reminderForm.locator('input[name=remind_at]').fill('2026-08-02T09:00')
+  await reminderForm.locator('input[name=remind_at]').fill('2027-08-02T09:00')
   await reminderForm.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('paragraph').filter({ hasText: deleteReminderTitle }).first()).toBeVisible()
   const deleteReminderRow = page.locator('li').filter({ hasText: deleteReminderTitle }).first()
