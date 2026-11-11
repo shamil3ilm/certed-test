@@ -35,14 +35,21 @@ export const selectSubjectById = cache(async (id: string): Promise<SubjectRow | 
   return (data as SubjectRow) ?? null
 })
 
-/** Subjects for a set of ids (active or not), for resolving a class's subject name.
- *  Service-role - a deactivated subject still names its existing classes. */
-export async function selectSubjectsByIds(ids: string[]): Promise<SubjectRow[]> {
+const selectSubjectsByIdsCached = cache(async (joinedIds: string): Promise<SubjectRow[]> => {
+  const ids = joinedIds.split(',').filter(Boolean)
   if (ids.length === 0) return []
   const admin = createAdminClient()
   const { data, error } = await admin.from('subjects').select(COLUMNS).in('id', ids)
   if (error) throw new Error(`subjects.selectSubjectsByIds: ${error.message}`)
   return (data ?? []) as SubjectRow[]
+})
+
+/** Subjects for a set of ids (active or not), for resolving a class's subject name.
+ *  Service-role - a deactivated subject still names its existing classes. Deduped per-request. */
+export async function selectSubjectsByIds(ids: string[]): Promise<SubjectRow[]> {
+  if (ids.length === 0) return []
+  const key = [...new Set(ids)].sort().join(',')
+  return selectSubjectsByIdsCached(key)
 }
 
 /** A subject by its exact name, case-insensitively (no wildcards) - the reuse lookup

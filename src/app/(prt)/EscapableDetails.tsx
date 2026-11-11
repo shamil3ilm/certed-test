@@ -42,7 +42,7 @@ export function EscapableDetails({
 
   return (
     <details ref={ref} className={className}>
-      <summary className={summaryClassName} aria-label={summaryAriaLabel}>
+      <summary role="button" className={summaryClassName} aria-label={summaryAriaLabel}>
         {summary}
       </summary>
       {children}

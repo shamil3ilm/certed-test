@@ -291,13 +291,28 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - Replaced array spread syntax inside loops `[...(map.get(key) ?? []), item]` in `classroom.ts` with in-place `.push()`, eliminating quadratic $O(K^2)$ garbage collection churn.
     - **Next.js Package Optimization**:
       - Enabled `experimental.optimizePackageImports = ['lucide-react']` in `next.config.js` to automatically tree-shake barrel indexes, drastically speeding up compilation and shrinking client chunks.
+    - **PostgREST Query Batching & Concurrent Chunk Execution**:
+      - Replaced sequential `for ... await` loops in `selectSessionsByIdsInRange` with concurrent `Promise.all` chunking.
+      - Implemented parallel chunked reads (100 UUIDs per batch) in `selectAttendedForSessions` in `src/lib/data/analytics.ts`, preventing massive URL query strings in PostgREST and accelerating heavy monthly attendance joins across the academy.
+    - **Multi-Component Request Caching (`React.cache`)**:
+      - Extended `React.cache()` to `selectSubjectsByIds` in `src/lib/data/subjects.ts` and `getProfilesByIds` in `src/lib/services/users/directory.ts`. Components and server views that independently query profiles or subjects within the same render pass receive cached in-memory structures with 0 duplicate round trips.
+      - Parallelized capability checking, actor-context, and institute timezone lookups in `ClassHoursReportPage` (`admin/teaching-hours/page.tsx`).
     - **Finance Itemization Touch-Up Preparedness**: Recorded final touch-up roadmap: itemizing regular, demo, and exam session breakdowns on generated PDF receipts/payslips, and unifying the rates and billing-rates admin portals under a single cohesive tabbed workspace.
+    - **Custom Design 5% Gap Closure**: Systematically audited and closed micro-inconsistencies across form filters, list view card standardizations, semantic hours headers, and mobile viewport limits.
 17. **Resolution of CI E2E Regressions & Permanent Verification Invariants**:
-    - **Dynamic SSR Chunk Hydration on Critical Views**: Reverted `CalendarView` in `calendar/page.tsx` from `next/dynamic` with animated pulse skeleton to static import. Dynamic chunk loading triggered race conditions where Playwright's `networkidle` fired while the DOM skeleton was mounted, breaking calendar agenda assertions in `calendar-timezone.pw.ts`.
-    - **Strict Table Dimension Scoping in E2E**: Removed inlined sub-rows from summary tables so `tbody tr` matches only top-level entity rows. Fixed `demoRows` assertion count in `hours-breakdown.pw.ts:55` and restored column indices across `class-hours.pw.ts` and `hours-breakdown.pw.ts`.
+    - **FullCalendar View-Scoped Event Rendering**: Moved custom single-line dot event content under `views.dayGridMonth.eventContent` in `CalendarView.tsx`. Top-level `eventContent` previously returned `null` for non-grid views, blanking out events in the list/agenda view (`calendar-timezone.pw.ts:22`).
+    - **Accessible Kebab Menu Disclosures (`EscapableDetails`)**: Added explicit `role="button"` to `<summary>` in `src/app/(prt)/EscapableDetails.tsx`. This guarantees that Playwright's accessible name selectors (`getByRole('button', { name: ... })`) reliably match action menus across all browsers.
+    - **Deterministic User Row Selection in E2E**: In `new-ui-flows.pw.ts`, targeted Maya Mentor's actual profile link (`page.locator('li').filter({ has: page.getByRole('link', { name: 'Maya Mentor', exact: true }) })`) rather than using `.first()` on `li` with text `Maya Mentor` (which inadvertently matched students assigned to Maya Mentor).
+    - **Mobile Viewport Date Input Overflow Containment**: Constrained `DateRangeFilterField` with `flex-wrap` and `max-w-[8.5rem] min-w-0` on `type="date"` inputs, preventing intrinsic dual-date input widths from exceeding 288px on 320px screens (`responsive.pw.ts:133`).
     - **Dynamic Future Timestamps in Form Tests**: Updated `dashboard-cards.pw.ts` reminder tests to schedule dates in the future rather than hardcoding expired dates (August 2026), satisfying the past-date guardrail in `ReminderPanel.tsx`.
-    - **Nested Action Menu Invariants**: Updated `new-ui-flows.pw.ts` to explicitly open the `<EscapableDetails>` three-dot disclosure before asserting or clicking `Revoke` / `Restore` lifecycle buttons.
-    - **Viewport Overflow Containment**: Constrained attendance history table wrapper on `classroom/[id]/attendance/page.tsx` with `w-full max-w-full overflow-x-auto`, ensuring zero horizontal spillover at 320px mobile viewport in `responsive.pw.ts`.
+18. **Table-Integrated In-Place Expansion & Breakdown Modals (`WorkedHoursTable` & `ReceivedHoursTable`)**:
+    - **Elimination of Duplicate Detail Cards**: Removed the redundant `<PeopleDetail>` and `<StudentsDetail>` accordion stacks that were previously rendered below the tables on `/admin/teaching-hours`.
+    - **In-Place Row Expansion (`ChevronRight`)**: Embedded an expand/collapse toggle in Column 0 (`Tutor / mentor` and `Student`). Clicking the chevron expands an in-place breakdown row (`<td colSpan={6}>` or `<td colSpan={4}>`) directly underneath, rendering `PersonHoursView` or `StudentHoursView` with full subject-wise and persona breakdowns.
+    - **Modal Dialog Breakdowns**: Provided a dedicated "Breakdown" action in Column 0 opening a centered `<Modal>` dialog (`size="lg"`), allowing users to focus on a single tutor or student without scrolling or losing table context.
+    - **Strict Column & Link Invariant Preservation**: All row expansion controls and action buttons reside strictly within Column 0, preserving exact column count, order, and indices:
+      - Worked Hours: 6 columns (`Tutor / mentor | Sessions | Regular | Exam | Demo | Working`). Last column evaluates to `Working` minutes (`class-hours.pw.ts:66`, `hours-breakdown.pw.ts:113`).
+      - Received Hours: 4 columns (`Student | Regular | Demo | Exam`). Cell index 1 evaluates to `Regular` minutes (`class-hours.pw.ts:72`, `hours-breakdown.pw.ts:135`).
+      - Name links navigate to `/admin/teaching-hours/person/[id]` and `/students/[id]` as verified by E2E test suites.
 
 ---
 

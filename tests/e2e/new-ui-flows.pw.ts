@@ -90,7 +90,7 @@ test('a sub_admin can open and manage a mentor account (revoke/restore)', async 
 
   // The users list offers the lifecycle control on the mentor row -> suspendable.
   await page.goto('/admin/users')
-  const mayaRow = page.locator('li', { hasText: 'Maya Mentor' }).first()
+  const mayaRow = page.locator('li').filter({ has: page.getByRole('link', { name: 'Maya Mentor', exact: true }) })
   await mayaRow.getByRole('button', { name: /actions for maya mentor/i }).click()
   await expect(mayaRow.getByRole('button', { name: /revoke|restore/i })).toBeVisible()
 })

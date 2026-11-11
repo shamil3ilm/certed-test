@@ -80,6 +80,7 @@ export const displayName = (p: { full_name: string | null; email: string }): str
  * students who submitted). Callers gate access first.
  */
 export async function getProfilesByIds(ids: string[]): Promise<Map<string, ProfileLite>> {
+  if (ids.length === 0) return new Map()
   const rows = await selectProfilesLiteByIds(ids)
   return new Map(rows.map((p) => [p.id, p]))
 }

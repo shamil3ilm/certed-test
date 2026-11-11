@@ -221,24 +221,42 @@ export async function selectSessionsByIdsInRange(
 ): Promise<SessionHoursRow[]> {
   if (sessionIds.length === 0) return []
   const admin = createAdminClient()
-  const out: SessionHoursRow[] = []
-  for (let i = 0; i < sessionIds.length; i += 100) {
-    const chunk = sessionIds.slice(i, i + 100)
-    const rows = await fetchAllPaged<SessionHoursRow>(
+  const CHUNK_SIZE = 100
+  if (sessionIds.length <= CHUNK_SIZE) {
+    return fetchAllPaged<SessionHoursRow>(
       (from, to) =>
         admin
           .from('class_sessions')
           .select(HOURS_COLUMNS)
-          .in('id', chunk)
+          .in('id', sessionIds)
           .gte('actual_start', startIso)
           .lt('actual_start', endIso)
           .order('id', { ascending: true })
           .range(from, to),
       'analytics.selectSessionsByIdsInRange',
     )
-    out.push(...rows)
   }
-  return out
+  const chunks: string[][] = []
+  for (let i = 0; i < sessionIds.length; i += CHUNK_SIZE) {
+    chunks.push(sessionIds.slice(i, i + CHUNK_SIZE))
+  }
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      fetchAllPaged<SessionHoursRow>(
+        (from, to) =>
+          admin
+            .from('class_sessions')
+            .select(HOURS_COLUMNS)
+            .in('id', chunk)
+            .gte('actual_start', startIso)
+            .lt('actual_start', endIso)
+            .order('id', { ascending: true })
+            .range(from, to),
+        'analytics.selectSessionsByIdsInRange',
+      ),
+    ),
+  )
+  return results.flat()
 }
 
 export interface StudentMarkRow {
@@ -318,17 +336,40 @@ export interface AttendedRow {
 export async function selectAttendedForSessions(sessionIds: string[]): Promise<AttendedRow[]> {
   if (sessionIds.length === 0) return []
   const admin = createAdminClient()
-  return fetchAllPaged<AttendedRow>(
-    (from, to) =>
-      admin
-        .from('attendance')
-        .select('session_id, student_id')
-        .in('session_id', sessionIds)
-        .in('status', ['present', 'late'])
-        .order('id', { ascending: true })
-        .range(from, to),
-    'analytics.selectAttendedForSessions',
+  const CHUNK_SIZE = 100
+  if (sessionIds.length <= CHUNK_SIZE) {
+    return fetchAllPaged<AttendedRow>(
+      (from, to) =>
+        admin
+          .from('attendance')
+          .select('session_id, student_id')
+          .in('session_id', sessionIds)
+          .in('status', ['present', 'late'])
+          .order('id', { ascending: true })
+          .range(from, to),
+      'analytics.selectAttendedForSessions',
+    )
+  }
+  const chunks: string[][] = []
+  for (let i = 0; i < sessionIds.length; i += CHUNK_SIZE) {
+    chunks.push(sessionIds.slice(i, i + CHUNK_SIZE))
+  }
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      fetchAllPaged<AttendedRow>(
+        (from, to) =>
+          admin
+            .from('attendance')
+            .select('session_id, student_id')
+            .in('session_id', chunk)
+            .in('status', ['present', 'late'])
+            .order('id', { ascending: true })
+            .range(from, to),
+        'analytics.selectAttendedForSessions',
+      ),
+    ),
   )
+  return results.flat()
 }
 
 /** A student's own attendance join/leave times - the base for learning-hours. */

@@ -198,14 +198,14 @@ export function DateRangeFilterField({
   return (
     <div className={cx('flex flex-col', className)}>
       <span className="text-xs font-medium text-slate-600">{label}</span>
-      <div className="mt-1 flex items-center gap-1.5">
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <input
           type="date"
           name={fromName}
           defaultValue={defaultFrom}
           aria-label={fromLabel}
           title={fromLabel}
-          className={FILTER_CONTROL}
+          className={cx(FILTER_CONTROL, 'max-w-[8.5rem] min-w-0')}
         />
         <span className="text-xs font-medium text-slate-600" aria-hidden="true">
           &ndash;
@@ -216,7 +216,7 @@ export function DateRangeFilterField({
           defaultValue={defaultTo}
           aria-label={toLabel}
           title={toLabel}
-          className={FILTER_CONTROL}
+          className={cx(FILTER_CONTROL, 'max-w-[8.5rem] min-w-0')}
         />
       </div>
     </div>

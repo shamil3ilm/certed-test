@@ -1,5 +1,8 @@
-import { Fragment } from 'react'
+'use client'
+
+import { Fragment, useState } from 'react'
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { formatMinutes } from '@/lib/attendance/hours'
 import { workingMinutes, sumByKind, totalByKind } from '@/lib/attendance/hours-breakdown'
 import type {
@@ -7,12 +10,14 @@ import type {
   PersonHours,
   StudentHours,
   StudentLedgerRow,
+  TutorSubjectHours,
   WorkLedgerRow,
 } from '@/lib/services/hours-breakdown'
 import { SESSION_KIND_LABELS, type SessionKind } from '@/lib/attendance/session-kind'
 import { formatMonthLabel } from '@/lib/time/format'
 import { Badge, CARD, attendanceTone, cx, statusLabel, roleLabelIfUnexpected } from '@/lib/ui'
 import { LocalTime } from './LocalTime'
+import { Modal } from './Modal'
 
 /**
  * The hours breakdown, as tables. Shared by every surface that shows it - the admin Class
@@ -632,15 +637,32 @@ export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
   )
 }
 
+function toStudentHours(r: MenteeHours | StudentHours): StudentHours {
+  return {
+    studentId: r.studentId,
+    studentName: r.studentName,
+    total: r.total,
+    sessions: r.sessions,
+    bySubject: r.bySubject ?? [],
+    byTutor: (r.byTutor ?? []).map((t) => ({
+      ...t,
+      bySubject: 'bySubject' in t ? (t as { bySubject?: TutorSubjectHours[] }).bySubject : [],
+    })),
+    examMonitors:
+      'examMonitors' in r && Array.isArray((r as StudentHours).examMonitors) ? (r as StudentHours).examMonitors : [],
+  }
+}
+
 /**
  * Received hours table, one row per student or mentee.
- * Detailed breakdowns by subject and tutor are available in the dedicated detail panels below.
+ * Row expansion and breakdown modal provide instant subject and tutor details without cluttering the page.
  */
 export function ReceivedHoursTable({
   title = 'Hours received, by mentee',
   headerLabel = 'Student',
   rows,
   month,
+  canLinkTutor = false,
   canLinkStudent = true,
   showTotal = false,
 }: {
@@ -652,49 +674,145 @@ export function ReceivedHoursTable({
   canLinkStudent?: boolean
   showTotal?: boolean
 }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [modalStudent, setModalStudent] = useState<(MenteeHours | StudentHours) | null>(null)
+
   if (rows.length === 0) return null
   const totalMins = showTotal ? sumByKind(rows.map((r) => r.total)) : null
 
+  const toggleExpand = (studentId: string) => {
+    setExpanded((prev) => ({ ...prev, [studentId]: !prev[studentId] }))
+  }
+
   return (
-    <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
-      <table aria-label={title} className="data-table w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-600">
-            <Head>{headerLabel}</Head>
-            <ReceivedHeaders />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.studentId} className="border-t bg-white">
-              <td className="p-2 font-medium text-slate-800">
-                {canLinkStudent ? (
-                  <Link
-                    prefetch={false}
-                    className="text-primary hover:underline"
-                    href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
-                    scroll={false}
-                  >
-                    {r.studentName}
-                  </Link>
-                ) : (
-                  r.studentName
-                )}
-              </td>
-              <ReceivedCells minutes={r.total} strong />
+    <>
+      <div className={cx(CARD, 'mt-2 overflow-x-auto')}>
+        <table aria-label={title} className="data-table w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <Head>{headerLabel}</Head>
+              <ReceivedHeaders />
             </tr>
-          ))}
-        </tbody>
-        {showTotal && totalMins && (
-          <tfoot>
-            <tr className="border-t-2 font-medium text-slate-700">
-              <td className="p-2">Total - {formatMonthLabel(month)}</td>
-              <ReceivedCells minutes={totalMins} strong />
-            </tr>
-          </tfoot>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const isExpanded = !!expanded[r.studentId]
+              return (
+                <Fragment key={r.studentId}>
+                  <tr className="border-t bg-white">
+                    <td className="p-2 font-medium text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(r.studentId)}
+                          aria-label={
+                            isExpanded
+                              ? `Collapse breakdown for ${r.studentName}`
+                              : `Expand breakdown for ${r.studentName}`
+                          }
+                          aria-expanded={isExpanded}
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                          title={isExpanded ? 'Collapse breakdown' : 'Expand breakdown'}
+                        >
+                          <ChevronRight
+                            className={cx('h-4 w-4 transition-transform duration-150', isExpanded && 'rotate-90')}
+                          />
+                        </button>
+                        {canLinkStudent ? (
+                          <Link
+                            prefetch={false}
+                            className="text-primary hover:underline"
+                            href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                            scroll={false}
+                          >
+                            {r.studentName}
+                          </Link>
+                        ) : (
+                          <span>{r.studentName}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setModalStudent(r)}
+                          className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-100 hover:text-primary transition"
+                          title={`Open ${r.studentName}'s breakdown dialog`}
+                          aria-label={`Open breakdown modal for ${r.studentName}`}
+                        >
+                          Breakdown
+                        </button>
+                      </div>
+                    </td>
+                    <ReceivedCells minutes={r.total} strong />
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-t border-slate-200 bg-slate-50/60">
+                      <td colSpan={4} className="p-3 sm:p-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="text-xs font-semibold text-slate-700">
+                              Breakdown for {r.studentName} · {formatMonthLabel(month)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setModalStudent(r)}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              Open in modal
+                            </button>
+                          </div>
+                          <StudentHoursView hours={toStudentHours(r)} canLinkTutor={canLinkTutor} />
+                          {canLinkStudent && (
+                            <div className="mt-3 border-t border-slate-100 pt-2 text-xs">
+                              <Link
+                                prefetch={false}
+                                href={`/students/${r.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                See {r.studentName}&apos;s sessions one by one →
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+          {showTotal && totalMins && (
+            <tfoot>
+              <tr className="border-t-2 font-medium text-slate-700">
+                <td className="p-2">Total - {formatMonthLabel(month)}</td>
+                <ReceivedCells minutes={totalMins} strong />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      <Modal
+        open={modalStudent !== null}
+        onClose={() => setModalStudent(null)}
+        title={modalStudent ? `${modalStudent.studentName} — Breakdown (${formatMonthLabel(month)})` : undefined}
+        size="lg"
+      >
+        {modalStudent && (
+          <div className="space-y-4">
+            <StudentHoursView hours={toStudentHours(modalStudent)} canLinkTutor={canLinkTutor} />
+            {canLinkStudent && (
+              <div className="border-t border-slate-100 pt-3 text-xs">
+                <Link
+                  prefetch={false}
+                  href={`/students/${modalStudent.studentId}?hoursMonth=${encodeURIComponent(month)}#hours`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  See {modalStudent.studentName}&apos;s sessions one by one →
+                </Link>
+              </div>
+            )}
+          </div>
         )}
-      </table>
-    </div>
+      </Modal>
+    </>
   )
 }
 
@@ -727,11 +845,12 @@ export function MenteesHoursTable({
 
 /**
  * Worked hours table, one row per tutor / mentor.
- * Detailed breakdowns by subject and student are available in the dedicated detail panels below.
+ * Row expansion and breakdown modal provide instant subject and student details without cluttering the page.
  */
 export function WorkedHoursTable({
   people,
   month,
+  canLinkStudent = true,
   showTotal = true,
 }: {
   people: readonly PersonHours[]
@@ -739,59 +858,156 @@ export function WorkedHoursTable({
   canLinkStudent?: boolean
   showTotal?: boolean
 }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [modalPerson, setModalPerson] = useState<PersonHours | null>(null)
+
   if (people.length === 0) return null
   const totalMins = showTotal ? sumByKind(people.map((p) => p.minutes)) : null
   const totalSess = showTotal ? sumByKind(people.map((p) => p.sessions)) : null
 
+  const toggleExpand = (rowKey: string) => {
+    setExpanded((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }))
+  }
+
   return (
-    <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
-      <table aria-label="Hours worked, by tutor and mentor" className="data-table w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-600">
-            <Head>Tutor / mentor</Head>
-            <WorkedHeaders />
-          </tr>
-        </thead>
-        <tbody>
-          {people.map((p) => (
-            <tr key={p.personId ?? 'unassigned'} className="border-t bg-white">
-              <td className="p-2 font-medium text-slate-800">
-                <span className="inline-flex items-baseline gap-1.5">
-                  {p.personId ? (
-                    <Link
-                      prefetch={false}
-                      href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
-                      className="hover:text-primary hover:underline"
-                    >
-                      {p.personName}
-                    </Link>
-                  ) : (
-                    p.personName
-                  )}
-                  {roleLabelIfUnexpected(p.personRole, 'tutor') && (
-                    <span className="text-meta font-medium text-slate-500">
-                      {roleLabelIfUnexpected(p.personRole, 'tutor')}
-                    </span>
-                  )}
-                </span>
-              </td>
-              <WorkedCells sessions={p.sessions} minutes={p.minutes} strong />
+    <>
+      <div className={cx(CARD, 'mt-3 overflow-x-auto')}>
+        <table aria-label="Hours worked, by tutor and mentor" className="data-table w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <Head>Tutor / mentor</Head>
+              <WorkedHeaders />
             </tr>
-          ))}
-        </tbody>
-        {showTotal && (
-          <tfoot>
-            <tr className="border-t-2 font-medium text-slate-700">
-              <td className="p-2">Total - {formatMonthLabel(month)}</td>
-              <WorkedCells
-                sessions={totalSess ?? { regular: 0, demo: 0, exam: 0 }}
-                minutes={totalMins ?? { regular: 0, demo: 0, exam: 0 }}
-                strong
-              />
-            </tr>
-          </tfoot>
+          </thead>
+          <tbody>
+            {people.map((p) => {
+              const rowKey = p.personId ?? p.personName ?? 'unassigned'
+              const isExpanded = !!expanded[rowKey]
+              return (
+                <Fragment key={rowKey}>
+                  <tr className="border-t bg-white">
+                    <td className="p-2 font-medium text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(rowKey)}
+                          aria-label={
+                            isExpanded
+                              ? `Collapse breakdown for ${p.personName}`
+                              : `Expand breakdown for ${p.personName}`
+                          }
+                          aria-expanded={isExpanded}
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                          title={isExpanded ? 'Collapse breakdown' : 'Expand breakdown'}
+                        >
+                          <ChevronRight
+                            className={cx('h-4 w-4 transition-transform duration-150', isExpanded && 'rotate-90')}
+                          />
+                        </button>
+                        <span className="inline-flex items-baseline gap-1.5">
+                          {p.personId ? (
+                            <Link
+                              prefetch={false}
+                              href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {p.personName}
+                            </Link>
+                          ) : (
+                            <span>{p.personName}</span>
+                          )}
+                          {roleLabelIfUnexpected(p.personRole, 'tutor') && (
+                            <span className="text-meta font-medium text-slate-500">
+                              {roleLabelIfUnexpected(p.personRole, 'tutor')}
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setModalPerson(p)}
+                          className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-100 hover:text-primary transition"
+                          title={`Open ${p.personName}'s breakdown dialog`}
+                          aria-label={`Open breakdown modal for ${p.personName}`}
+                        >
+                          Breakdown
+                        </button>
+                      </div>
+                    </td>
+                    <WorkedCells sessions={p.sessions} minutes={p.minutes} strong />
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-t border-slate-200 bg-slate-50/60">
+                      <td colSpan={6} className="p-3 sm:p-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="text-xs font-semibold text-slate-700">
+                              Breakdown for {p.personName} · {formatMonthLabel(month)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setModalPerson(p)}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              Open in modal
+                            </button>
+                          </div>
+                          <PersonHoursView hours={p} month={month} canLinkStudent={canLinkStudent} />
+                          {p.personId && (
+                            <div className="mt-3 border-t border-slate-100 pt-2 text-xs">
+                              <Link
+                                prefetch={false}
+                                href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                See {p.personName}&apos;s full session-by-session ledger →
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+          {showTotal && (
+            <tfoot>
+              <tr className="border-t-2 font-medium text-slate-700">
+                <td className="p-2">Total - {formatMonthLabel(month)}</td>
+                <WorkedCells
+                  sessions={totalSess ?? { regular: 0, demo: 0, exam: 0 }}
+                  minutes={totalMins ?? { regular: 0, demo: 0, exam: 0 }}
+                  strong
+                />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      <Modal
+        open={modalPerson !== null}
+        onClose={() => setModalPerson(null)}
+        title={modalPerson ? `${modalPerson.personName} — Breakdown (${formatMonthLabel(month)})` : undefined}
+        size="lg"
+      >
+        {modalPerson && (
+          <div className="space-y-4">
+            <PersonHoursView hours={modalPerson} month={month} canLinkStudent={canLinkStudent} />
+            {modalPerson.personId && (
+              <div className="border-t border-slate-100 pt-3 text-xs">
+                <Link
+                  prefetch={false}
+                  href={`/admin/teaching-hours/person/${modalPerson.personId}?month=${month}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  See {modalPerson.personName}&apos;s full session-by-session ledger →
+                </Link>
+              </div>
+            )}
+          </div>
         )}
-      </table>
-    </div>
+      </Modal>
+    </>
   )
 }
