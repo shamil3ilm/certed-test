@@ -325,6 +325,12 @@ To guarantee optimal experience on mobile, tablet, and desktop:
     - **Total Received Stat Card**: Added a primary "Total received" stat card (showing total minutes and total session count) to `StudentHoursView`, achieving full parity with `PersonHoursView`'s "Working hours" card.
     - **Polished Month Dropdown (`MonthFilterField`)**: Replaced the native `<input type="month">` with a styled `<select className={SELECT_CONTROL}>` dropdown in `src/lib/ui/forms.tsx`. It automatically generates human-readable month options formatted via `formatMonthLabel` (e.g. "November 2026", "October 2026") spanning past 24 months to next 2 months, guaranteeing seamless selection across all desktop and mobile browsers.
     - **Global CSS Consolidation & Domain Time Helpers**: Consolidated custom select dropdown chevron styling into global CSS (`src/app/globals.css` via `.prt-scope select` and `.select-control`), eliminating duplicated inline SVG data URIs across `src/lib/ui/forms.tsx` and `src/app/(prt)/form.tsx`. Pure month generation logic was extracted into `generateMonthOptions` in `src/lib/time/format.ts` adhering to the architecture layer guidelines.
+21. **Custom Month Picker Redesign (Year Stepper & Bounded Month Grid)**:
+    - **Replaced Cluttered List with Bounded Month Grid**: Reset the flat `<select>` list and redesigned a custom Month Picker component (`MonthFilterField` in `src/lib/ui/forms.tsx`) inspired by the structured year-and-month picker of the browser original, but completely styled with Cert-Ed custom design tokens.
+    - **Year Navigation Header**: Includes `<` and `>` year steppers, clean year display, and boundary divider (`border-b border-slate-100`).
+    - **12 Bounded Month Tiles**: Renders a 3x4 grid of distinct month button tiles with visible boundaries (`border border-slate-200`), rounded corners, primary selected state (`bg-primary text-white border-primary shadow-sm`), and current month indicator (`border-primary/50 bg-primary/5`).
+    - **Quick Shortcuts**: Added 'This month' quick selection shortcut and monospace `YYYY-MM` preview.
+    - **Accessibility & Form Contract**: Retains hidden form input `<input type="hidden" name={name} value={selectedMonth} />`, keyboard navigation (Escape to close), outside-click dismissal, and full query parameter compatibility (`?month=YYYY-MM`).
 
 ---
 

@@ -1,6 +1,9 @@
 'use client'
 
 import {
+  useState,
+  useRef,
+  useEffect,
   useTransition,
   type FormEvent,
   type InputHTMLAttributes,
@@ -9,7 +12,8 @@ import {
 } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { generateMonthOptions } from '@/lib/time/format'
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatMonthLabel } from '@/lib/time/format'
 import { cx } from './core'
 
 /* The shared GET filter/search bar used by the Users hub, grading queue,
@@ -104,8 +108,25 @@ export function DateFilterField({
   )
 }
 
-/** Shared month dropdown field for FilterBar layouts.
- * Renders a clean select dropdown with formatted month names (e.g. "November 2026").
+const MONTHS_GRID = [
+  { num: '01', label: 'Jan' },
+  { num: '02', label: 'Feb' },
+  { num: '03', label: 'Mar' },
+  { num: '04', label: 'Apr' },
+  { num: '05', label: 'May' },
+  { num: '06', label: 'Jun' },
+  { num: '07', label: 'Jul' },
+  { num: '08', label: 'Aug' },
+  { num: '09', label: 'Sep' },
+  { num: '10', label: 'Oct' },
+  { num: '11', label: 'Nov' },
+  { num: '12', label: 'Dec' },
+] as const
+
+/** Custom month picker field for FilterBar layouts.
+ * Inspired by the clean year-and-month grid structure of native month inputs,
+ * but fully redesigned with Cert-Ed design system tokens, bounded month tiles,
+ * and intuitive year navigation.
  */
 export function MonthFilterField({
   label = 'Month',
@@ -113,33 +134,173 @@ export function MonthFilterField({
   className = '',
   inputClassName = '',
   defaultValue,
-  months,
-  ...props
+  autoSubmit = false,
 }: {
   label?: string
   name?: string
   className?: string
   inputClassName?: string
   defaultValue?: string
-  months?: Array<{ value: string; label: string }>
-} & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'defaultValue'>) {
-  const options = months ?? generateMonthOptions(typeof defaultValue === 'string' ? defaultValue : undefined)
+  autoSubmit?: boolean
+}) {
+  const initialValue =
+    typeof defaultValue === 'string' && /^\d{4}-\d{2}$/.test(defaultValue)
+      ? defaultValue
+      : new Date().toISOString().slice(0, 7)
+
+  const [prevDefault, setPrevDefault] = useState(defaultValue)
+  const [selectedMonth, setSelectedMonth] = useState(initialValue)
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const [viewYear, setViewYear] = useState(() => {
+    const y = parseInt(initialValue.slice(0, 4), 10)
+    return Number.isNaN(y) ? new Date().getUTCFullYear() : y
+  })
+
+  // Synchronize state during render when defaultValue prop changes
+  if (defaultValue !== prevDefault) {
+    setPrevDefault(defaultValue)
+    if (defaultValue && /^\d{4}-\d{2}$/.test(defaultValue)) {
+      setSelectedMonth(defaultValue)
+      const y = parseInt(defaultValue.slice(0, 4), 10)
+      if (!Number.isNaN(y)) setViewYear(y)
+    }
+  }
+
+  // Close when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!open) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const currentMonthKey = new Date().toISOString().slice(0, 7)
+
+  const handleSelectMonth = (monthKey: string) => {
+    setSelectedMonth(monthKey)
+    setOpen(false)
+    if (autoSubmit && containerRef.current) {
+      const form = containerRef.current.closest('form')
+      if (form) {
+        setTimeout(() => {
+          form.requestSubmit()
+        }, 0)
+      }
+    }
+  }
 
   return (
-    <FilterField label={label} className={className}>
-      <select
-        name={name}
-        defaultValue={defaultValue}
-        className={cx(SELECT_CONTROL, 'block w-full min-w-[10rem]', inputClassName)}
-        {...props}
+    <div className={cx('relative inline-flex flex-col', className)} ref={containerRef}>
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <input type="hidden" name={name} value={selectedMonth} />
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${label}: ${formatMonthLabel(selectedMonth) || selectedMonth}`}
+        className={cx(
+          FILTER_CONTROL,
+          'flex min-w-[11.5rem] items-center justify-between gap-2.5 bg-white text-left font-medium text-slate-800 transition hover:border-slate-300 focus:border-primary',
+          inputClassName,
+        )}
       >
-        {options.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
-    </FilterField>
+        <span className="flex items-center gap-2 truncate">
+          <Calendar className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <span className="truncate">{formatMonthLabel(selectedMonth) || selectedMonth}</span>
+        </span>
+        <ChevronDown
+          className={cx('h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Select month"
+          className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl ring-1 ring-black/5"
+        >
+          {/* Year navigation header */}
+          <div className="mb-2.5 flex items-center justify-between border-b border-slate-100 pb-2">
+            <button
+              type="button"
+              onClick={() => setViewYear((y) => y - 1)}
+              aria-label="Previous year"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 cursor-pointer"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-semibold tabular-nums text-slate-800">{viewYear}</span>
+            <button
+              type="button"
+              onClick={() => setViewYear((y) => y + 1)}
+              aria-label="Next year"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 cursor-pointer"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Month grid with clear boundaries */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {MONTHS_GRID.map((m) => {
+              const monthKey = `${viewYear}-${m.num}`
+              const isSelected = selectedMonth === monthKey
+              const isCurrent = currentMonthKey === monthKey
+              return (
+                <button
+                  key={m.num}
+                  type="button"
+                  onClick={() => handleSelectMonth(monthKey)}
+                  className={cx(
+                    'rounded-lg border px-2 py-2 text-center text-xs transition cursor-pointer',
+                    isSelected
+                      ? 'border-primary bg-primary font-semibold text-white shadow-sm'
+                      : isCurrent
+                        ? 'border-primary/50 bg-primary/5 font-medium text-primary hover:bg-primary/10'
+                        : 'border-slate-200 bg-white font-normal text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                  )}
+                >
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quick actions footer */}
+          <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                const currentY = new Date().getUTCFullYear()
+                setViewYear(currentY)
+                handleSelectMonth(currentMonthKey)
+              }}
+              className="font-medium text-primary hover:underline cursor-pointer"
+            >
+              This month
+            </button>
+            <span className="font-mono text-meta tabular-nums text-slate-400">{selectedMonth}</span>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
