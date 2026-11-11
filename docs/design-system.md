@@ -44,8 +44,8 @@ Rule of thumb: **anything a user reads is ≥ `text-meta` (11px)**; only `text-m
 - **Layout & surfaces:** `Card`, `Panel`, `PageHeader`, `EmptyState`, `AlertBanner`, `BackLink`, `StatGrid`, `StatCard`, `PaginationBar`; the `CARD` surface class + `cx()` class-merge helper.
 - **Lists:** `ListRow`, `RowChevron`, `ArchivedList`. On the dashboard, `widget-shared` adds `WIDGET_ROW_LINK` (label ↔ meta side-by-side) and `WIDGET_ROW_STACK` (label on top, full width, meta beneath) — **use `_STACK` when the meta is long** (a full date/time) so the label isn't squeezed to a few characters in a narrow column.
 - **Labels & badges:** `Badge`, `SectionLabel`, `roleLabel`, `statusLabel`, `staffRoleLabel`, `personaLabel`.
-- **Identity:** `Avatar`, `initials`, `roleTone`, `classBanner`.
-- **Filters:** `FilterBar`, `SearchFilterField`, `SelectFilterField`, `DateFilterField`, `FilterField`.
+- **Identity & Brand:** `Avatar`, `initials`, `roleTone`, `classBanner`, `GoogleIcon` (from `@/lib/ui/brand-icons`).
+- **Filters:** `FilterBar`, `SearchFilterField`, `SelectFilterField`, `DateFilterField`, `MonthFilterField`, `YearFilterField`, `DateRangeFilterField`, `SortFilterField`, `FilterField`; standard dropdown tokens `SELECT_CONTROL` and `SELECT_FIELD`.
 - **Toggles:** `SEGMENTED_GROUP` + `segmentedButtonClass`, `pillButtonClass`.
 - **Charts:** `ColumnChart`, `LineChart`, `MiniBars`, `LegendDot` (dependency-free SVG/CSS).
 - **Nav:** `SectionJumpNav`, `ExternalActionLink`.

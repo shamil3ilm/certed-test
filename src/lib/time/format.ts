@@ -63,6 +63,36 @@ export function formatMonthLabel(month: string): string {
   return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d)
 }
 
+/**
+ * Generate a sorted list of month options (`{ value: 'YYYY-MM', label: 'Month Year' }`)
+ * centered on the current date, ensuring `defaultValue` is included if provided.
+ */
+export function generateMonthOptions(
+  defaultValue?: string,
+  pastMonths = 24,
+  futureMonths = 2,
+): Array<{ value: string; label: string }> {
+  const now = new Date()
+  const currentY = now.getUTCFullYear()
+  const currentM = now.getUTCMonth() + 1
+
+  const set = new Set<string>()
+  for (let i = futureMonths; i >= -pastMonths; i--) {
+    const d = new Date(Date.UTC(currentY, currentM - 1 + i, 1))
+    set.add(d.toISOString().slice(0, 7))
+  }
+
+  if (defaultValue && /^\d{4}-\d{2}$/.test(defaultValue)) {
+    set.add(defaultValue)
+  }
+
+  const sorted = Array.from(set).sort((a, b) => b.localeCompare(a))
+  return sorted.map((val) => ({
+    value: val,
+    label: formatMonthLabel(val),
+  }))
+}
+
 /** "20 Jun 2026". Omit timeZone to format in the runtime zone (the device, on the client). */
 export function formatDate(iso: string, timeZone?: string): string {
   const d = new Date(iso)

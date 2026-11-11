@@ -52,8 +52,9 @@ The portal is a class-centric learning and operations app for:
 `feature/cert-ed-academia-app` branch is where the app was built before it was merged into
 `main`; it is no longer updated.
 
-Remotes: `origin` is the primary repository; `test` is a deploy mirror whose `main`
-branch builds the staging site. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Remotes: `origin` is the primary repository; `staging` is a deploy mirror whose `main`
+branch builds the staging site. See [CONTRIBUTING.md](CONTRIBUTING.md). Sequential pushes
+deploy to `staging` first, then `origin`.
 
 ## Local development
 

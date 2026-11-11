@@ -313,6 +313,18 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - Worked Hours: 6 columns (`Tutor / mentor | Sessions | Regular | Exam | Demo | Working`). Last column evaluates to `Working` minutes (`class-hours.pw.ts:66`, `hours-breakdown.pw.ts:113`).
       - Received Hours: 4 columns (`Student | Regular | Demo | Exam`). Cell index 1 evaluates to `Regular` minutes (`class-hours.pw.ts:72`, `hours-breakdown.pw.ts:135`).
       - Name links navigate to `/admin/teaching-hours/person/[id]` and `/students/[id]` as verified by E2E test suites.
+19. **Comprehensive Documentation Audit & Accuracy Synchronization**:
+    - **Remote Alignment**: Corrected `CONTRIBUTING.md` and `README.md` to reference `staging` (`shamil3ilm/certed-test`) instead of the legacy `test` name, formalizing the sequential deployment protocol (`staging` first, then `origin`).
+    - **CI Workflow Parity**: Documented the active CI jobs (`verify`, `e2e`, and `rls`) in `CONTRIBUTING.md`, noting `--max-warnings 0` lint enforcement, bundle checking, and real-Postgres pay-worker verification (`test-pay-worker.sh`).
+    - **Database Migration Chain Head**: Updated `docs/handover.md` and `CONTRIBUTING.md` to record the active head migration `0126_pay_follows_the_worker.sql` and the `session_pay_worker` helper.
+    - **API Route Reference**: Added `/api/teaching-hours/export`, `/api/payslips/draft`, and `/api/receipts/draft` to `docs/api-reference.md` and updated route counts in `docs/where-to-find-what.md`.
+    - **Design System Tokens & Form Filters**: Documented `MonthFilterField`, `YearFilterField`, `DateRangeFilterField`, `SortFilterField`, `SELECT_CONTROL`, and `GoogleIcon` in `docs/design-system.md`.
+    - **Multi-Remote & Viewport Troubleshooting**: Added guidance for git lockfiles, rebase recovery, and E2E viewport constraints to `docs/troubleshooting.md`.
+20. **Student Sessions Count, Total Received Hours, Month Dropdown Upgrade & Global Select Styling**:
+    - **Student Sessions & Total Hours**: Added `Sessions` (`totalByKind(sessions)`) and `Total` (`minutes.regular + minutes.demo + minutes.exam`) columns to `ReceivedHeaders` and `ReceivedCells` in `src/app/(prt)/HoursTables.tsx`. Both the top-level `ReceivedHoursTable` and inner `StudentHoursView` breakdowns (by subject, by tutor, and footers) now display complete session counts and total received time while strictly preserving Column 1 (`Regular`), Column 2 (`Demo`), and Column 3 (`Exam`) indices required by tests.
+    - **Total Received Stat Card**: Added a primary "Total received" stat card (showing total minutes and total session count) to `StudentHoursView`, achieving full parity with `PersonHoursView`'s "Working hours" card.
+    - **Polished Month Dropdown (`MonthFilterField`)**: Replaced the native `<input type="month">` with a styled `<select className={SELECT_CONTROL}>` dropdown in `src/lib/ui/forms.tsx`. It automatically generates human-readable month options formatted via `formatMonthLabel` (e.g. "November 2026", "October 2026") spanning past 24 months to next 2 months, guaranteeing seamless selection across all desktop and mobile browsers.
+    - **Global CSS Consolidation & Domain Time Helpers**: Consolidated custom select dropdown chevron styling into global CSS (`src/app/globals.css` via `.prt-scope select` and `.select-control`), eliminating duplicated inline SVG data URIs across `src/lib/ui/forms.tsx` and `src/app/(prt)/form.tsx`. Pure month generation logic was extracted into `generateMonthOptions` in `src/lib/time/format.ts` adhering to the architecture layer guidelines.
 
 ---
 

@@ -7,10 +7,20 @@ Cert-Ed Academia is a Next.js 16 (App Router) + Supabase learning portal. This i
 `main` is the live codebase, and a fresh clone lands on it. `feature/cert-ed-academia-app`
 is where the app was built before it was merged into `main`; it is no longer updated.
 
-| Remote   | Repository               | Role                                                      |
-| -------- | ------------------------ | --------------------------------------------------------- |
-| `origin` | `certedapp/wed_cert`     | Primary repository                                        |
-| `test`   | `shamil3ilm/certed-test` | Deploy mirror — its `main` branch builds the staging site |
+| Remote    | Repository               | Role                                                      |
+| --------- | ------------------------ | --------------------------------------------------------- |
+| `origin`  | `certedapp/wed_cert`     | Primary repository                                        |
+| `staging` | `shamil3ilm/certed-test` | Deploy mirror — its `main` branch builds the staging site |
+
+### Multi-remote deployment protocol
+
+All production changes follow a strict sequential deployment and author identity protocol:
+
+1. **Sequential Push Order**: Always push to `staging` first to prove CI checks and deployment integrity, then push to `origin`:
+   ```bash
+   git push staging main:main
+   git push origin main:main
+   ```
 
 ## Running locally
 
@@ -49,25 +59,21 @@ E2E_BUILD=1 npm run build
 > bare `npm run build` fails once you have the quick-start `.env.local`. Prefix it with
 > `E2E_BUILD=1`, or unset the `MOCK_*` vars.
 
-CI runs more than that list. The full set, by job:
+CI runs more than that list. The full set, by workflow job in `.github/workflows/ci.yml`:
 
-| Job          | Gate                                                                                        | Run locally                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| repo hygiene | migration prefixes unique, snapshot freshness, doc links resolve, hooks executable          | `npm run check:snapshot`, `npm run check:doc-links`, `npm run check:hooks`     |
-| build + test | `format:check`, `lint`, `typecheck`, **`test:coverage`**, `build`, first-load bundle budget | as above, plus `npm run test:coverage` and `npm run check:bundle`              |
-| e2e          | Playwright (chromium)                                                                       | `npx playwright install --with-deps chromium` once, then `npx playwright test` |
-| database     | RLS policy assertions, privilege parity (migrations vs snapshot)                            | `bash scripts/test-rls.sh`, `bash scripts/test-privilege-parity.sh`            |
+| Job      | Gate                                                                                                                                                                                         | Run locally                                                                                                                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify` | Migration hygiene, snapshot freshness, doc links resolve, hooks executable, `format:check`, `lint` (`--max-warnings 0`), `typecheck`, **`test:coverage`**, `build`, first-load bundle budget | `npm run check:snapshot`, `npm run check:doc-links`, `npm run check:hooks`, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm run check:bundle` |
+| `e2e`    | Playwright end-to-end suite (chromium)                                                                                                                                                       | `npx playwright install --with-deps chromium` once, then `npx playwright test`                                                                                                           |
+| `rls`    | Real Postgres RLS policy assertions, privilege parity (migrations vs snapshot), and pay-follows-the-worker verification                                                                      | `bash scripts/test-rls.sh`, `bash scripts/test-privilege-parity.sh`, `bash scripts/test-pay-worker.sh`                                                                                   |
 
 Notes on the ones with prerequisites:
 
-- **`test:coverage`** is the gate CI uses, not `test` — it enforces the thresholds in
-  `vitest.config.ts`. Adding untested code can fail CI even when `npm run test` is green.
+- **`test:coverage`** is the gate CI uses, not `test` — it enforces the thresholds in `vitest.config.ts`. Adding untested code can fail CI even when `npm run test` is green.
+- **`lint`** enforces `--max-warnings 0` — any ESLint warning fails the CI build.
 - **`check:bundle`** reads `.next/build-manifest.json`, so it needs a build first.
-- **Playwright** builds the app inside its `webServer` (ports 3100/3101), so a run takes
-  several minutes.
-- **The database gates** need a local Postgres on `127.0.0.1` (superuser `postgres`); the
-  RLS suite creates and drops a scratch database. They are the only real proof of the RLS
-  policies — mock mode cannot exercise them.
+- **Playwright** builds the app inside its `webServer` (ports 3100/3101), so a run takes several minutes.
+- **The database gates (`rls`)** need a local Postgres on `127.0.0.1` (superuser `postgres`); the RLS suite creates and drops a scratch database. They are the only real proof of the RLS policies and pay attribution rules — mock mode cannot exercise them.
 
 ## Git hooks
 
@@ -80,7 +86,7 @@ Both run the same scripts CI runs. They are a subset of CI, not a substitute for
 
 ## Database changes
 
-- Add a migration in `supabase/migrations/` using the next free number. Never trust a hard-coded range quoted in prose.
+- Add a migration in `supabase/migrations/` using the next free number (the active migration chain head is currently `0126_pay_follows_the_worker.sql`). Never trust a hard-coded range quoted in prose.
 - Migrations must be idempotent where practical and safe to replay.
 - Follow [docs/migration-checklist.md](docs/migration-checklist.md).
 - After schema changes, regenerate the rebuild snapshot with `npm run db:rebuild-snapshot` — the pre-commit hook blocks the migration commit until you do.

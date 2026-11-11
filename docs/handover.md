@@ -1,6 +1,6 @@
 # Handover — the state of the world
 
-**Last reviewed: 2026-09-29.**
+**Last reviewed: 2026-11-11.**
 
 The repository's CI is green and its tests pass, which says the code is consistent with itself. It does not say the running system is finished. This file is the register of what is still open, so someone arriving at a clean clone does not have to infer it.
 
@@ -16,13 +16,13 @@ Each item says what is wrong or missing, what "done" looks like, and where the d
 
 ### 1. Production database is behind the migration chain
 
-The chain head is `0125_notification_mutes.sql`. Production was last taken to `0118` plus the out-of-band server-function grants. Migrations **0119, 0120, 0121 and 0122** have not been applied there, and neither have **0123** (a session's type and an exam's monitor), **0124** (a scheduled announcement tells its class when it goes live) or **0125** (a person can mute kinds of notice) - those three are not known to be applied to staging either. The code that reads `class_sessions.kind`, `announcements.live_notified_at` and `notification_mutes` must not deploy before them.
+The chain head is `0126_pay_follows_the_worker.sql`. Production was last taken to `0118` plus the out-of-band server-function grants. Migrations **0119, 0120, 0121 and 0122** have not been applied there, and neither have **0123** (a session's type and an exam's monitor), **0124** (a scheduled announcement tells its class when it goes live), **0125** (a person can mute kinds of notice), or **0126** (pay follows the worker: an exam is paid to its monitor and a demo is paid to nobody). The code that reads `class_sessions.kind`, `announcements.live_notified_at`, `notification_mutes`, and `session_pay_worker` must not deploy to production before them.
 
-**Staging is at the chain head as of 2026-10-12** — `MIGRATIONS_0119_to_0122.sql` was run there, which also re-ran 0119/0120 so the two mentorship function bodies match the chain byte for byte. Production is the remaining half.
+**Staging is at the chain head as of 2026-11-11** — `MIGRATIONS_0119_to_0122.sql` was run there, which also re-ran 0119/0120 so the two mentorship function bodies match the chain byte for byte. Migrations 0123 through 0126 are in place on staging. Production is the remaining target.
 
 **Done looks like:** production at the chain head, and the verification query for each returning all `true`.
 
-**The order of work, decided 2026-10-12:** everything is proven on staging first, then production follows. So a fix that is "done" in this register means done on staging unless it says otherwise, and production is taken through the same steps afterwards.
+**The order of work:** everything is proven on staging first, then production follows. So a fix that is "done" in this register means done on staging unless it says otherwise, and production is taken through the same steps afterwards.
 
 ---
 

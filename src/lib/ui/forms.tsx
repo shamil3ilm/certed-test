@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { generateMonthOptions } from '@/lib/time/format'
 import { cx } from './core'
 
 /* The shared GET filter/search bar used by the Users hub, grading queue,
@@ -20,10 +21,7 @@ export const FILTER_CONTROL =
   'mt-1 block rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
 
 /** Standard control styling for FilterBar select dropdowns with custom chevron. */
-export const SELECT_CONTROL = cx(
-  FILTER_CONTROL,
-  'cursor-pointer appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20fill=%22none%22%20viewBox=%220%200%2020%2020%22%3E%3Cpath%20stroke=%22%2364748b%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%20stroke-width=%221.5%22%20d=%22m6%208%204%204%204-4%22/%3E%3C/svg%3E")] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat pr-8',
-)
+export const SELECT_CONTROL = cx(FILTER_CONTROL, 'select-control')
 
 /** Standard width treatment for the primary search field in a FilterBar. */
 export const FILTER_SEARCH_FIELD = 'min-w-0 flex-[2_1_18rem] sm:min-w-[18rem]'
@@ -106,20 +104,41 @@ export function DateFilterField({
   )
 }
 
-/** Shared month field for FilterBar layouts. */
+/** Shared month dropdown field for FilterBar layouts.
+ * Renders a clean select dropdown with formatted month names (e.g. "November 2026").
+ */
 export function MonthFilterField({
   label = 'Month',
+  name = 'month',
   className = '',
   inputClassName = '',
+  defaultValue,
+  months,
   ...props
 }: {
   label?: string
+  name?: string
   className?: string
   inputClassName?: string
-} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  defaultValue?: string
+  months?: Array<{ value: string; label: string }>
+} & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'defaultValue'>) {
+  const options = months ?? generateMonthOptions(typeof defaultValue === 'string' ? defaultValue : undefined)
+
   return (
     <FilterField label={label} className={className}>
-      <input type="month" className={cx(FILTER_CONTROL, 'block', inputClassName)} {...props} />
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className={cx(SELECT_CONTROL, 'block w-full min-w-[10rem]', inputClassName)}
+        {...props}
+      >
+        {options.map((m) => (
+          <option key={m.value} value={m.value}>
+            {m.label}
+          </option>
+        ))}
+      </select>
     </FilterField>
   )
 }

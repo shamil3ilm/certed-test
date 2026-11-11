@@ -22,13 +22,16 @@ Every route under `src/app/api`. "Guard" is the primary access check at the entr
 | `/api/reports/[type]/[studentId]`  | GET           | report access check + rate limit; `?format=html\|pdf`                                                                                                         |
 | `/api/report-card/[studentId]/pdf` | GET           | report access check + rate limit                                                                                                                              |
 | `/api/payslips`                    | POST          | finance capability (via `@/lib/finance/handlers`)                                                                                                             |
+| `/api/payslips/draft`              | GET, POST     | finance capability                                                                                                                                            |
 | `/api/payslips/[id]/pdf`           | GET           | finance capability                                                                                                                                            |
 | `/api/payslips/[id]/void`          | POST          | finance capability + rate limit                                                                                                                               |
 | `/api/payslips/export`             | GET           | finance capability + rate limit                                                                                                                               |
 | `/api/receipts`                    | POST          | finance capability                                                                                                                                            |
+| `/api/receipts/draft`              | GET, POST     | finance capability                                                                                                                                            |
 | `/api/receipts/[id]/pdf`           | GET           | finance capability                                                                                                                                            |
 | `/api/receipts/[id]/void`          | POST          | finance capability + rate limit                                                                                                                               |
 | `/api/receipts/export`             | GET           | finance capability + rate limit                                                                                                                               |
+| `/api/teaching-hours/export`       | GET           | `manageClasses` (export monthly teaching hours CSV)                                                                                                           |
 | `/api/logout`                      | POST          | active session                                                                                                                                                |
 
 ## Public and infrastructure

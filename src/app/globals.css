@@ -178,6 +178,18 @@ html {
   color: #94a3b8;
 }
 
+/* Select dropdown styling with consistent SVG chevron arrow. */
+.prt-scope select,
+.select-control {
+  cursor: pointer;
+  appearance: none;
+  background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20fill=%22none%22%20viewBox=%220%200%2020%2020%22%3E%3Cpath%20stroke=%22%2364748b%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%20stroke-width=%221.5%22%20d=%22m6%208%204%204%204-4%22/%3E%3C/svg%3E');
+  background-size: 1.25rem 1.25rem;
+  background-position: right 0.65rem center;
+  background-repeat: no-repeat;
+  padding-right: 2.25rem;
+}
+
 /* Data tables - opt-in via `.data-table` so we never touch library tables
    (e.g. FullCalendar renders its grid with <table> elements). */
 .prt-scope table.data-table {

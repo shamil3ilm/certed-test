@@ -65,22 +65,29 @@ function ReceivedHeaders() {
       <Head right>Regular</Head>
       <Head right>Demo</Head>
       <Head right>Exam</Head>
+      <Head right>Sessions</Head>
+      <Head right>Total</Head>
     </>
   )
 }
 
 function ReceivedCells({
+  sessions,
   minutes,
   strong = false,
 }: {
+  sessions?: { regular: number; demo: number; exam: number }
   minutes: { regular: number; demo: number; exam: number }
   strong?: boolean
 }) {
+  const totalMins = minutes.regular + minutes.demo + minutes.exam
   return (
     <>
       <Num strong={strong}>{cell(minutes.regular)}</Num>
       <Num strong={strong}>{cell(minutes.demo)}</Num>
       <Num strong={strong}>{cell(minutes.exam)}</Num>
+      <Num strong={strong}>{sessions ? totalByKind(sessions) : '-'}</Num>
+      <Num strong={strong}>{cell(totalMins)}</Num>
     </>
   )
 }
@@ -161,9 +168,13 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
     return <>{tutorName}</>
   }
 
+  const totalReceived = hours.total.regular + hours.total.demo + hours.total.exam
+  const totalSessions = totalByKind(hours.sessions)
+
   return (
     <div>
       <div className="flex flex-wrap gap-3">
+        <Stat label="Total received" value={totalReceived} note={`${totalSessions} sessions`} />
         <Stat label="Regular" value={hours.total.regular} note={`${hours.sessions.regular} sessions`} />
         <Stat
           label="Demo"
@@ -197,7 +208,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                     )}
                     {s.byTutor && s.byTutor.length > 1 && <CountPill count={s.byTutor.length} label="tutors" />}
                   </td>
-                  <ReceivedCells minutes={s.minutes} strong />
+                  <ReceivedCells sessions={s.sessions} minutes={s.minutes} strong />
                 </tr>
                 {s.byTutor &&
                   s.byTutor.length > 1 &&
@@ -210,7 +221,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                         <span className="mr-1.5 font-mono text-slate-500">↳</span>
                         <TutorName tutorId={t.tutorId} tutorName={t.tutorName} />
                       </td>
-                      <ReceivedCells minutes={t.minutes} />
+                      <ReceivedCells sessions={t.sessions} minutes={t.minutes} />
                     </tr>
                   ))}
               </Fragment>
@@ -219,7 +230,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
               <td className="p-2">Total</td>
-              <ReceivedCells minutes={hours.total} strong />
+              <ReceivedCells sessions={hours.sessions} minutes={hours.total} strong />
             </tr>
           </tfoot>
         </table>
@@ -243,7 +254,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                     )}
                     {t.bySubject && t.bySubject.length > 1 && <CountPill count={t.bySubject.length} label="subjects" />}
                   </td>
-                  <ReceivedCells minutes={t.minutes} strong />
+                  <ReceivedCells sessions={t.sessions} minutes={t.minutes} strong />
                 </tr>
                 {t.bySubject &&
                   t.bySubject.length > 1 &&
@@ -256,7 +267,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
                         <span className="mr-1.5 font-mono text-slate-500">↳</span>
                         {sub.subjectName}
                       </td>
-                      <ReceivedCells minutes={sub.minutes} />
+                      <ReceivedCells sessions={sub.sessions} minutes={sub.minutes} />
                     </tr>
                   ))}
               </Fragment>
@@ -265,7 +276,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
               <td className="p-2">Total</td>
-              <ReceivedCells minutes={hours.total} strong />
+              <ReceivedCells sessions={hours.sessions} minutes={hours.total} strong />
             </tr>
           </tfoot>
         </table>
@@ -679,6 +690,7 @@ export function ReceivedHoursTable({
 
   if (rows.length === 0) return null
   const totalMins = showTotal ? sumByKind(rows.map((r) => r.total)) : null
+  const totalSess = showTotal ? sumByKind(rows.map((r) => r.sessions)) : null
 
   const toggleExpand = (studentId: string) => {
     setExpanded((prev) => ({ ...prev, [studentId]: !prev[studentId] }))
@@ -741,11 +753,11 @@ export function ReceivedHoursTable({
                         </button>
                       </div>
                     </td>
-                    <ReceivedCells minutes={r.total} strong />
+                    <ReceivedCells sessions={r.sessions} minutes={r.total} strong />
                   </tr>
                   {isExpanded && (
                     <tr className="border-t border-slate-200 bg-slate-50/60">
-                      <td colSpan={4} className="p-3 sm:p-4">
+                      <td colSpan={6} className="p-3 sm:p-4">
                         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                           <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
                             <div className="text-xs font-semibold text-slate-700">
@@ -783,7 +795,7 @@ export function ReceivedHoursTable({
             <tfoot>
               <tr className="border-t-2 font-medium text-slate-700">
                 <td className="p-2">Total - {formatMonthLabel(month)}</td>
-                <ReceivedCells minutes={totalMins} strong />
+                <ReceivedCells sessions={totalSess ?? undefined} minutes={totalMins} strong />
               </tr>
             </tfoot>
           )}
