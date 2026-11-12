@@ -28,8 +28,8 @@ function DetailRow({ label, value }: { label: string; value: string | null }) {
  * "Edit details" opens the inline form; "Permissions & Capabilities" navigates to
  * the per-user override editor.
  */
-export function DetailsCard({ profile }: { profile: ProfileDetails }) {
-  const isStudent = profile.role === 'student'
+export function DetailsCard({ profile, isStudent: isStudentProp }: { profile: ProfileDetails; isStudent?: boolean }) {
+  const isStudent = isStudentProp ?? profile.role === 'student'
 
   return (
     <Card className="p-4">

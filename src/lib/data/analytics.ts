@@ -73,7 +73,7 @@ export async function selectSessionsForClasses(
   const rows = await fetchAllPaged((from, to) => {
     let q = admin
       .from('class_sessions')
-      .select('actual_start, actual_end, class_id, session_date')
+      .select('actual_start, actual_end, class_id, session_date, kind')
       .order('id', { ascending: true })
     if (classIds) q = q.in('class_id', classIds)
     if (excludeClassIds?.length) q = q.not('class_id', 'in', `(${excludeClassIds.join(',')})`)

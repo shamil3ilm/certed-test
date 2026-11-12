@@ -1,4 +1,5 @@
 import type { Profile } from '@/lib/auth/profile'
+import { getActorContext } from '@/lib/session/actor-context'
 import { getStudentMonth } from '@/lib/services/hours-breakdown'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
@@ -32,8 +33,8 @@ export async function HoursPanel({
 }) {
   const tz = await getInstituteTimeZone()
   const month = monthParam && isMonth(monthParam) ? monthParam : todayInZone(tz).slice(0, 7)
-  const { hours, ledger } = await getStudentMonth(me, studentId, month)
-  const canLinkTutor = me.role === 'admin' || me.role === 'sub_admin'
+  const [actor, { hours, ledger }] = await Promise.all([getActorContext(), getStudentMonth(me, studentId, month)])
+  const canLinkTutor = actor.capabilities.allowed.has('manageClasses')
 
   return (
     <Card id="hours" className="mt-6 scroll-mt-20 p-4">

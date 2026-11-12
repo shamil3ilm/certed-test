@@ -3,6 +3,7 @@ import { getActorContext } from '@/lib/session/actor-context'
 import { isAdminTier } from '@/lib/capabilities'
 import { loadBillingRatesPageData } from '@/lib/services/finance/billing-rates-admin'
 import { BackLink, PageHeader } from '@/lib/ui'
+import { RatesTabs } from '../RatesTabs'
 import { RateRows } from './RateRows'
 
 /**
@@ -31,6 +32,7 @@ export default async function BillingRatesPage() {
         title="Hourly rates"
         description={`What each student pays and each tutor or mentor earns per hour. Receipts and pay slips are generated from these rates and the recorded class hours. New people default to ${baseCurrency}.`}
       />
+      <RatesTabs />
 
       {missing > 0 && (
         <p className="mt-3 rounded-xl border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">

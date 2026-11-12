@@ -6,7 +6,7 @@ import { todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { getAcademyClassHours } from '@/lib/services/teaching-hours'
 import { getAcademyBreakdown } from '@/lib/services/hours-breakdown'
-import { workingMinutes } from '@/lib/attendance/hours-breakdown'
+import { totalByKind, workingMinutes } from '@/lib/attendance/hours-breakdown'
 import { toCsvRow } from '@/lib/csv'
 import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 
@@ -79,6 +79,7 @@ export async function GET(request: Request) {
   rows.push(
     toCsvRow([
       'Student Name',
+      'Sessions Count',
       'Regular (min)',
       'Regular (hrs)',
       'Demo (min)',
@@ -91,9 +92,11 @@ export async function GET(request: Request) {
   )
   for (const s of students) {
     const totalMin = s.total.regular + s.total.demo + s.total.exam
+    const totalSessions = totalByKind(s.sessions)
     rows.push(
       toCsvRow([
         s.studentName,
+        totalSessions,
         s.total.regular,
         (s.total.regular / 60).toFixed(2),
         s.total.demo,

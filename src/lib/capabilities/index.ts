@@ -182,18 +182,21 @@ function aggregateCapabilities(personas: Array<{ persona_name: string }>): Reado
  * isAdminTier, which gates on the hard-rule manageAdminTier and thus can never be
  * widened by an override anyway.
  */
-export function getCapabilities(arg: Profile | Array<{ persona_name: string }>): ReadonlySet<Capability> {
+export function getCapabilities(arg: Pick<Profile, 'role'> | Array<{ persona_name: string }>): ReadonlySet<Capability> {
   if (Array.isArray(arg)) {
     return aggregateCapabilities(arg)
   }
   return ROLE_CAPABILITIES[arg.role]
 }
 
-export function hasCapability(arg: Profile | Array<{ persona_name: string }>, capability: Capability): boolean {
+export function hasCapability(
+  arg: Pick<Profile, 'role'> | Array<{ persona_name: string }>,
+  capability: Capability,
+): boolean {
   return getCapabilities(arg).has(capability)
 }
 
-export function isAdminTier(arg: Profile | Array<{ persona_name: string }>): boolean {
+export function isAdminTier(arg: Pick<Profile, 'role'> | Array<{ persona_name: string }>): boolean {
   return hasCapability(arg, 'manageAdminTier')
 }
 

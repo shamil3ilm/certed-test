@@ -96,6 +96,24 @@ describe('getTutorAnalytics', () => {
     })
     expect(listAssignments).not.toHaveBeenCalled()
   })
+
+  it('excludes demo sessions from teaching hours and sessions held count', async () => {
+    vi.mocked(myClassIds).mockResolvedValueOnce(['c1'])
+    vi.mocked(selectSessionsForClasses).mockResolvedValueOnce([
+      { actual_start: '2026-07-01T10:00:00Z', actual_end: '2026-07-01T11:00:00Z', kind: 'regular' },
+      { actual_start: '2026-07-02T10:00:00Z', actual_end: '2026-07-02T11:30:00Z', kind: 'demo' },
+      { actual_start: '2026-07-03T10:00:00Z', actual_end: '2026-07-03T11:00:00Z', kind: 'exam' },
+    ] as any)
+    vi.mocked(selectAttendanceStatusesForClasses).mockResolvedValueOnce([{ status: 'present' }])
+    vi.mocked(listAssignments).mockResolvedValueOnce([])
+    vi.mocked(listActiveSubmissions).mockResolvedValueOnce([])
+
+    const result = await getTutorAnalytics(me)
+    // 60m regular + 60m exam = 120m (2.0h). Demo (90m) must be excluded.
+    expect(result.teachingHours).toBe('2.0h')
+    // 2 working sessions (regular + exam). Demo is excluded from sessionsHeld.
+    expect(result.sessionsHeld).toBe(2)
+  })
 })
 
 describe('getStudentAnalytics', () => {

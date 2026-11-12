@@ -390,7 +390,7 @@ export function PersonHoursView({
           </tbody>
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
-              <td className="p-2">Total</td>
+              <td className="p-2">Working</td>
               <WorkedCells sessions={hours.sessions} minutes={hours.minutes} strong />
             </tr>
           </tfoot>
@@ -439,7 +439,7 @@ export function PersonHoursView({
           </tbody>
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
-              <td className="p-2">Total</td>
+              <td className="p-2">Working</td>
               <WorkedCells sessions={hours.sessions} minutes={hours.minutes} strong />
             </tr>
           </tfoot>
@@ -580,13 +580,21 @@ export function StudentLedger({
 
 /** What a tutor or mentor worked, session by session: the classes they taught and the exams they
  *  monitored, with the students who attended. Adds up to the totals beside it. */
-export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
+export function WorkLedger({
+  rows,
+  isSelf = true,
+  personName,
+}: {
+  rows: readonly WorkLedgerRow[]
+  isSelf?: boolean
+  personName?: string
+}) {
   if (rows.length === 0) return null
+  const note = isSelf
+    ? 'Every session you taught or monitored this month, oldest first. Demo classes are listed but are not working time.'
+    : `Every session ${personName ?? 'this person'} taught or monitored this month, oldest first. Demo classes are listed but are not working time.`
   return (
-    <Block
-      title="Session by session"
-      note="Every session you taught or monitored this month, oldest first. Demo classes are listed but are not working time."
-    >
+    <Block title="Session by session" note={note}>
       <table aria-label="Sessions this month" className="data-table w-full text-sm">
         <thead>
           <tr className="text-left text-slate-600">
@@ -633,7 +641,13 @@ export function WorkLedger({ rows }: { rows: readonly WorkLedgerRow[] }) {
                   <span className="inline-flex flex-col items-start gap-0.5">
                     <Badge tone="warning">Exam</Badge>
                     <span className="text-xs text-slate-500">
-                      {r.role === 'monitored' ? 'You monitored it' : 'You taught it'}
+                      {isSelf
+                        ? r.role === 'monitored'
+                          ? 'You monitored it'
+                          : 'You taught it'
+                        : r.role === 'monitored'
+                          ? 'Monitored'
+                          : 'Taught'}
                     </span>
                   </span>
                 ) : (
@@ -862,11 +876,13 @@ export function MenteesHoursTable({
 export function WorkedHoursTable({
   people,
   month,
+  canLinkPerson = true,
   canLinkStudent = true,
   showTotal = true,
 }: {
   people: readonly PersonHours[]
   month: string
+  canLinkPerson?: boolean
   canLinkStudent?: boolean
   showTotal?: boolean
 }) {
@@ -917,7 +933,7 @@ export function WorkedHoursTable({
                           />
                         </button>
                         <span className="inline-flex items-baseline gap-1.5">
-                          {p.personId ? (
+                          {p.personId && canLinkPerson ? (
                             <Link
                               prefetch={false}
                               href={`/admin/teaching-hours/person/${p.personId}?month=${month}`}
@@ -964,7 +980,7 @@ export function WorkedHoursTable({
                             </button>
                           </div>
                           <PersonHoursView hours={p} month={month} canLinkStudent={canLinkStudent} />
-                          {p.personId && (
+                          {p.personId && canLinkPerson && (
                             <div className="mt-3 border-t border-slate-100 pt-2 text-xs">
                               <Link
                                 prefetch={false}
@@ -986,7 +1002,7 @@ export function WorkedHoursTable({
           {showTotal && (
             <tfoot>
               <tr className="border-t-2 font-medium text-slate-700">
-                <td className="p-2">Total - {formatMonthLabel(month)}</td>
+                <td className="p-2">Working - {formatMonthLabel(month)}</td>
                 <WorkedCells
                   sessions={totalSess ?? { regular: 0, demo: 0, exam: 0 }}
                   minutes={totalMins ?? { regular: 0, demo: 0, exam: 0 }}
@@ -1006,7 +1022,7 @@ export function WorkedHoursTable({
         {modalPerson && (
           <div className="space-y-4">
             <PersonHoursView hours={modalPerson} month={month} canLinkStudent={canLinkStudent} />
-            {modalPerson.personId && (
+            {modalPerson.personId && canLinkPerson && (
               <div className="border-t border-slate-100 pt-3 text-xs">
                 <Link
                   prefetch={false}

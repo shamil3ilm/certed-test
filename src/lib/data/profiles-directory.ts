@@ -13,7 +13,7 @@ export type ProfileLiteRow = {
   id: string
   full_name: string | null
   email: string
-  role: string
+  role: Profile['role']
   class_level?: string | null
 }
 

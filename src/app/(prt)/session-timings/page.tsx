@@ -3,11 +3,9 @@ import { redirectDenied } from '@/lib/auth/require-role'
 import { redirectForAccessState } from '@/lib/auth/guards'
 import { loadSessionTimingsPageData, type SessionTimingSearchParams } from '@/lib/services/page-data/session-timings'
 import type { MenteeSessionTiming as SessionTimingRow } from '@/lib/services/mentor-session-timings'
-import { getClassTutorHours } from '@/lib/services/teaching-hours'
+import { getMentorTutorsHours } from '@/lib/services/hours-breakdown'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { formatMonthLabel, todayInZone } from '@/lib/time/format'
-import { formatMinutes } from '@/lib/attendance/hours'
-import { emptyByKind, sumByKind, totalByKind, workingMinutes } from '@/lib/attendance/hours-breakdown'
 import { Badge, CARD, EmptyState, PageHeader, PaginationBar, cx, roleLabelIfUnexpected } from '@/lib/ui'
 import { SESSION_KIND_LABELS } from '@/lib/attendance/session-kind'
 import { LocalTime } from '../LocalTime'
@@ -16,6 +14,7 @@ import { SessionTimingsFilterBar, sessionTimingsPageHref } from './SessionTiming
 import { loadPersonaFlags } from '@/lib/permission/personas'
 import { getActorContext } from '@/lib/session/actor-context'
 import { ClassHoursTabs } from '../ClassHoursTabs'
+import { WorkedHoursTable } from '../HoursTables'
 
 /** Mentor session-timing list: the three timings (tutor joined, student joined,
  *  class end) across the mentor's mentees' sessions, with an inline edit for the
@@ -50,9 +49,9 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
   // panel below would be the same table twice, so it is a mentor's alone, and so is its read.
   const hasTotalsTab = actor.capabilities.allowed.has('manageClasses')
   const month = hasTotalsTab ? null : todayInZone(await getInstituteTimeZone()).slice(0, 7)
-  const [data, hours] = await Promise.all([
+  const [data, tutorHours] = await Promise.all([
     loadSessionTimingsPageData(me, searchParams),
-    month ? getClassTutorHours(me, month) : Promise.resolve(null),
+    month ? getMentorTutorsHours(me, month) : Promise.resolve(null),
   ])
   const { filters, items, groups, groupView, total, totalPages: pages } = data
 
@@ -68,132 +67,27 @@ export default async function SessionTimingsPage(props: { searchParams: Promise<
 
       {hasTotalsTab && <ClassHoursTabs />}
 
-      {hours && month && (
-        <section className={cx(CARD, 'mt-2 p-4')} aria-label="Teaching hours this month">
-          <h2 className="text-sm font-semibold text-slate-800">Teaching hours - {formatMonthLabel(month)}</h2>
-          <p className="mt-0.5 text-xs text-slate-600">
-            Recorded hours per tutor in {isOversight ? 'every class' : <>your mentees&apos; classes</>}, for this month.
-          </p>
-          {/* Render the panel even with nothing to show. Hiding it when the month has no
-            recorded hours makes the section vanish for the first days of every month,
-            which reads as "the feature is missing" rather than "nothing yet". */}
-          {hours.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">
-              No hours recorded yet this month - they appear once a session&apos;s start and end times are saved.
+      {tutorHours && month && (
+        <section className="mt-4" aria-label="Working hours this month">
+          <div className="mb-2">
+            <h2 className="text-sm font-semibold text-slate-800">Working hours - {formatMonthLabel(month)}</h2>
+            <p className="mt-0.5 text-xs text-slate-600">
+              Working hours (regular teaching plus exam monitoring) per tutor across{' '}
+              {isOversight ? 'every class' : <>your mentees&apos; classes</>}, for this month. Demo classes are not
+              working time.
             </p>
+          </div>
+          {tutorHours.length === 0 ? (
+            <div className={cx(CARD, 'mt-2 p-4 text-sm text-slate-600')}>
+              No hours recorded yet this month - they appear once a session&apos;s start and end times are saved.
+            </div>
           ) : (
-            <>
-              {/* Overall summary banner with session counts and type breakdown */}
-              {(() => {
-                const mins = sumByKind(hours.map((c) => c.byKind?.minutes ?? emptyByKind()))
-                const sess = sumByKind(hours.map((c) => c.byKind?.sessions ?? emptyByKind()))
-                const totalWorking = workingMinutes(mins)
-                const totalSessions =
-                  totalByKind(sess) ||
-                  hours.reduce((n, c) => n + (c.totalSessions ?? c.tutors.reduce((s, t) => s + t.sessionCount, 0)), 0)
-
-                return (
-                  <div className="mt-3 flex flex-wrap gap-2.5">
-                    <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-                      <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Working hours</p>
-                      <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
-                        {formatMinutes(totalWorking > 0 ? totalWorking : hours.reduce((n, c) => n + c.totalMinutes, 0))}
-                      </p>
-                      <p className="text-meta text-slate-500">{totalSessions} total sessions</p>
-                    </div>
-                    <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-                      <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Regular</p>
-                      <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
-                        {formatMinutes(mins.regular)}
-                      </p>
-                      <p className="text-meta text-slate-500">{sess.regular} sessions</p>
-                    </div>
-                    {sess.exam > 0 && (
-                      <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-                        <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Exam</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
-                          {formatMinutes(mins.exam)}
-                        </p>
-                        <p className="text-meta text-slate-500">{sess.exam} exams</p>
-                      </div>
-                    )}
-                    {sess.demo > 0 && (
-                      <div className="min-w-[7.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-                        <p className="text-meta font-medium uppercase tracking-wide text-slate-500">Demo</p>
-                        <p className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
-                          {formatMinutes(mins.demo)}
-                        </p>
-                        <p className="text-meta text-slate-500">{sess.demo} demos</p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-
-              <ul className="mt-4 space-y-3">
-                {hours.map((c) => {
-                  const classSessions = c.totalSessions ?? c.tutors.reduce((s, t) => s + t.sessionCount, 0)
-                  return (
-                    <li key={`${c.classId}:${c.subjectName ?? ''}`}>
-                      <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm font-medium text-slate-700">
-                        <span>
-                          {c.className}
-                          {c.subjectName ? (
-                            <span className="font-normal text-slate-500"> &middot; {c.subjectName}</span>
-                          ) : null}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 tabular-nums">
-                          <span>{formatMinutes(c.totalMinutes)}</span>
-                          <span className="text-xs font-normal text-slate-500">
-                            &middot; {classSessions} session{classSessions === 1 ? '' : 's'}
-                          </span>
-                          {c.byKind && c.byKind.sessions.exam > 0 && (
-                            <Badge tone="warning">{c.byKind.sessions.exam} exam</Badge>
-                          )}
-                          {c.byKind && c.byKind.sessions.demo > 0 && (
-                            <Badge tone="slate">{c.byKind.sessions.demo} demo</Badge>
-                          )}
-                        </span>
-                      </div>
-                      <ul className="mt-1 space-y-0.5">
-                        {c.tutors.map((t) => (
-                          <li
-                            key={t.tutorId ?? 'unassigned'}
-                            className="flex items-baseline justify-between text-xs text-slate-600"
-                          >
-                            <span className="inline-flex items-baseline gap-1.5">
-                              {t.tutorName}
-                              {roleLabelIfUnexpected(t.tutorRole, 'tutor') && (
-                                <span className="text-meta font-medium text-slate-500">
-                                  {roleLabelIfUnexpected(t.tutorRole, 'tutor')}
-                                </span>
-                              )}
-                            </span>
-                            <span className="tabular-nums">
-                              {formatMinutes(t.minutes)} &middot; {t.sessionCount} session
-                              {t.sessionCount === 1 ? '' : 's'}
-                              {t.byKind && (t.byKind.sessions.exam > 0 || t.byKind.sessions.demo > 0) && (
-                                <span className="ml-1 text-meta text-slate-500">
-                                  (
-                                  {[
-                                    t.byKind.sessions.regular > 0 && `${t.byKind.sessions.regular} reg`,
-                                    t.byKind.sessions.exam > 0 && `${t.byKind.sessions.exam} exam`,
-                                    t.byKind.sessions.demo > 0 && `${t.byKind.sessions.demo} demo`,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(', ')}
-                                  )
-                                </span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  )
-                })}
-              </ul>
-            </>
+            <WorkedHoursTable
+              people={tutorHours}
+              month={month}
+              canLinkPerson={false}
+              canLinkStudent={hasMentorAuthority}
+            />
           )}
         </section>
       )}

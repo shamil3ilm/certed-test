@@ -2,6 +2,7 @@ import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import { summarizeAttendance, type AttendanceStatus } from '@/lib/attendance/summary'
 import { formatHours, minutesBetween, sumMinutes } from '@/lib/attendance/hours'
+import { kindOf } from '@/lib/attendance/session-kind'
 import {
   countActiveAnnouncements,
   sumResourceDownloads,
@@ -62,13 +63,14 @@ export async function getTutorAnalytics(me: Profile): Promise<TutorAnalytics> {
   ])
   const submissions = assignments.length ? await listActiveSubmissions(assignments.map((a) => a.id)) : []
   const graded = submissions.filter((s) => s.score != null && s.graded_at != null).length
-  // Teaching hours come from the recorded session window (start -> end), which the
-  // session form records as the class's actual start and end.
-  const teachingMinutes = sumMinutes(sessions.map((s) => minutesBetween(s.actual_start, s.actual_end)))
+  // Teaching hours come from the recorded session window (start -> end). Demo sessions
+  // are never working time (matching /my-hours and the teaching-hours report).
+  const workingSessions = sessions.filter((s) => kindOf(s) !== 'demo')
+  const teachingMinutes = sumMinutes(workingSessions.map((s) => minutesBetween(s.actual_start, s.actual_end)))
   const attendance = summarizeAttendance(statuses as ReadonlyArray<{ status: AttendanceStatus }>)
   return {
     teachingHours: formatHours(teachingMinutes),
-    sessionsHeld: sessions.length,
+    sessionsHeld: workingSessions.length,
     attendanceRate: attendance.rate,
     graded,
     classIds,

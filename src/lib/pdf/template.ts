@@ -60,7 +60,7 @@ function buildHtml(
       (l) => `<tr>
         <td style="padding:14px 0;border-bottom:1px solid #F0F1F5;">
           <span style="font-weight:600;color:#1f2937;">${esc(l.label)}</span>
-          <span style="font-size:12px;color:#98a2b3;margin-left:8px;">(${l.hours} hrs)</span>
+          <span style="font-size:12px;color:#98a2b3;margin-left:8px;">(${l.hours} hrs${l.rate ? ` @ ${formatMoney(l.rate, doc.currency)}/hr` : ''})</span>
         </td>
         <td style="padding:14px 0;border-bottom:1px solid #F0F1F5;text-align:right;color:#1f2937;">${formatMoney(l.amount, doc.currency)}</td>
       </tr>`,
@@ -140,6 +140,7 @@ function buildHtml(
       </div>
       ${sign}
     </div>
+    ${partyLabel === 'TUTOR' ? `<div style="margin-top:10px;font-size:11px;color:#98a2b3;">Working hours include regular teaching and exam monitoring. Demo sessions are excluded from working time.</div>` : ''}
     ${org.terms ? `<div style="margin-top:24px;border-top:1px solid #F0F1F5;padding-top:14px;font-size:11px;line-height:1.7;color:#98a2b3;">${esc(org.terms)}</div>` : ''}
     ${doc.note ? `<div style="margin-top:10px;font-size:11px;color:#98a2b3;">${esc(doc.note)}</div>` : ''}
   </div></body></html>`

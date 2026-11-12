@@ -45,7 +45,7 @@ export default async function PersonHoursPage(props: {
       {work ? (
         <div className="space-y-6">
           <PersonHoursView hours={work.hours} month={month} canLinkStudent={true} />
-          <WorkLedger rows={work.ledger} />
+          <WorkLedger rows={work.ledger} isSelf={false} personName={name} />
         </div>
       ) : (
         <EmptyState>

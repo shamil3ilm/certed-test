@@ -88,6 +88,7 @@ Check with `npm outdated next` and `npm audit --omit=dev`. Production dependenci
 
 ## Recently closed
 
+- **Tutor hours unification, strict student invariant confirmation, and cross-app parity** — completed as of **2026-11-12**. Replaced the separate mentor custom list on `/session-timings` with the shared `WorkedHoursTable` component powered by `getMentorTutorsHours`. Excluded demo classes from all tutor working totals, renamed all tutor total hours labels and footers to `Working` (`regular + exam`), unified export CSV parity (`/api/teaching-hours/export`), aligned tutor dashboard analytics to exclude demo sessions, updated `HoursPanel` to use actor capabilities, confirmed strict student disjointness from staff personas (multi-persona confined exclusively to staff tutor <-> mentor hybridity), and adapted `WorkLedger` perspective.
 - **Google sign-in** — working as of **2026-09-30**. It had been failing at Supabase's token exchange with Google (`Unable to exchange external code`, `invalid_grant`). Diagnosis on 2026-09-29 verified the client id, the registered redirect URI and the client id/secret pair directly, which left the secret stored in Supabase or a spent authorization code as the remaining candidates. _What finally fixed it is not recorded — worth one line here, because the next person debugging OAuth will come looking._
 
 ## Mobile apps

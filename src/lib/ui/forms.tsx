@@ -296,7 +296,7 @@ export function MonthFilterField({
             >
               This month
             </button>
-            <span className="font-mono text-meta tabular-nums text-slate-400">{selectedMonth}</span>
+            <span className="font-mono text-meta tabular-nums text-slate-500">{selectedMonth}</span>
           </div>
         </div>
       )}

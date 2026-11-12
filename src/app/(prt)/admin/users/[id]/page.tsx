@@ -5,6 +5,7 @@ import { requireCapability } from '@/lib/auth/require-role'
 import { getProfileDetails, getProfileRole, listActiveProfilesByRoles } from '@/lib/services/users/directory'
 import { loadStudentSubjects, loadTutorRoster } from '@/lib/services/page-data/user-detail'
 import { canManageTarget } from '@/lib/services/users/admin-lifecycle'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { listSubjects } from '@/lib/services/subjects'
 import { listGuardians } from '@/lib/services/guardians'
 import { AlertBanner, BackLink, Card, EmptyState } from '@/lib/ui'
@@ -35,11 +36,12 @@ export default async function UserDetailPage(props: {
   const role = await getProfileRole(id)
   if (!role || !(await canManageTarget(me, role))) notFound()
 
-  const profile = await getProfileDetails(id)
+  const [profile, flags] = await Promise.all([getProfileDetails(id), loadPersonaFlags(id)])
   if (!profile) notFound()
 
-  const isStudent = profile.role === 'student'
-  const isTeacher = profile.role === 'tutor' || profile.role === 'mentor'
+  const isStudent = flags.isStudent || profile.role === 'student'
+  const isTeacher =
+    flags.isTutor || flags.isMentor || flags.hasMentorAuthority || profile.role === 'tutor' || profile.role === 'mentor'
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6 lg:p-8">
@@ -48,7 +50,7 @@ export default async function UserDetailPage(props: {
         <AlertBanner tone="warning">Couldn&apos;t complete that action - check the details and try again.</AlertBanner>
       )}
 
-      <DetailsCard profile={profile} />
+      <DetailsCard profile={profile} isStudent={isStudent} />
 
       {/* The UI half of the service guard: an account that has signed in has no invite to
           manage, so the panel is absent rather than present-and-refusing. The page has

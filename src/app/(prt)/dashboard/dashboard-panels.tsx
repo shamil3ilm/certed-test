@@ -60,6 +60,32 @@ export function MenteesPanel({ mentees }: { mentees: DashboardMentee[] }) {
   )
 }
 
+/** Shared modal stat cards for academy roster totals (Students, Tutors & Mentors). */
+export function CoreUserStatCards({ students, tutors }: { students: number; tutors: number }) {
+  return (
+    <>
+      <StatModalCard
+        key="students"
+        label="Students"
+        value={students}
+        title="Students"
+        load={loadStudentsModal}
+        viewAllHref={usersUrl({ tab: 'people', role: 'student' })}
+        empty="No students yet."
+      />
+      <StatModalCard
+        key="tutors"
+        label="Tutors & Mentors"
+        value={tutors}
+        title="Tutors & Mentors"
+        load={loadTutorsModal}
+        viewAllHref={usersUrl({ tab: 'people', role: 'staff' })}
+        empty="No tutors yet."
+      />
+    </>
+  )
+}
+
 export function SubAdminOverview({
   data,
   canViewUsers,
@@ -82,22 +108,7 @@ export function SubAdminOverview({
   return (
     <>
       <StatGrid cols={3} className="mt-6">
-        <StatModalCard
-          label="Students"
-          value={data.students}
-          title="Students"
-          load={loadStudentsModal}
-          viewAllHref={usersUrl({ tab: 'people', role: 'student' })}
-          empty="No students yet."
-        />
-        <StatModalCard
-          label="Tutors & Mentors"
-          value={data.tutors}
-          title="Tutors & Mentors"
-          load={loadTutorsModal}
-          viewAllHref={usersUrl({ tab: 'people', role: 'staff' })}
-          empty="No tutors yet."
-        />
+        <CoreUserStatCards students={data.students} tutors={data.tutors} />
         <StatModalCard
           label="Pending access"
           value={data.pending}

@@ -161,21 +161,7 @@ export function roundedWeightedAverage(rows: Array<{ score: number; maxMarks: nu
 
 export function rateFromStatuses(statuses: AttendanceStatus[]): number | null {
   if (statuses.length === 0) return null
-
-  const summary = summarizeAttendance(
-    statuses.map((status, index) => ({
-      id: String(index),
-      class_id: '',
-      student_id: '',
-      session_date: '',
-      status,
-      marked_by: null,
-      created_at: '',
-      updated_at: '',
-    })),
-  )
-
-  return summary.rate
+  return summarizeAttendance(statuses.map((status) => ({ status }))).rate
 }
 
 export function sortGradeRows(rows: RawGradeRow[], sort: EvaluationSort): RawGradeRow[] {

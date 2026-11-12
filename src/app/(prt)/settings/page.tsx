@@ -1,4 +1,5 @@
 import { requireActiveProfile } from '@/lib/auth/require-role'
+import { loadPersonaFlags } from '@/lib/permission/personas'
 import { MUTABLE_NOTIFICATION_KEYS } from '@/lib/notifications/keys'
 import { isMock } from '@/lib/mock/env'
 import { loadSettingsPageData, type SettingsSearchParams } from '@/lib/services/page-data/settings-page'
@@ -22,11 +23,13 @@ export default async function SettingsPage(props: { searchParams: Promise<Settin
   const searchParams = await props.searchParams
   // Self-service page: any signed-in active user manages their own profile.
   const me = await requireActiveProfile()
-  const [data, details] = await Promise.all([
+  const [data, details, flags] = await Promise.all([
     loadSettingsPageData(me, searchParams, isMock()),
     getProfileDetails(me.id),
+    loadPersonaFlags(me.id),
   ])
-  const isStaff = me.role === 'tutor' || me.role === 'mentor'
+  const isStaff =
+    flags.isTutor || flags.isMentor || flags.hasMentorAuthority || me.role === 'tutor' || me.role === 'mentor'
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">

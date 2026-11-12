@@ -21,6 +21,7 @@ export function UserRow({
   mentorSubtitle,
   teaches = false,
   mentors = false,
+  isStudent,
 }: {
   p: Profile
   self?: boolean
@@ -30,6 +31,7 @@ export function UserRow({
   mentorSubtitle?: string
   teaches?: boolean
   mentors?: boolean
+  isStudent?: boolean
 }) {
   const visibleRoleLabel = staffRoleLabel({ role: p.role, teaches, mentors })
   // Names the account every control acts on. The email is always included because
@@ -76,6 +78,7 @@ export function UserRow({
               canEditPermissions={canEditPermissions}
               canErase={canErase}
               visibleRoleLabel={visibleRoleLabel}
+              isStudent={isStudent}
             />
           </div>
         ) : (

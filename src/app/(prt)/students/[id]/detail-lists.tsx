@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { loadMenteeDetailPageData } from '@/lib/services/page-data/mentee-detail-page'
 import { attendanceTone, Badge, Panel, statusLabel, submissionLabel, submissionTone } from '@/lib/ui'
 import { LocalTime } from '../../LocalTime'
@@ -66,6 +67,12 @@ export function EvaluationPanels({ evaluations }: { evaluations: Overview['evalu
       </Panel>
 
       <Panel title="Attendance history">
+        <div className="mb-2 flex items-center justify-between text-xs">
+          <span className="text-slate-500">Evaluation window</span>
+          <Link href="#hours" className="font-medium text-primary hover:underline">
+            Monthly breakdown &rarr;
+          </Link>
+        </div>
         {evaluations.attendance.rows.length === 0 ? (
           <EmptyLine>No attendance history in this selection.</EmptyLine>
         ) : (

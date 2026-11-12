@@ -18,6 +18,7 @@ export function UserRowActions({
   canEditPermissions,
   canErase,
   visibleRoleLabel,
+  isStudent: isStudentProp,
 }: {
   p: Profile
   who: string
@@ -25,9 +26,10 @@ export function UserRowActions({
   canEditPermissions: boolean
   canErase: boolean
   visibleRoleLabel: string
+  isStudent?: boolean
 }) {
   const [editOpen, setEditOpen] = useState(false)
-  const isStudent = p.role === 'student'
+  const isStudent = isStudentProp ?? p.role === 'student'
 
   return (
     <>

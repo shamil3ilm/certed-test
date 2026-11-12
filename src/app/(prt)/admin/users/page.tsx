@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/require-role'
 import { getActorContext } from '@/lib/session/actor-context'
+import { isAdminTier } from '@/lib/capabilities'
 import { loadAdminUsersPageData, ROLE_TABS, USER_TABS, usersUrl } from '@/lib/services/page-data/admin-users'
 import { AlertBanner, PageHeader, StatCard, StatGrid, EmptyState, cx } from '@/lib/ui'
 import { AddUserForm } from './AddUserForm'
@@ -155,7 +156,7 @@ export default async function AdminUsersPage(props: {
             <ul className="space-y-2">
               {data.tabProfiles.map((p) => {
                 const isStudent = p.role === 'student'
-                const isAdminTierRow = p.role === 'admin' || p.role === 'sub_admin'
+                const isAdminTierRow = isAdminTier(p)
                 // A student's mentor(s) travel in the subtitle; staff/admin rows have none.
                 const links = isStudent ? (data.mentorsByStudent.get(p.id) ?? []) : []
                 const mentorSubtitle = isStudent
@@ -177,6 +178,7 @@ export default async function AdminUsersPage(props: {
                     mentorSubtitle={mentorSubtitle}
                     teaches={data.teachingStaffIds.has(p.id)}
                     mentors={data.mentoringStaffIds.has(p.id)}
+                    isStudent={isStudent}
                   />
                 )
               })}

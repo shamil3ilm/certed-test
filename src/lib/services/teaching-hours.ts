@@ -92,7 +92,10 @@ export function aggregateClassTutorHours(rows: readonly SessionHoursRow[]): RawG
     }
     const mins = minutesBetween(r.actual_start, r.actual_end) ?? 0
     const kind = kindOf(r)
-    group.minutes += mins
+    // Working hours: regular and exam monitoring. Demo is excluded from working time.
+    if (kind !== 'demo') {
+      group.minutes += mins
+    }
     group.sessionCount += 1
     group.byKind.minutes[kind] += mins
     group.byKind.sessions[kind] += 1
@@ -217,7 +220,11 @@ export async function getTutorPersonalHours(actor: Profile, month: string): Prom
       classIds === null ? await selectArchivedClassIds() : undefined,
     )
   ).filter((r) => r.tutor_id === actor.id)
-  const minutes = mine.reduce((total, r) => total + (minutesBetween(r.actual_start, r.actual_end) ?? 0), 0)
+  // Only working hours (regular teaching + exam monitoring); demo is excluded.
+  const minutes = mine.reduce((total, r) => {
+    if (kindOf(r) === 'demo') return total
+    return total + (minutesBetween(r.actual_start, r.actual_end) ?? 0)
+  }, 0)
   return { month, minutes, sessionCount: mine.length }
 }
 

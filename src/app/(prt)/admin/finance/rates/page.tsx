@@ -3,6 +3,7 @@ import { getActorContext } from '@/lib/session/actor-context'
 import { isAdminTier } from '@/lib/capabilities'
 import { loadFxRatesPageData } from '@/lib/services/finance/fx-admin'
 import { BackLink, PageHeader } from '@/lib/ui'
+import { RatesTabs } from '../RatesTabs'
 import { RatesManager } from './RatesManager'
 
 /**
@@ -23,6 +24,7 @@ export default async function FxRatesPage() {
         title="Currency conversion"
         description="Normalise every receipt and pay slip into one base currency using rates you maintain by date."
       />
+      <RatesTabs />
       <RatesManager data={data} />
     </main>
   )

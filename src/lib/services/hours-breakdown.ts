@@ -574,3 +574,23 @@ export async function getMenteesHoursReceived(actor: Profile, month: string): Pr
     })
     .sort((a, b) => a.studentName.localeCompare(b.studentName))
 }
+
+/**
+ * MENTOR: tutor hours worked across the mentor's mentee classes for `month`.
+ * Uses the exact same breakdownByPerson engine as the academy-wide report (getAcademyBreakdown),
+ * returning PersonHours[] with the kind visible (Regular, Exam, Demo, Working).
+ */
+export async function getMentorTutorsHours(actor: Profile, month: string): Promise<PersonHours[]> {
+  const oversight = await isMentoringOversight(actor.id)
+  const classIds = oversight ? null : await mentoringScopeClassIds(actor)
+  if (classIds?.length === 0) return []
+
+  const [{ startIso, endIso }, archived] = await Promise.all([windowFor(month), selectArchivedClassIds()])
+  const sessions = await selectSessionsForClassesInRange(classIds, startIso, endIso, oversight ? archived : undefined)
+  if (sessions.length === 0) return []
+
+  const marks = await selectAttendedForSessions(sessions.map((s) => s.id))
+  const rawPeople = breakdownByPerson(sessions, marks)
+  const named = await nameThem(rawPeople, [])
+  return named.people
+}
