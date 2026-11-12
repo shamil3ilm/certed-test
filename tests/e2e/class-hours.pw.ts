@@ -67,9 +67,9 @@ test('records a session and attendance, then reports the hours on both sides', a
 
   // The student side is populated from the SAME sessions - this is the join the unit
   // tests cannot exercise. A student marked present is credited that day's window, and a
-  // regular class lands in the Regular column (the first figure after the name).
+  // regular class lands in the Regular column (the second figure after Sessions).
   await expect(receivedTable.locator('tbody tr')).not.toHaveCount(0)
-  const firstStudentRegular = await receivedTable.locator('tbody tr').first().locator('td').nth(1).innerText()
+  const firstStudentRegular = await receivedTable.locator('tbody tr').first().locator('td').nth(2).innerText()
   expect(parseHours(firstStudentRegular)).toBeGreaterThanOrEqual(90)
 })
 

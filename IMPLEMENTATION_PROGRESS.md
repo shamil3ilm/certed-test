@@ -376,6 +376,13 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - Quick actions footer with "Today" and "Clear" shortcuts, and monospace tabular preview.
       - Click-outside and `Escape` key listeners for keyboard accessibility and popover dismiss.
       - Strict adherence to WCAG 4.5:1 contrast floor tokens (`text-slate-500` / `text-slate-600`) and standard typography tokens (`text-micro`).
+27. **Hours Tables Column Order & Terminology Alignment (`HoursTables.tsx`)**:
+    - **Unified Column Architecture**: Aligned student hours reporting (`ReceivedHeaders`, `ReceivedCells`, `ReceivedHoursTable`, `StudentHoursView`) to match tutor worked hours (`WorkedHeaders`, `WorkedCells`, `WorkedHoursTable`, `PersonHoursView`) across all tables.
+      - **Column 1 (`Sessions`)**: Placed as the first column after row name/label on both tutor and student surfaces (previously 1st for tutors, but 4th for students).
+      - **Breakdown Order (`Regular`, `Exam`, `Demo`)**: Unified the sequence across all tables so `Exam` precedes `Demo` uniformly.
+      - **Summary Column (`Working`)**: Replaced `Total` with `Working` (`workingMinutes = regular + exam`, with Demo reported separately and excluded from working time), and unified table footers to `Working - {month}`.
+      - **Stat Cards**: Added a `Working hours` stat card to `StudentHoursView` alongside `Total received` for complete transparency across both metrics.
+    - **E2E Specs Verification**: Updated column assertions in `tests/e2e/class-hours.pw.ts` and `tests/e2e/hours-breakdown.pw.ts` to reflect the unified column indexing.
 
 ---
 

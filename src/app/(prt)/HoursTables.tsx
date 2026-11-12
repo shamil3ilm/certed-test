@@ -24,10 +24,9 @@ import { Modal } from './Modal'
  * hours report, a tutor's or student's My hours page, and a student's page under Mentoring - so
  * they all say the same thing the same way.
  *
- * Two shapes, because the two questions differ:
- *   StudentHoursView  hours RECEIVED  - regular, demo and exam as three separate columns
- *   PersonHoursView   hours WORKED    - regular, exam monitoring, their sum ("Working"), and demo
- *                                       on its own, since demo is never working time
+ * Unified column layout across both educator and student surfaces:
+ *   [Name] | Sessions | Regular | Exam | Demo | Working
+ * Demo is shown separately on its own and is excluded from working time (Working = Regular + Exam).
  *
  * A zero prints as a dash: most cells in most rows are empty, and a column of "0m" hides the
  * figures that are there.
@@ -62,11 +61,11 @@ function CountPill({ count, label }: { count: number; label: string }) {
 function ReceivedHeaders() {
   return (
     <>
-      <Head right>Regular</Head>
-      <Head right>Demo</Head>
-      <Head right>Exam</Head>
       <Head right>Sessions</Head>
-      <Head right>Total</Head>
+      <Head right>Regular</Head>
+      <Head right>Exam</Head>
+      <Head right>Demo</Head>
+      <Head right>Working</Head>
     </>
   )
 }
@@ -80,14 +79,13 @@ function ReceivedCells({
   minutes: { regular: number; demo: number; exam: number }
   strong?: boolean
 }) {
-  const totalMins = minutes.regular + minutes.demo + minutes.exam
   return (
     <>
-      <Num strong={strong}>{cell(minutes.regular)}</Num>
-      <Num strong={strong}>{cell(minutes.demo)}</Num>
-      <Num strong={strong}>{cell(minutes.exam)}</Num>
       <Num strong={strong}>{sessions ? totalByKind(sessions) : '-'}</Num>
-      <Num strong={strong}>{cell(totalMins)}</Num>
+      <Num strong={strong}>{cell(minutes.regular)}</Num>
+      <Num strong={strong}>{cell(minutes.exam)}</Num>
+      <Num strong={strong}>{cell(minutes.demo)}</Num>
+      <Num strong={strong}>{cell(workingMinutes(minutes))}</Num>
     </>
   )
 }
@@ -169,11 +167,13 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
   }
 
   const totalReceived = hours.total.regular + hours.total.demo + hours.total.exam
+  const working = workingMinutes(hours.total)
   const totalSessions = totalByKind(hours.sessions)
 
   return (
     <div>
       <div className="flex flex-wrap gap-3">
+        <Stat label="Working hours" value={working} note="Regular + exam monitoring" />
         <Stat label="Total received" value={totalReceived} note={`${totalSessions} sessions`} />
         <Stat label="Regular" value={hours.total.regular} note={`${hours.sessions.regular} sessions`} />
         <Stat
@@ -229,7 +229,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           </tbody>
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
-              <td className="p-2">Total</td>
+              <td className="p-2">Working</td>
               <ReceivedCells sessions={hours.sessions} minutes={hours.total} strong />
             </tr>
           </tfoot>
@@ -275,7 +275,7 @@ export function StudentHoursView({ hours, canLinkTutor = false }: { hours: Stude
           </tbody>
           <tfoot>
             <tr className="border-t-2 font-medium text-slate-700">
-              <td className="p-2">Total</td>
+              <td className="p-2">Working</td>
               <ReceivedCells sessions={hours.sessions} minutes={hours.total} strong />
             </tr>
           </tfoot>
@@ -808,7 +808,7 @@ export function ReceivedHoursTable({
           {showTotal && totalMins && (
             <tfoot>
               <tr className="border-t-2 font-medium text-slate-700">
-                <td className="p-2">Total - {formatMonthLabel(month)}</td>
+                <td className="p-2">Working - {formatMonthLabel(month)}</td>
                 <ReceivedCells sessions={totalSess ?? undefined} minutes={totalMins} strong />
               </tr>
             </tfoot>

@@ -128,13 +128,14 @@ test('an admin records a regular class, a demo and an exam monitored by someone 
     }
     expect(demoRows, 'exactly one person is credited the demo').toBe(1)
 
-    // The student side keeps the three kinds apart, per student.
+    // The student side keeps the three kinds apart, per student, sharing the unified layout (Sessions, Regular, Exam, Demo, Working).
     const received = page.getByRole('table', { name: 'Hours received, by student' })
     const sara = received.locator('tbody tr', { hasText: 'Sara Student' })
     await expect(sara).toHaveCount(1)
-    expect(parseHours(await sara.locator('td').nth(1).innerText()), 'Sara Regular').toBeGreaterThanOrEqual(60)
-    expect(parseHours(await sara.locator('td').nth(2).innerText()), 'Sara Demo').toBeGreaterThanOrEqual(30)
+    expect(parseHours(await sara.locator('td').nth(2).innerText()), 'Sara Regular').toBeGreaterThanOrEqual(60)
     expect(parseHours(await sara.locator('td').nth(3).innerText()), 'Sara Exam').toBeGreaterThanOrEqual(60)
+    expect(parseHours(await sara.locator('td').nth(4).innerText()), 'Sara Demo').toBeGreaterThanOrEqual(30)
+    expect(parseHours(await sara.locator('td').last().innerText()), 'Sara Working').toBeGreaterThanOrEqual(120)
   })
 
   await test.step('the Session times list says which sessions were a demo or an exam', async () => {
