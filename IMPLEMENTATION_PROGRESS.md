@@ -362,6 +362,20 @@ To guarantee optimal experience on mobile, tablet, and desktop:
     - **User Row Actions Persona Support (`UserRow.tsx` & `UserRowActions.tsx`)**: Propagated persona-aware `isStudent?: boolean` through `UserRow` to `UserRowActions`, ensuring that the edit details modal accurately exposes or hides student-specific inputs (`class_level`).
     - **Capability & Directory Type Safety (`capabilities/index.ts` & `profiles-directory.ts`)**: Widened `isAdminTier`, `hasCapability`, and `getCapabilities` parameter types to `Pick<Profile, 'role'> | Array<{ persona_name: string }>` and typed `ProfileLiteRow.role` to canonical `Profile['role']`, removing structural role mismatches across directory rows.
     - **Accessibility & Contrast Floor Compliance (`forms.tsx`)**: Upgraded month preview tone in `MonthFilterField` from `text-slate-400` to `text-slate-500` (4.76:1 contrast ratio), resolving WCAG contrast compliance and passing all contrast invariants.
+26. **Custom Temporal Drill-Down & Roll-Up Pickers (`src/lib/ui/forms.tsx`)**:
+    - **Temporal Zoom Levels & Roll-Up Architecture**: Replaced native browser date inputs (`<input type="date">`) with custom bounded pickers maintaining strict Cert-Ed design system tokens.
+      - **`DateFilterField`**: Introduced multi-tier zoom levels:
+        1. _Days View_: 7-column weekday grid (`Su Mo Tu We Th Fr Sa`) with uppercase `text-micro` headers, 35/42-cell bounded day buttons, current-day indicator (`border-primary/50 bg-primary/5`), selected-day highlight (`border-primary bg-primary text-white`), and adjacent-month trailing cells (`text-slate-500 opacity-60`).
+        2. _Months View (Drill-Up/Down)_: Clicking the center month/year header zooms up to a 3×4 grid of months (Jan–Dec). Clicking any month drills back down to its day-level calendar.
+        3. _Years View (Decade Drill-Up/Down)_: Clicking the year in month view zooms up to a 3×4 grid of 12 years with decade stepper (`< 2020 – 2029 >`). Clicking a year drills back down into that year's months.
+      - **`YearFilterField`**: Refactored to support either a custom array of selectable years or an interactive bounded decade picker popover with decade navigation (`< 2020 – 2029 >`), 3×4 decade tiles, and a "This year" quick shortcut. Decoupled select and picker logic into `YearSelectFilterField` and `YearPickerFilterField` to satisfy React hook rules.
+      - **`DateRangeFilterField`**: Composed two `DateFilterField` controls side-by-side with an en-dash separator (`&ndash;`) and customizable placeholder labels (`From`, `To`), delivering a consistent UI without raw native browser inputs.
+    - **Form Contract & Usability Features**:
+      - Hidden input binding (`<input type="hidden" name={name} value={...} />`) preserves full backward compatibility with native HTML form submissions and Next.js server actions.
+      - Supports `autoSubmit` for instant filtering upon date selection.
+      - Quick actions footer with "Today" and "Clear" shortcuts, and monospace tabular preview.
+      - Click-outside and `Escape` key listeners for keyboard accessibility and popover dismiss.
+      - Strict adherence to WCAG 4.5:1 contrast floor tokens (`text-slate-500` / `text-slate-600`) and standard typography tokens (`text-micro`).
 
 ---
 

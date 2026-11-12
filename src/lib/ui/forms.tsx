@@ -13,7 +13,7 @@ import {
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
-import { formatMonthLabel } from '@/lib/time/format'
+import { formatMonthLabel, formatDate } from '@/lib/time/format'
 import { cx } from './core'
 
 /* The shared GET filter/search bar used by the Users hub, grading queue,
@@ -90,21 +90,389 @@ export function SelectFilterField({
   )
 }
 
-/** Shared date field for FilterBar layouts. */
+const DAYS_OF_WEEK = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const
+
+/** Custom date picker field for FilterBar layouts.
+ * Features a bounded day grid, month/decade roll-up navigation,
+ * and intuitive fast shortcuts ("Today", "Clear").
+ */
 export function DateFilterField({
-  label,
+  label = 'Date',
+  name = 'date',
   className = '',
   inputClassName = '',
-  ...props
+  defaultValue = '',
+  placeholder,
+  autoSubmit = false,
 }: {
-  label: string
+  label?: string
+  name?: string
   className?: string
   inputClassName?: string
-} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  defaultValue?: string
+  placeholder?: string
+  autoSubmit?: boolean
+}) {
+  const initialValue = typeof defaultValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(defaultValue) ? defaultValue : ''
+
+  const [selectedDate, setSelectedDate] = useState<string>(initialValue)
+  const [prevDefault, setPrevDefault] = useState(defaultValue)
+  const [open, setOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'days' | 'months' | 'years'>('days')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const initialDateObj = initialValue ? new Date(`${initialValue}T00:00:00Z`) : new Date()
+  const [viewYear, setViewYear] = useState(() => initialDateObj.getUTCFullYear())
+  const [viewMonth, setViewMonth] = useState(() => initialDateObj.getUTCMonth())
+
+  // Synchronize state during render when defaultValue prop changes
+  if (defaultValue !== prevDefault) {
+    setPrevDefault(defaultValue)
+    if (typeof defaultValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(defaultValue)) {
+      setSelectedDate(defaultValue)
+      const d = new Date(`${defaultValue}T00:00:00Z`)
+      if (!Number.isNaN(d.getTime())) {
+        setViewYear(d.getUTCFullYear())
+        setViewMonth(d.getUTCMonth())
+      }
+    } else if (!defaultValue) {
+      setSelectedDate('')
+    }
+  }
+
+  // Close when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!open) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setViewMode('days')
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        setViewMode('days')
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const todayKey = new Date().toISOString().slice(0, 10)
+
+  const handleSelectDate = (dateKey: string) => {
+    setSelectedDate(dateKey)
+    setOpen(false)
+    setViewMode('days')
+    if (autoSubmit && containerRef.current) {
+      const form = containerRef.current.closest('form')
+      if (form) {
+        setTimeout(() => {
+          form.requestSubmit()
+        }, 0)
+      }
+    }
+  }
+
+  // Days calculations
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const firstDayOfWeek = new Date(Date.UTC(viewYear, viewMonth, 1)).getUTCDay()
+  const daysInMonth = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate()
+  const daysInPrevMonth = new Date(Date.UTC(viewYear, viewMonth, 0)).getUTCDate()
+
+  const calendarDays: Array<{
+    dateKey: string
+    dayNum: number
+    isCurrentMonth: boolean
+    isToday: boolean
+    isSelected: boolean
+  }> = []
+
+  // Leading days from previous month
+  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+    const d = daysInPrevMonth - i
+    const prevM = viewMonth === 0 ? 11 : viewMonth - 1
+    const prevY = viewMonth === 0 ? viewYear - 1 : viewYear
+    const dateKey = `${prevY}-${pad(prevM + 1)}-${pad(d)}`
+    calendarDays.push({
+      dateKey,
+      dayNum: d,
+      isCurrentMonth: false,
+      isToday: dateKey === todayKey,
+      isSelected: dateKey === selectedDate,
+    })
+  }
+
+  // Days in current month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateKey = `${viewYear}-${pad(viewMonth + 1)}-${pad(d)}`
+    calendarDays.push({
+      dateKey,
+      dayNum: d,
+      isCurrentMonth: true,
+      isToday: dateKey === todayKey,
+      isSelected: dateKey === selectedDate,
+    })
+  }
+
+  // Trailing days
+  const totalCells = calendarDays.length <= 35 ? 35 : 42
+  const trailingCount = totalCells - calendarDays.length
+  for (let d = 1; d <= trailingCount; d++) {
+    const nextM = viewMonth === 11 ? 0 : viewMonth + 1
+    const nextY = viewMonth === 11 ? viewYear + 1 : viewYear
+    const dateKey = `${nextY}-${pad(nextM + 1)}-${pad(d)}`
+    calendarDays.push({
+      dateKey,
+      dayNum: d,
+      isCurrentMonth: false,
+      isToday: dateKey === todayKey,
+      isSelected: dateKey === selectedDate,
+    })
+  }
+
+  const decadeStart = Math.floor(viewYear / 10) * 10
+  const decadeYears = Array.from({ length: 12 }, (_, i) => decadeStart - 1 + i)
+
+  const formattedDisplay = selectedDate ? formatDate(`${selectedDate}T00:00:00Z`, 'UTC') || selectedDate : ''
+
   return (
-    <FilterField label={label} className={className}>
-      <input type="date" className={cx(FILTER_CONTROL, inputClassName)} {...props} />
-    </FilterField>
+    <div className={cx('relative inline-flex flex-col', className)} ref={containerRef}>
+      {label && <span className="text-xs font-medium text-slate-600">{label}</span>}
+      <input type="hidden" name={name} value={selectedDate} />
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={label ? `${label}: ${formattedDisplay || 'Select date'}` : formattedDisplay || 'Select date'}
+        className={cx(
+          FILTER_CONTROL,
+          'flex min-w-[9.5rem] items-center justify-between gap-2 bg-white text-left font-medium text-slate-800 transition hover:border-slate-300 focus:border-primary',
+          inputClassName,
+        )}
+      >
+        <span className="flex items-center gap-1.5 truncate">
+          <Calendar className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <span className={cx('truncate', !selectedDate && 'font-normal text-slate-500')}>
+            {formattedDisplay || placeholder || 'Select date'}
+          </span>
+        </span>
+        <ChevronDown
+          className={cx('h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Select date"
+          className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl ring-1 ring-black/5"
+        >
+          {/* Header */}
+          <div className="mb-2.5 flex items-center justify-between border-b border-slate-100 pb-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (viewMode === 'days') {
+                  if (viewMonth === 0) {
+                    setViewMonth(11)
+                    setViewYear((y) => y - 1)
+                  } else {
+                    setViewMonth((m) => m - 1)
+                  }
+                } else if (viewMode === 'months') {
+                  setViewYear((y) => y - 1)
+                } else {
+                  setViewYear((y) => y - 10)
+                }
+              }}
+              aria-label="Previous"
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            {/* Drill-Up Center Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (viewMode === 'days') setViewMode('months')
+                else if (viewMode === 'months') setViewMode('years')
+                else setViewMode('days')
+              }}
+              aria-label="Switch view level"
+              className="cursor-pointer rounded-lg px-2 py-1 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+            >
+              {viewMode === 'days' && `${MONTH_NAMES[viewMonth]} ${viewYear}`}
+              {viewMode === 'months' && `${viewYear}`}
+              {viewMode === 'years' && `${decadeStart} – ${decadeStart + 9}`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (viewMode === 'days') {
+                  if (viewMonth === 11) {
+                    setViewMonth(0)
+                    setViewYear((y) => y + 1)
+                  } else {
+                    setViewMonth((m) => m + 1)
+                  }
+                } else if (viewMode === 'months') {
+                  setViewYear((y) => y + 1)
+                } else {
+                  setViewYear((y) => y + 10)
+                }
+              }}
+              aria-label="Next"
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Days View */}
+          {viewMode === 'days' && (
+            <div>
+              <div className="mb-1 grid grid-cols-7 gap-1 text-center">
+                {DAYS_OF_WEEK.map((d) => (
+                  <span key={d} className="text-micro font-semibold uppercase tracking-wider text-slate-500">
+                    {d}
+                  </span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {calendarDays.map((c) => (
+                  <button
+                    key={c.dateKey}
+                    type="button"
+                    onClick={() => handleSelectDate(c.dateKey)}
+                    className={cx(
+                      'mx-auto grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-xs transition',
+                      c.isSelected
+                        ? 'border border-primary bg-primary font-semibold text-white shadow-sm'
+                        : c.isToday
+                          ? 'border border-primary/50 bg-primary/5 font-semibold text-primary hover:bg-primary/10'
+                          : c.isCurrentMonth
+                            ? 'border border-transparent bg-white text-slate-800 hover:border-slate-200 hover:bg-slate-100'
+                            : 'border border-transparent text-slate-500 opacity-60 hover:bg-slate-100',
+                    )}
+                  >
+                    {c.dayNum}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Months View (Drill-Down / Drill-Up) */}
+          {viewMode === 'months' && (
+            <div className="grid grid-cols-3 gap-1.5 py-1">
+              {MONTH_NAMES.map((mName, idx) => {
+                const isSelected = viewMonth === idx
+                return (
+                  <button
+                    key={mName}
+                    type="button"
+                    onClick={() => {
+                      setViewMonth(idx)
+                      setViewMode('days')
+                    }}
+                    className={cx(
+                      'cursor-pointer rounded-lg border px-2 py-2 text-center text-xs transition',
+                      isSelected
+                        ? 'border-primary bg-primary font-semibold text-white shadow-sm'
+                        : 'border-slate-200 bg-white font-normal text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                    )}
+                  >
+                    {mName.slice(0, 3)}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Years View (Decade Drill-Down) */}
+          {viewMode === 'years' && (
+            <div className="grid grid-cols-3 gap-1.5 py-1">
+              {decadeYears.map((yr) => {
+                const isSelected = viewYear === yr
+                const inDecade = yr >= decadeStart && yr <= decadeStart + 9
+                return (
+                  <button
+                    key={yr}
+                    type="button"
+                    onClick={() => {
+                      setViewYear(yr)
+                      setViewMode('months')
+                    }}
+                    className={cx(
+                      'cursor-pointer rounded-lg border px-2 py-2 text-center text-xs transition',
+                      isSelected
+                        ? 'border-primary bg-primary font-semibold text-white shadow-sm'
+                        : inDecade
+                          ? 'border-slate-200 bg-white font-normal text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                          : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100',
+                    )}
+                  >
+                    {yr}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Footer with Today / Clear */}
+          <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleSelectDate(todayKey)}
+                className="cursor-pointer font-medium text-primary hover:underline"
+              >
+                Today
+              </button>
+              {selectedDate && (
+                <>
+                  <span className="text-slate-500" aria-hidden="true">
+                    &bull;
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectDate('')}
+                    className="cursor-pointer font-medium text-slate-500 hover:text-slate-800 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+            <span className="font-mono text-meta tabular-nums text-slate-500">{selectedDate || 'none'}</span>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -304,58 +672,225 @@ export function MonthFilterField({
   )
 }
 
-/** Shared year field for FilterBar layouts. Supports custom selectable years or a standard year number picker. */
-export function YearFilterField({
+function YearSelectFilterField({
   label = 'Year',
   name = 'year',
   className = '',
   inputClassName = '',
   years,
   defaultValue,
-  ...props
 }: {
+  label?: string
+  name?: string
+  className?: string
+  inputClassName?: string
+  years: number[]
+  defaultValue?: string | number
+}) {
+  return (
+    <FilterField label={label} className={className}>
+      <select
+        name={name}
+        defaultValue={defaultValue != null ? String(defaultValue) : undefined}
+        className={cx(SELECT_CONTROL, inputClassName)}
+      >
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {y}
+          </option>
+        ))}
+      </select>
+    </FilterField>
+  )
+}
+
+function YearPickerFilterField({
+  label = 'Year',
+  name = 'year',
+  className = '',
+  inputClassName = '',
+  defaultValue,
+  autoSubmit = false,
+}: {
+  label?: string
+  name?: string
+  className?: string
+  inputClassName?: string
+  defaultValue?: string | number
+  autoSubmit?: boolean
+}) {
+  const initialYear = (() => {
+    if (defaultValue != null) {
+      const parsed = parseInt(String(defaultValue), 10)
+      if (!Number.isNaN(parsed)) return parsed
+    }
+    return new Date().getUTCFullYear()
+  })()
+
+  const [selectedYear, setSelectedYear] = useState<number>(initialYear)
+  const [prevDefault, setPrevDefault] = useState(defaultValue)
+  const [open, setOpen] = useState(false)
+  const [decadeStart, setDecadeStart] = useState(() => Math.floor(initialYear / 10) * 10)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  if (defaultValue !== prevDefault) {
+    setPrevDefault(defaultValue)
+    if (defaultValue != null) {
+      const parsed = parseInt(String(defaultValue), 10)
+      if (!Number.isNaN(parsed)) {
+        setSelectedYear(parsed)
+        setDecadeStart(Math.floor(parsed / 10) * 10)
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const handleSelectYear = (yr: number) => {
+    setSelectedYear(yr)
+    setOpen(false)
+    if (autoSubmit && containerRef.current) {
+      const form = containerRef.current.closest('form')
+      if (form) setTimeout(() => form.requestSubmit(), 0)
+    }
+  }
+
+  const currentYear = new Date().getUTCFullYear()
+  const decadeYears = Array.from({ length: 12 }, (_, i) => decadeStart - 1 + i)
+
+  return (
+    <div className={cx('relative inline-flex flex-col', className)} ref={containerRef}>
+      {label && <span className="text-xs font-medium text-slate-600">{label}</span>}
+      <input type="hidden" name={name} value={selectedYear} />
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={label ? `${label}: ${selectedYear}` : String(selectedYear)}
+        className={cx(
+          FILTER_CONTROL,
+          'flex min-w-[7.5rem] items-center justify-between gap-2.5 bg-white text-left font-medium text-slate-800 transition hover:border-slate-300 focus:border-primary',
+          inputClassName,
+        )}
+      >
+        <span className="flex items-center gap-2 truncate">
+          <Calendar className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <span className="truncate tabular-nums">{selectedYear}</span>
+        </span>
+        <ChevronDown
+          className={cx('h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Select year"
+          className="absolute left-0 top-full z-50 mt-1.5 w-60 rounded-xl border border-slate-200 bg-white p-3 shadow-xl ring-1 ring-black/5"
+        >
+          <div className="mb-2.5 flex items-center justify-between border-b border-slate-100 pb-2">
+            <button
+              type="button"
+              onClick={() => setDecadeStart((d) => d - 10)}
+              aria-label="Previous decade"
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-semibold tabular-nums text-slate-800">
+              {decadeStart} – {decadeStart + 9}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDecadeStart((d) => d + 10)}
+              aria-label="Next decade"
+              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5">
+            {decadeYears.map((yr) => {
+              const isSelected = selectedYear === yr
+              const isCurrent = currentYear === yr
+              const inDecade = yr >= decadeStart && yr <= decadeStart + 9
+              return (
+                <button
+                  key={yr}
+                  type="button"
+                  onClick={() => handleSelectYear(yr)}
+                  className={cx(
+                    'cursor-pointer rounded-lg border px-2 py-2 text-center text-xs tabular-nums transition',
+                    isSelected
+                      ? 'border-primary bg-primary font-semibold text-white shadow-sm'
+                      : isCurrent
+                        ? 'border-primary/50 bg-primary/5 font-medium text-primary hover:bg-primary/10'
+                        : inDecade
+                          ? 'border-slate-200 bg-white font-normal text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                          : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100',
+                  )}
+                >
+                  {yr}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setDecadeStart(Math.floor(currentYear / 10) * 10)
+                handleSelectYear(currentYear)
+              }}
+              className="cursor-pointer font-medium text-primary hover:underline"
+            >
+              This year
+            </button>
+            <span className="font-mono text-meta tabular-nums text-slate-500">{selectedYear}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Shared year field for FilterBar layouts. Supports custom selectable years or a bounded decade picker popover. */
+export function YearFilterField(props: {
   label?: string
   name?: string
   className?: string
   inputClassName?: string
   years?: number[]
   defaultValue?: string | number
-} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
-  if (years && years.length > 0) {
-    return (
-      <FilterField label={label} className={className}>
-        <select
-          name={name}
-          defaultValue={defaultValue != null ? String(defaultValue) : undefined}
-          className={cx(SELECT_CONTROL, inputClassName)}
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </FilterField>
-    )
+  autoSubmit?: boolean
+}) {
+  if (props.years && props.years.length > 0) {
+    return <YearSelectFilterField {...props} years={props.years} />
   }
-  return (
-    <FilterField label={label} className={className}>
-      <input
-        type="number"
-        name={name}
-        defaultValue={defaultValue}
-        min="2000"
-        max="2099"
-        step="1"
-        placeholder="YYYY"
-        className={cx(FILTER_CONTROL, 'w-24', inputClassName)}
-        {...props}
-      />
-    </FilterField>
-  )
+  return <YearPickerFilterField {...props} />
 }
 
-/** Shared date-range field (From - To) for FilterBar layouts. */
+/** Shared date-range field (From - To) for FilterBar layouts with custom pickers. */
 export function DateRangeFilterField({
   label = 'Date range',
   fromName = 'from',
@@ -379,25 +914,17 @@ export function DateRangeFilterField({
     <div className={cx('flex flex-col', className)}>
       <span className="text-xs font-medium text-slate-600">{label}</span>
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        <input
-          type="date"
+        <DateFilterField
+          label=""
           name={fromName}
           defaultValue={defaultFrom}
-          aria-label={fromLabel}
-          title={fromLabel}
-          className={cx(FILTER_CONTROL, 'max-w-[8.5rem] min-w-0')}
+          placeholder={fromLabel}
+          className="min-w-0"
         />
-        <span className="text-xs font-medium text-slate-600" aria-hidden="true">
+        <span className="self-center text-xs font-medium text-slate-600" aria-hidden="true">
           &ndash;
         </span>
-        <input
-          type="date"
-          name={toName}
-          defaultValue={defaultTo}
-          aria-label={toLabel}
-          title={toLabel}
-          className={cx(FILTER_CONTROL, 'max-w-[8.5rem] min-w-0')}
-        />
+        <DateFilterField label="" name={toName} defaultValue={defaultTo} placeholder={toLabel} className="min-w-0" />
       </div>
     </div>
   )
