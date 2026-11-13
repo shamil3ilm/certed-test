@@ -219,6 +219,19 @@ describe('permission/mentor', () => {
     expect(createAdminClient).not.toHaveBeenCalled()
   })
 
+  it('canMentor: sub_admin persona allows across academy', async () => {
+    const subAdminPersona = {
+      profile_id: 'subadmin-cm-1',
+      persona_name: 'sub_admin',
+      status: 'active',
+      scope_type: 'global',
+      scope_id: null,
+    }
+    vi.mocked(loadActivePersonas).mockResolvedValueOnce([subAdminPersona] as any)
+    expect(await canMentor(profile({ id: 'subadmin-cm-1', role: 'sub_admin' }), 'stud-cm-subadmin')).toBe(true)
+    expect(createAdminClient).not.toHaveBeenCalled()
+  })
+
   it('canMentor: student-scoped mentor persona allows without DB lookup', async () => {
     const mentorPersona = {
       profile_id: 'teach-cm-1',

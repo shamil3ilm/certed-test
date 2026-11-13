@@ -383,6 +383,18 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - **Summary Column (`Working`)**: Replaced `Total` with `Working` (`workingMinutes = regular + exam`, with Demo reported separately and excluded from working time), and unified table footers to `Working - {month}`.
       - **Stat Cards**: Added a `Working hours` stat card to `StudentHoursView` alongside `Total received` for complete transparency across both metrics.
     - **E2E Specs Verification**: Updated column assertions in `tests/e2e/class-hours.pw.ts` and `tests/e2e/hours-breakdown.pw.ts` to reflect the unified column indexing.
+28. **Sub-Admin Mentee Detail 404 Defect & Capability vs Persona Conflict Resolution**:
+    - **Defect Symptom & Diagnosis**: When a user with the `sub_admin` persona clicked on a student from the teaching hours table (`/admin/teaching-hours` or `/my-hours`) or the student roster (`/students`), the route `/students/[id]?hoursMonth=${month}#hours` rendered a 404 page ("This page doesn't exist, or you don't have access to it.").
+    - **Root Cause (Capability vs Persona Conflict)**:
+      - _Route Gate_: The page `src/app/(prt)/students/[id]/page.tsx` gates on `await requireCapability('viewMentees')`. In `src/lib/capabilities/index.ts`, `PERSONA_CAPABILITIES.sub_admin` includes `viewMentees` and `manageMentorships` by design. Hence, the route guard passed without error.
+      - _Data Loader_: The page calls `loadMenteeDetailPageData(me, params.id, searchParams)`, which calls `canMentor(actor, studentId)`. If `canMentor` returns `false`, `loadMenteeDetailPageData` returned `null`, triggering `if (!data) notFound()`.
+      - _Permission Check Disconnect_: In `src/lib/permission/mentor.ts`, `canMentor` had a hardcoded legacy check strictly evaluating `isAdmin` (`hasPersona(personas, 'admin')`) and student-scoped mentor assignments (`hasScopedPersona(personas, 'mentor', studentId)`). Because `sub_admin` is an operational administrator with academy-wide oversight rather than an individual student-scoped mentor assignment, `canMentor` returned `false`.
+    - **Architectural Resolution & Cross-App Alignment**:
+      - **`src/lib/permission/mentor.ts`**: Widened `canMentor` to include `isSubAdmin` (`if (isAdmin || isSubAdmin) return true`), mirroring `canAccessClass`, `canWriteCalendar`, and `loadPersonaFlags` conventions.
+      - **`src/lib/services/hours-breakdown.ts`**: `canViewStudentHours` originally had an ad-hoc fallback `(await loadPersonaFlags(actor.id)).isSubAdmin` precisely because `canMentor` failed for sub-admins. With `canMentor` now properly recognizing `sub_admin`, the permission model across student hours and mentee inspection is unified.
+      - **`src/lib/report-card/data.ts`**: Enabled `sub_admin` to view student report cards (`canViewReportCard` delegates to `canMentor`), unlocking PDF generation and report card rendering for operational admins.
+      - **Pastoral Notes Data Minimization**: Preserved strict DPDP boundaries in `src/lib/services/mentee-notes.ts`: `sub_admin` can view their own authored notes, while full historical review across arbitrary previous mentors remains exclusive to Super Admins (`isAdmin`) in accordance with database RLS policies (`0090_round5_rls_hardening.sql`).
+      - **Unit Test Coverage**: Added comprehensive test cases in `tests/unit/permission.test.ts` verifying that `sub_admin` persona allows student mentoring/oversight across the academy while unauthorized personas (e.g. students or non-mentor tutors) are strictly rejected.
 
 ---
 
