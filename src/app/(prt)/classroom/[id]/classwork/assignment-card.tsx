@@ -89,37 +89,41 @@ export async function AssignmentCard({
         </div>
       </div>
 
-      {data.canManageContent && (
+      {(data.canManageContent || data.canViewSubmissions) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Link href={`/assignments/${assignment.id}`} className="btn btn-sm btn-soft">
             View submissions
           </Link>
-          <EditAssignment assignment={assignment} />
-          <form action={archiveAssignmentAction}>
-            <input type="hidden" name="id" value={assignment.id} />
-            <input type="hidden" name="class_id" value={courseId} />
-            <input type="hidden" name="status" value={assignment.status === 'archived' ? 'active' : 'archived'} />
-            {/* Archiving removes the item from every student's classwork list, so it is
-                confirmed like the lighter "hide a document" control rendered on this same
-                page (materials-section). Restore is additive, so it just gets a pending
-                state - the same split materials-section uses. */}
-            {assignment.status === 'archived' ? (
-              <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
-                Restore
-              </SubmitButton>
-            ) : (
-              <ConfirmSubmit
-                className="btn btn-sm btn-warning"
-                variant="danger"
-                title="Archive this classwork?"
-                message={`"${assignment.title}" stays on the class page for students, marked archived and read-only; their submissions and marks are kept. You can restore it later.`}
-                confirmLabel="Archive"
-                pendingLabel="Archiving..."
-              >
-                Archive
-              </ConfirmSubmit>
-            )}
-          </form>
+          {data.canManageContent && (
+            <>
+              <EditAssignment assignment={assignment} />
+              <form action={archiveAssignmentAction}>
+                <input type="hidden" name="id" value={assignment.id} />
+                <input type="hidden" name="class_id" value={courseId} />
+                <input type="hidden" name="status" value={assignment.status === 'archived' ? 'active' : 'archived'} />
+                {/* Archiving removes the item from every student's classwork list, so it is
+                    confirmed like the lighter "hide a document" control rendered on this same
+                    page (materials-section). Restore is additive, so it just gets a pending
+                    state - the same split materials-section uses. */}
+                {assignment.status === 'archived' ? (
+                  <SubmitButton className="btn-sm btn-success" pendingLabel="Restoring...">
+                    Restore
+                  </SubmitButton>
+                ) : (
+                  <ConfirmSubmit
+                    className="btn btn-sm btn-warning"
+                    variant="danger"
+                    title="Archive this classwork?"
+                    message={`"${assignment.title}" stays on the class page for students, marked archived and read-only; their submissions and marks are kept. You can restore it later.`}
+                    confirmLabel="Archive"
+                    pendingLabel="Archiving..."
+                  >
+                    Archive
+                  </ConfirmSubmit>
+                )}
+              </form>
+            </>
+          )}
         </div>
       )}
 

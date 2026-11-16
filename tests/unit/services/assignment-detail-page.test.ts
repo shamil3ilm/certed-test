@@ -8,6 +8,9 @@ vi.mock('@/lib/services/submissions', () => ({
   listSubmissionsForAssignment: vi.fn(),
   listSupersededSubmissions: vi.fn(),
 }))
+vi.mock('@/lib/services/attachments/read', () => ({
+  listAttachmentsForOwners: vi.fn(),
+}))
 vi.mock('@/lib/services/users', () => ({ getProfileNamesByIds: vi.fn() }))
 
 import { canManageClass } from '@/lib/permission'
@@ -16,6 +19,7 @@ import { loadAssignmentDetailPageData } from '@/lib/services/page-data/assignmen
 import { getClass } from '@/lib/services/classes'
 import { listCommentsForEntities } from '@/lib/services/comments'
 import { listSubmissionsForAssignment, listSupersededSubmissions } from '@/lib/services/submissions'
+import { listAttachmentsForOwners } from '@/lib/services/attachments/read'
 import { getProfileNamesByIds } from '@/lib/services/users'
 
 beforeEach(() => vi.resetAllMocks())
@@ -65,6 +69,11 @@ describe('loadAssignmentDetailPageData', () => {
         ['sub-1', [{ id: 'c-1' }]],
         ['sub-2', [{ id: 'c-2' }]],
       ]) as any,
+    )
+    vi.mocked(listAttachmentsForOwners).mockResolvedValueOnce(
+      new Map([
+        ['sub-1', [{ id: 'att-1', filename: 'work.pdf', size: 1024, mimeType: 'application/pdf', createdAt: '' }]],
+      ]),
     )
 
     const result = await loadAssignmentDetailPageData({ id: 'tutor-1', role: 'tutor' } as any, 'a-1')

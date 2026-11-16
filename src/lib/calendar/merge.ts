@@ -1,4 +1,5 @@
 import type { SlotOccurrence } from '@/lib/time/expand-slots'
+import { zonedDateTimeToIso } from '@/lib/time/expand-slots'
 import type { CalendarEventKind } from '@/lib/services/calendar-events'
 import type { AssignmentType } from '@/lib/data/assignments'
 import { matchExams, matchOccurrences, type HeldSession } from './held'
@@ -11,31 +12,6 @@ function assignmentTitle(type: AssignmentType, title: string): string {
     return `${type[0].toUpperCase()}${type.slice(1)}: ${title}`
   }
   return `Due: ${title}`
-}
-
-// A wall-clock "YYYY-MM-DD" + "HH:mm" in `anchorTz` -> absolute UTC instant.
-// Reuses the same DST-correct primitive as expandSlots, kept local to avoid a circular import.
-function zonedDateTimeToIso(dateYmd: string, hm: string, anchorTz: string): string {
-  const [y, mo, d] = dateYmd.split('-').map(Number)
-  const [h, mi] = hm.split(':').map(Number)
-  const naiveUtc = Date.UTC(y, mo - 1, d, h, mi, 0)
-  const offset = (instantMs: number): number => {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: anchorTz,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).formatToParts(new Date(instantMs))
-    const g = (t: string) => Number(parts.find((p) => p.type === t)!.value)
-    return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - instantMs
-  }
-  let guess = naiveUtc - offset(naiveUtc)
-  guess = naiveUtc - offset(guess)
-  return new Date(guess).toISOString()
 }
 
 type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet' | 'session' | 'reminder'

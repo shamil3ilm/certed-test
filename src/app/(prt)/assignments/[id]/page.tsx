@@ -17,6 +17,7 @@ import {
 } from '@/lib/ui'
 import { GradeForm } from '../GradeForm'
 import { ResultGradeForm } from '../ResultGradeForm'
+import { AttachmentList } from '../../AttachmentList'
 import { safeExternalHref } from '@/lib/validation/url'
 
 export default async function AssignmentDetail(props: { params: Promise<{ id: string }> }) {
@@ -112,6 +113,13 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
               )}
             </div>
 
+            {(data.attachmentsBySub.get(submission.id)?.length ?? 0) > 0 && (
+              <div className="mt-2">
+                <p className="mb-1 text-xs font-medium text-slate-600">Uploaded files</p>
+                <AttachmentList attachments={data.attachmentsBySub.get(submission.id)!} />
+              </div>
+            )}
+
             <GradeForm
               submissionId={submission.id}
               assignmentId={data.assignment.id}
@@ -142,6 +150,20 @@ export default async function AssignmentDetail(props: { params: Promise<{ id: st
                         >
                           {prior.file_name ?? 'Open'} {'->'}
                         </a>
+                      )}
+                      {(data.attachmentsBySub.get(prior.id)?.length ?? 0) > 0 && (
+                        <span className="flex items-center gap-2">
+                          {data.attachmentsBySub.get(prior.id)!.map((att) => (
+                            <a
+                              key={att.id}
+                              href={`/api/attachments/${att.id}/download`}
+                              className="font-medium text-primary hover:underline"
+                              title={att.filename}
+                            >
+                              Download {att.filename}
+                            </a>
+                          ))}
+                        </span>
                       )}
                     </li>
                   ))}

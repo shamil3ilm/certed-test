@@ -1,9 +1,10 @@
 import type { Profile } from '@/lib/auth/profile'
 import { myClassIds } from '@/lib/services/classes'
 import { listSlots } from '@/lib/services/timetable-slots'
+import { listEvents } from '@/lib/services/calendar-events'
 import { todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
-import { expandSlots, nextCalendarDate, zonedDayStartMs } from '@/lib/time/expand-slots'
+import { expandSlots, nextCalendarDate, zonedDayStartMs, zonedDateTimeToIso } from '@/lib/time/expand-slots'
 
 export type ClassScopedWidgetData = {
   classIds: string[]
@@ -58,24 +59,53 @@ export async function listUpcomingClassOccurrences(
   limit = 5,
 ): Promise<UpcomingClassOccurrence[]> {
   if (classIds.length === 0) return []
-  const slots = await listSlots({ classIds, activeOnly: true })
-  if (slots.length === 0) return []
+  const todayYmd = todayInZone(timeZone)
+  const windowEndYmd = calendarDatePlusDays(todayYmd, 14)
+  const [slots, events] = await Promise.all([
+    listSlots({ classIds, activeOnly: true }),
+    listEvents({ from: todayYmd, to: windowEndYmd }),
+  ])
 
-  const startDate = new Date(zonedDayStartMs(todayInZone(timeZone), timeZone)).toISOString()
-  const endDate = new Date(zonedDayStartMs(calendarDatePlusDays(todayInZone(timeZone), 14), timeZone)).toISOString()
-  const byId = new Map(slots.map((slot) => [slot.id, slot]))
+  const classIdSet = new Set(classIds)
+  const occurrences: UpcomingClassOccurrence[] = []
 
-  return expandSlots(slots, startDate, endDate, timeZone)
-    .filter((occurrence) => Date.parse(occurrence.startIso) >= nowMs)
-    .map((occurrence) => {
-      const slot = byId.get(occurrence.slotId)!
-      return {
-        slotId: slot.id,
-        subject: slot.subject,
-        classId: slot.class_id,
-        startIso: occurrence.startIso,
-        endIso: occurrence.endIso,
+  if (slots.length > 0) {
+    const startDate = new Date(zonedDayStartMs(todayYmd, timeZone)).toISOString()
+    const endDate = new Date(zonedDayStartMs(windowEndYmd, timeZone)).toISOString()
+    const byId = new Map(slots.map((slot) => [slot.id, slot]))
+
+    for (const occ of expandSlots(slots, startDate, endDate, timeZone)) {
+      if (Date.parse(occ.startIso) >= nowMs) {
+        const slot = byId.get(occ.slotId)!
+        occurrences.push({
+          slotId: slot.id,
+          subject: slot.subject,
+          classId: slot.class_id,
+          startIso: occ.startIso,
+          endIso: occ.endIso,
+        })
       }
-    })
-    .slice(0, limit)
+    }
+  }
+
+  // Include one-off class sessions / events associated with the user's classes
+  for (const ev of events) {
+    if (ev.class_id && classIdSet.has(ev.class_id) && ev.kind === 'event') {
+      const startTime = ev.start_time ?? '00:00'
+      const endTime = ev.end_time ?? startTime
+      const startIso = zonedDateTimeToIso(ev.event_date, startTime, timeZone)
+      const endIso = zonedDateTimeToIso(ev.event_date, endTime, timeZone)
+      if (Date.parse(startIso) >= nowMs) {
+        occurrences.push({
+          slotId: `event-${ev.id}`,
+          subject: ev.title,
+          classId: ev.class_id,
+          startIso,
+          endIso,
+        })
+      }
+    }
+  }
+
+  return occurrences.sort((a, b) => Date.parse(a.startIso) - Date.parse(b.startIso)).slice(0, limit)
 }

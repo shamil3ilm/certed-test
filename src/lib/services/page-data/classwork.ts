@@ -1,5 +1,6 @@
 import { clampPage, parsePageParam, totalPages } from '@/lib/pagination'
 import { withClassLabels } from '@/lib/services/classes/class-labels'
+import { getActorContext } from '@/lib/session/actor-context'
 import type { Profile } from '@/lib/auth/profile'
 import { canManageClass } from '@/lib/permission'
 import { canDocument } from '@/lib/permission/documents'
@@ -65,6 +66,7 @@ export type DocumentFilterState = {
 type ClassworkPageData = {
   canManage: boolean
   canManageContent: boolean
+  canViewSubmissions: boolean
   isStudent: boolean
   isArchived: boolean
   now: number
@@ -179,9 +181,17 @@ export async function loadClassworkPageData(
   course: { id: string; name: string; status: 'active' | 'archived'; subject_id: string | null },
   searchParams?: ClassworkSearchParams,
 ): Promise<ClassworkPageData> {
+  let canViewGrading = false
+  try {
+    const actor = await getActorContext()
+    canViewGrading = actor.capabilities.allowed.has('viewGrading')
+  } catch {
+    // Non-request context (e.g. tests)
+  }
   const [{ isStudent }, canManage] = await Promise.all([loadPersonaFlags(me.id), canManageClass(me, course.id)])
   const isArchived = course.status === 'archived'
   const canManageContent = canManage && !isArchived
+  const canViewSubmissions = (canManageContent || canViewGrading) && canManage
   // The assignment and upload forms' class option reads the live "Student - Subject", as the
   // calendar's does, not the name stored when the class was created.
   const classList = (await withClassLabels([course], 'student-subject')).map((c) => ({ id: c.id, name: c.name }))
@@ -299,6 +309,7 @@ export async function loadClassworkPageData(
   return {
     canManage,
     canManageContent,
+    canViewSubmissions,
     isStudent,
     isArchived,
     now: nowMs,

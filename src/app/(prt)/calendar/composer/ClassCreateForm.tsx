@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { cx, ACADEMY_WIDE_LABEL } from '@/lib/ui'
+import { SESSION_KINDS, SESSION_KIND_LABELS, type SessionKind } from '@/lib/attendance/session-kind'
 import { Input, Select } from '../../form'
 import { requestJson } from '../../api-client'
 import { api } from '../timetable/api'
@@ -39,6 +40,7 @@ export function ClassCreateForm({
   const todayYmd = calendarDateInZone(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [recurring, setRecurring] = useState(false)
   const [sessionDate, setSessionDate] = useState(() => (date < todayYmd ? todayYmd : date))
+  const [sessionType, setSessionType] = useState<SessionKind>('regular')
   const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
   const [subject, setSubject] = useState('')
   const [tutorId, setTutorId] = useState('')
@@ -83,6 +85,7 @@ export function ClassCreateForm({
             title: subject,
             event_date: sessionDate,
             kind: 'event',
+            description: `session_type:${sessionType}`,
             class_id: classId || null,
             start_time: start || undefined,
             end_time: end || undefined,
@@ -153,6 +156,23 @@ export function ClassCreateForm({
           ))}
         </Select>
       </label>
+
+      {!recurring && (
+        <label className="text-sm">
+          Session type
+          <Select
+            value={sessionType}
+            onChange={(event) => setSessionType(event.target.value as SessionKind)}
+            className="mt-1"
+          >
+            {SESSION_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {SESSION_KIND_LABELS[kind]}
+              </option>
+            ))}
+          </Select>
+        </label>
+      )}
 
       {recurring ? (
         <label className="text-sm">

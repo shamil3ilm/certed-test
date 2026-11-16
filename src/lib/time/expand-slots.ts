@@ -54,12 +54,21 @@ function tzOffsetMs(instantMs: number, tz: string): number {
 }
 
 // Absolute UTC ms for a wall-clock Y-M-D H:M in `tz` (DST-correct, two-pass fixpoint).
-function zonedWallClockToUtcMs(y: number, mo: number, d: number, h: number, mi: number, tz: string): number {
+export function zonedWallClockToUtcMs(y: number, mo: number, d: number, h: number, mi: number, tz: string): number {
   const naiveUtc = Date.UTC(y, mo - 1, d, h, mi, 0)
   let guess = naiveUtc - tzOffsetMs(naiveUtc, tz)
   // refine once more in case the first guess landed on the wrong side of a DST transition
   guess = naiveUtc - tzOffsetMs(guess, tz)
   return guess
+}
+
+/**
+ * Wall-clock date "YYYY-MM-DD" and time "HH:mm" in timezone -> absolute UTC ISO string.
+ */
+export function zonedDateTimeToIso(dateYmd: string, hm: string, tz: string): string {
+  const [y, mo, d] = dateYmd.split('-').map(Number)
+  const [h, mi] = hm.split(':').map(Number)
+  return new Date(zonedWallClockToUtcMs(y, mo, d, h, mi, tz)).toISOString()
 }
 
 /**

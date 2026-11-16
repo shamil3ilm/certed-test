@@ -4,6 +4,8 @@ import { getAssignment } from '@/lib/services/assignments'
 import { getClass } from '@/lib/services/classes'
 import { listCommentsForEntities } from '@/lib/services/comments'
 import { listSubmissionsForAssignment, listSupersededSubmissions, type Submission } from '@/lib/services/submissions'
+import { listAttachmentsForOwners } from '@/lib/services/attachments/read'
+import type { AttachmentView } from '@/lib/attachments/view'
 import { getProfileNamesByIds } from '@/lib/services/users'
 import { selectActiveStudentIdsByClassIds } from '@/lib/data/class-membership'
 
@@ -17,6 +19,7 @@ type AssignmentDetailPageData = {
   submissions: Awaited<ReturnType<typeof listSubmissionsForAssignment>>
   names: Awaited<ReturnType<typeof getProfileNamesByIds>>
   commentsBySub: Awaited<ReturnType<typeof listCommentsForEntities>>
+  attachmentsBySub: Map<string, AttachmentView[]>
   /** Prior (replaced) versions per student_id, newest first - so a tutor can see
    *  and recover a submission a student later superseded. */
   historyByStudent: Map<string, Submission[]>
@@ -42,12 +45,14 @@ export async function loadAssignmentDetailPageData(
   ])
   if (!allowed) return null
 
-  const [names, commentsBySub] = await Promise.all([
+  const allSubIds = [...submissions.map((s) => s.id), ...superseded.map((s) => s.id)]
+  const [names, commentsBySub, attachmentsBySub] = await Promise.all([
     getProfileNamesByIds(submissions.map((submission) => submission.student_id)),
     listCommentsForEntities(
       'submission',
       submissions.map((submission) => submission.id),
     ),
+    listAttachmentsForOwners('submission', allSubIds),
   ])
 
   const historyByStudent = new Map<string, Submission[]>()
@@ -79,6 +84,7 @@ export async function loadAssignmentDetailPageData(
     submissions,
     names,
     commentsBySub,
+    attachmentsBySub,
     historyByStudent,
     expectsSubmission,
     roster,

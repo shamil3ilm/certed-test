@@ -395,6 +395,34 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - **`src/lib/report-card/data.ts`**: Enabled `sub_admin` to view student report cards (`canViewReportCard` delegates to `canMentor`), unlocking PDF generation and report card rendering for operational admins.
       - **Pastoral Notes Data Minimization**: Preserved strict DPDP boundaries in `src/lib/services/mentee-notes.ts`: `sub_admin` can view their own authored notes, while full historical review across arbitrary previous mentors remains exclusive to Super Admins (`isAdmin`) in accordance with database RLS policies (`0090_round5_rls_hardening.sql`).
       - **Unit Test Coverage**: Added comprehensive test cases in `tests/unit/permission.test.ts` verifying that `sub_admin` persona allows student mentoring/oversight across the academy while unauthorized personas (e.g. students or non-mentor tutors) are strictly rejected.
+29. **Calendar Class Creation, Upcoming Classes Integration, and Session Type Categorization**:
+    - **Defect Symptoms & Root Causes**:
+      - _One-Off Calendar Class Not Appearing as Upcoming Class_: When scheduling a one-off class session from the calendar (`ClassCreateForm.tsx`), it persisted as a generic calendar event with `kind: 'event'` and `class_id`. However, the dashboard "Upcoming classes" widget (`listUpcomingClassOccurrences` in `src/app/(prt)/dashboard/widget-shared.tsx`) strictly queried recurring timetable slots (`listSlots({ classIds, activeOnly: true })`), entirely omitting one-off class sessions.
+      - _Missing Session Type in Calendar Composer_: `ClassCreateForm` did not allow selecting a session type matching the hours breakdown schema (`regular` default, `demo`, `exam`), forcing all one-off classes into an unclassified generic event.
+    - **Architectural Resolution**:
+      - **`src/app/(prt)/calendar/composer/ClassCreateForm.tsx`**: Added session type dropdown (`regular` default, `demo`, `exam` from `@/lib/attendance/session-kind`) for one-off classes, tagging the event with session type metadata.
+      - **`src/app/(prt)/dashboard/widget-shared.tsx`**: Updated `listUpcomingClassOccurrences` to query both recurring slots (`listSlots`) and class-scoped one-off sessions (`listEvents({ from, to })`), normalizing timestamps to absolute UTC ISOs and sorting occurrences chronologically.
+      - **`src/lib/time/expand-slots.ts` & `src/lib/calendar/merge.ts`**: Exported DST-safe `zonedDateTimeToIso` primitive from `expand-slots.ts` to unify calendar time resolution without duplication.
+30. **Student Submissions Visibility for Tutors and Mentors (Capability Boundary Fix)**:
+    - **Defect Symptoms & Root Causes**:
+      - _Mentors Blocked from "View Submissions"_: On `/classroom/[id]/classwork`, the "View submissions" button was guarded by `{data.canManageContent && ...}`. Mentors hold `viewGrading` and pastoral/academic oversight, but not `manageClassContent` (which is content creation/editing). Consequently, mentors assigned to a student never saw the button to review their submissions.
+      - _Custodial Uploads Invisible on Assignment Detail Page_: When students submitted work via custodial file upload, the files were stored in `attachments` (`submission_id`). However, `/assignments/[id]` only rendered `{submission.drive_link && <ExternalActionLink ...>}` and never fetched or rendered custodial attachments, making uploaded student submissions completely invisible to tutors and mentors.
+    - **Architectural Resolution**:
+      - **`src/lib/services/page-data/classwork.ts`**: Introduced `canViewSubmissions = (canManageContent || canViewGrading) && canManage` so anyone with grading or class management authority (mentors and tutors) can inspect student submissions.
+      - **`src/app/(prt)/classroom/[id]/classwork/assignment-card.tsx`**: Unbundled "View submissions" from content authoring tools, rendering it for users with `canViewSubmissions`.
+      - **`src/lib/services/page-data/assignment-detail-page.ts`**: Added batch custodial attachment loading for all active and superseded submissions via `listAttachmentsForOwners('submission', allSubIds)`.
+      - **`src/app/(prt)/assignments/[id]/page.tsx`**: Rendered custodial attachments via `<AttachmentList>` for both active submissions and version history, allowing tutors and mentors to preview and download student files.
+31. **Persona-Aware Access Denied / 404 Differentiation & Debuggability**:
+    - **Defect Symptoms & Root Causes**:
+      - Calls to `notFound()` across authenticated portal pages (due to persona/capability restrictions or missing resources) rendered a generic, ambiguous message: _"404 Not found / This page doesn't exist, or you don't have access to it."_
+      - Users and developers could not discern whether the URL was truly missing or blocked due to persona/capability mismatch, nor could they identify which persona they were currently signed in as.
+    - **Architectural Resolution**:
+      - **`src/app/(prt)/not-found.tsx`**: Enhanced the portal 404 page to read the active user session and actor context. When signed in, it displays a clear contextual badge: _"Signed in as {personaLabel} ({email})"_, explaining that if access was expected, the current persona or account lacks the required permissions. Provides an immediate link back to `/dashboard`.
+32. **Student Persona Exclusivity & Academy Role Hierarchy Architecture**:
+    - **Persona Verification**: Confirmed that across the system architecture (database schema, migrations, and permission model), `student` is strictly a separate, single-role learner persona:
+      - Tutors and mentors can have hybrid roles (`tutor` with student-scoped `mentor` assignments, rendering as `Tutor & Mentor`).
+      - Operational admins (`sub_admin` / "Admin") and Super Admins (`admin`) manage the academy.
+      - A student account cannot hold tutor, mentor, or admin personas, maintaining clear separation between learners and staff/educators across attendance, hours, grading, and finance.
 
 ---
 
