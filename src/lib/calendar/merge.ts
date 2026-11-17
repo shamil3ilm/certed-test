@@ -1,5 +1,10 @@
-import type { SlotOccurrence } from '@/lib/time/expand-slots'
-import { zonedDateTimeToIso } from '@/lib/time/expand-slots'
+import {
+  zonedDateTimeToIso,
+  wallClockDate,
+  buildSlotSuppressionSet,
+  type SlotOccurrence,
+} from '@/lib/time/expand-slots'
+import { parseSessionTypeFromDescription } from '@/lib/attendance/session-kind'
 import type { CalendarEventKind } from '@/lib/services/calendar-events'
 import type { AssignmentType } from '@/lib/data/assignments'
 import { matchExams, matchOccurrences, type HeldSession } from './held'
@@ -14,7 +19,7 @@ function assignmentTitle(type: AssignmentType, title: string): string {
   return `Due: ${title}`
 }
 
-type CalendarSource = 'slot' | 'event' | 'assignment' | 'meet' | 'session' | 'reminder'
+type CalendarSource = 'slot' | 'event' | 'assignment' | 'exam' | 'meet' | 'session' | 'reminder'
 
 export type CalendarItem = {
   id: string // source-prefixed, stable
@@ -24,12 +29,18 @@ export type CalendarItem = {
   end: string | null
   allDay: boolean
   classId: string | null
-  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet' | 'session' | 'reminder'
+  kind: CalendarEventKind | 'timetable' | 'deadline' | 'meet' | 'session' | 'reminder' | 'exam' | 'assignment'
   location?: string | null
   /** For an assignment-source item, the classwork type (assignment/exam/quiz/...). */
   type?: AssignmentType
+  /** For a one-off class session, the session kind (regular, demo, exam). */
+  sessionType?: 'regular' | 'demo' | 'exam'
   /** A recorded session was held for this: a class that took place, or an exam that was sat. */
   held?: boolean
+  /** Underlying resource id (assignment id, meet link id, session id, event id, slot id). */
+  rawId?: string | null
+  /** Direct URL for video calls or external links. */
+  url?: string | null
 }
 
 export type MergeInput = {
@@ -44,10 +55,11 @@ export type MergeInput = {
     class_id: string | null
     kind: CalendarEventKind
     slot_id?: string | null
+    description?: string | null
   }>
   assignments: Array<{ id: string; title: string; due_date: string; class_id: string; type: AssignmentType }>
   /** Scheduled meet links (scheduled_at already an absolute UTC instant). */
-  meets?: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null }>
+  meets?: Array<{ id: string; title: string; scheduled_at: string; class_id: string | null; url?: string | null }>
   /** Sessions recorded in the window - what actually happened, as against the timetable's plan. */
   sessions?: HeldSession[]
   /** Reminders scheduled within the window for this user. */
@@ -60,20 +72,6 @@ export type MergeInput = {
   anchorTz: string
 }
 
-// Wall-clock calendar date ("YYYY-MM-DD") of an absolute instant in `tz` - the
-// inverse of zonedDateTimeToIso, used to match a slot occurrence to a same-day
-// cancellation/reschedule event.
-function wallClockDate(iso: string, tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(iso))
-  const g = (t: string) => parts.find((p) => p.type === t)!.value
-  return `${g('year')}-${g('month')}-${g('day')}`
-}
-
 export function mergeCalendar(input: MergeInput): CalendarItem[] {
   const items: CalendarItem[] = []
 
@@ -81,12 +79,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
   // occurrence on its date: a cancelled class must not still show its recurring
   // slot (the event itself stays visible so the change is explicit). Key by
   // slot + wall-clock date.
-  const suppressed = new Set<string>()
-  for (const ev of input.events) {
-    if ((ev.kind === 'cancellation' || ev.kind === 'reschedule') && ev.slot_id) {
-      suppressed.add(`${ev.slot_id}|${ev.event_date}`)
-    }
-  }
+  const suppressed = buildSlotSuppressionSet(input.events)
 
   const sessions = input.sessions ?? []
   const liveOccurrences = input.slotOccurrences.filter(
@@ -127,6 +120,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       classId: meta?.classId ?? null,
       kind: 'timetable',
       location: meta?.location ?? null,
+      rawId: occ.slotId,
     })
   }
 
@@ -135,16 +129,41 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     // Every class-scoped event carries the class label (academy-wide events, with a
     // null class_id, have nothing to label).
     const label = ev.class_id ? input.classLabels?.[ev.class_id] : undefined
-    items.push({
-      id: `event-${ev.id}`,
-      source: 'event',
-      title: label ? `${ev.title} · ${label}` : ev.title,
-      start: timed ? zonedDateTimeToIso(ev.event_date, ev.start_time!, input.anchorTz) : ev.event_date,
-      end: timed && ev.end_time ? zonedDateTimeToIso(ev.event_date, ev.end_time, input.anchorTz) : null,
-      allDay: !timed,
-      classId: ev.class_id,
-      kind: ev.kind,
-    })
+    const sessionType = parseSessionTypeFromDescription(ev.description)
+    // A class session scheduled from the calendar composer (tagged with session_type metadata)
+    // belongs to the 'slot' (Class) category so it renders in the primary class color,
+    // filters under Class, and displays as Class rather than an Event/holiday.
+    const isClassSession = Boolean(sessionType)
+
+    const baseTitle = sessionType === 'demo' ? `${ev.title} (demo)` : ev.title
+    const title = label ? `${baseTitle} · ${label}` : baseTitle
+
+    if (isClassSession) {
+      items.push({
+        id: `slot-event-${ev.id}`,
+        source: 'slot',
+        title,
+        start: timed ? zonedDateTimeToIso(ev.event_date, ev.start_time!, input.anchorTz) : ev.event_date,
+        end: timed && ev.end_time ? zonedDateTimeToIso(ev.event_date, ev.end_time, input.anchorTz) : null,
+        allDay: !timed,
+        classId: ev.class_id,
+        kind: 'session',
+        sessionType: sessionType ?? 'regular',
+        rawId: ev.id,
+      })
+    } else {
+      items.push({
+        id: `event-${ev.id}`,
+        source: 'event',
+        title,
+        start: timed ? zonedDateTimeToIso(ev.event_date, ev.start_time!, input.anchorTz) : ev.event_date,
+        end: timed && ev.end_time ? zonedDateTimeToIso(ev.event_date, ev.end_time, input.anchorTz) : null,
+        allDay: !timed,
+        classId: ev.class_id,
+        kind: ev.kind,
+        rawId: ev.id,
+      })
+    }
   }
 
   for (const a of input.assignments) {
@@ -152,17 +171,19 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     const base = assignmentTitle(a.type, a.title)
     const held = heldExams.has(a.id)
     const named = label ? `${base} · ${label}` : base
+    const isExam = a.type === 'exam' || a.type === 'quiz' || a.type === 'test'
     items.push({
       id: `assignment-${a.id}`,
-      source: 'assignment',
+      source: isExam ? 'exam' : 'assignment',
       title: held ? `${named} · held` : named,
       held: held || undefined,
       start: a.due_date, // already an absolute UTC instant
       end: null,
       allDay: false,
       classId: a.class_id,
-      kind: 'deadline',
+      kind: isExam ? 'exam' : 'assignment',
       type: a.type,
+      rawId: a.id,
     })
   }
 
@@ -178,6 +199,8 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       allDay: false,
       classId: m.class_id,
       kind: 'meet',
+      rawId: m.id,
+      url: m.url ?? null,
     })
   }
 
@@ -198,6 +221,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       classId: session.class_id,
       kind: 'session',
       held: true,
+      rawId: session.id,
     })
   }
 
@@ -213,6 +237,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
       allDay: false,
       classId: r.class_id,
       kind: 'reminder',
+      rawId: r.id,
     })
   }
 

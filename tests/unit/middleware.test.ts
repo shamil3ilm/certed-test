@@ -126,6 +126,49 @@ describe('middleware host routing', () => {
   })
 })
 
+describe('middleware health check hardening', () => {
+  it('serves health paths on marketing host in place without cross-host redirect', async () => {
+    process.env.PORTAL_ONLY = '0'
+    process.env.APP_HOSTNAME = 'app.example'
+    vi.mocked(resolveHost).mockReturnValue('marketing')
+    const res = await proxy(req('/api/health', 'marketing.example'))
+    expect(res.status).toBe(200)
+    expect(location(res)).toBeNull()
+  })
+
+  it('bypasses updateSession on app host for /api/health and sub-paths', async () => {
+    for (const path of ['/api/health', '/api/health/live', '/api/health/ready']) {
+      vi.mocked(updateSession).mockClear()
+      const res = await proxy(req(path))
+      expect(res.status).toBe(200)
+      expect(location(res)).toBeNull()
+      expect(updateSession).not.toHaveBeenCalled()
+    }
+  })
+
+  it('answers cloud probe on root with 200 OK, not 307 redirect', async () => {
+    vi.mocked(updateSession).mockResolvedValue(null as any)
+    const probeReq = new NextRequest('https://app.local/', {
+      headers: { host: 'app.local', 'user-agent': 'ReadyForRequest/1.0 (Cloud Infrastructure Probe)' },
+    })
+    const res = await proxy(probeReq)
+    expect(res.status).toBe(200)
+    expect(location(res)).toBeNull()
+    await expect(res.json()).resolves.toEqual({ ok: true, status: 'healthy', probe: true })
+  })
+
+  it('stamps universal x-request-id on downstream and response headers', async () => {
+    vi.mocked(updateSession).mockResolvedValue(null as any)
+    const res = await proxy(req('/login'))
+    expect(res.headers.get('x-request-id')).toMatch(/^req_/)
+  })
+
+  it('does NOT rewrite browser navigation to /api/health to _not-found', async () => {
+    const res = await proxy(nav('/api/health'))
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+  })
+})
+
 /**
  * An internal API is not a page.
  *

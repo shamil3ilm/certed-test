@@ -14,6 +14,7 @@ import { CommentThread } from '../../../CommentThread'
 import { LocalTime } from '../../../LocalTime'
 import { safeExternalHref } from '@/lib/validation/url'
 import { listAttachmentsForOwner } from '@/lib/services/attachments/read'
+import { AttachmentList } from '../../../AttachmentList'
 import { AssignmentAttachments } from './AssignmentAttachments'
 
 type ClassworkPageData = Awaited<ReturnType<typeof loadClassworkPageData>>
@@ -174,6 +175,12 @@ export async function AssignmentCard({
                 >
                   <span className="truncate">{submission.file_name ?? 'Open your submission'}</span>
                 </a>
+              )}
+              {submissionAttachments.length > 0 && (
+                <div className="mt-2">
+                  <p className="mb-1 text-xs font-medium text-slate-600">Uploaded files</p>
+                  <AttachmentList attachments={submissionAttachments} />
+                </div>
               )}
             </div>
           ) : (

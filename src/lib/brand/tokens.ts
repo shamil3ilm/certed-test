@@ -13,6 +13,7 @@ export const BRAND_COLORS = {
 export const CALENDAR_COLORS = {
   event: '#16a34a',
   assignment: '#dc2626',
+  exam: '#e11d48',
   meet: '#7c3aed',
   session: '#0d9488',
   reminder: '#d97706',

@@ -94,6 +94,37 @@ export function nextCalendarDate(dateYmd: string): string {
   return new Date(Date.UTC(y, mo - 1, d + 1)).toISOString().slice(0, 10)
 }
 
+/**
+ * Wall-clock calendar date ("YYYY-MM-DD") of an absolute instant in `tz`.
+ * Inverse of zonedDateTimeToIso, used to match an occurrence instant to its local date.
+ */
+export function wallClockDate(iso: string, tz: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(iso))
+  const g = (t: string) => parts.find((p) => p.type === t)!.value
+  return `${g('year')}-${g('month')}-${g('day')}`
+}
+
+/**
+ * Builds the set of suppressed slot occurrences keyed by `${slot_id}|${event_date}`
+ * from cancellations and reschedules that target recurring timetable slots.
+ */
+export function buildSlotSuppressionSet(
+  events: Array<{ kind: string; slot_id?: string | null; event_date: string }>,
+): Set<string> {
+  const suppressed = new Set<string>()
+  for (const ev of events) {
+    if ((ev.kind === 'cancellation' || ev.kind === 'reschedule') && ev.slot_id) {
+      suppressed.add(`${ev.slot_id}|${ev.event_date}`)
+    }
+  }
+  return suppressed
+}
+
 // Y/M/D weekday (0=Sun) of an instant interpreted in `tz`.
 function zonedYmdWeekday(instantMs: number, tz: string): { y: number; mo: number; d: number; wd: number } {
   const dtf = new Intl.DateTimeFormat('en-US', {

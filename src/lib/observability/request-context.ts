@@ -2,19 +2,18 @@ import 'server-only'
 import { headers } from 'next/headers'
 import * as Sentry from '@sentry/nextjs'
 
-const REQUEST_ID_HEADER = 'x-vercel-id'
-const REQUEST_ID_TAG = 'vercel_id'
+const REQUEST_ID_TAG = 'request_id'
+const VERCEL_ID_TAG = 'vercel_id'
 
 /**
- * The platform request id. Vercel stamps `x-vercel-id` on every incoming request
- * and records it in its own request log, so carrying it into our logs and Sentry
- * events lets one request be followed across the proxy, the render, and the data
- * layer. Null outside a request scope, or where the header is absent (local dev,
- * a non-Vercel host).
+ * Universal request correlation ID across cloud providers, container hosts, and reverse proxies.
+ * Checks standard correlation headers in priority order (x-request-id, x-correlation-id,
+ * x-vercel-id, traceparent).
  */
 export async function getRequestId(): Promise<string | null> {
   try {
-    return (await headers()).get(REQUEST_ID_HEADER)
+    const h = await headers()
+    return h.get('x-request-id') ?? h.get('x-correlation-id') ?? h.get('x-vercel-id') ?? h.get('traceparent') ?? null
   } catch {
     return null
   }
@@ -29,7 +28,10 @@ export async function getRequestId(): Promise<string | null> {
  */
 export async function tagRequestScope(): Promise<void> {
   const id = await getRequestId()
-  if (id) Sentry.getIsolationScope().setTag(REQUEST_ID_TAG, id)
+  if (id) {
+    Sentry.getIsolationScope().setTag(REQUEST_ID_TAG, id)
+    Sentry.getIsolationScope().setTag(VERCEL_ID_TAG, id)
+  }
 }
 
 /**
@@ -38,6 +40,7 @@ export async function tagRequestScope(): Promise<void> {
  * was never set (no id, or called before the actor loader ran).
  */
 export function currentRequestId(): string | undefined {
-  const value = Sentry.getIsolationScope().getScopeData().tags?.[REQUEST_ID_TAG]
+  const scopeTags = Sentry.getIsolationScope().getScopeData().tags
+  const value = scopeTags?.[REQUEST_ID_TAG] ?? scopeTags?.[VERCEL_ID_TAG]
   return typeof value === 'string' ? value : undefined
 }

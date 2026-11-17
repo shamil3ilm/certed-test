@@ -44,3 +44,43 @@ describe('GET /api/health', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store')
   })
 })
+
+describe('GET /api/health/live', () => {
+  it('returns 200 live without querying database', async () => {
+    const { GET } = await import('@/app/api/health/live/route')
+    const res = await GET()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    await expect(res.json()).resolves.toEqual({ ok: true, status: 'live' })
+    expect(pingDatabase).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/health/ready', () => {
+  it('returns 200 ready when database is live', async () => {
+    pingDatabase.mockResolvedValue(true)
+    const { GET } = await import('@/app/api/health/ready/route')
+    const res = await GET()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    const data = await res.json()
+    expect(data.ok).toBe(true)
+    expect(data.status).toBe('ready')
+    expect(data.db).toBe(true)
+    expect(typeof data.latencyMs).toBe('number')
+    expect(typeof data.checkedAt).toBe('string')
+    expect(pingDatabase).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 503 degraded when database is down', async () => {
+    pingDatabase.mockRejectedValue(new Error('connection timeout'))
+    const { GET } = await import('@/app/api/health/ready/route')
+    const res = await GET()
+    expect(res.status).toBe(503)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    const data = await res.json()
+    expect(data.ok).toBe(false)
+    expect(data.status).toBe('degraded')
+    expect(data.db).toBe(false)
+  })
+})

@@ -22,6 +22,16 @@ beforeEach(() => {
 })
 
 describe('request-context', () => {
+  it('reads x-request-id from the request headers', async () => {
+    headersMock.mockResolvedValue({ get: (k: string) => (k === 'x-request-id' ? 'req_universal_123' : null) })
+    await expect(getRequestId()).resolves.toBe('req_universal_123')
+  })
+
+  it('reads x-correlation-id when x-request-id is absent', async () => {
+    headersMock.mockResolvedValue({ get: (k: string) => (k === 'x-correlation-id' ? 'corr_456' : null) })
+    await expect(getRequestId()).resolves.toBe('corr_456')
+  })
+
   it('reads x-vercel-id from the request headers', async () => {
     headersMock.mockResolvedValue({ get: (k: string) => (k === 'x-vercel-id' ? 'iad1::abc' : null) })
     await expect(getRequestId()).resolves.toBe('iad1::abc')

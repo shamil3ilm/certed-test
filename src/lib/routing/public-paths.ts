@@ -31,9 +31,15 @@ export const PUBLIC_APP_PATHS = [
   '/api/health', // public keep-warm target for an external uptime pinger (no secret, trivial DB read)
 ]
 
-// Prefixes whose sub-routes are ALL public. `/api/cron` has no bare route - it
-// fronts `/api/cron/keepalive`, which enforces its own CRON_SECRET (fails closed).
-export const PUBLIC_API_PREFIXES = ['/api/cron']
+// Prefixes whose sub-routes are ALL public.
+// `/api/cron` fronts `/api/cron/keepalive` (fails closed on CRON_SECRET).
+// `/api/health` fronts `/api/health/live` and `/api/health/ready`.
+export const PUBLIC_API_PREFIXES = ['/api/cron', '/api/health']
+
+/** True when `pathname` is a health probe endpoint. */
+export function isHealthPath(pathname: string): boolean {
+  return pathname === '/api/health' || pathname.startsWith('/api/health/')
+}
 
 /** True when `pathname` is public on the app host (exact page/API match, or a
  *  public API prefix segment). */
@@ -61,6 +67,8 @@ const BROWSER_NAVIGABLE_API = [
   // Mock-mode sign-out: a GET that clears the dev session and redirects to /login, reached by
   // navigating to it. Outside mock mode the route itself answers 404.
   /^\/api\/dev\/logout$/,
+  // Health probes: allow browser inspection without rewriting to _not-found
+  /^\/api\/health(?:\/.*)?$/,
 ]
 
 /** True when a top-level GET navigation to `pathname` should render something. */

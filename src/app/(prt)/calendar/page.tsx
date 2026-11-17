@@ -31,6 +31,7 @@ export default async function CalendarPage() {
         canManageCalendar={data.canManage}
         canManageContent={actor.capabilities.allowed.has('manageClassContent')}
         canCreateReminder={actor.capabilities.allowed.has('viewDashboard')}
+        canViewGrading={actor.capabilities.allowed.has('viewGrading')}
         classes={data.classes}
         tutors={data.tutors}
         isAdmin={data.isAdmin}

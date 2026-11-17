@@ -7,6 +7,7 @@ export const COLORS: Record<CalendarItem['source'], string> = {
   slot: BRAND_COLORS.primary,
   event: CALENDAR_COLORS.event,
   assignment: CALENDAR_COLORS.assignment,
+  exam: CALENDAR_COLORS.exam,
   meet: CALENDAR_COLORS.meet,
   session: CALENDAR_COLORS.session,
   reminder: CALENDAR_COLORS.reminder,
@@ -15,7 +16,8 @@ export const COLORS: Record<CalendarItem['source'], string> = {
 export const SOURCES: { source: CalendarItem['source']; label: string }[] = [
   { source: 'slot', label: 'Class' },
   { source: 'event', label: 'Event / holiday' },
-  { source: 'assignment', label: 'Deadline' },
+  { source: 'assignment', label: 'Assignments' },
+  { source: 'exam', label: 'Exams' },
   { source: 'meet', label: 'Meet' },
   { source: 'session', label: 'Held session' },
   { source: 'reminder', label: 'Reminder' },

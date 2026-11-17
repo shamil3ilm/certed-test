@@ -25,3 +25,17 @@ export function isSessionKind(value: unknown): value is SessionKind {
 export function kindOf(row: { kind?: SessionKind | null }): SessionKind {
   return row.kind ?? 'regular'
 }
+
+export const SESSION_TYPE_PREFIX = 'session_type:'
+
+/** Formats a session kind as a metadata tag for calendar event descriptions. */
+export function formatSessionTypeTag(kind: SessionKind): string {
+  return `${SESSION_TYPE_PREFIX}${kind}`
+}
+
+/** Parses session kind from a calendar event description metadata string. */
+export function parseSessionTypeFromDescription(description: string | null | undefined): SessionKind | null {
+  if (!description) return null
+  const match = description.match(/session_type:(regular|demo|exam)/)
+  return (match?.[1] as SessionKind) ?? null
+}

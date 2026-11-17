@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { resolveHost } from '@/lib/routing/host'
-import { isPublicAppPath, isBrowserNavigableApi } from '@/lib/routing/public-paths'
+import { isPublicAppPath, isBrowserNavigableApi, isHealthPath } from '@/lib/routing/public-paths'
 import { updateSession } from '@/lib/supabase/middleware'
 import { ERROR_CODES } from '@/lib/api/error-codes'
 import { UNAUTHORIZED_MESSAGE } from '@/lib/api/messages'
@@ -42,11 +42,27 @@ function isDocumentNavigation(request: NextRequest): boolean {
   return request.method === 'GET' && isDocumentRequest(request)
 }
 
+/**
+ * Recognizes automated cloud infrastructure health check probes (such as load balancer
+ * liveness agents, container health checkers, and edge traffic managers).
+ */
+function isHealthProbeRequest(request: NextRequest): boolean {
+  const ua = (request.headers.get('user-agent') ?? '').toLowerCase()
+  return (
+    ua.includes('readyforrequest') ||
+    ua.includes('healthcheck') ||
+    ua.includes('trafficmanager') ||
+    ua.includes('application-gateway')
+  )
+}
+
 function redirectPreserving(url: URL, base: NextResponse, status = 307): NextResponse {
   const redirect = NextResponse.redirect(url, status)
   base.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
   const csp = base.headers.get('Content-Security-Policy')
   if (csp) redirect.headers.set('Content-Security-Policy', csp)
+  const reqId = base.headers.get('x-request-id')
+  if (reqId) redirect.headers.set('x-request-id', reqId)
   return redirect
 }
 
@@ -99,19 +115,34 @@ export async function proxy(request: NextRequest) {
   // the static (nonce-less) policy. See lib/security/csp.
   const nonce = kind === 'app' ? generateNonce() : null
   const csp = buildContentSecurityPolicy(nonce)
+
+  // Universal request correlation ID: preserve an incoming upstream trace header or generate one.
+  // Propagated downstream to request headers and set on the browser response for easy debugging across logs.
+  const requestId =
+    request.headers.get('x-request-id') ??
+    request.headers.get('x-correlation-id') ??
+    request.headers.get('x-vercel-id') ??
+    `req_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
+
   const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-request-id', requestId)
   if (nonce) {
     requestHeaders.set('x-nonce', nonce)
     requestHeaders.set('Content-Security-Policy', csp)
   }
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('x-request-id', requestId)
 
   if (kind === 'marketing') {
     // /api/contact is served on the marketing host (that's where the form lives);
     // don't cross-host-redirect its POST, which would strip it to a GET/login.
+    // Health probes are served in-place on both hosts to prevent cross-host 307 bounces for load balancers.
     const isMarketing =
-      MARKETING_PATHS.includes(pathname) || pathname.startsWith('/blogs/') || pathname === '/api/contact'
+      MARKETING_PATHS.includes(pathname) ||
+      pathname.startsWith('/blogs/') ||
+      pathname === '/api/contact' ||
+      isHealthPath(pathname)
     if (!isMarketing) {
       const target = crossHostUrl(request, pathname, 'app')
       // Missing APP_HOSTNAME: serve in place rather than redirect to `https://undefined/...`.
@@ -127,6 +158,21 @@ export async function proxy(request: NextRequest) {
     const target = crossHostUrl(request, pathname, 'marketing')
     // Missing MARKETING_HOSTNAME: serve in place rather than redirect to `https://undefined/...`.
     if (target) return redirectPreserving(target, response)
+  }
+
+  // Answer cloud infrastructure / load balancer root health probes directly with 200 OK.
+  // Many cloud probes check '/' by default and treat 307 redirects to /login as unhealthy.
+  if (pathname === '/' && isHealthProbeRequest(request)) {
+    return NextResponse.json(
+      { ok: true, status: 'healthy', probe: true },
+      { headers: { 'Cache-Control': 'no-store', 'x-request-id': requestId } },
+    )
+  }
+
+  // Public health endpoints must not incur the latency or database load of a Supabase session
+  // refresh. Return immediately so liveness probes stay fast, lightweight, and independent of DB.
+  if (isHealthPath(pathname)) {
+    return response
   }
 
   // App host: refresh the Supabase session, then gate.

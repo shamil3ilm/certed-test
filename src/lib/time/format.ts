@@ -40,6 +40,15 @@ export function todayDayOfWeekInZone(timeZone: string): number {
 }
 
 /**
+ * Weekday index (0=Sun..6=Sat) for a YYYY-MM-DD calendar date, read at UTC noon
+ * so it never drifts across midnight from timezone edges. Matches timetable_slots.day_of_week.
+ */
+export function dayOfWeekFromCalendarDate(dateYmd: string): number {
+  const parsed = new Date(`${dateYmd}T12:00:00Z`)
+  return Number.isNaN(parsed.getTime()) ? 1 : parsed.getUTCDay()
+}
+
+/**
  * True only for a real YYYY-MM-DD calendar date. `Date.parse` ROLLS OVER invalid
  * days (2026-04-31 -> May 1, 2025-02-29 -> Mar 1), which Postgres' `date` type then
  * rejects - so round-trip through UTC and require the string to come back

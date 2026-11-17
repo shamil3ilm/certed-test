@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { convertWeeklyTime, expandSlots, type ExpandableSlot } from '@/lib/time/expand-slots'
+import {
+  convertWeeklyTime,
+  expandSlots,
+  wallClockDate,
+  buildSlotSuppressionSet,
+  type ExpandableSlot,
+} from '@/lib/time/expand-slots'
 import { formatInstant } from '@/lib/time/format'
 
 // A Monday 09:00–10:00 slot anchored to Asia/Kolkata (UTC+5:30, no DST).
@@ -180,5 +186,29 @@ describe('convertWeeklyTime', () => {
 
   it('passes the value through unchanged for an invalid zone', () => {
     expect(convertWeeklyTime(1, '09:00', 'Not/AZone', 'Asia/Kolkata')).toEqual({ dayOfWeek: 1, time: '09:00' })
+  })
+})
+
+describe('wallClockDate and buildSlotSuppressionSet', () => {
+  it('formats absolute UTC instants into local wall-clock dates', () => {
+    // 2026-07-06T03:30:00.000Z is 09:00 IST on 2026-07-06
+    expect(wallClockDate('2026-07-06T03:30:00.000Z', 'Asia/Kolkata')).toBe('2026-07-06')
+    // 2026-07-05T20:00:00.000Z is 01:30 IST on 2026-07-06, but 16:00 EDT on 2026-07-05
+    expect(wallClockDate('2026-07-05T20:00:00.000Z', 'Asia/Kolkata')).toBe('2026-07-06')
+    expect(wallClockDate('2026-07-05T20:00:00.000Z', 'America/New_York')).toBe('2026-07-05')
+  })
+
+  it('builds suppression keys for cancellations and reschedules that name a slot', () => {
+    const events = [
+      { id: '1', kind: 'cancellation', slot_id: 's-1', event_date: '2026-07-06' },
+      { id: '2', kind: 'reschedule', slot_id: 's-2', event_date: '2026-07-07' },
+      { id: '3', kind: 'event', slot_id: 's-3', event_date: '2026-07-08' }, // not cancellation or reschedule
+      { id: '4', kind: 'cancellation', slot_id: null, event_date: '2026-07-09' }, // no slot_id
+    ]
+    const suppressed = buildSlotSuppressionSet(events)
+    expect(suppressed.has('s-1|2026-07-06')).toBe(true)
+    expect(suppressed.has('s-2|2026-07-07')).toBe(true)
+    expect(suppressed.has('s-3|2026-07-08')).toBe(false)
+    expect(suppressed.size).toBe(2)
   })
 })

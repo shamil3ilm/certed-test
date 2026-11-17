@@ -210,6 +210,33 @@ describe('mergeCalendar', () => {
     const item = mergeCalendar(withExam).find((i) => i.id === 'assignment-a-2')!
     expect(item.title).toBe('Exam: Midterm')
     expect(item.type).toBe('exam')
+    expect(item.source).toBe('exam')
+    expect(item.kind).toBe('exam')
+  })
+
+  it('categorizes one-off class sessions with session_type as Class (source: slot)', () => {
+    const withSessionEvent: MergeInput = {
+      ...input,
+      events: [
+        {
+          id: 'e-class-1',
+          title: 'Special Physics Coaching',
+          event_date: '2026-07-11',
+          start_time: '15:00',
+          end_time: '16:00',
+          class_id: 'c-1',
+          kind: 'event',
+          description: 'session_type:demo',
+        },
+      ],
+    }
+    const items = mergeCalendar(withSessionEvent)
+    const sessionItem = items.find((i) => i.id === 'slot-event-e-class-1')!
+    expect(sessionItem).toBeDefined()
+    expect(sessionItem.source).toBe('slot')
+    expect(sessionItem.kind).toBe('session')
+    expect(sessionItem.sessionType).toBe('demo')
+    expect(sessionItem.title).toBe('Special Physics Coaching (demo)')
   })
 
   it('produces stable, source-prefixed ids and a kind tag', () => {

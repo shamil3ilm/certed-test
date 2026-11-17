@@ -57,6 +57,7 @@ export function CalendarView({
   canManageCalendar,
   canManageContent,
   canCreateReminder,
+  canViewGrading = false,
   classes = [],
   tutors = [],
   isAdmin = false,
@@ -64,6 +65,7 @@ export function CalendarView({
   canManageCalendar: boolean
   canManageContent: boolean
   canCreateReminder: boolean
+  canViewGrading?: boolean
   classes?: Opt[]
   tutors?: Opt[]
   isAdmin?: boolean
@@ -136,7 +138,16 @@ export function CalendarView({
           allDay: item.allDay,
           backgroundColor: COLORS[item.source],
           borderColor: COLORS[item.source],
-          extendedProps: { source: item.source, kind: item.kind, classId: item.classId },
+          extendedProps: {
+            source: item.source,
+            kind: item.kind,
+            classId: item.classId,
+            type: item.type,
+            sessionType: item.sessionType,
+            location: item.location,
+            rawId: item.rawId,
+            url: item.url,
+          },
         }))
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load calendar')
@@ -245,19 +256,33 @@ export function CalendarView({
             eventClick={(info) => {
               const event = info.event
               setEventInfo({
+                id: event.id,
                 title: event.title,
                 start: event.start ? event.start.toISOString() : null,
                 end: event.end ? event.end.toISOString() : null,
                 allDay: event.allDay,
                 source: (event.extendedProps.source as CalendarItem['source']) ?? 'event',
                 kind: String(event.extendedProps.kind ?? ''),
+                classId: (event.extendedProps.classId as string | null) ?? null,
+                location: (event.extendedProps.location as string | null) ?? null,
+                type: event.extendedProps.type as CalendarItem['type'],
+                sessionType: event.extendedProps.sessionType as CalendarItem['sessionType'],
+                rawId: (event.extendedProps.rawId as string | null) ?? null,
+                url: (event.extendedProps.url as string | null) ?? null,
               })
             }}
           />
         )}
       </div>
 
-      {eventInfo && <EventDetailModal info={eventInfo} onClose={() => setEventInfo(null)} />}
+      {eventInfo && (
+        <EventDetailModal
+          info={eventInfo}
+          classes={classes}
+          canViewGrading={canViewGrading}
+          onClose={() => setEventInfo(null)}
+        />
+      )}
 
       {composerState && (
         <CalendarComposerModal

@@ -91,7 +91,13 @@ export async function GET(request: Request) {
         const ms = Date.parse(m.scheduled_at as string)
         return ms >= windowStartMs && ms < windowEndMs
       })
-      .map((m) => ({ id: m.id, title: m.title, scheduled_at: m.scheduled_at as string, class_id: m.class_id }))
+      .map((m) => ({
+        id: m.id,
+        title: m.title,
+        scheduled_at: m.scheduled_at as string,
+        class_id: m.class_id,
+        url: m.url,
+      }))
 
     // A viewer who sees more than their own class (any non-student persona) gets every
     // class-scoped item - slots, events, assignments/exams, meets - labelled with the
@@ -129,6 +135,7 @@ export async function GET(request: Request) {
         class_id: e.class_id,
         kind: e.kind,
         slot_id: e.slot_id,
+        description: e.description,
       })),
       assignments: dueInRange,
       meets: meetsInRange,

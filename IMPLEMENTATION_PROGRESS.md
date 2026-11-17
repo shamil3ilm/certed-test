@@ -423,6 +423,62 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - Tutors and mentors can have hybrid roles (`tutor` with student-scoped `mentor` assignments, rendering as `Tutor & Mentor`).
       - Operational admins (`sub_admin` / "Admin") and Super Admins (`admin`) manage the academy.
       - A student account cannot hold tutor, mentor, or admin personas, maintaining clear separation between learners and staff/educators across attendance, hours, grading, and finance.
+33. **Production Defense Hardening: Universal Health Check Isolation, Cloud Probe Flapping Immunity, and Server Action Security Auditing**:
+    - **Defect Symptoms & Root Causes**:
+      - _Cloud Infrastructure Health Check 307 Flapping_: Cloud infrastructure monitors and load balancers send automated liveness probes with User-Agents like `ReadyForRequest/1.0` or `HealthCheck`. Probing `/` on the app host without an active session triggered a 307 redirect to `/login`. Upstream cloud health checks treat 3xx redirects as unhealthy by default, causing false container cycling and 503 cascades.
+      - _Cross-Host Health Check 307 Bounces_: Probes hitting `/api/health` on marketing or apex domains were treated as non-marketing paths, triggering cross-host 307 redirects to `APP_HOSTNAME`.
+      - _Unnecessary Supabase Auth DB Latency on Health Pings_: `proxy.ts` invoked `updateSession()` on every request before public path gating, causing every automated health check ping to execute a Supabase Auth `getUser()` network request and database read.
+    - **Architectural Resolution**:
+      - **Universal Health Exemption (`src/proxy.ts`)**: Health paths (`/api/health*`) are now exempt from `updateSession()`, serving instantly at the edge without database overhead or session mutation. Both marketing and app hosts serve health requests in place without cross-host 307 redirects.
+      - **Automated Cloud Probe Detection**: Added `isHealthProbeRequest()` in `src/proxy.ts`. Probes targeting `/` with cloud health check User-Agents (`ReadyForRequest`, `HealthCheck`, `TrafficManager`, `Application-Gateway`) receive an immediate `200 OK` (`{ ok: true, status: 'healthy', probe: true }`) with `no-store` headers, preventing 307 redirect flapping.
+      - **Liveness & Readiness Split**:
+        - `/api/health/live`: Ultra-fast liveness probe returning `{ ok: true, status: 'live' }` without touching the database, ideal for container orchestrators and ingress controllers.
+        - `/api/health/ready`: Deep dependency readiness probe returning HTTP 200 with latency telemetry (`latencyMs`) when database connectivity is healthy, and HTTP 503 when degraded.
+        - `/api/health`: Retains existing memoized DB ping (30s TTL) for external uptime monitors.
+      - **Browser Navigable Health Inspection (`src/lib/routing/public-paths.ts`)**: Added `/api/health*` to `BROWSER_NAVIGABLE_API`, preventing Next.js from rewriting browser-based health check navigations to `/_not-found`.
+      - **Universal Request Correlation & Tracing (`src/proxy.ts`, `src/lib/observability/request-context.ts`)**: Propagates `x-request-id` across proxy, server actions, error logging, and browser response headers, decoupling tracing from any single cloud vendor and allowing end-to-end request correlation in logs and Sentry.
+      - **Automated Server Action Security Audit (`tests/unit/security/server-action-guards.test.ts`)**: Built a static analysis regression test asserting that 100% of `'use server'` files across `src/app/(prt)` enforce server-side capability/role authorization (`requireCapability`, `requireRole`, `requireActiveProfile`, or distributed rate limiting), ensuring client-side DOM manipulation via DevTools cannot bypass authorization.
+      - **Correlated Infrastructure Documentation (`docs/infrastructure-health-and-observability.md`)**: Documented vendor-neutral operations guide covering health probes, edge ingress, zero-trust server actions, and distributed tracing.
+34. **Calendar Item Categorization: Distinct Class Sessions and Splitting Generic Deadlines into Exams & Assignments**:
+    - **Defect Symptoms & Root Causes**:
+      - _Classes Still Categorized as Events in the Calendar View_: Although one-off classes were saved with `session_type:...` in `description`, `/api/calendar/route.ts` mapped events and omitted `e.description`. Furthermore, `mergeCalendar` (`src/lib/calendar/merge.ts`) unconditionally assigned `source: 'event'` to all events. Consequently, in the main Calendar view, one-off classes were styled in green (`CALENDAR_COLORS.event`), toggled under the 'Event / holiday' filter checkbox instead of 'Class', and opened `EventDetailModal` displaying 'Type: Event'.
+      - _Generic 'Deadline' Label Obscuring Exams and Assignments_: In `calendar-config.ts`, `EventDetailModal.tsx`, and `merge.ts`, all coursework and sat assessments were generically grouped under `source: 'assignment'` with `kind: 'deadline'` and labeled 'Deadline'. Users could not distinguish between scheduled exams (tests, quizzes, midterms) and assignments (homework, projects) in calendar filters or event detail modals.
+    - **Architectural Resolution**:
+      - **Forwarding Event Metadata (`src/app/api/calendar/route.ts`)**: Forwarded `e.description` to `mergeCalendar`.
+      - **Class Session Resolution (`src/lib/calendar/merge.ts`)**: Added `parseSessionType(ev.description)`. When an event carries `session_type:...`, `mergeCalendar` assigns `source: 'slot'`, `kind: 'session'`, and `sessionType`. This styles it in brand primary Class blue, groups it under the 'Class' filter checkbox, and renders its title as `${base} (demo)` when demo.
+      - **Splitting Deadlines into Exams & Assignments**:
+        - `src/lib/calendar/merge.ts`: Differentiates assessments (`type: 'exam' | 'quiz' | 'test'`) into `source: 'exam'`, `kind: 'exam'`, while coursework (`type: 'assignment' | 'project'`) becomes `source: 'assignment'`, `kind: 'assignment'`.
+        - `src/lib/brand/tokens.ts`: Added `exam: '#e11d48'` (rose-600) to `CALENDAR_COLORS`.
+        - `src/app/(prt)/calendar/calendar-config.ts`: Split `SOURCES` into `{ source: 'assignment', label: 'Assignments' }` and `{ source: 'exam', label: 'Exams' }`, allowing independent toolbar filter toggling.
+        - `src/app/(prt)/calendar/EventDetailModal.tsx`: Displays contextual modal types: `'Class'`, `'Class (Demo)'`, `'Exam'`, or `'Assignment'` instead of generic `'Deadline'` or `'Event'`.
+        - `src/app/(prt)/calendar/calendar-types.ts` & `CalendarView.tsx`: Propagated `type` and `sessionType` through FullCalendar `extendedProps` to detail modals.
+      - **Unit Test Coverage (`tests/unit/merge-calendar.test.ts`)**: Verified that one-off sessions resolve to `source: 'slot'`, and exams resolve to `source: 'exam'`.
+35. **Calendar Interactive Grid Resource Deep Linking & Modal Context Expansion**:
+    - **Defect Symptoms & Root Causes**:
+      - _Read-Only Calendar Modal Disconnected from Academy Resources_: Clicking any event, class, exam, or meeting on the interactive calendar grid opened `EventDetailModal`, which was strictly read-only (displaying only title, type, and when). Users were forced to manually navigate back to the navigation bar or classroom list to find the associated course, submit classwork, grade assignments, or join meetings.
+      - _Omission of Video Meeting URLs and Resource IDs in Calendar Feed_: `/api/calendar/route.ts` and `mergeCalendar` (`src/lib/calendar/merge.ts`) stripped the meeting link `url` and did not propagate underlying resource identifiers (`rawId`), preventing the calendar from launching video calls or deep-linking to assignment grading.
+    - **Architectural Resolution**:
+      - **Metadata Propagation (`src/app/api/calendar/route.ts` & `src/lib/calendar/merge.ts`)**: Forwarded `url` from `meetLinks` and attached entity UUIDs (`rawId`) across timetable slots, one-off class sessions, assignments, exams, meets, and held sessions.
+      - **Type Definitions & State Flow (`src/app/(prt)/calendar/calendar-types.ts` & `CalendarView.tsx`)**: Extended `CalendarItem` and `EventDetail` with `rawId`, `url`, `classId`, and `location`. `CalendarPage` passes `canViewGrading` to `CalendarView`, which passes it down alongside the resolved `classes` list to `EventDetailModal`.
+      - **Contextual Resource Actions (`src/app/(prt)/calendar/EventDetailModal.tsx`)**:
+        - _Class & Location Metadata_: Displays resolved class name (`classes.find(c => c.id === info.classId)?.name`) and physical room location in `<dl>`.
+        - _Assessments (Exams & Assignments)_: Provides **"Open in Classwork"** (`/classroom/[id]/classwork`) for all enrolled learners and educators. For educators and admins holding `canViewGrading`, adds **"Grading & Submissions"** linking directly to `/assignments/[id]`.
+        - _Class Sessions (Recurring & One-Off)_: Provides **"Open Classroom"** (`/classroom/[id]`) and **"Classwork"** (`/classroom/[id]/classwork`), plus **"Join Online Class"** via `ExternalActionLink` if the location is an external URL.
+        - _Video Meetings_: Provides one-click **"Join Video Call"** via `ExternalActionLink` (with security validation via `safeExternalHref`), plus **"Class Meets"** (`/classroom/[id]/meet`).
+        - _Held Attendance Sessions_: Provides **"Open Classroom"** and **"Attendance"** (`/classroom/[id]/attendance`).
+      - **Verification**: Verified zero TypeScript errors (`tsc --noEmit`), zero ESLint warnings, 100% Prettier formatting compliance, and 30 passing calendar unit tests.
+36. **Architectural Deduplication & Single Source of Truth Consolidation**:
+    - **Defect Symptoms & Root Causes**:
+      - _Split Calendar vs Dashboard Logic_: `mergeCalendar` (`src/lib/calendar/merge.ts`) and `listUpcomingClassOccurrences` (`src/app/(prt)/dashboard/widget-shared.tsx`) each implemented independent, duplicate copies of timetable slot suppression (`suppressed.add(...)`) and wall-clock date formatting (`wallClockDate` using `Intl.DateTimeFormat('en-CA', ...)`).
+      - _Fragile Session Type Parsing_: One-off class session type detection was fragmented: `ClassCreateForm` formatted raw string literals (`session_type:${sessionType}`), `merge.ts` parsed it via private regex, and `widget-shared.tsx` performed manual substring checks (`ev.description?.includes('session_type:demo')`), ignoring exam or regular kinds.
+      - _Redundant Client Request Wrappers_: `api` was redefined as a private wrapper in `calendar/timetable/api.ts` while `ClassCreateForm` and `CalendarEventForm` manually orchestrated `requestJson` calls with boilerplate headers and string serialization.
+      - _Duplicated Weekday Parsing_: `ClassCreateForm.tsx` implemented a private `weekdayOf` helper instead of reusing shared calendar date utilities.
+    - **Architectural Resolution**:
+      - **Shared Session Kind Helpers (`src/lib/attendance/session-kind.ts`)**: Added `formatSessionTypeTag(kind)` and `parseSessionTypeFromDescription(description)` to the pure session kind module, creating a single source of truth for tagging and parsing session types across forms, feeds, and widgets.
+      - **Shared Slot Suppression & Wall-Clock Primitives (`src/lib/time/expand-slots.ts`)**: Exported `wallClockDate` and `buildSlotSuppressionSet(events)`. Both `mergeCalendar` and `widget-shared.tsx` now share identical suppression logic and date parsing, preventing divergence.
+      - **Universal API Client Wrapper (`src/app/(prt)/api-client.ts` & `src/app/(prt)/calendar/timetable/api.ts`)**: Exported `apiRequest` and `api` globally from `api-client.ts`, eliminating redundant JSON stringification across calendar forms.
+      - **Shared Weekday Utility (`src/lib/time/format.ts`)**: Exported `dayOfWeekFromCalendarDate(dateYmd)` for reliable UTC-noon weekday derivation across forms.
+      - **Verification**: 100% TypeScript compliance, 0 ESLint warnings, 100% Prettier formatting compliance, and all unit tests passing.
 
 ---
 

@@ -53,3 +53,14 @@ export async function requestJson<T>(input: RequestInfo | URL, init?: RequestIni
 
   return payload.data
 }
+
+/** Thin JSON wrapper over requestJson - sets Content-Type and serializes body only when present. */
+export async function apiRequest<T>(input: RequestInfo | URL, method = 'GET', body?: unknown): Promise<T> {
+  return requestJson<T>(input, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+}
+
+export const api = apiRequest

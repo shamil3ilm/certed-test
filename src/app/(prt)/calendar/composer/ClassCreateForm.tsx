@@ -2,20 +2,18 @@
 
 import { useState, type FormEvent } from 'react'
 import { cx, ACADEMY_WIDE_LABEL } from '@/lib/ui'
-import { SESSION_KINDS, SESSION_KIND_LABELS, type SessionKind } from '@/lib/attendance/session-kind'
+import {
+  SESSION_KINDS,
+  SESSION_KIND_LABELS,
+  formatSessionTypeTag,
+  type SessionKind,
+} from '@/lib/attendance/session-kind'
+import { dayOfWeekFromCalendarDate } from '@/lib/time/format'
 import { Input, Select } from '../../form'
-import { requestJson } from '../../api-client'
 import { api } from '../timetable/api'
 import { DAYS } from '../timetable/types'
 import type { Opt } from '../calendar-types'
 import { calendarDateInZone } from '../calendar-config'
-
-/** Weekday index (0=Sun..6=Sat) for a YYYY-MM-DD date, read at UTC noon so it
- *  never drifts a day from timezone edges. Matches DAYS / slot day_of_week. */
-function weekdayOf(dateYmd: string): number {
-  const parsed = new Date(`${dateYmd}T12:00:00Z`)
-  return Number.isNaN(parsed.getTime()) ? 1 : parsed.getUTCDay()
-}
 
 /**
  * Add a class from the calendar - either a ONE-OFF session on the picked date
@@ -44,7 +42,7 @@ export function ClassCreateForm({
   const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
   const [subject, setSubject] = useState('')
   const [tutorId, setTutorId] = useState('')
-  const [day, setDay] = useState(weekdayOf(date))
+  const [day, setDay] = useState(dayOfWeekFromCalendarDate(date))
   const [start, setStart] = useState('16:00')
   const [end, setEnd] = useState('17:00')
   const [room, setRoom] = useState('')
@@ -78,18 +76,14 @@ export function ClassCreateForm({
             'Cannot schedule a session on a past date. Missed session times should be recorded on the class attendance page.',
           )
         }
-        await requestJson('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: subject,
-            event_date: sessionDate,
-            kind: 'event',
-            description: `session_type:${sessionType}`,
-            class_id: classId || null,
-            start_time: start || undefined,
-            end_time: end || undefined,
-          }),
+        await api('/api/events', 'POST', {
+          title: subject,
+          event_date: sessionDate,
+          kind: 'event',
+          description: formatSessionTypeTag(sessionType),
+          class_id: classId || null,
+          start_time: start || undefined,
+          end_time: end || undefined,
         })
         onSuccess('Class session added')
       }
@@ -196,7 +190,7 @@ export function ClassCreateForm({
             onChange={(event) => {
               const val = event.target.value
               setSessionDate(val)
-              setDay(weekdayOf(val))
+              setDay(dayOfWeekFromCalendarDate(val))
             }}
             className="mt-1"
           />

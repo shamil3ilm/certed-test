@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { ACADEMY_WIDE_LABEL } from '@/lib/ui'
 import { Input, Select } from '../../form'
-import { requestJson } from '../../api-client'
+import { api } from '../timetable/api'
 import { EVENT_KINDS, calendarDateInZone } from '../calendar-config'
 import type { Opt } from '../calendar-types'
 
@@ -69,17 +69,13 @@ export function CalendarEventForm({
     }
 
     try {
-      await requestJson('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          event_date: eventDate,
-          kind,
-          class_id: classId || null,
-          start_time: start || undefined,
-          end_time: end || undefined,
-        }),
+      await api('/api/events', 'POST', {
+        title,
+        event_date: eventDate,
+        kind,
+        class_id: classId || null,
+        start_time: start || undefined,
+        end_time: end || undefined,
       })
       onSuccess()
     } catch (submitError) {

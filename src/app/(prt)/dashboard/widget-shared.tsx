@@ -4,7 +4,15 @@ import { listSlots } from '@/lib/services/timetable-slots'
 import { listEvents } from '@/lib/services/calendar-events'
 import { todayInZone } from '@/lib/time/format'
 import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
-import { expandSlots, nextCalendarDate, zonedDayStartMs, zonedDateTimeToIso } from '@/lib/time/expand-slots'
+import {
+  expandSlots,
+  nextCalendarDate,
+  zonedDayStartMs,
+  zonedDateTimeToIso,
+  wallClockDate,
+  buildSlotSuppressionSet,
+} from '@/lib/time/expand-slots'
+import { parseSessionTypeFromDescription } from '@/lib/attendance/session-kind'
 
 export type ClassScopedWidgetData = {
   classIds: string[]
@@ -69,6 +77,9 @@ export async function listUpcomingClassOccurrences(
   const classIdSet = new Set(classIds)
   const occurrences: UpcomingClassOccurrence[] = []
 
+  // A cancellation or reschedule naming a slot suppresses that occurrence on its date.
+  const suppressed = buildSlotSuppressionSet(events)
+
   if (slots.length > 0) {
     const startDate = new Date(zonedDayStartMs(todayYmd, timeZone)).toISOString()
     const endDate = new Date(zonedDayStartMs(windowEndYmd, timeZone)).toISOString()
@@ -76,6 +87,8 @@ export async function listUpcomingClassOccurrences(
 
     for (const occ of expandSlots(slots, startDate, endDate, timeZone)) {
       if (Date.parse(occ.startIso) >= nowMs) {
+        const occDate = wallClockDate(occ.startIso, timeZone)
+        if (suppressed.has(`${occ.slotId}|${occDate}`)) continue
         const slot = byId.get(occ.slotId)!
         occurrences.push({
           slotId: slot.id,
@@ -88,17 +101,19 @@ export async function listUpcomingClassOccurrences(
     }
   }
 
-  // Include one-off class sessions / events associated with the user's classes
+  // Include one-off class sessions / rescheduled classes associated with the user's classes
   for (const ev of events) {
-    if (ev.class_id && classIdSet.has(ev.class_id) && ev.kind === 'event') {
+    if (ev.class_id && classIdSet.has(ev.class_id) && (ev.kind === 'event' || ev.kind === 'reschedule')) {
       const startTime = ev.start_time ?? '00:00'
       const endTime = ev.end_time ?? startTime
       const startIso = zonedDateTimeToIso(ev.event_date, startTime, timeZone)
       const endIso = zonedDateTimeToIso(ev.event_date, endTime, timeZone)
       if (Date.parse(startIso) >= nowMs) {
+        const sessionType = parseSessionTypeFromDescription(ev.description)
+        const isDemo = sessionType === 'demo'
         occurrences.push({
           slotId: `event-${ev.id}`,
-          subject: ev.title,
+          subject: isDemo ? `${ev.title} (demo)` : ev.title,
           classId: ev.class_id,
           startIso,
           endIso,
