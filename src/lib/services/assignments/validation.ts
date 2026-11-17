@@ -2,7 +2,7 @@ import { ValidationError } from '@/lib/errors'
 import { createAssignmentSchema } from '@/lib/validation/assignment'
 import { linkUrl } from '@/lib/validation/url'
 import { titleField } from '@/lib/validation/fields'
-import type { AssignmentType } from '@/lib/data/assignments'
+import { ASSIGNMENT_TYPES, defaultExpectsSubmission, type AssignmentType } from '@/lib/assignments/types'
 import { z } from 'zod'
 
 /** Raw API/form values -> trusted inputs. Pure: no IO, no authorization. */
@@ -35,11 +35,7 @@ export type CreateAssignmentApiInput = {
   ends_at?: unknown
 }
 
-/** In-person assessments (exam/quiz/test) default to no online submission; other
- *  classwork defaults to online submission. */
-export function defaultExpectsSubmission(type: AssignmentType): boolean {
-  return type === 'assignment' || type === 'project'
-}
+export { defaultExpectsSubmission }
 
 const assignmentIdSchema = z.string().uuid()
 const assignmentStatusSchema = z.enum(['active', 'archived'])
@@ -50,7 +46,7 @@ const editAssignmentActionSchema = z.object({
   due_date: z.string().datetime(),
   attachment_drive_link: z.string().trim(),
   topic: z.string().trim().max(60),
-  type: z.enum(['assignment', 'exam', 'quiz', 'test', 'project']).optional(),
+  type: z.enum(ASSIGNMENT_TYPES).optional(),
   ends_at: z.string().datetime().optional(),
 })
 

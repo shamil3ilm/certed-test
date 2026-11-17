@@ -86,9 +86,9 @@ export function PrivacyBody() {
         <p>
           Your account and the records you generate on the platform are stored and processed in <strong>India</strong>.
           Coursework files you upload are held in the academy&rsquo;s own storage account with our file-storage
-          provider, which may keep them outside India. If you use the platform from outside India (for example, from a
-          GCC state), using it transfers your data to India. Accepting this policy when your account is set up covers
-          that transfer, and we record that acceptance, with its date and version, against your account.
+          provider, which may keep them outside India. If you use the platform from outside India (for example, from the
+          UK or a GCC state), using it transfers your data to India. Accepting this policy when your account is set up
+          covers that transfer, and we record that acceptance, with its date and version, against your account.
         </p>
       </Section>
 

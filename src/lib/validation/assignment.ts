@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { titleField } from '@/lib/validation/fields'
 import { linkUrl } from './url'
+import { ASSIGNMENT_TYPES } from '@/lib/assignments/types'
 
 // Strict ISO-8601 instant (the client sends new Date(...).toISOString()). Rejects
 // rollover/non-ISO strings like "2026-02-30" or "June 20 2026" that Date.parse
@@ -25,7 +26,7 @@ export const createAssignmentSchema = z.object({
   // recordSubmission). Optional/absent -> false (always-accept-late, the default).
   enforce_deadline: z.boolean().optional(),
   // The kind of classwork. Absent -> 'assignment' (today's behaviour).
-  type: z.enum(['assignment', 'exam', 'quiz', 'test', 'project']).optional(),
+  type: z.enum(ASSIGNMENT_TYPES).optional(),
   // Whether a student submits online. Absent -> defaulted from type in the service
   // (false for a sat exam/quiz/test, true otherwise).
   expects_submission: z.boolean().optional(),

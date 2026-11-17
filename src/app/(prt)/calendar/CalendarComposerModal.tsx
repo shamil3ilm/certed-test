@@ -7,6 +7,7 @@ import { Modal } from '../Modal'
 import { calendarUrl, dayItemKey, firstAllowedTab } from './calendar-config'
 import type { CalendarPayload, ComposerTab, DayItem, Opt } from './calendar-types'
 import { AnnouncementCreateForm } from './composer/AnnouncementCreateForm'
+import { AssignmentCreateForm } from './composer/AssignmentCreateForm'
 import { CalendarEventForm } from './composer/CalendarEventForm'
 import { ClassCreateForm } from './composer/ClassCreateForm'
 import { MeetCreateForm } from './composer/MeetCreateForm'
@@ -20,6 +21,10 @@ const TAB_META: Record<ComposerTab, { title: string; description: string }> = {
   event: {
     title: 'Event / holiday',
     description: 'Add a dated calendar item such as an event, holiday, cancellation, or reschedule.',
+  },
+  assignment: {
+    title: 'Assignment / Exam',
+    description: 'Schedule an exam, quiz, test, or coursework assignment with a due date.',
   },
   announcement: {
     title: 'Announcement',
@@ -68,6 +73,7 @@ export function CalendarComposerModal({
       next.push({ id: 'class', label: 'Class' })
       next.push({ id: 'event', label: 'Event / holiday' })
     }
+    if (canManageContent) next.push({ id: 'assignment', label: 'Assignment / Exam' })
     if (canManageContent) next.push({ id: 'announcement', label: 'Announcement' })
     if (canManageContent) next.push({ id: 'meet', label: 'Meet' })
     if (canCreateReminder) next.push({ id: 'reminder', label: 'Reminder' })
@@ -160,6 +166,19 @@ export function CalendarComposerModal({
           isAdmin={isAdmin}
           onSuccess={() => {
             toastMessage('Added to schedule', 'success')
+            onCalendarRefresh()
+          }}
+          onError={(message) => toastMessage(message, 'error')}
+        />
+      )}
+
+      {resolvedTab === 'assignment' && canManageContent && (
+        <AssignmentCreateForm
+          key={`assignment:${date}`}
+          date={date}
+          classes={classes}
+          onSuccess={() => {
+            toastMessage('Assessment / assignment scheduled', 'success')
             onCalendarRefresh()
           }}
           onError={(message) => toastMessage(message, 'error')}

@@ -1,10 +1,12 @@
 'use client'
 
+import type { ClassworkType } from '../assignments/classwork-types'
+
 export type Opt = { id: string; name: string }
 export type CalendarMode = 'normal' | 'agenda'
 export type CalendarSpan = 'month' | 'week' | 'day' | 'year'
 export type CalendarSort = 'soonest' | 'latest' | 'title' | 'type'
-export type ComposerTab = 'class' | 'event' | 'reminder' | 'meet' | 'announcement'
+export type ComposerTab = 'class' | 'event' | 'assignment' | 'reminder' | 'meet' | 'announcement'
 
 export type CalendarItem = {
   id: string
@@ -17,7 +19,7 @@ export type CalendarItem = {
   kind: string
   location?: string | null
   /** For an assignment-source item, the classwork type. */
-  type?: 'assignment' | 'exam' | 'quiz' | 'test' | 'project'
+  type?: ClassworkType
   /** For a one-off class session, the session kind (regular, demo, exam). */
   sessionType?: 'regular' | 'demo' | 'exam'
   /** A recorded session was held for this item. */
@@ -40,7 +42,7 @@ export type EventDetail = {
   kind: string
   classId?: string | null
   location?: string | null
-  type?: 'assignment' | 'exam' | 'quiz' | 'test' | 'project'
+  type?: ClassworkType
   sessionType?: 'regular' | 'demo' | 'exam'
   rawId?: string | null
   url?: string | null

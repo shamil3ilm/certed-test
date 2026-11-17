@@ -1,4 +1,5 @@
 import 'server-only'
+import { ASSIGNMENT_TYPES, type AssignmentType } from '@/lib/assignments/types'
 import { assertFilterSafeId } from '@/lib/text/filter-values'
 import type { Page } from '@/lib/pagination'
 import { createClient } from '@/lib/supabase/server'
@@ -15,10 +16,7 @@ import { assertMutated } from '@/lib/data/mutation'
  * bottom, which states why it needs to bypass policy.
  */
 
-/** The kind of classwork an assignment row represents. 'assignment' is the default
- *  (online-submitted, graded work); exam/quiz/test are typically sat in person. */
-export type AssignmentType = 'assignment' | 'exam' | 'quiz' | 'test' | 'project'
-export const ASSIGNMENT_TYPES: readonly AssignmentType[] = ['assignment', 'exam', 'quiz', 'test', 'project']
+export { ASSIGNMENT_TYPES, type AssignmentType }
 
 export type AssignmentRow = {
   id: string
@@ -45,6 +43,7 @@ export type AssignmentFilters = {
   dueTo?: string
   activeOnly?: boolean
   type?: AssignmentType
+  types?: AssignmentType[]
 }
 
 type AssignmentInsert = {
@@ -89,6 +88,7 @@ export async function selectAssignments(filters: AssignmentFilters = {}): Promis
   if (filters.classIds) query = query.in('class_id', filters.classIds)
   if (filters.activeOnly) query = query.eq('status', 'active')
   if (filters.type) query = query.eq('type', filters.type)
+  if (filters.types && filters.types.length > 0) query = query.in('type', filters.types)
   if (filters.dueFrom) query = query.gte('due_date', filters.dueFrom)
   if (filters.dueTo) query = query.lt('due_date', filters.dueTo)
   const { data, error } = await query

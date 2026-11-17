@@ -26,7 +26,8 @@ export const MARKETING_FEATURES: MarketingFeature[] = [
   {
     icon: Clock,
     title: 'Flexible Timings',
-    description: 'Schedule sessions that suit your timezone. We support timings for India and all major GCC countries.',
+    description:
+      'Schedule sessions that suit your timezone. We support timings for India, UK and all major GCC countries.',
   },
   {
     icon: Award,
@@ -130,7 +131,7 @@ export const MARKETING_FAQS: MarketingFaq[] = [
   {
     question: 'Which countries do you serve?',
     answer:
-      'We serve students in India and all GCC countries including UAE, Saudi Arabia, Qatar, Kuwait, Oman and Bahrain.',
+      'We serve students in India, UK and all GCC countries including UAE, Saudi Arabia, Qatar, Kuwait, Oman and Bahrain.',
   },
   {
     question: 'How long is a typical session?',

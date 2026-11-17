@@ -111,9 +111,11 @@ export async function listUpcomingClassOccurrences(
       if (Date.parse(startIso) >= nowMs) {
         const sessionType = parseSessionTypeFromDescription(ev.description)
         const isDemo = sessionType === 'demo'
+        const isExam = sessionType === 'exam'
+        const subject = isDemo ? `${ev.title} (demo)` : isExam ? `${ev.title} (exam)` : ev.title
         occurrences.push({
           slotId: `event-${ev.id}`,
-          subject: isDemo ? `${ev.title} (demo)` : ev.title,
+          subject,
           classId: ev.class_id,
           startIso,
           endIso,

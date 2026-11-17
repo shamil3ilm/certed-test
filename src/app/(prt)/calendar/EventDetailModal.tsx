@@ -8,6 +8,7 @@ import { COLORS } from './calendar-config'
 import type { EventDetail, Opt } from './calendar-types'
 import { ExternalActionLink } from '@/lib/ui'
 import { safeExternalHref } from '@/lib/validation/url'
+import { classworkTypeLabel } from '@/lib/assignments/types'
 
 export function EventDetailModal({
   info,
@@ -26,15 +27,17 @@ export function EventDetailModal({
       ? isClassSession
         ? `Class (${info.sessionType})`
         : 'Class'
-      : info.source === 'exam' || info.kind === 'exam' || info.type === 'exam'
-        ? 'Exam'
-        : info.source === 'assignment' || info.kind === 'assignment'
-          ? 'Assignment'
-          : info.source === 'session'
-            ? 'Held session'
-            : info.source === 'meet'
-              ? 'Meeting'
-              : info.kind || 'Event'
+      : info.type
+        ? classworkTypeLabel(info.type)
+        : info.source === 'exam' || info.kind === 'exam'
+          ? 'Exam'
+          : info.source === 'assignment' || info.kind === 'assignment'
+            ? 'Assignment'
+            : info.source === 'session'
+              ? 'Held session'
+              : info.source === 'meet'
+                ? 'Meeting'
+                : info.kind || 'Event'
 
   // Times go through LocalTime - the one timezone-aware source used everywhere -
   // rather than raw toLocale*, so an event reads the same way as every other
@@ -63,8 +66,7 @@ export function EventDetailModal({
   const isAssessment =
     info.source === 'exam' ||
     info.source === 'assignment' ||
-    info.type === 'exam' ||
-    info.type === 'assignment' ||
+    Boolean(info.type) ||
     info.kind === 'exam' ||
     info.kind === 'assignment'
 

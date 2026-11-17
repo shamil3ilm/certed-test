@@ -31,7 +31,7 @@ export default function Home() {
 
             <p className="mx-auto mb-8 max-w-2xl text-lg font-medium leading-relaxed text-slate-800 md:mx-0 md:text-xl">
               <strong>Cert-Ed Academia</strong> provides individual attention, dedicated tutors, and flexible online
-              classes for students across <strong>India & GCC</strong> (UAE, Saudi Arabia, Qatar, Kuwait, Oman,
+              classes for students across <strong>India, UK & GCC</strong> (UAE, Saudi Arabia, Qatar, Kuwait, Oman,
               Bahrain).
             </p>
 
@@ -66,7 +66,7 @@ export default function Home() {
           </h2>
           <p className="text-xl leading-relaxed text-slate-600">
             Our personalised classes focus on concept clarity, regular progress tracking, and parent communication.
-            Ideal for busy families in India and the Gulf.
+            Ideal for busy families in India, UK and the Gulf.
           </p>
 
           <div className="mt-8 flex justify-center">

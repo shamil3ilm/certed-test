@@ -6,14 +6,14 @@ import {
 } from '@/lib/time/expand-slots'
 import { parseSessionTypeFromDescription } from '@/lib/attendance/session-kind'
 import type { CalendarEventKind } from '@/lib/services/calendar-events'
-import type { AssignmentType } from '@/lib/data/assignments'
+import { isTimedAssessment, type AssignmentType } from '@/lib/assignments/types'
 import { matchExams, matchOccurrences, type HeldSession } from './held'
 
 // A sat assessment reads as itself ("Exam: ...", "Quiz: ...", "Test: ..."); everything
 // else - submitted work (assignment/project) and any legacy/undefined type - reads as a
 // deadline ("Due: ..."). Fallback-to-deadline keeps a type-less mock/legacy row safe.
 function assignmentTitle(type: AssignmentType, title: string): string {
-  if (type === 'exam' || type === 'quiz' || type === 'test') {
+  if (isTimedAssessment(type)) {
     return `${type[0].toUpperCase()}${type.slice(1)}: ${title}`
   }
   return `Due: ${title}`
@@ -96,7 +96,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     sessions,
   )
   const heldExams = matchExams(
-    input.assignments.filter((a) => a.type === 'exam'),
+    input.assignments.filter((a) => isTimedAssessment(a.type)),
     sessions,
     (iso) => wallClockDate(iso, input.anchorTz),
   )
@@ -171,7 +171,7 @@ export function mergeCalendar(input: MergeInput): CalendarItem[] {
     const base = assignmentTitle(a.type, a.title)
     const held = heldExams.has(a.id)
     const named = label ? `${base} · ${label}` : base
-    const isExam = a.type === 'exam' || a.type === 'quiz' || a.type === 'test'
+    const isExam = isTimedAssessment(a.type)
     items.push({
       id: `assignment-${a.id}`,
       source: isExam ? 'exam' : 'assignment',

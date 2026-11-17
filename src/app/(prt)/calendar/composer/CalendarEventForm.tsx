@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { ACADEMY_WIDE_LABEL } from '@/lib/ui'
 import { Input, Select } from '../../form'
 import { api } from '../timetable/api'
+import { DAYS, hhmm, type Slot } from '../timetable/types'
 import { EVENT_KINDS, calendarDateInZone } from '../calendar-config'
 import type { Opt } from '../calendar-types'
 
@@ -49,11 +50,33 @@ export function CalendarEventForm({
   const [title, setTitle] = useState('')
   const [classId, setClassId] = useState(isAdmin ? '' : (classes[0]?.id ?? ''))
   const [kind, setKind] = useState<(typeof EVENT_KINDS)[number]>('event')
+  const [slotId, setSlotId] = useState('')
+  const [slots, setSlots] = useState<Slot[]>([])
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const kindMeta = EVENT_KIND_META[kind]
+  const affectsSlot = kind === 'cancellation' || kind === 'reschedule'
+
+  useEffect(() => {
+    if (!classId || !affectsSlot) {
+      setSlots([])
+      setSlotId('')
+      return
+    }
+    let cancelled = false
+    void api<Slot[]>(`/api/timetable?classId=${classId}`)
+      .then((data) => {
+        if (!cancelled) setSlots(data ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setSlots([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [classId, affectsSlot])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -74,6 +97,7 @@ export function CalendarEventForm({
         event_date: eventDate,
         kind,
         class_id: classId || null,
+        slot_id: affectsSlot && slotId ? slotId : null,
         start_time: start || undefined,
         end_time: end || undefined,
       })
@@ -137,10 +161,27 @@ export function CalendarEventForm({
           ))}
         </Select>
         <p className="mt-1 text-xs text-slate-600">
-          Setting an exam? Create it from Classwork as an assignment with type Exam - it&apos;s graded and feeds the
-          report card.
+          Setting an exam or coursework? Use the &quot;Assignment / Exam&quot; tab to create graded assessments that
+          feed the report card.
         </p>
       </label>
+
+      {affectsSlot && (
+        <label className="text-sm sm:col-span-2">
+          Affected recurring class
+          <Select value={slotId} onChange={(event) => setSlotId(event.target.value)} className="mt-1">
+            <option value="">None / general notice</option>
+            {slots.map((s) => (
+              <option key={s.id} value={s.id}>
+                {DAYS[s.day_of_week]} {hhmm(s.start_time)}-{hhmm(s.end_time)}: {s.subject}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-slate-500">
+            Selecting a weekly slot suppresses that recurring class occurrence on {eventDate}.
+          </p>
+        </label>
+      )}
       <label className="text-sm">
         Start time (optional)
         <Input type="time" value={start} onChange={(event) => setStart(event.target.value)} className="mt-1" />

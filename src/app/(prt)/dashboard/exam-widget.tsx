@@ -6,6 +6,7 @@ import { getInstituteTimeZone } from '@/lib/services/finance/org-settings'
 import { todayInZone } from '@/lib/time/format'
 import { zonedDayStartMs } from '@/lib/time/expand-slots'
 import { ACADEMY_WIDE_LABEL, Panel } from '@/lib/ui'
+import { ASSESSMENT_TYPES } from '@/lib/assignments/types'
 import { LocalTime } from '../LocalTime'
 import { WIDGET_CTA_LINK, WIDGET_ROW_STACK } from './widget-shared'
 
@@ -21,7 +22,13 @@ const EXAM_LIMIT = 5
 export async function UpcomingExamsWidget() {
   const tz = await getInstituteTimeZone()
   const fromIso = new Date(zonedDayStartMs(todayInZone(tz), tz)).toISOString()
-  const exams = (await listAssignments({ type: 'exam', activeOnly: true, dueFrom: fromIso })).slice(0, EXAM_LIMIT)
+  const exams = (
+    await listAssignments({
+      types: [...ASSESSMENT_TYPES],
+      activeOnly: true,
+      dueFrom: fromIso,
+    })
+  ).slice(0, EXAM_LIMIT)
 
   if (exams.length === 0) {
     return (

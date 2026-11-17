@@ -5,7 +5,7 @@ import { MARKETING_ABOUT_ICONS, MARKETING_VALUES } from '@/lib/content/marketing
 export const metadata: Metadata = {
   title: 'About Us | Cert-Ed Academia',
   description:
-    "Learn about Cert-Ed Academia's mission to provide personalised one-to-one online learning for students across India and GCC.",
+    "Learn about Cert-Ed Academia's mission to provide personalised one-to-one online learning for students across India, UK and GCC.",
 }
 
 export default function About() {
@@ -17,8 +17,8 @@ export default function About() {
             About Cert-Ed Academia
           </h1>
           <p className="text-xl font-medium leading-relaxed text-slate-600">
-            We provide personalised one-to-one online tuition for students across <strong>India and the GCC</strong>,
-            helping each child reach their academic potential.
+            We provide personalised one-to-one online tuition for students across <strong>India, UK and the GCC</strong>
+            , helping each child reach their academic potential.
           </p>
         </div>
       </section>

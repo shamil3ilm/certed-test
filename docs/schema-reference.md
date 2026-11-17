@@ -233,7 +233,10 @@ Notes:
 
 ### `assignments`
 
-- classwork definition
+- classwork and assessment definition
+- `type` supports `assignment`, `exam`, `quiz`, `test`, `project` (`ASSIGNMENT_TYPES`, migration 0071)
+- `expects_submission` distinguishes sat in-person work (false for exams, quizzes, tests) from submitted digital work (true for assignments, projects)
+- scheduled assessments and coursework have 100% parity across surfaces: Calendar (via Calendar Composer tab and event detail modal with deep-links), Classwork (`/classroom/[id]/classwork`), Grading (`/assignments`), and Dashboard ("Upcoming exams" tile querying all sat assessment types)
 
 ### `submissions`
 

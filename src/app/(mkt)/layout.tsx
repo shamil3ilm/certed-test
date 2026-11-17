@@ -15,13 +15,14 @@ const marketingSans = Inter({ subsets: ['latin'], variable: '--font-mkt-sans', d
 export const metadata: Metadata = {
   title: 'Cert-Ed Academia | Online Tuition for CBSE & ICSE Students',
   description:
-    'Cert-Ed Academia offers personalised one-to-one online tuition for CBSE and ICSE students. Expert tutors, flexible timings, and exam-focused learning for students in India and GCC.',
+    'Cert-Ed Academia offers personalised one-to-one online tuition for CBSE and ICSE students. Expert tutors, flexible timings, and exam-focused learning for students in India, UK and GCC.',
   keywords: [
     'online tuition',
     'CBSE tuition',
     'ICSE tuition',
     'one-to-one classes',
     'online classes India',
+    'online tuition UK',
     'online tuition GCC',
     'personalised learning',
     'student mentoring',

@@ -2,10 +2,11 @@
  * Countries offered in the profile country picker. Rendered as an <input list>
  * datalist, so the field is a search-and-pick dropdown that ALSO accepts free text -
  * an unlisted country is still enterable, this list just makes the common ones one
- * tap away. India + the Gulf lead, since they are the academy's main regions.
+ * tap away. India, the UK, and the Gulf lead, since they are the academy's main regions.
  */
 export const COMMON_COUNTRIES = [
   'India',
+  'United Kingdom',
   'United Arab Emirates',
   'Saudi Arabia',
   'Qatar',
@@ -20,7 +21,6 @@ export const COMMON_COUNTRIES = [
   'Maldives',
   'Afghanistan',
   'United States',
-  'United Kingdom',
   'Canada',
   'Australia',
   'New Zealand',

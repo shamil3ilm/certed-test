@@ -13,7 +13,7 @@ const Footer = () => {
               Providing personalised one-to-one online tuition for CBSE & ICSE students (Classes KG - 12).
             </p>
             <p className="text-slate-200/85">
-              Serving students across <strong>India & GCC</strong>.
+              Serving students across <strong>India, UK & GCC</strong>.
             </p>
           </div>
           <div>
@@ -74,7 +74,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-12 border-t border-primary/20 pt-8 text-center text-sm text-slate-300">
-          &copy; {CURRENT_YEAR} Cert-Ed Academia. Serving students across India and GCC. All rights reserved.
+          &copy; {CURRENT_YEAR} Cert-Ed Academia. Serving students across India, UK and GCC. All rights reserved.
         </div>
       </div>
     </footer>

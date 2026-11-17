@@ -115,7 +115,7 @@ export default function Contact() {
             <div className="mt-12 w-[calc(100%+2rem)] -ml-4 md:w-[calc(100%+3rem)] md:-ml-6 relative h-[500px] rounded-xl overflow-hidden shadow-lg">
               <Image
                 src="/online-tuition-enquiry-form-cbse-icse-india-gcc.webp"
-                alt="Student enrolling for online tuition classes for CBSE and ICSE students in India and GCC"
+                alt="Student enrolling for online tuition classes for CBSE and ICSE students in India, UK and GCC"
                 fill
                 className="w-full h-auto object-contain"
               />
