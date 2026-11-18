@@ -124,37 +124,44 @@ export async function DueWorkWidget({
       {due.length === 0 ? (
         <p className="text-sm text-slate-600">You&apos;re all caught up.</p>
       ) : (
-        <ul className="space-y-1 text-sm">
-          {due.slice(0, 4).map((assignment) => {
-            const overdue = Date.parse(assignment.due_date) < now
-            return (
-              <li key={assignment.id}>
-                <Link
-                  href={`/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`}
-                  className={WIDGET_ROW_STACK}
-                >
-                  <span className="w-full truncate font-medium" title={assignment.title}>
-                    {assignment.title}
-                  </span>
-                  <span
-                    className={cx(
-                      'shrink-0 text-xs transition group-hover:text-inherit',
-                      overdue ? 'font-medium text-danger-ink' : 'text-slate-600',
-                    )}
+        <>
+          <ul className="space-y-1 text-sm">
+            {due.slice(0, 5).map((assignment) => {
+              const overdue = Date.parse(assignment.due_date) < now
+              return (
+                <li key={assignment.id}>
+                  <Link
+                    href={`/classroom/${assignment.class_id}/classwork#assignment-${assignment.id}`}
+                    className={WIDGET_ROW_STACK}
                   >
-                    {overdue ? (
-                      'overdue'
-                    ) : (
-                      <>
-                        due <LocalTime iso={assignment.due_date} mode="date" />
-                      </>
-                    )}
-                  </span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+                    <span className="w-full truncate font-medium" title={assignment.title}>
+                      {assignment.title}
+                    </span>
+                    <span
+                      className={cx(
+                        'shrink-0 text-xs transition group-hover:text-inherit',
+                        overdue ? 'font-medium text-danger-ink' : 'text-slate-600',
+                      )}
+                    >
+                      {overdue ? (
+                        'overdue'
+                      ) : (
+                        <>
+                          due <LocalTime iso={assignment.due_date} mode="date" />
+                        </>
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+          {due.length > 5 && (
+            <Link href="/classroom" className={WIDGET_CTA_LINK}>
+              View all ({due.length}) &rarr;
+            </Link>
+          )}
+        </>
       )}
     </Panel>
   )

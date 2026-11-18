@@ -1,5 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
 import {
+  countActiveSlotsForClass,
   insertSlot,
   selectSlotById,
   selectSlots,
@@ -23,6 +24,9 @@ import { notifyClassOfSlotChange } from '@/lib/services/timetable-notify'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
+import { MAX_SLOTS_PER_CLASS } from '@/lib/config/limits'
+
+export { MAX_SLOTS_PER_CLASS }
 
 export type TimetableSlot = TimetableSlotRow
 
@@ -88,6 +92,13 @@ export async function createSlot(actor: Profile, input: CreateSlotInput): Promis
   }
   if (input.tutor_id) await assertClassTutor(input.tutor_id, input.class_id)
   await assertClassActive(input.class_id)
+
+  const activeCount = await countActiveSlotsForClass(input.class_id)
+  if (activeCount >= MAX_SLOTS_PER_CLASS) {
+    throw new ValidationError(
+      `This class already has the maximum of ${MAX_SLOTS_PER_CLASS} active timetable slots. Deactivate or delete an existing slot before adding more.`,
+    )
+  }
 
   const created = await insertSlot({
     class_id: input.class_id,

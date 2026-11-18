@@ -2,16 +2,22 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { Reminder } from '@/lib/services/reminders'
 import { DISPLAY_TZ } from '@/lib/time/format'
 import { createClientId } from '@/lib/ui/client-id'
 import { useHydratedFlag } from '@/lib/ui/client-env'
+import { cx } from '@/lib/ui'
 import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
 import { createReminderAction, deleteReminderAction, editReminderAction, markReminderSentAction } from './actions'
 import { PastReminderList, ReminderEditor, ReminderItems } from './reminder-panel-parts'
+import { WIDGET_CTA_LINK } from './widget-shared'
+import { DASHBOARD_ENTITY_PREVIEW_LIMIT, MAX_ACTIVE_REMINDERS_PER_USER } from '@/lib/config/limits'
 
 const NOW_REFRESH_MS = 60_000
+const MAX_ACTIVE_REMINDERS = MAX_ACTIVE_REMINDERS_PER_USER
+const DASHBOARD_VISIBLE_LIMIT = DASHBOARD_ENTITY_PREVIEW_LIMIT
 
 export function ReminderPanel({
   initialReminders,
@@ -49,6 +55,7 @@ function ReminderPanelBody({
   const [pastReminders, setPastReminders] = useState(initialPastReminders)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
   // Seed from the server-provided timestamp so SSR and the first client render
   // agree (a client-side Date.now() here can straddle a minute/overdue boundary
@@ -57,6 +64,8 @@ function ReminderPanelBody({
   const deviceLocal = useHydratedFlag()
   const { toast, confirm } = useUI()
   const router = useRouter()
+  const activeUpcoming = reminders.filter((r) => !r.is_sent && new Date(r.remind_at).getTime() >= nowMs)
+  const atLimit = activeUpcoming.length >= MAX_ACTIVE_REMINDERS
 
   useEffect(() => {
     const interval = window.setInterval(() => setNowMs(Date.now()), NOW_REFRESH_MS)
@@ -65,6 +74,13 @@ function ReminderPanelBody({
 
   function handleAdd(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (atLimit && !editing) {
+      toast(
+        `Maximum limit of ${MAX_ACTIVE_REMINDERS} active reminders reached. Complete or delete an existing reminder first.`,
+        'error',
+      )
+      return
+    }
     const formData = new FormData(event.currentTarget)
     const title = String(formData.get('title') ?? '').trim()
     const remindAt = String(formData.get('remind_at') ?? '').trim()
@@ -181,29 +197,43 @@ function ReminderPanelBody({
   }
 
   const sorted = [...reminders].sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime())
+  const displayedReminders = showAll ? sorted : sorted.slice(0, DASHBOARD_VISIBLE_LIMIT)
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">
           Reminders
-          {reminders.length > 0 && (
+          {activeUpcoming.length > 0 && (
             <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-              {reminders.length}
+              {activeUpcoming.length}
             </span>
           )}
         </h2>
         <button
           type="button"
+          disabled={atLimit && !open && !editing}
           onClick={() => {
+            if (atLimit && !open && !editing) {
+              toast(
+                `Maximum limit of ${MAX_ACTIVE_REMINDERS} active reminders reached. Complete or delete an existing reminder to add more.`,
+                'error',
+              )
+              return
+            }
             setEditing(null)
             setOpen((value) => !value)
           }}
           aria-expanded={open}
           aria-controls="reminder-add-form"
-          className="min-h-10 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-primary hover:bg-primary/5 hover:text-primary"
+          className={cx(
+            'min-h-10 rounded-lg border px-3 py-2 text-sm font-medium transition',
+            atLimit && !open && !editing
+              ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+              : 'border-slate-200 text-slate-600 hover:border-primary hover:bg-primary/5 hover:text-primary',
+          )}
         >
-          + Add
+          {atLimit && !open && !editing ? `Limit reached (${activeUpcoming.length}/${MAX_ACTIVE_REMINDERS})` : '+ Add'}
         </button>
       </div>
 
@@ -222,18 +252,41 @@ function ReminderPanelBody({
       {sorted.length === 0 ? (
         <p className="mt-3 text-sm text-slate-600">No upcoming reminders.</p>
       ) : (
-        <ReminderItems
-          reminders={sorted}
-          nowMs={nowMs}
-          displayTz={deviceLocal ? undefined : DISPLAY_TZ}
-          onEdit={(reminder) => {
-            setEditing(reminder)
-            setOpen(true)
-          }}
-          onMarkDone={handleMarkDone}
-          onDelete={handleDelete}
-          isPending={isPending}
-        />
+        <>
+          <ReminderItems
+            reminders={displayedReminders}
+            nowMs={nowMs}
+            displayTz={deviceLocal ? undefined : DISPLAY_TZ}
+            onEdit={(reminder) => {
+              setEditing(reminder)
+              setOpen(true)
+            }}
+            onMarkDone={handleMarkDone}
+            onDelete={handleDelete}
+            isPending={isPending}
+          />
+          {sorted.length > DASHBOARD_VISIBLE_LIMIT && (
+            <div className="mt-2 flex items-center justify-between pt-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowAll((value) => !value)}
+                className="font-medium text-primary hover:underline"
+              >
+                {showAll ? 'Show fewer' : `Show ${sorted.length - DASHBOARD_VISIBLE_LIMIT} more`}
+              </button>
+              <Link href="/calendar" className={WIDGET_CTA_LINK}>
+                Open calendar &rarr;
+              </Link>
+            </div>
+          )}
+        </>
+      )}
+
+      {atLimit && (
+        <p className="mt-2 rounded-lg border border-warning-border bg-warning-surface p-2 text-xs text-warning-ink">
+          Maximum limit of {MAX_ACTIVE_REMINDERS} active reminders reached. Mark reminders done or delete them to free
+          up slots.
+        </p>
       )}
 
       <PastReminderList reminders={pastReminders} displayTz={deviceLocal ? undefined : DISPLAY_TZ} />

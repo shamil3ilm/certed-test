@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/permission', () => ({ canManageClass: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ selectActiveClassIdsForStudent: vi.fn() }))
 vi.mock('@/lib/data/reminders', () => ({
+  countPendingForUser: vi.fn(async () => 0),
   deleteReminderRow: vi.fn(),
   insertAssignedReminder: vi.fn(),
   insertReminder: vi.fn(),

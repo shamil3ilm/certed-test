@@ -1,4 +1,7 @@
 import { ValidationError } from '@/lib/errors'
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_OWNER, MAX_FILENAME_LENGTH } from '@/lib/config/limits'
+
+export { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_OWNER, MAX_FILENAME_LENGTH }
 
 /**
  * Upload validation for custodial attachments. Pure and server/client-safe (no
@@ -11,18 +14,6 @@ import { ValidationError } from '@/lib/errors'
  * name, claim an allowed type, AND actually be that type. Filename sanitization
  * then strips anything that could traverse a path or mask a second extension.
  */
-
-/** 25 MB - matches the attachments_size_check constraint in migration 0057. */
-export const MAX_ATTACHMENT_BYTES = 26_214_400
-
-/**
- * Max ACTIVE attachments per owner - a guardrail against runaway/spam uploads,
- * enforced server-side in the attach guard. Applies to submission / assignment /
- * announcement (purely additive owners). RESOURCES are exempt: replacing a document
- * supersedes its prior file (active stays 1), so a count cap would wrongly freeze a
- * document after N revisions.
- */
-export const MAX_ATTACHMENTS_PER_OWNER = 5
 
 /**
  * Allowed extension -> the MIME types that legitimately carry it.
@@ -76,8 +67,6 @@ const EXTENSION_MAGIC: Record<string, readonly Signature[]> = {
 
 /** Second extensions we refuse even when the FINAL one is allowed (e.g. cv.pdf.exe). */
 const DANGEROUS_INNER = /\.(exe|bat|cmd|com|scr|msi|dll|sh|bash|ps1|vbs|js|jar|html?|svg|php|py)$/i
-
-const MAX_FILENAME_LENGTH = 200
 
 export type AttachmentInput = {
   filename: string

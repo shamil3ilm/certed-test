@@ -54,7 +54,9 @@ describe('createMeetLink', () => {
 
   it('creates and audits meet.create for a manager (previously unaudited)', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: linkRow, error: null }) as any)
     const created = await createMeetLink(actor, {
       class_id: 'class-1',
       title: 'Class call',
@@ -79,6 +81,18 @@ describe('createMeetLink', () => {
       },
       'tutor-1',
     )
+  })
+
+  it('rejects creating a meet link when MAX_ACTIVE_MEETS_PER_CLASS is reached', async () => {
+    vi.mocked(canWriteClass).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null, count: 15 }) as any)
+    await expect(
+      createMeetLink(actor, {
+        class_id: 'class-1',
+        title: 'Class call',
+        url: 'https://meet.example/x',
+      }),
+    ).rejects.toThrow(ValidationError)
   })
 })
 
@@ -115,9 +129,9 @@ describe('validateCreateMeetLinkInput', () => {
 describe('createMeetLinkFromActionInput', () => {
   it('creates a global meet link after normalizing the action payload', async () => {
     vi.mocked(canWriteClass).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({ data: { ...linkRow, class_id: null, id: 'global-1' }, error: null }) as any,
-    )
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: { ...linkRow, class_id: null, id: 'global-1' }, error: null }) as any)
 
     const created = await createMeetLinkFromActionInput(actor, {
       classId: 'global',

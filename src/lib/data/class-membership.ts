@@ -94,6 +94,18 @@ export async function selectActiveTutorRefsByClassIds(
   return (data ?? []) as Array<{ class_id: string; tutor_id: string }>
 }
 
+/** Total number of active tutors assigned to a class (HEAD count, 0 row data transferred). */
+export async function countActiveTutorsForClass(classId: string): Promise<number> {
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from('class_tutors')
+    .select('tutor_id', { count: 'exact', head: true })
+    .eq('class_id', classId)
+    .eq('active', true)
+  if (error) throw new Error(`classMembership.countActiveTutors: ${error.message}`)
+  return count ?? 0
+}
+
 /** One row per active enrolment across the given classes, carrying the student id. */
 export async function selectActiveEnrollmentRefsByClassIds(
   classIds: string[],

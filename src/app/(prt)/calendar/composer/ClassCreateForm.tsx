@@ -10,6 +10,7 @@ import {
 } from '@/lib/attendance/session-kind'
 import { dayOfWeekFromCalendarDate } from '@/lib/time/format'
 import { Input, Select } from '../../form'
+import { useViewerTimeZone } from '../../ViewerTimeZone'
 import { api } from '../timetable/api'
 import { DAYS } from '../timetable/types'
 import type { Opt } from '../calendar-types'
@@ -35,6 +36,7 @@ export function ClassCreateForm({
   onSuccess: (message: string) => void
   onError: (message: string) => void
 }) {
+  const viewerTz = useViewerTimeZone()
   const todayYmd = calendarDateInZone(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [recurring, setRecurring] = useState(false)
   const [sessionDate, setSessionDate] = useState(() => (date < todayYmd ? todayYmd : date))
@@ -68,6 +70,7 @@ export function ClassCreateForm({
           end_time: end,
           tutor_id: tutorId || undefined,
           mode_or_location: room || undefined,
+          timezone: viewerTz,
         })
         onSuccess('Weekly class added')
       } else {

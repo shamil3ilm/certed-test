@@ -1,5 +1,6 @@
 import { rateLimit } from './rate-limit'
 import { RateLimitError } from '@/lib/errors'
+import { THROTTLE_WRITE_LIMIT_PER_MINUTE, THROTTLE_WRITE_WINDOW_MS } from '@/lib/config/limits'
 
 /**
  * Standard per-user write throttle for a mutation surface: 60 writes/minute,
@@ -21,7 +22,12 @@ import { RateLimitError } from '@/lib/errors'
  * Widening those to this helper's 60/min would loosen a security control.
  */
 export function throttleWrite(scope: string, actorId: string, noun: string): void {
-  if (!rateLimit(`${scope}-write:${actorId}`, { limit: 60, windowMs: 60_000 }).ok) {
+  if (
+    !rateLimit(`${scope}-write:${actorId}`, {
+      limit: THROTTLE_WRITE_LIMIT_PER_MINUTE,
+      windowMs: THROTTLE_WRITE_WINDOW_MS,
+    }).ok
+  ) {
     throw new RateLimitError(`Too many ${noun} changes in a short time. Please wait a moment.`)
   }
 }

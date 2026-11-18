@@ -26,11 +26,12 @@ const tutorActor = { id: 'tutor-1', email: 't@x.c', role: 'tutor', status: 'acti
 const activeTutor = { id: 'tutor-2', role: 'tutor', status: 'active' } as any
 const activeMentor = { id: 'mentor-2', role: 'mentor', status: 'active' } as any
 
-/** The class-status read, then the client whose RPC answers the assignment write. */
+/** The class-status read, then the tutor count check, then the client whose RPC answers the assignment write. */
 function assignClients(rpcResult: { data: unknown; error: { message: string } | null }) {
   const write = makeClient({ data: null, error: null }, rpcResult as never)
   vi.mocked(createAdminClient)
     .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+    .mockReturnValueOnce(makeClient({ data: [], error: null }) as any) // selectActiveTutorRefsByClassIds
     .mockReturnValueOnce(write as any)
   return write
 }
@@ -120,6 +121,28 @@ describe('addTutor / removeTutor are admin-only', () => {
     expect(write.rpc).toHaveBeenCalledTimes(1)
     expect(write.from).not.toHaveBeenCalled()
     expect(writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'class.assign_tutor' }))
+  })
+
+  it('addTutor rejects when the class already has MAX_ACTIVE_TUTORS_PER_CLASS (5) tutors', async () => {
+    vi.mocked(getProfileById).mockResolvedValueOnce(activeTutor)
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce(makeClient({ data: { status: 'active' }, error: null }) as any) // selectClassStatus
+      .mockReturnValueOnce(
+        makeClient({
+          data: [
+            { class_id: 'class-1', tutor_id: 't-1' },
+            { class_id: 'class-1', tutor_id: 't-2' },
+            { class_id: 'class-1', tutor_id: 't-3' },
+            { class_id: 'class-1', tutor_id: 't-4' },
+            { class_id: 'class-1', tutor_id: 't-5' },
+          ],
+          error: null,
+        }) as any,
+      ) // selectActiveTutorRefsByClassIds
+    await expect(addTutor(admin, { classId: 'class-1', tutorId: 'tutor-2' })).rejects.toThrow(
+      /maximum of 5 active tutors/,
+    )
+    expect(writeAudit).not.toHaveBeenCalled()
   })
 
   it('addTutor refuses, and audits nothing, when the class is archived by the time it writes', async () => {

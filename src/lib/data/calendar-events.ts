@@ -57,6 +57,19 @@ export async function selectEventById(id: string): Promise<CalendarEventRow | nu
   return (data as CalendarEventRow) ?? null
 }
 
+export async function countEventsForScopeDate(opts: { eventDate: string; classId: string | null }): Promise<number> {
+  const supabase = await createClient()
+  let q = supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('event_date', opts.eventDate)
+  if (opts.classId === null) {
+    q = q.is('class_id', null)
+  } else {
+    q = q.eq('class_id', opts.classId)
+  }
+  const { count, error } = await q
+  if (error) throw new Error(`countEventsForScopeDate: ${error.message}`)
+  return count ?? 0
+}
+
 export async function insertEvent(row: CalendarEventInsert): Promise<CalendarEventRow> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('calendar_events').insert(row).select('*').single()

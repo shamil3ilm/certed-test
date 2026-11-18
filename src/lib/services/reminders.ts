@@ -1,4 +1,5 @@
 import {
+  countPendingForUser,
   deleteReminderRow,
   insertAssignedReminder,
   insertReminder,
@@ -17,6 +18,9 @@ import { PermissionError, ValidationError } from '@/lib/errors'
 import { assignReminderSchema, createReminderSchema, editReminderSchema } from '@/lib/validation/reminder'
 import { throttleWrite } from '@/lib/security/throttle'
 import { notifyBestEffort, notifyMentorsOfStudentBestEffort } from '@/lib/services/notifications'
+import { MAX_ACTIVE_REMINDERS_PER_USER } from '@/lib/config/limits'
+
+export { MAX_ACTIVE_REMINDERS_PER_USER }
 
 export type Reminder = ReminderRow
 
@@ -77,6 +81,12 @@ export async function createReminderFromActionInput(
   input: CreateReminderActionInput,
 ): Promise<Reminder> {
   throttleWrite('reminder', userId, 'reminder')
+  const activeCount = await countPendingForUser(userId)
+  if (activeCount >= MAX_ACTIVE_REMINDERS_PER_USER) {
+    throw new ValidationError(
+      `You have reached the maximum of ${MAX_ACTIVE_REMINDERS_PER_USER} active reminders. Please complete or delete existing ones before adding more.`,
+    )
+  }
   const parsed = validateCreateReminderInput(input)
   return createReminder(userId, parsed.title, parsed.description ?? null, parsed.remind_at)
 }
@@ -170,6 +180,12 @@ export async function assignReminderFromActionInput(actor: Profile, input: Assig
   const assigneeClassIds = await selectActiveClassIdsForStudent(parsed.data.assigneeId)
   if (!assigneeClassIds.includes(parsed.data.classId)) {
     throw new ValidationError('That student is not enrolled in this class.')
+  }
+  const activeCount = await countPendingForUser(parsed.data.assigneeId)
+  if (activeCount >= MAX_ACTIVE_REMINDERS_PER_USER) {
+    throw new ValidationError(
+      `This student already has the maximum of ${MAX_ACTIVE_REMINDERS_PER_USER} active reminders. Please wait until they complete some before assigning more.`,
+    )
   }
   await insertAssignedReminder({
     assigneeId: parsed.data.assigneeId,

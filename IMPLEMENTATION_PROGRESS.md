@@ -505,6 +505,41 @@ To guarantee optimal experience on mobile, tablet, and desktop:
       - **Recurring Slot Suppression in Composer (`src/app/(prt)/calendar/composer/CalendarEventForm.tsx`)**: Dynamically fetches active recurring slots for the selected class and allows selecting `slot_id` when `kind === 'cancellation' || kind === 'reschedule'`, ensuring recurring occurrences are suppressed across both the calendar and dashboard.
       - **Documentation Updates (`docs/workflow-invariants.md`, `docs/schema-reference.md`)**: Formally specified assessment and classwork parity across all views as Rule 12 of Workflow Invariants, and updated the `assignments` schema reference.
       - **Verification**: 0 TypeScript errors, 0 ESLint warnings, 100% Prettier compliance, and all unit tests passing.
+39. **Capacity Ceilings, Anti-Spam Safeguards, and 5-Row Dashboard Density Controls**:
+    - **Defect Symptoms & Root Causes**:
+      - _Potential Reminder & Calendar Spam Hazards_: Uncapped creation of personal reminders, class timetable slots, or calendar events risked unbounded database growth, cron timeout during email dispatch loops, browser DOM bloat, and calendar day-cell overflow.
+      - _Unbounded Dashboard Widget Stretching_: Dashboard widgets across student, tutor, and mentor portals lacked uniform row limits, causing high-activity users to experience runaway vertical page elongation.
+    - **Architectural Resolution**:
+      - **Zero-Payload Data Layer Exact Counting (`src/lib/data/reminders.ts`, `src/lib/data/timetable-slots.ts`, `src/lib/data/calendar-events.ts`)**:
+        - `countPendingForUser(userId, nowIso)`: Counts pending and upcoming reminders (`is_sent = false` AND `remind_at >= nowIso`) using HTTP HEAD queries `{ count: 'exact', head: true }` (zero row data payload). Reminders whose scheduled time has passed are treated as expired and excluded from capacity checks so historical or missed reminders never prevent scheduling new ones.
+        - `countActiveSlotsForClass(classId)`: Counts active recurring slots (`active = true`) using `{ count: 'exact', head: true }`. Inactive/paused slots are excluded from capacity checks.
+        - `countActiveMeetLinksForClass(classId)`: Counts active video meeting links (`active = true`) via `{ count: 'exact', head: true }`.
+        - `countEventsForScopeDate({ eventDate, classId })`: Counts events on a specific calendar date within class or global scope via `{ count: 'exact', head: true }`. Date-isolated so past events never block future dates.
+      - **Centralized Operational Limits Configuration (`src/lib/config/limits.ts`)**:
+        - Created a single source of truth for all operational thresholds, capacity ceilings, abuse boundaries, file upload bounds, pagination page sizes, security throttle budgets, and UI disclosure limits across the system.
+        - Domain services (`reminders.ts`, `timetable-slots.ts`, `calendar-events.ts`, `meet-links.ts`, `class-tutors.ts`, `attachments/validation.ts`, `admin-users.ts`, `notifications.ts`, `comments.ts`, `messaging/commands.ts`, `security/throttle.ts`) and UI widgets (`ReminderPanel.tsx`) re-export or consume directly from this configuration module for complete backward compatibility.
+      - **Pagination & Security Throttle Standardization**:
+        - Centralized `DEFAULT_PAGE_SIZE = 20`, `CARD_GRID_PAGE_SIZE = 12`, `ACTIVITY_STREAM_PAGE_SIZE = 10`, `NOTIFICATIONS_PAGE_SIZE = 30`, `AUDIT_PAGE_SIZE = 25`, and `ARCHIVED_RESOURCES_PAGE_SIZE = 50`.
+        - Centralized `THROTTLE_WRITE_LIMIT_PER_MINUTE = 60`, `RATE_LIMIT_MESSAGE_CONVERSATION_PER_MINUTE = 15`, `RATE_LIMIT_MESSAGE_SEND_PER_MINUTE = 30`, and `RATE_LIMIT_COMMENT_CREATE_PER_MINUTE = 20`.
+      - **Service-Layer Capacity Ceilings (`src/lib/services/reminders.ts`, `src/lib/services/timetable-slots.ts`, `src/lib/services/meet-links.ts`, `src/lib/services/class-tutors.ts`, `src/lib/services/calendar-events.ts`)**:
+        - `MAX_ACTIVE_REMINDERS_PER_USER = 10`: `createReminderFromActionInput` and `assignReminderFromActionInput` throw `ValidationError` when user reaches 10 upcoming reminders.
+        - `MAX_SLOTS_PER_CLASS = 15`: `createSlot` throws `ValidationError` if class reaches 15 active slots.
+        - `MAX_ACTIVE_MEETS_PER_CLASS = 15` (and `MAX_ACTIVE_GLOBAL_MEETS = 50`): `createMeetLink` is strictly isolated per class, allowing up to 15 active meet rooms per class without cross-class interference.
+        - `MAX_ACTIVE_TUTORS_PER_CLASS = 5`: `addTutor` throws `ValidationError` if class reaches 5 active tutors.
+        - `MAX_EVENTS_PER_SCOPE_DAY = 10`: `createEvent` throws `ValidationError` if 10 events exist on that date for that scope.
+        - `MAX_ATTACHMENT_BYTES = 26_214_400`, `MAX_ATTACHMENTS_PER_OWNER = 5`, `MAX_FILENAME_LENGTH = 200`: Centrally governed file attachment boundaries.
+      - **Uniform 5-Row Dashboard Density Controls & Progressive Disclosure**:
+        - `ReminderPanel.tsx`: Capped initial render to 5 reminders (`DASHBOARD_VISIBLE_LIMIT = 5`) with toggleable `"Show {N} more"` / `"Show fewer"`, `"Open calendar ->"` link, and disabled `+ Add` button (`"Limit reached (10/10)"`) when capped based on active upcoming reminders. Overdue reminders are clearly flagged and past completed reminders roll up into native `<details>` via `ArchivedList`.
+        - `PendingAttendanceWidget` (`tutor-widgets.tsx`): Slices to 5 rows with `"View all ({count}) ->"` link to `/classroom/[id]/attendance`.
+        - `SubmissionsToReviewWidget` (`tutor-widgets.tsx`): Capped to 5 ungraded submissions.
+        - `DueWorkWidget` (`student-widgets.tsx`): Slices to 5 rows with `"View all ({count}) ->"` link to `/classroom`.
+        - `UpcomingExamsWidget` (`exam-widget.tsx`): Maintained at 5 exams with deep links.
+      - **Cross-Origin Action Parity & Dual-Surface Cache Revalidation (`src/app/(prt)/dashboard/actions.ts`)**:
+        - Guaranteed identical validation, permission checking, and payload parsing whether reminders, exams, or timetable slots originate from Dashboard quick-panels, Classroom tabs, or the Calendar Composer.
+        - Revalidates both `revalidatePath('/dashboard')` and `revalidatePath('/calendar')` on all reminder actions, eliminating cross-surface cache divergence.
+      - **Timezone Preservation in Timetable Slot Creation (`src/app/(prt)/calendar/composer/ClassCreateForm.tsx`)**:
+        - Injected `useViewerTimeZone()` to pass `timezone: viewerTz` to `POST /api/timetable`, ensuring created slots retain user's timezone context.
+      - **Verification**: Zero TypeScript errors, zero ESLint warnings, 100% Prettier formatting compliance, and 98 unit tests passing across all modified services.
 
 ---
 

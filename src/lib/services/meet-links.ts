@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Profile } from '@/lib/auth/profile'
 import {
+  countActiveMeetLinksForClass,
   insertMeetLink,
   selectMeetLinkById,
   selectMeetLinks,
@@ -17,6 +18,9 @@ import { throttleWrite } from '@/lib/security/throttle'
 import { linkUrl } from '@/lib/validation/url'
 import { titleField } from '@/lib/validation/fields'
 import { z } from 'zod'
+import { MAX_ACTIVE_GLOBAL_MEETS, MAX_ACTIVE_MEETS_PER_CLASS } from '@/lib/config/limits'
+
+export { MAX_ACTIVE_GLOBAL_MEETS, MAX_ACTIVE_MEETS_PER_CLASS }
 
 export type MeetLink = MeetLinkRow
 
@@ -123,6 +127,16 @@ export async function createMeetLink(actor: Profile, input: CreateMeetLinkInput)
     throw new PermissionError('Not allowed to post a meet link to this class')
   }
   if (input.class_id) await assertClassActive(input.class_id)
+  const isGlobal = !input.class_id
+  const maxAllowed = isGlobal ? MAX_ACTIVE_GLOBAL_MEETS : MAX_ACTIVE_MEETS_PER_CLASS
+  const activeCount = await countActiveMeetLinksForClass(input.class_id ?? null)
+  if (activeCount >= maxAllowed) {
+    throw new ValidationError(
+      isGlobal
+        ? `The academy already has ${MAX_ACTIVE_GLOBAL_MEETS} active academy-wide meeting links. Please archive or deactivate older meetings before creating new ones.`
+        : `This class already has ${MAX_ACTIVE_MEETS_PER_CLASS} active meeting links. Please archive or remove an unused meeting link before adding more.`,
+    )
+  }
   const created = await insertMeetLink({
     class_id: input.class_id,
     title: input.title,

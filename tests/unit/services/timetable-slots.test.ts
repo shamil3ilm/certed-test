@@ -7,6 +7,7 @@ vi.mock('@/lib/data/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/services/users', () => ({ getProfileById: vi.fn() }))
 vi.mock('@/lib/data/class-membership', () => ({ isActiveClassTutor: vi.fn() }))
 vi.mock('@/lib/security/rate-limit', () => ({ rateLimit: vi.fn() }))
+vi.mock('@/lib/services/timetable-notify', () => ({ notifyClassOfSlotChange: vi.fn() }))
 
 import { canWriteCalendar } from '@/lib/permission'
 import { createClient } from '@/lib/supabase/server'
@@ -111,7 +112,9 @@ describe('createSlot', () => {
 
   it('creates and audits timetable.create', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     const created = await createSlot(tutor, {
       class_id: 'class-1',
       subject: 'Maths',
@@ -126,6 +129,20 @@ describe('createSlot', () => {
       entity_type: 'timetable_slot',
       entity_id: 'slot-1',
     })
+  })
+
+  it('rejects creating a slot when the class reaches MAX_SLOTS_PER_CLASS', async () => {
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null, count: 15 }) as any)
+    await expect(
+      createSlot(tutor, {
+        class_id: 'class-1',
+        subject: 'Maths',
+        day_of_week: 1,
+        start_time: '09:00',
+        end_time: '10:00',
+      } as any),
+    ).rejects.toThrow(ValidationError)
   })
 })
 
@@ -256,7 +273,9 @@ describe('timetable slot API-input helpers', () => {
 
   it('delegates create/update/deactivate API input through the service boundary', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: slotRow, error: null }) as any)
     const created = await createSlotFromApiInput(tutor, {
       class_id: '550e8400-e29b-41d4-a716-446655440000',
       subject: 'Maths',

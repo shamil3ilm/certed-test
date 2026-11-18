@@ -3,6 +3,7 @@ import {
   callAssignClassTutor,
   callUnassignClassTutor,
   selectActiveTeachingProfileIds,
+  selectActiveTutorRefsByClassIds,
 } from '@/lib/data/class-membership'
 import { selectClassStatus } from '@/lib/data/classes'
 import { selectActiveProfileIdsByPersona } from '@/lib/data/personas'
@@ -12,6 +13,9 @@ import { auditPrivilegedAction } from '@/lib/services/service-helpers'
 import { notifyBestEffort, notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { NotFoundError, ValidationError } from '@/lib/errors'
 import { z } from 'zod'
+import { MAX_ACTIVE_TUTORS_PER_CLASS } from '@/lib/config/limits'
+
+export { MAX_ACTIVE_TUTORS_PER_CLASS }
 
 type ClassTutorParams = { classId: string; tutorId: string }
 type ClassTutorActionInput = { class_id?: FormDataEntryValue | null; tutor_id?: FormDataEntryValue | null }
@@ -64,6 +68,12 @@ export async function addTutor(actor: Profile, params: ClassTutorParams): Promis
   // Don't assign teaching staff to an archived class (soft-deleted state).
   if ((await selectClassStatus(params.classId)) !== 'active') {
     throw new ValidationError('That class is archived - restore it before assigning tutors.')
+  }
+  const activeTutors = await selectActiveTutorRefsByClassIds([params.classId])
+  if (!activeTutors.some((t) => t.tutor_id === params.tutorId) && activeTutors.length >= MAX_ACTIVE_TUTORS_PER_CLASS) {
+    throw new ValidationError(
+      `This class already has the maximum of ${MAX_ACTIVE_TUTORS_PER_CLASS} active tutors. Please unassign an existing tutor before adding another.`,
+    )
   }
   // The membership and - for a dedicated mentor who also teaches - the global tutor persona
   // the teaching workflows need are one transaction (0109). It re-checks both parties, and

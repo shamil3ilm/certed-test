@@ -201,7 +201,9 @@ export async function notifyMentorsOfStudentBestEffort(
   }
 }
 
-export const NOTIFICATIONS_PAGE_SIZE = 30
+import { NOTIFICATIONS_PAGE_SIZE } from '@/lib/config/limits'
+
+export { NOTIFICATIONS_PAGE_SIZE }
 
 export async function listMyNotifications(
   profileId: string,

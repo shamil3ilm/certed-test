@@ -4,6 +4,7 @@ import { makeClient, queryBuilder } from '../../stubs/supabase-query-builder'
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 
 import { createClient } from '@/lib/supabase/server'
+import { countPendingForUser } from '@/lib/data/reminders'
 import {
   createReminderFromActionInput,
   editReminderFromActionInput,
@@ -37,6 +38,20 @@ describe('listMyPastReminders', () => {
     expect(builder.eq).toHaveBeenCalledWith('is_sent', true)
     expect(builder.order).toHaveBeenCalledWith('remind_at', { ascending: false })
     expect(builder.limit).toHaveBeenCalledWith(5)
+  })
+})
+
+describe('countPendingForUser', () => {
+  it('counts only unsent and upcoming reminders, excluding past expired reminders', async () => {
+    const client = { from: vi.fn(() => queryBuilder({ data: [], error: null, count: 3 })) }
+    vi.mocked(createClient).mockResolvedValueOnce(client as any)
+    const fixedNow = '2026-07-20T12:00:00.000Z'
+    const count = await countPendingForUser('user-1', fixedNow)
+    expect(count).toBe(3)
+    const builder = client.from.mock.results[0].value
+    expect(builder.eq).toHaveBeenCalledWith('user_id', 'user-1')
+    expect(builder.eq).toHaveBeenCalledWith('is_sent', false)
+    expect(builder.gte).toHaveBeenCalledWith('remind_at', fixedNow)
   })
 })
 
@@ -112,7 +127,11 @@ describe('createReminderFromActionInput', () => {
       is_sent: false,
       created_at: '2026-07-16T00:00:00.000Z',
     }
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: reminderRow, error: null }) as any)
+    const countClient = makeClient({ data: [], error: null, count: 0 })
+    const insertClient = makeClient({ data: reminderRow, error: null })
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(countClient as any)
+      .mockResolvedValueOnce(insertClient as any)
     const created = await createReminderFromActionInput('user-1', {
       title: ' Revision ',
       description: ' Bring notebook ',
@@ -120,6 +139,17 @@ describe('createReminderFromActionInput', () => {
     })
     expect(created.title).toBe('Revision')
     expect(created.description).toBe('Bring notebook')
+  })
+
+  it('rejects creating a reminder when the user already has the maximum active reminders', async () => {
+    const countClient = makeClient({ data: [], error: null, count: 10 })
+    vi.mocked(createClient).mockResolvedValueOnce(countClient as any)
+    await expect(
+      createReminderFromActionInput('user-1', {
+        title: 'Too many',
+        remind_at: '2026-07-20T10:00:00.000Z',
+      }),
+    ).rejects.toThrow(/maximum of 10 active reminders/)
   })
 })
 

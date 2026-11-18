@@ -12,6 +12,7 @@ import { assertCanComment } from '@/lib/services/comment-auth'
 import { notifyCommentThread } from '@/lib/services/comment-notify'
 import { addCommentSchema } from '@/lib/validation/comment'
 import { rateLimit } from '@/lib/security/rate-limit'
+import { RATE_LIMIT_COMMENT_CREATE_PER_MINUTE } from '@/lib/config/limits'
 import type { Profile } from '@/lib/auth/profile'
 
 export type { CommentEntity } from '@/lib/data/comments'
@@ -89,7 +90,12 @@ async function createComment(
 
 export async function createCommentFromActionInput(author: Profile, input: CreateCommentActionInput): Promise<Comment> {
   // Throttle per author so a comment thread can't be flooded (students can post here).
-  if (!rateLimit(`comment-create:${author.id}`, { limit: 20, windowMs: 60_000 }).ok) {
+  if (
+    !rateLimit(`comment-create:${author.id}`, {
+      limit: RATE_LIMIT_COMMENT_CREATE_PER_MINUTE,
+      windowMs: 60_000,
+    }).ok
+  ) {
     throw new RateLimitError('You are commenting too quickly. Please wait a moment.')
   }
   const parsed = validateCreateCommentInput(input)

@@ -1,5 +1,6 @@
 import type { Profile } from '@/lib/auth/profile'
 import {
+  countEventsForScopeDate,
   deleteEventRow,
   insertEvent,
   selectEventById,
@@ -23,6 +24,9 @@ import { notifyClassRoleBestEffort } from '@/lib/services/notifications'
 import { PermissionError, NotFoundError, ValidationError } from '@/lib/errors'
 import { throttleWrite } from '@/lib/security/throttle'
 import { z } from 'zod'
+import { MAX_EVENTS_PER_SCOPE_DAY } from '@/lib/config/limits'
+
+export { MAX_EVENTS_PER_SCOPE_DAY }
 
 export type { CalendarEventKind }
 export type CalendarEvent = CalendarEventRow
@@ -132,6 +136,15 @@ export async function createEvent(actor: Profile, input: CreateEventInput): Prom
   }
   if (input.slot_id) await assertSlotInClass(input.slot_id, input.class_id ?? null)
   if (input.class_id) await assertClassActive(input.class_id)
+
+  const dayCount = await countEventsForScopeDate({
+    eventDate: input.event_date,
+    classId: input.class_id ?? null,
+  })
+  if (dayCount >= MAX_EVENTS_PER_SCOPE_DAY) {
+    throw new ValidationError(`A maximum of ${MAX_EVENTS_PER_SCOPE_DAY} events can be scheduled on a single date.`)
+  }
+
   const created = await insertEvent({
     title: input.title,
     description: input.description ?? null,

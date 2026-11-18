@@ -24,6 +24,7 @@ export async function createReminderAction(formData: FormData): Promise<ActionSt
       remind_at: formData.get('remind_at'),
     })
     revalidatePath('/dashboard')
+    revalidatePath('/calendar')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -40,6 +41,7 @@ export async function editReminderAction(formData: FormData): Promise<ActionStat
       remind_at: formData.get('remind_at'),
     })
     revalidatePath('/dashboard')
+    revalidatePath('/calendar')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -53,6 +55,7 @@ export async function deleteReminderAction(formData: FormData): Promise<ActionSt
   try {
     await deleteReminder(me.id, id)
     revalidatePath('/dashboard')
+    revalidatePath('/calendar')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -66,6 +69,7 @@ export async function markReminderSentAction(formData: FormData): Promise<Action
   try {
     await markReminderSent(me.id, id)
     revalidatePath('/dashboard')
+    revalidatePath('/calendar')
     return actionDone()
   } catch (error) {
     return toActionError(error)
@@ -86,6 +90,7 @@ export async function assignReminderAction(formData: FormData): Promise<ActionSt
       remind_at: formData.get('remind_at'),
     })
     revalidatePath('/dashboard')
+    revalidatePath('/calendar')
     return actionDone()
   } catch (error) {
     return toActionError(error)

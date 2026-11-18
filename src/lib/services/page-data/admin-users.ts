@@ -46,7 +46,9 @@ export async function creatableRolesFor(
   }
 }
 
-export const USERS_PAGE_SIZE = 20
+import { DEFAULT_PAGE_SIZE } from '@/lib/config/limits'
+
+export const USERS_PAGE_SIZE = DEFAULT_PAGE_SIZE
 export const STATUS_OPTIONS = ['active', 'pending', 'disabled'] as const
 type UsersStatus = (typeof STATUS_OPTIONS)[number]
 type UsersSortBy = 'name' | 'email' | 'created_at'

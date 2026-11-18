@@ -83,18 +83,25 @@ export async function PendingAttendanceWidget({ me, data }: { me: Profile; data?
       ) : pending.length === 0 ? (
         <p className="text-sm text-slate-600">All marked for today.</p>
       ) : (
-        <ul className="space-y-2 text-sm">
-          {pending.map((slot) => (
-            <li key={slot.id}>
-              <Link href={`/classroom/${slot.class_id}/attendance`} className={WIDGET_ROW_LINK}>
-                <span className="min-w-0 truncate font-medium">{slot.subject}</span>
-                <span className={WIDGET_ROW_META}>
-                  {slot.startIso ? <LocalTime iso={slot.startIso} mode="time" /> : hhmm(slot.start_time)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2 text-sm">
+            {pending.slice(0, 5).map((slot) => (
+              <li key={slot.id}>
+                <Link href={`/classroom/${slot.class_id}/attendance`} className={WIDGET_ROW_LINK}>
+                  <span className="min-w-0 truncate font-medium">{slot.subject}</span>
+                  <span className={WIDGET_ROW_META}>
+                    {slot.startIso ? <LocalTime iso={slot.startIso} mode="time" /> : hhmm(slot.start_time)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {pending.length > 5 && (
+            <Link href="/classroom" className={WIDGET_CTA_LINK}>
+              View all ({pending.length}) &rarr;
+            </Link>
+          )}
+        </>
       )}
     </Panel>
   )
@@ -147,7 +154,7 @@ export async function SubmissionsToReviewWidget({
   const ungraded = assignments.length
     ? await listUngradedSubmissions(assignments.map((assignment) => assignment.id))
     : []
-  const top = ungraded.slice(0, 3)
+  const top = ungraded.slice(0, 5)
   const names = await getProfileNamesByIds(top.map((submission) => submission.student_id))
   const titleById = new Map(assignments.map((assignment) => [assignment.id, assignment.title]))
   // Grading is a per-class tab now, so when all the pending work sits in ONE class

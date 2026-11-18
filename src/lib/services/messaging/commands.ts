@@ -18,13 +18,19 @@ import {
 } from '@/lib/data/messages'
 import { assertParticipant, assertStillMessageable, directKeyFor } from './policies'
 
+import {
+  MAX_CONVERSATION_RECIPIENTS,
+  RATE_LIMIT_MESSAGE_CONVERSATION_PER_MINUTE,
+  RATE_LIMIT_MESSAGE_SEND_PER_MINUTE,
+} from '@/lib/config/limits'
+
 /** Mutating messaging workflows. Reads live in ./queries, access rules in ./policies. */
 
 export type CreateConversationInput = { recipientIds: string[]; title?: string | null }
 
 /** Cap on recipients in a single new conversation (excludes the actor). Keeps a
  *  crafted request from seeding an unbounded participant fan-out. */
-const MAX_RECIPIENTS = 25
+const MAX_RECIPIENTS = MAX_CONVERSATION_RECIPIENTS
 
 /**
  * Create a conversation after checking EVERY recipient is messageable by the actor.
@@ -38,7 +44,12 @@ export async function createConversation(actor: Profile, input: CreateConversati
     throw new ValidationError(`A conversation can include at most ${MAX_RECIPIENTS} other people.`)
   }
 
-  if (!rateLimit(`msg-conv:${actor.id}`, { limit: 15, windowMs: 60_000 }).ok) {
+  if (
+    !rateLimit(`msg-conv:${actor.id}`, {
+      limit: RATE_LIMIT_MESSAGE_CONVERSATION_PER_MINUTE,
+      windowMs: 60_000,
+    }).ok
+  ) {
     throw new RateLimitError('You are starting conversations too quickly. Please wait a moment.')
   }
 
@@ -72,7 +83,12 @@ export async function sendMessage(actor: Profile, conversationId: string, body: 
   if (!text) throw new ValidationError('Message cannot be empty.')
   if (text.length > 5000) throw new ValidationError('Message is too long.')
   // Throttle before touching the DB so a burst is shed cheaply.
-  if (!rateLimit(`msg-send:${actor.id}`, { limit: 30, windowMs: 60_000 }).ok) {
+  if (
+    !rateLimit(`msg-send:${actor.id}`, {
+      limit: RATE_LIMIT_MESSAGE_SEND_PER_MINUTE,
+      windowMs: 60_000,
+    }).ok
+  ) {
     throw new RateLimitError('You are sending messages too quickly. Please wait a moment.')
   }
   await assertParticipant(actor, conversationId)

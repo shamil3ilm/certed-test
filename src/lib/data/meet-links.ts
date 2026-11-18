@@ -102,6 +102,20 @@ export async function selectMeetLinkById(id: string): Promise<MeetLinkRow | null
   return (data as MeetLinkRow) ?? null
 }
 
+/** Total number of active meeting links for a class (or academy-wide if classId is null). */
+export async function countActiveMeetLinksForClass(classId: string | null): Promise<number> {
+  const supabase = await createClient()
+  let query = supabase.from('meet_links').select('id', { count: 'exact', head: true }).eq('active', true)
+  if (classId === null) {
+    query = query.is('class_id', null)
+  } else {
+    query = query.eq('class_id', classId)
+  }
+  const { count, error } = await query
+  if (error) throw new Error(`meetLinks.countActive: ${error.message}`)
+  return count ?? 0
+}
+
 export async function insertMeetLink(row: MeetLinkInsert): Promise<MeetLinkRow> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('meet_links').insert(row).select('*').single()

@@ -65,7 +65,9 @@ describe('createEvent', () => {
 
   it('creates and audits event.create', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     const created = await createEvent(tutor, {
       title: 'Class',
       event_date: '2026-07-20',
@@ -79,6 +81,19 @@ describe('createEvent', () => {
       entity_type: 'calendar_event',
       entity_id: 'evt-1',
     })
+  })
+
+  it('rejects creating an event when the scope reaches MAX_EVENTS_PER_SCOPE_DAY on that date', async () => {
+    vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
+    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: null, error: null, count: 10 }) as any)
+    await expect(
+      createEvent(tutor, {
+        title: 'Class',
+        event_date: '2026-07-20',
+        class_id: 'class-1',
+        kind: 'event',
+      } as any),
+    ).rejects.toThrow(ValidationError)
   })
 
   it('rejects a slot_id that belongs to a different class (no cross-class suppression)', async () => {
@@ -103,6 +118,7 @@ describe('createEvent', () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
     vi.mocked(createClient)
       .mockResolvedValueOnce(makeClient({ data: { id: 'slot-1', class_id: 'class-1' }, error: null }) as any) // selectSlotById
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any) // countEventsForScopeDate
       .mockResolvedValueOnce(
         makeClient({ data: { ...eventRow, slot_id: 'slot-1', kind: 'cancellation' }, error: null }) as any,
       ) // insertEvent
@@ -122,9 +138,11 @@ describe('who hears about a calendar change', () => {
 
   it('tells the class - students, tutors and mentors, not the author - about a cancellation', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({ data: { ...eventRow, kind: 'cancellation', title: 'Maths' }, error: null }) as any,
-    )
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(
+        makeClient({ data: { ...eventRow, kind: 'cancellation', title: 'Maths' }, error: null }) as any,
+      )
     await createEvent(tutor, {
       title: 'Maths',
       event_date: '2026-07-20',
@@ -141,9 +159,9 @@ describe('who hears about a calendar change', () => {
 
   it('tells the class about a plain event or a holiday too', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({ data: { ...eventRow, kind: 'holiday', title: 'Onam' }, error: null }) as any,
-    )
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: { ...eventRow, kind: 'holiday', title: 'Onam' }, error: null }) as any)
     await createEvent(tutor, { title: 'Onam', event_date: '2026-07-20', class_id: 'class-1', kind: 'holiday' } as any)
     expect(notifyClassRoleBestEffort).toHaveBeenCalledWith(
       'class-1',
@@ -155,9 +173,9 @@ describe('who hears about a calendar change', () => {
 
   it('does not fan an academy-wide event out to every account', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(
-      makeClient({ data: { ...eventRow, class_id: null }, error: null }) as any,
-    )
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: { ...eventRow, class_id: null }, error: null }) as any)
     await createEvent(tutor, { title: 'Class', event_date: '2026-07-20', kind: 'event' } as any)
     expect(notifyClassRoleBestEffort).not.toHaveBeenCalled()
   })
@@ -334,7 +352,9 @@ describe('calendar event API-input helpers', () => {
 
   it('delegates create/update/delete API input through the service boundary', async () => {
     vi.mocked(canWriteCalendar).mockResolvedValueOnce(true)
-    vi.mocked(createClient).mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
+    vi.mocked(createClient)
+      .mockResolvedValueOnce(makeClient({ data: null, error: null, count: 0 }) as any)
+      .mockResolvedValueOnce(makeClient({ data: eventRow, error: null }) as any)
     const created = await createEventFromApiInput(tutor, {
       title: 'Class',
       event_date: '2026-07-20',

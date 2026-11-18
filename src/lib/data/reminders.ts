@@ -49,6 +49,19 @@ export async function selectPendingForUser(userId: string): Promise<ReminderRow[
   return (data ?? []) as ReminderRow[]
 }
 
+/** Total number of pending (is_sent = false) and upcoming (remind_at >= now) reminders for a user (HEAD count, 0 row data transferred). Past/expired reminders are excluded. */
+export async function countPendingForUser(userId: string, nowIso = new Date().toISOString()): Promise<number> {
+  const supabase = await createClient()
+  const { count, error } = await supabase
+    .from('reminders')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_sent', false)
+    .gte('remind_at', nowIso)
+  if (error) throw new Error(`reminders.countPending: ${error.message}`)
+  return count ?? 0
+}
+
 /** Reminders the user has marked done, most recently due first. */
 export async function selectSentForUser(userId: string, limit: number): Promise<ReminderRow[]> {
   const supabase = await createClient()
