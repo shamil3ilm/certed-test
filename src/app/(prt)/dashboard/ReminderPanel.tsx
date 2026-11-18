@@ -12,12 +12,12 @@ import { assertActionOk } from '../action-client'
 import { useUI } from '../Providers'
 import { createReminderAction, deleteReminderAction, editReminderAction, markReminderSentAction } from './actions'
 import { PastReminderList, ReminderEditor, ReminderItems } from './reminder-panel-parts'
-import { WIDGET_CTA_LINK } from './widget-shared'
 import { DASHBOARD_ENTITY_PREVIEW_LIMIT, MAX_ACTIVE_REMINDERS_PER_USER } from '@/lib/config/limits'
 
 const NOW_REFRESH_MS = 60_000
 const MAX_ACTIVE_REMINDERS = MAX_ACTIVE_REMINDERS_PER_USER
 const DASHBOARD_VISIBLE_LIMIT = DASHBOARD_ENTITY_PREVIEW_LIMIT
+const WIDGET_CTA_LINK = 'btn btn-sm btn-soft mt-3 min-h-10 px-3 py-2 text-sm font-semibold'
 
 export function ReminderPanel({
   initialReminders,
