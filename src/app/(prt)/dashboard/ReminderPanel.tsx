@@ -229,7 +229,7 @@ function ReminderPanelBody({
           className={cx(
             'min-h-10 rounded-lg border px-3 py-2 text-sm font-medium transition',
             atLimit && !open && !editing
-              ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+              ? 'border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed'
               : 'border-slate-200 text-slate-600 hover:border-primary hover:bg-primary/5 hover:text-primary',
           )}
         >
